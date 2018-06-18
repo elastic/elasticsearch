@@ -51,7 +51,7 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
                 String id = (String) a[0];
                 boolean found = (Boolean)a[1];
                 StoredScriptSource scriptSource = (StoredScriptSource)a[2];
-                return found ? new GetStoredScriptResponse(id, scriptSource) : new GetStoredScriptResponse(id);
+                return found ? new GetStoredScriptResponse(id, scriptSource) : new GetStoredScriptResponse();
             });
 
     static {
@@ -69,12 +69,8 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
     GetStoredScriptResponse() {
     }
 
-    GetStoredScriptResponse(String id) {
-        this.id = id;
-    }
-
     GetStoredScriptResponse(String id, StoredScriptSource source) {
-        this(id);
+        this.id = id;
         this.source = source;
     }
 
@@ -98,10 +94,10 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder.field(_ID_PARSE_FIELD, id);
-        builder.field(FOUND_PARSE_FIELD, source != null);
+        builder.field(_ID_PARSE_FIELD.getPreferredName(), id);
+        builder.field(FOUND_PARSE_FIELD.getPreferredName(), source != null);
         if (source != null) {
-            builder.field(StoredScriptSource.SCRIPT_PARSE_FIELD);
+            builder.field(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName());
             source.toXContent(builder, params);
         }
 
@@ -128,7 +124,7 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
         }
 
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            id = in.readString();
+            id = in.readOptionalString();
         }
     }
 
@@ -148,7 +144,7 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
             }
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeString(id);
+            out.writeOptionalString(id);
         }
     }
 

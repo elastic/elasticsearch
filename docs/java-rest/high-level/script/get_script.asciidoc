@@ -13,6 +13,16 @@ include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-
 --------------------------------------------------
 <1> The id of the script
 
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
 [[java-rest-high-get-stored-script-sync]]
 ==== Synchronous Execution
 ["source","java",subs="attributes,callouts,macros"]
@@ -61,4 +71,7 @@ executed operation as follows:
 --------------------------------------------------
 include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[get-stored-script-response]
 --------------------------------------------------
-<1> The content of the script
+<1> The script object consists of a content and a metadata
+<2> The language the script is written in, which defaults to `painless`.
+<3> The content of the script
+<4> Any named options that should be passed into the script.

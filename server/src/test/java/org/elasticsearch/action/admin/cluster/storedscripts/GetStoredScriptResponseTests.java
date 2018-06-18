@@ -42,7 +42,7 @@ public class GetStoredScriptResponseTests extends AbstractStreamableXContentTest
 
     @Override
     protected GetStoredScriptResponse createTestInstance() {
-        return new GetStoredScriptResponse(randomAlphaOfLengthBetween(1, 10), scriptSource());
+        return new GetStoredScriptResponse(randomAlphaOfLengthBetween(1, 10), randomScriptSource());
     }
 
     @Override
@@ -50,7 +50,7 @@ public class GetStoredScriptResponseTests extends AbstractStreamableXContentTest
         return s -> "script.options".equals(s);
     }
 
-    private StoredScriptSource scriptSource() {
+    private static StoredScriptSource randomScriptSource() {
         final String lang = randomFrom("lang", "painless", "mustache");
         final String source = randomAlphaOfLengthBetween(1, 10);
         final Map<String, String> options = randomBoolean()

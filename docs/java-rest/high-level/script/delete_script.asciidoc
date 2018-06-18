@@ -13,6 +13,23 @@ include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[delete-stored-scri
 --------------------------------------------------
 <1> The id of the script
 
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[delete-stored-script-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the stored script is deleted as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the stored script is deleted as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[delete-stored-script-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
 [[java-rest-high-delete-stored-script-sync]]
 ==== Synchronous Execution
 ["source","java",subs="attributes,callouts,macros"]

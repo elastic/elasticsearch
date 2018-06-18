@@ -61,9 +61,10 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
         assertEquals("{\"acknowledged\":true}", EntityUtils.toString(putResponse.getEntity()));
 
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest("calculate-score");
+        getRequest.masterNodeTimeout("50s");
 
-        GetStoredScriptResponse getResponse = execute(getRequest, highLevelClient()::getStoredScript,
-            highLevelClient()::getStoredScriptAsync);
+        GetStoredScriptResponse getResponse = execute(getRequest, highLevelClient()::getScript,
+            highLevelClient()::getScriptAsync);
 
         assertThat(getResponse.getSource(), equalTo(scriptSource));
     }
@@ -86,17 +87,19 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
         assertEquals("{\"acknowledged\":true}", EntityUtils.toString(putResponse.getEntity()));
 
         DeleteStoredScriptRequest deleteRequest = new DeleteStoredScriptRequest(id);
+        deleteRequest.masterNodeTimeout("50s");
+        deleteRequest.timeout("50s");
 
-        DeleteStoredScriptResponse deleteResponse = execute(deleteRequest, highLevelClient()::deleteStoredScript,
-            highLevelClient()::deleteStoredScriptAsync);
+        DeleteStoredScriptResponse deleteResponse = execute(deleteRequest, highLevelClient()::deleteScript,
+            highLevelClient()::deleteScriptAsync);
 
         assertThat(deleteResponse.isAcknowledged(), equalTo(true));
 
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest(id);
 
         final ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
-            () -> execute(getRequest, highLevelClient()::getStoredScript,
-                highLevelClient()::getStoredScriptAsync));
+            () -> execute(getRequest, highLevelClient()::getScript,
+                highLevelClient()::getScriptAsync));
         assertThat(statusException.status(), equalTo(RestStatus.NOT_FOUND));
     }
 }

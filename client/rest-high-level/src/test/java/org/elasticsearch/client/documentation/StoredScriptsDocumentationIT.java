@@ -31,6 +31,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
@@ -38,6 +39,7 @@ import org.elasticsearch.script.StoredScriptSource;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -80,15 +82,24 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
             GetStoredScriptRequest request = new GetStoredScriptRequest("calculate-score"); // <1>
             // end::get-stored-script-request
 
+            // tag::get-stored-script-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(50)); // <1>
+            request.masterNodeTimeout("50s"); // <2>
+            // end::get-stored-script-request-masterTimeout
+
             // tag::get-stored-script-execute
-            final GetStoredScriptResponse getResponse = client.getStoredScript(request, RequestOptions.DEFAULT);
+            GetStoredScriptResponse getResponse = client.getScript(request, RequestOptions.DEFAULT);
             // end::get-stored-script-execute
 
             // tag::get-stored-script-response
-            final StoredScriptSource source = getResponse.getSource(); // <1>
+            StoredScriptSource storedScriptSource = getResponse.getSource(); // <1>
+
+            String lang = storedScriptSource.getLang(); // <2>
+            String source = storedScriptSource.getSource(); // <3>
+            Map<String, String> options = storedScriptSource.getOptions(); // <4>
             // end::get-stored-script-response
 
-            assertThat(source, equalTo(scriptSource));
+            assertThat(storedScriptSource, equalTo(scriptSource));
 
             // tag::get-stored-script-execute-listener
             ActionListener<GetStoredScriptResponse> listener =
@@ -110,7 +121,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::get-stored-script-execute-async
-            client.getStoredScriptAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.getScriptAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::get-stored-script-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -132,12 +143,22 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
         DeleteStoredScriptRequest deleteRequest = new DeleteStoredScriptRequest("calculate-score"); // <1>
         // end::delete-stored-script-request
 
+        // tag::delete-stored-script-request-masterTimeout
+        deleteRequest.masterNodeTimeout(TimeValue.timeValueSeconds(50)); // <1>
+        deleteRequest.masterNodeTimeout("50s"); // <2>
+        // end::delete-stored-script-request-masterTimeout
+
+        // tag::delete-stored-script-request-timeout
+        deleteRequest.timeout(TimeValue.timeValueSeconds(60)); // <1>
+        deleteRequest.timeout("60s"); // <2>
+        // end::delete-stored-script-request-timeout
+
         // tag::delete-stored-script-execute
-        final DeleteStoredScriptResponse deleteResponse = client.deleteStoredScript(deleteRequest, RequestOptions.DEFAULT);
+        DeleteStoredScriptResponse deleteResponse = client.deleteScript(deleteRequest, RequestOptions.DEFAULT);
         // end::delete-stored-script-execute
 
         // tag::delete-stored-script-response
-        assertThat(deleteResponse.isAcknowledged(), equalTo(true)); // <1>
+        boolean acknowledged = deleteResponse.isAcknowledged();// <1>
         // end::delete-stored-script-response
 
         putStoredScript("calculate-score", scriptSource);
@@ -162,7 +183,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::delete-stored-script-execute-async
-        client.deleteStoredScriptAsync(deleteRequest, RequestOptions.DEFAULT, listener); // <1>
+        client.deleteScriptAsync(deleteRequest, RequestOptions.DEFAULT, listener); // <1>
         // end::delete-stored-script-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));

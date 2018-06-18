@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.ParseField;
-
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.Flushable;
@@ -278,10 +276,6 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    public XContentBuilder field(ParseField field) throws IOException {
-        return field(field.getPreferredName());
-    }
-
     public XContentBuilder field(String name) throws IOException {
         ensureNameNotNull(name);
         generator.writeFieldName(name);
@@ -302,16 +296,9 @@ public final class XContentBuilder implements Closeable, Flushable {
     ////////////////////////////////////////////////////////////////////////////
     // Boolean
     //////////////////////////////////
-    public XContentBuilder field(ParseField field, Boolean value) throws IOException {
-        return field(field.getPreferredName(), value);
-    }
 
     public XContentBuilder field(String name, Boolean value) throws IOException {
         return (value == null) ? nullField(name) : field(name, value.booleanValue());
-    }
-
-    public XContentBuilder field(ParseField field, boolean value) throws IOException {
-        return field(field.getPreferredName(), value);
     }
 
     public XContentBuilder field(String name, boolean value) throws IOException {
@@ -562,10 +549,6 @@ public final class XContentBuilder implements Closeable, Flushable {
     ////////////////////////////////////////////////////////////////////////////
     // String
     //////////////////////////////////
-
-    public XContentBuilder field(ParseField field, String value) throws IOException {
-        return field(field.getPreferredName(), value);
-    }
 
     public XContentBuilder field(String name, String value) throws IOException {
         if (value == null) {

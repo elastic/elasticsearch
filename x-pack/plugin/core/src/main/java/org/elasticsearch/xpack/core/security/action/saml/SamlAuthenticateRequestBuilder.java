@@ -14,7 +14,7 @@ import org.elasticsearch.client.ElasticsearchClient;
  * Request builder used to populate a {@link SamlAuthenticateRequest}
  */
 public final class SamlAuthenticateRequestBuilder
-        extends ActionRequestBuilder<SamlAuthenticateRequest, SamlAuthenticateResponse, SamlAuthenticateRequestBuilder> {
+        extends ActionRequestBuilder<SamlAuthenticateRequest, SamlAuthenticateResponse> {
 
     public SamlAuthenticateRequestBuilder(ElasticsearchClient client) {
         super(client, SamlAuthenticateAction.INSTANCE, new SamlAuthenticateRequest());

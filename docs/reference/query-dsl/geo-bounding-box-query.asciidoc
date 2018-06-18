@@ -231,6 +231,38 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
+
+When geohashes are used to specify the bounding the edges of the
+bounding box, the geohashes are treated as rectangles. The bounding
+box is defined in such a way that its top left corresponds to the top
+left corner of the geohash specified in the `top_left` parameter and
+its bottom right is defined as the bottom right of the geohash
+specified in the `bottom_right` parameter.
+
+In order to specify a bounding box that would match entire area of a
+geohash the geohash can be specified in both `top_left` and
+`bottom_right` parameters:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "geo_bounding_box" : {
+            "pin.location" : {
+                "top_left" : "dr",
+                "bottom_right" : "dr"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+In this example, the geohash `dr` will produce the bounding box
+query with the top left corner at `45.0,-78.75` and the bottom right
+corner at `39.375,-67.5`.
+
 [float]
 ==== Vertices
 

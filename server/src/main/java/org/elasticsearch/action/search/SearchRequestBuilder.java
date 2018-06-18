@@ -44,7 +44,7 @@ import java.util.List;
 /**
  * A search action request builder.
  */
-public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, SearchRequestBuilder> {
+public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {
 
     public SearchRequestBuilder(ElasticsearchClient client, SearchAction action) {
         super(client, action, new SearchRequest());
@@ -290,9 +290,19 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      *
      * @param name The field to get from the docvalue
      */
-    public SearchRequestBuilder addDocValueField(String name) {
-        sourceBuilder().docValueField(name);
+    public SearchRequestBuilder addDocValueField(String name, String format) {
+        sourceBuilder().docValueField(name, format);
         return this;
+    }
+
+    /**
+     * Adds a docvalue based field to load and return. The field does not have to be stored,
+     * but its recommended to use non analyzed or numeric fields.
+     *
+     * @param name The field to get from the docvalue
+     */
+    public SearchRequestBuilder addDocValueField(String name) {
+        return addDocValueField(name, null);
     }
 
     /**
@@ -490,7 +500,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         request.requestCache(requestCache);
         return this;
     }
-    
+
 
     /**
      * Sets if this request should allow partial results.  (If method is not called,
@@ -499,7 +509,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     public SearchRequestBuilder setAllowPartialSearchResults(boolean allowPartialSearchResults) {
         request.allowPartialSearchResults(allowPartialSearchResults);
         return this;
-    }    
+    }
 
     /**
      * Should the query be profiled. Defaults to <code>false</code>
@@ -539,9 +549,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
-     * reduce the number of shard requests fired per high level search request. Searches that hit the entire cluster can be throttled
-     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most {@code 256}.
+     * Sets the number of shard requests that should be executed concurrently on a single node. This value should be used as a
+     * protection mechanism to reduce the number of shard requests fired per high level search request. Searches that hit the entire
+     * cluster can be throttled with this number to reduce the cluster load. The default is {@code 5}.
      */
     public SearchRequestBuilder setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
         this.request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);

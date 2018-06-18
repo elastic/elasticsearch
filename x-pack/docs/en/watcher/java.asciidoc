@@ -101,20 +101,29 @@ XPackClient xpackClient = new XPackClient(client);
 WatcherClient watcherClient = xpackClient.watcher();
 --------------------------------------------------
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/put-watch.asciidoc
 include::java/put-watch.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/get-watch.asciidoc
 include::java/get-watch.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/delete-watch.asciidoc
 include::java/delete-watch.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/execute-watch.asciidoc
 include::java/execute-watch.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/ack-watch.asciidoc
 include::java/ack-watch.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/activate-watch.asciidoc
 include::java/activate-watch.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/deactivate-watch.asciidoc
 include::java/deactivate-watch.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/stats.asciidoc
 include::java/stats.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java/service.asciidoc
 include::java/service.asciidoc[]

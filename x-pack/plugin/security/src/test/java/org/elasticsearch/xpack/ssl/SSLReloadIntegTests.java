@@ -5,30 +5,17 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x509.Extension;
-import org.bouncycastle.asn1.x509.Time;
-import org.bouncycastle.cert.X509CertificateHolder;
-import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
-import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
-import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
-import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.network.InetAddressHelper;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.core.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSocket;
@@ -42,11 +29,9 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.security.KeyPair;
 import java.security.KeyStore;
-import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
-import java.util.Locale;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.containsString;
@@ -61,6 +46,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
+        //Node starts with testnode.jks
         if (nodeStorePath == null) {
             Path origPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
             Path tempDir = createTempDir();
@@ -94,18 +80,12 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
     }
 
     public void testThatSSLConfigurationReloadsOnModification() throws Exception {
-        KeyPair keyPair = CertUtils.generateKeyPair(randomFrom(1024, 2048));
-        X509Certificate certificate = getCertificate(keyPair);
-        KeyStore keyStore = KeyStore.getInstance("jks");
-        keyStore.load(null, null);
-        keyStore.setKeyEntry("key", keyPair.getPrivate(), SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(),
-                new Certificate[] { certificate });
-        Path keystorePath = createTempDir().resolve("newcert.jks");
-        try (OutputStream out = Files.newOutputStream(keystorePath)) {
-            keyStore.store(out, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray());
-        }
+        Path keystorePath = createTempDir().resolve("testnode_updated.jks");
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.jks"), keystorePath);
+        X509Certificate certificate = CertParsingUtils.readX509Certificates(Collections.singletonList(getDataPath
+                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt")))[0];
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", SecuritySettingsSourceField.TEST_PASSWORD);
+        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
@@ -125,7 +105,6 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
         } catch (SSLHandshakeException | SocketException expected) {
             logger.trace("expected exception", expected);
         }
-
         KeyStore nodeStore = KeyStore.getInstance("jks");
         try (InputStream in = Files.newInputStream(nodeStorePath)) {
             nodeStore.load(in, "testnode".toCharArray());
@@ -140,7 +119,6 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
         } catch (AtomicMoveNotSupportedException e) {
             Files.move(path, nodeStorePath, StandardCopyOption.REPLACE_EXISTING);
         }
-
         CountDownLatch latch = new CountDownLatch(1);
         assertBusy(() -> {
             try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
@@ -161,24 +139,5 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             }
         });
         latch.await();
-    }
-
-    private X509Certificate getCertificate(KeyPair keyPair) throws Exception {
-        final DateTime notBefore = new DateTime(DateTimeZone.UTC);
-        final DateTime notAfter = notBefore.plusYears(1);
-        X500Name subject = new X500Name("CN=random cert");
-        JcaX509v3CertificateBuilder builder =
-                new JcaX509v3CertificateBuilder(subject, CertUtils.getSerial(),
-                        new Time(notBefore.toDate(), Locale.ROOT), new Time(notAfter.toDate(), Locale.ROOT), subject, keyPair.getPublic());
-
-        JcaX509ExtensionUtils extUtils = new JcaX509ExtensionUtils();
-        builder.addExtension(Extension.subjectKeyIdentifier, false, extUtils.createSubjectKeyIdentifier(keyPair.getPublic()));
-        builder.addExtension(Extension.authorityKeyIdentifier, false, extUtils.createAuthorityKeyIdentifier(keyPair.getPublic()));
-        builder.addExtension(Extension.subjectAlternativeName, false,
-                CertUtils.getSubjectAlternativeNames(true, Sets.newHashSet(InetAddressHelper.getAllAddresses())));
-
-        ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA").build(keyPair.getPrivate());
-        X509CertificateHolder certificateHolder = builder.build(signer);
-        return new JcaX509CertificateConverter().getCertificate(certificateHolder);
     }
 }

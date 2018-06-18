@@ -491,19 +491,19 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     right = parser.doubleValue();
                 } else {
                     if (TOP_LEFT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        GeoUtils.parseGeoPoint(parser, sparse);
+                        GeoUtils.parseGeoPoint(parser, sparse, false, GeoUtils.EffectivePoint.TOP_LEFT);
                         top = sparse.getLat();
                         left = sparse.getLon();
                     } else if (BOTTOM_RIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        GeoUtils.parseGeoPoint(parser, sparse);
+                        GeoUtils.parseGeoPoint(parser, sparse, false, GeoUtils.EffectivePoint.BOTTOM_RIGHT);
                         bottom = sparse.getLat();
                         right = sparse.getLon();
                     } else if (TOP_RIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        GeoUtils.parseGeoPoint(parser, sparse);
+                        GeoUtils.parseGeoPoint(parser, sparse, false, GeoUtils.EffectivePoint.TOP_RIGHT);
                         top = sparse.getLat();
                         right = sparse.getLon();
                     } else if (BOTTOM_LEFT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        GeoUtils.parseGeoPoint(parser, sparse);
+                        GeoUtils.parseGeoPoint(parser, sparse, false, GeoUtils.EffectivePoint.BOTTOM_LEFT);
                         bottom = sparse.getLat();
                         left = sparse.getLon();
                     } else {
@@ -515,7 +515,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
         if (envelope != null) {
-            if ((Double.isNaN(top) || Double.isNaN(bottom) || Double.isNaN(left) || Double.isNaN(right)) == false) {
+            if (Double.isNaN(top) == false || Double.isNaN(bottom) == false || Double.isNaN(left) == false ||
+                Double.isNaN(right) == false) {
                 throw new ElasticsearchParseException("failed to parse bounding box. Conflicting definition found "
                     + "using well-known text and explicit corners.");
             }

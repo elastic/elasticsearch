@@ -104,7 +104,7 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
 
     private final class HttpSslChannelHandler extends HttpChannelHandler {
         HttpSslChannelHandler() {
-            super(SecurityNetty4HttpServerTransport.this, httpHandlingSettings, threadPool.getThreadContext());
+            super(SecurityNetty4HttpServerTransport.this, handlingSettings);
         }
 
         @Override

@@ -70,6 +70,8 @@ public interface ClusterPlugin {
      * Returns a map of {@link ClusterState.Custom} supplier that should be invoked to initialize the initial clusterstate.
      * This allows custom clusterstate extensions to be always present and prevents invariants where clusterstates are published
      * but customs are not initialized.
+     *
+     * TODO: Remove this whole concept of InitialClusterStateCustomSupplier, it's not used anymore
      */
     default Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() { return Collections.emptyMap(); }
 }

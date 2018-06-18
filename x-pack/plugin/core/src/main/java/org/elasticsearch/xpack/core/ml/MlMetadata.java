@@ -9,6 +9,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -26,13 +27,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.groups.GroupOrJobLookup;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -52,7 +54,7 @@ import java.util.TreeMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class MlMetadata implements MetaData.Custom {
+public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
     private static final ParseField JOBS_FIELD = new ParseField("jobs");
     private static final ParseField DATAFEEDS_FIELD = new ParseField("datafeeds");
@@ -400,9 +402,9 @@ public class MlMetadata implements MetaData.Custom {
             if (allowDeleteOpenJob == false) {
                 PersistentTask<?> jobTask = getJobTask(jobId, tasks);
                 if (jobTask != null) {
-                    JobTaskStatus jobTaskStatus = (JobTaskStatus) jobTask.getStatus();
+                    JobTaskState jobTaskState = (JobTaskState) jobTask.getState();
                     throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because the job is "
-                            + ((jobTaskStatus == null) ? JobState.OPENING : jobTaskStatus.getState()));
+                            + ((jobTaskState == null) ? JobState.OPENING : jobTaskState.getState()));
                 }
             }
             Job.Builder jobBuilder = new Job.Builder(job);
@@ -446,7 +448,7 @@ public class MlMetadata implements MetaData.Custom {
     public static JobState getJobState(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
         PersistentTask<?> task = getJobTask(jobId, tasks);
         if (task != null) {
-            JobTaskStatus jobTaskState = (JobTaskStatus) task.getStatus();
+            JobTaskState jobTaskState = (JobTaskState) task.getState();
             if (jobTaskState == null) {
                 return JobState.OPENING;
             }
@@ -458,13 +460,21 @@ public class MlMetadata implements MetaData.Custom {
 
     public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetaData tasks) {
         PersistentTask<?> task = getDatafeedTask(datafeedId, tasks);
-        if (task != null && task.getStatus() != null) {
-            return (DatafeedState) task.getStatus();
+        if (task != null && task.getState() != null) {
+            return (DatafeedState) task.getState();
         } else {
             // If we haven't started a datafeed then there will be no persistent task,
             // which is the same as if the datafeed was't started
             return DatafeedState.STOPPED;
         }
+    }
+
+    public static MlMetadata getMlMetadata(ClusterState state) {
+        MlMetadata mlMetadata = (state == null) ? null : state.getMetaData().custom(MLMetadataField.TYPE);
+        if (mlMetadata == null) {
+            return EMPTY_METADATA;
+        }
+        return mlMetadata;
     }
 
     public static class JobAlreadyMarkedAsDeletedException extends RuntimeException {

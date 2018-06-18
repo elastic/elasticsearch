@@ -20,11 +20,9 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
@@ -70,10 +68,8 @@ public class RestResizeHandlerTests extends ESTestCase {
             assertThat(e, hasToString(containsString("parameter [copy_settings] can not be explicitly set to [false]")));
         } else {
             handler.prepareRequest(request, mock(NodeClient.class));
-            if (copySettings == null) {
-                assertWarnings(
-                        "resize operations without copying settings is deprecated; "
-                                + "set parameter [copy_settings] to [true] for future default behavior");
+            if ("".equals(copySettings) || "true".equals(copySettings)) {
+                assertWarnings("parameter [copy_settings] is deprecated and will be removed in 8.0.0");
             }
         }
     }

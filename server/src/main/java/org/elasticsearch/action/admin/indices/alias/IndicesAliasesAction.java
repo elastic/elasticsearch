@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class IndicesAliasesAction extends Action<IndicesAliasesRequest, IndicesAliasesResponse, IndicesAliasesRequestBuilder> {
+public class IndicesAliasesAction extends Action<IndicesAliasesRequest, IndicesAliasesResponse> {
 
     public static final IndicesAliasesAction INSTANCE = new IndicesAliasesAction();
     public static final String NAME = "indices:admin/aliases";
@@ -34,10 +33,5 @@ public class IndicesAliasesAction extends Action<IndicesAliasesRequest, IndicesA
     @Override
     public IndicesAliasesResponse newResponse() {
         return new IndicesAliasesResponse();
-    }
-
-    @Override
-    public IndicesAliasesRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new IndicesAliasesRequestBuilder(client, this);
     }
 }

@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -28,6 +25,8 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.KeywordEsField;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.search.sort.SortBuilders.scoreSort;
 
@@ -42,22 +41,22 @@ public class SourceGeneratorTests extends ESTestCase {
     public void testQueryNoFilter() {
         QueryContainer container = new QueryContainer().with(new MatchQuery(Location.EMPTY, "foo", "bar"));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
-        assertEquals(new MatchQueryBuilder("foo", "bar").operator(Operator.OR), sourceBuilder.query());
+        assertEquals(matchQuery("foo", "bar").operator(Operator.OR), sourceBuilder.query());
     }
 
     public void testNoQueryFilter() {
         QueryContainer container = new QueryContainer();
-        QueryBuilder filter = new MatchQueryBuilder("bar", "baz");
+        QueryBuilder filter = matchQuery("bar", "baz");
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, filter, randomIntBetween(1, 10));
-        assertEquals(new ConstantScoreQueryBuilder(new MatchQueryBuilder("bar", "baz")), sourceBuilder.query());
+        assertEquals(boolQuery().filter(matchQuery("bar", "baz")), sourceBuilder.query());
     }
 
     public void testQueryFilter() {
         QueryContainer container = new QueryContainer().with(new MatchQuery(Location.EMPTY, "foo", "bar"));
-        QueryBuilder filter = new MatchQueryBuilder("bar", "baz");
+        QueryBuilder filter = matchQuery("bar", "baz");
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, filter, randomIntBetween(1, 10));
-        assertEquals(new BoolQueryBuilder().must(new MatchQueryBuilder("foo", "bar").operator(Operator.OR))
-                .filter(new MatchQueryBuilder("bar", "baz")), sourceBuilder.query());
+        assertEquals(boolQuery().must(matchQuery("foo", "bar").operator(Operator.OR)).filter(matchQuery("bar", "baz")),
+                sourceBuilder.query());
     }
 
     public void testLimit() {

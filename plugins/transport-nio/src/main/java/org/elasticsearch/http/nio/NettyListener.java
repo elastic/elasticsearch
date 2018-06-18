@@ -23,7 +23,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.util.concurrent.ExecutionException;
@@ -36,20 +36,20 @@ import java.util.function.BiConsumer;
  * complete that promise when accept is called. It delegates the normal promise methods to the underlying
  * promise.
  */
-public class NettyListener implements BiConsumer<Void, Throwable>, ChannelPromise {
+public class NettyListener implements BiConsumer<Void, Exception>, ChannelPromise {
 
     private final ChannelPromise promise;
 
-    NettyListener(ChannelPromise promise) {
+    private NettyListener(ChannelPromise promise) {
         this.promise = promise;
     }
 
     @Override
-    public void accept(Void v, Throwable throwable) {
-        if (throwable == null) {
+    public void accept(Void v, Exception exception) {
+        if (exception == null) {
             promise.setSuccess();
         } else {
-            promise.setFailure(throwable);
+            promise.setFailure(exception);
         }
     }
 
@@ -210,5 +210,36 @@ public class NettyListener implements BiConsumer<Void, Throwable>, ChannelPromis
     @Override
     public ChannelPromise unvoid() {
         return promise.unvoid();
+    }
+
+    public static NettyListener fromBiConsumer(BiConsumer<Void, Exception> biConsumer, Channel channel) {
+        if (biConsumer instanceof NettyListener) {
+            return (NettyListener) biConsumer;
+        } else {
+            ChannelPromise channelPromise = channel.newPromise();
+            channelPromise.addListener(f -> {
+                Throwable cause = f.cause();
+                if (cause == null) {
+                    biConsumer.accept(null, null);
+                } else {
+                    if (cause instanceof Error) {
+                        ExceptionsHelper.dieOnError(cause);
+                        biConsumer.accept(null, new Exception(cause));
+                    } else {
+                        biConsumer.accept(null, (Exception) cause);
+                    }
+                }
+            });
+
+            return new NettyListener(channelPromise);
+        }
+    }
+
+    public static NettyListener fromChannelPromise(ChannelPromise channelPromise) {
+        if (channelPromise instanceof NettyListener) {
+            return (NettyListener) channelPromise;
+        } else {
+            return new NettyListener(channelPromise);
+        }
     }
 }

@@ -26,6 +26,7 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
@@ -309,8 +310,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         parser.nextToken();
         parser.nextToken();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> FieldSortBuilder.fromXContent(parser, ""));
-        assertEquals("[field_sort] unknown field [reverse], parser not found", e.getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> FieldSortBuilder.fromXContent(parser, ""));
+        assertEquals("[1:18] [field_sort] unknown field [reverse], parser not found", e.getMessage());
     }
 
     @Override
@@ -383,7 +384,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             }
         };
         sortBuilder.setNestedPath("path").setNestedFilter(rangeQuery);
-        FieldSortBuilder rewritten = (FieldSortBuilder) sortBuilder
+        FieldSortBuilder rewritten = sortBuilder
                 .rewrite(createMockShardContext());
         assertNotSame(rangeQuery, rewritten.getNestedFilter());
     }
@@ -400,7 +401,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             }
         };
         sortBuilder.setNestedSort(new NestedSortBuilder("path").setFilter(rangeQuery));
-        FieldSortBuilder rewritten = (FieldSortBuilder) sortBuilder
+        FieldSortBuilder rewritten = sortBuilder
                 .rewrite(createMockShardContext());
         assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
     }

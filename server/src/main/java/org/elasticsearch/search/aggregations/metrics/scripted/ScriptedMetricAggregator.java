@@ -69,6 +69,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
                 assert bucket == 0 : bucket;
                 leafMapScript.setDocument(doc);
                 leafMapScript.run();
+                CollectionUtils.ensureNoSelfReferences(params, "Scripted metric aggs map script");
             }
         };
     }
@@ -78,7 +79,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         Object aggregation;
         if (combineScript != null) {
             aggregation = combineScript.run();
-            CollectionUtils.ensureNoSelfReferences(aggregation);
+            CollectionUtils.ensureNoSelfReferences(aggregation, "Scripted metric aggs combine script");
         } else {
             aggregation = params.get("_agg");
         }

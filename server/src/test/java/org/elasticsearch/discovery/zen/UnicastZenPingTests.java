@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -94,6 +95,7 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -137,7 +139,6 @@ public class UnicastZenPingTests extends ESTestCase {
 
     private static final UnicastHostsProvider EMPTY_HOSTS_PROVIDER = Collections::emptyList;
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/28685")
     public void testSimplePings() throws IOException, InterruptedException, ExecutionException {
         // use ephemeral ports
         final Settings settings = Settings.builder().put("cluster.name", "test").put(TcpTransport.PORT.getKey(), 0).build();
@@ -233,9 +234,9 @@ public class UnicastZenPingTests extends ESTestCase {
         ZenPing.PingResponse ping = pingResponses.iterator().next();
         assertThat(ping.node().getId(), equalTo("UZP_B"));
         assertThat(ping.getClusterStateVersion(), equalTo(state.version()));
-        assertPingCount(handleA, handleB, 3);
-        assertPingCount(handleA, handleC, 0); // mismatch, shouldn't ping
-        assertPingCount(handleA, handleD, 0); // mismatch, shouldn't ping
+        assertPings(handleA, handleB);
+        assertNoPings(handleA, handleC); // mismatch, shouldn't ping
+        assertNoPings(handleA, handleD); // mismatch, shouldn't ping
 
         // ping again, this time from B,
         logger.info("ping from UZP_B");
@@ -244,23 +245,23 @@ public class UnicastZenPingTests extends ESTestCase {
         ping = pingResponses.iterator().next();
         assertThat(ping.node().getId(), equalTo("UZP_A"));
         assertThat(ping.getClusterStateVersion(), equalTo(ElectMasterService.MasterCandidate.UNRECOVERED_CLUSTER_VERSION));
-        assertPingCount(handleB, handleA, 3);
-        assertPingCount(handleB, handleC, 0); // mismatch, shouldn't ping
-        assertPingCount(handleB, handleD, 0); // mismatch, shouldn't ping
+        assertPings(handleB, handleA);
+        assertNoPings(handleB, handleC); // mismatch, shouldn't ping
+        assertNoPings(handleB, handleD); // mismatch, shouldn't ping
 
         logger.info("ping from UZP_C");
         pingResponses = zenPingC.pingAndWait().toList();
         assertThat(pingResponses.size(), equalTo(1));
-        assertPingCount(handleC, handleA, 0);
-        assertPingCount(handleC, handleB, 0);
-        assertPingCount(handleC, handleD, 3);
+        assertNoPings(handleC, handleA);
+        assertNoPings(handleC, handleB);
+        assertPings(handleC, handleD);
 
         logger.info("ping from UZP_D");
         pingResponses = zenPingD.pingAndWait().toList();
         assertThat(pingResponses.size(), equalTo(1));
-        assertPingCount(handleD, handleA, 0);
-        assertPingCount(handleD, handleB, 0);
-        assertPingCount(handleD, handleC, 3);
+        assertNoPings(handleD, handleA);
+        assertNoPings(handleD, handleB);
+        assertPings(handleD, handleC);
 
         zenPingC.close();
         handleD.counters.clear();
@@ -268,9 +269,9 @@ public class UnicastZenPingTests extends ESTestCase {
         pingResponses = zenPingD.pingAndWait().toList();
         // check that node does not respond to pings anymore after the ping service has been closed
         assertThat(pingResponses.size(), equalTo(0));
-        assertPingCount(handleD, handleA, 0);
-        assertPingCount(handleD, handleB, 0);
-        assertPingCount(handleD, handleC, 3);
+        assertNoPings(handleD, handleA);
+        assertNoPings(handleD, handleB);
+        assertPings(handleD, handleC);
     }
 
     public void testUnknownHostNotCached() throws ExecutionException, InterruptedException {
@@ -353,8 +354,8 @@ public class UnicastZenPingTests extends ESTestCase {
             ZenPing.PingResponse ping = pingResponses.iterator().next();
             assertThat(ping.node().getId(), equalTo("UZP_C"));
             assertThat(ping.getClusterStateVersion(), equalTo(state.version()));
-            assertPingCount(handleA, handleB, 0);
-            assertPingCount(handleA, handleC, 3);
+            assertNoPings(handleA, handleB);
+            assertPings(handleA, handleC);
             assertNull(handleA.counters.get(handleB.address));
         }
 
@@ -377,8 +378,8 @@ public class UnicastZenPingTests extends ESTestCase {
             assertThat(secondPingResponses.size(), equalTo(2));
             final Set<String> ids = new HashSet<>(secondPingResponses.stream().map(p -> p.node().getId()).collect(Collectors.toList()));
             assertThat(ids, equalTo(new HashSet<>(Arrays.asList("UZP_B", "UZP_C"))));
-            assertPingCount(handleA, handleB, 3);
-            assertPingCount(handleA, handleC, 3);
+            assertPings(handleA, handleB);
+            assertPings(handleA, handleC);
         }
     }
 
@@ -745,13 +746,30 @@ public class UnicastZenPingTests extends ESTestCase {
         verify(logger).warn(eq("failed to resolve host [127.0.0.1:9300:9300]"), Matchers.any(ExecutionException.class));
     }
 
-    private void assertPingCount(final NetworkHandle fromNode, final NetworkHandle toNode, int expectedCount) {
+    private void assertNoPings(final NetworkHandle fromNode, final NetworkHandle toNode) {
         final AtomicInteger counter = fromNode.counters.getOrDefault(toNode.address, new AtomicInteger());
         final String onNodeName = fromNode.node.getName();
         assertNotNull("handle for [" + onNodeName + "] has no 'expected' counter", counter);
         final String forNodeName = toNode.node.getName();
         assertThat("node [" + onNodeName + "] ping count to [" + forNodeName + "] is unexpected",
-            counter.get(), equalTo(expectedCount));
+            counter.get(), equalTo(0));
+    }
+
+    private void assertPings(final NetworkHandle fromNode, final NetworkHandle toNode) {
+        final AtomicInteger counter = fromNode.counters.getOrDefault(toNode.address, new AtomicInteger());
+        final String onNodeName = fromNode.node.getName();
+        assertNotNull("handle for [" + onNodeName + "] has no 'expected' counter", counter);
+        final String forNodeName = toNode.node.getName();
+        if (Constants.WINDOWS) {
+            // Some of the ping attempts seem to sporadically fail on Windows (see https://github.com/elastic/elasticsearch/issues/28685)
+            // Anyhow, the point of the test is not to assert the exact number of pings, but to check if pinging has taken place or not
+            assertThat("node [" + onNodeName + "] ping count to [" + forNodeName + "] is unexpected",
+                counter.get(), greaterThan(0));
+        } else {
+            assertThat("node [" + onNodeName + "] ping count to [" + forNodeName + "] is unexpected",
+                counter.get(), equalTo(3));
+        }
+
     }
 
     private NetworkHandle startServices(

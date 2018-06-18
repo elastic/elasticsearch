@@ -610,6 +610,20 @@ public class GeoUtilsTests extends ESTestCase {
         }
     }
 
+    public void testParseGeoPointGeohashPositions() throws IOException {
+        assertNormalizedPoint(parseGeohash("drt5", GeoUtils.EffectivePoint.TOP_LEFT), new GeoPoint(42.890625, -71.71875));
+        assertNormalizedPoint(parseGeohash("drt5", GeoUtils.EffectivePoint.TOP_RIGHT), new GeoPoint(42.890625, -71.3671875));
+        assertNormalizedPoint(parseGeohash("drt5", GeoUtils.EffectivePoint.BOTTOM_LEFT), new GeoPoint(42.71484375, -71.71875));
+        assertNormalizedPoint(parseGeohash("drt5", GeoUtils.EffectivePoint.BOTTOM_RIGHT), new GeoPoint(42.71484375, -71.3671875));
+        assertNormalizedPoint(parseGeohash("drtk", GeoUtils.EffectivePoint.BOTTOM_LEFT), new GeoPoint(42.890625, -71.3671875));
+    }
+
+    private GeoPoint parseGeohash(String geohash, GeoUtils.EffectivePoint effectivePoint) throws IOException {
+        XContentParser parser = createParser(jsonBuilder().startObject().field("geohash", geohash).endObject());
+        parser.nextToken();
+        return GeoUtils.parseGeoPoint(parser, new GeoPoint(), randomBoolean(), effectivePoint);
+    }
+
     private static void assertNormalizedPoint(GeoPoint input, GeoPoint expected) {
         GeoUtils.normalizePoint(input);
         if (Double.isNaN(expected.lat())) {

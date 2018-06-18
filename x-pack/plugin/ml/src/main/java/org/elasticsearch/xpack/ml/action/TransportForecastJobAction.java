@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -35,6 +38,8 @@ import static org.elasticsearch.xpack.core.ml.action.ForecastJobAction.Request.D
 
 public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJobAction.Request,
         ForecastJobAction.Response> {
+
+    private static final ByteSizeValue FORECAST_LOCAL_STORAGE_LIMIT = new ByteSizeValue(500, ByteSizeUnit.MB);
 
     private final JobProvider jobProvider;
     @Inject
@@ -71,6 +76,13 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
 
         if (request.getExpiresIn() != null) {
             paramsBuilder.expiresIn(request.getExpiresIn());
+        }
+
+        // tmp storage might be null, we do not log here, because it might not be
+        // required
+        Path tmpStorage = processManager.tryGetTmpStorage(task, FORECAST_LOCAL_STORAGE_LIMIT);
+        if (tmpStorage != null) {
+            paramsBuilder.tmpStorage(tmpStorage.toString());
         }
 
         ForecastParams params = paramsBuilder.build();

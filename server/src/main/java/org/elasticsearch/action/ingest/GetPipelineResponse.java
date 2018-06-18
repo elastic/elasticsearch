@@ -20,16 +20,24 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class GetPipelineResponse extends ActionResponse implements StatusToXContentObject {
 
@@ -42,8 +50,13 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         this.pipelines = pipelines;
     }
 
+    /**
+     * Get the list of pipelines that were a part of this response.
+     * The pipeline id can be obtained using getId on the PipelineConfiguration object.
+     * @return A list of {@link PipelineConfiguration} objects.
+     */
     public List<PipelineConfiguration> pipelines() {
-        return pipelines;
+        return Collections.unmodifiableList(pipelines);
     }
 
     @Override
@@ -83,4 +96,66 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         builder.endObject();
         return builder;
     }
+
+    /**
+     *
+     * @param parser the parser for the XContent that contains the serialized GetPipelineResponse.
+     * @return an instance of GetPipelineResponse read from the parser
+     * @throws IOException If the parsing fails
+     */
+    public static GetPipelineResponse fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        List<PipelineConfiguration> pipelines = new ArrayList<>();
+        while(parser.nextToken().equals(Token.FIELD_NAME)) {
+            String pipelineId = parser.currentName();
+            parser.nextToken();
+            XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
+            contentBuilder.generator().copyCurrentStructure(parser);
+            PipelineConfiguration pipeline =
+                new PipelineConfiguration(
+                    pipelineId, BytesReference.bytes(contentBuilder), contentBuilder.contentType()
+                );
+            pipelines.add(pipeline);
+        }
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        return new GetPipelineResponse(pipelines);
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (other == null) {
+            return false;
+        } else if (other instanceof GetPipelineResponse){
+            GetPipelineResponse otherResponse = (GetPipelineResponse)other;
+            if (pipelines == null) {
+                return otherResponse.pipelines == null;
+            } else {
+                // We need a map here because order does not matter for equality
+                Map<String, PipelineConfiguration> otherPipelineMap = new HashMap<>();
+                for (PipelineConfiguration pipeline: otherResponse.pipelines) {
+                    otherPipelineMap.put(pipeline.getId(), pipeline);
+                }
+                for (PipelineConfiguration pipeline: pipelines) {
+                    PipelineConfiguration otherPipeline = otherPipelineMap.get(pipeline.getId());
+                    if (!pipeline.equals(otherPipeline)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        } else {
+            return false;
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        int result = 1;
+        for (PipelineConfiguration pipeline: pipelines) {
+            // We only take the sum here to ensure that the order does not matter.
+            result += (pipeline == null ? 0 : pipeline.hashCode());
+        }
+        return result;
+    }
+
 }

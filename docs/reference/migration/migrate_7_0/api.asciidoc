@@ -65,3 +65,13 @@ deprecated in 6.3.0 and now removed in 7.0.0.
 In the past, `fields` could be provided either as a parameter, or as part of the request
 body. Specifying `fields` in the request body as opposed to a parameter was deprecated
 in 6.4.0, and is now unsupported in 7.0.0.
+
+==== `copy_settings` is deprecated on shrink and split APIs
+
+Versions of Elasticsearch prior to 6.4.0 did not copy index settings on shrink
+and split operations. Starting with Elasticsearch 7.0.0, the default behavior
+will be for such settings to be copied on such operations. To enable users in
+6.4.0 to transition in 6.4.0 to the default behavior in 7.0.0, the
+`copy_settings` parameter was added on the REST layer. As this behavior will be
+the only behavior in 8.0.0, this parameter is deprecated in 7.0.0 for removal in
+8.0.0.

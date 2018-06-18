@@ -165,6 +165,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
             is(ApplicableBasicAuth.headerValue(USERNAME, PASSWORD.toCharArray())));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30094")
     public void testWebhookAction() throws Exception {
         WatcherClient watcherClient = watcherClient();
         watcherClient.preparePutWatch("_id")

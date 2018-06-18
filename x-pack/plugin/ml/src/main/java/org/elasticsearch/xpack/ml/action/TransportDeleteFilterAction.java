@@ -24,7 +24,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -60,8 +59,7 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
 
         final String filterId = request.getFilterId();
         ClusterState state = clusterService.state();
-        MlMetadata currentMlMetadata = state.metaData().custom(MLMetadataField.TYPE);
-        Map<String, Job> jobs = currentMlMetadata.getJobs();
+        Map<String, Job> jobs = MlMetadata.getMlMetadata(state).getJobs();
         List<String> currentlyUsedBy = new ArrayList<>();
         for (Job job : jobs.values()) {
             List<Detector> detectors = job.getAnalysisConfig().getDetectors();

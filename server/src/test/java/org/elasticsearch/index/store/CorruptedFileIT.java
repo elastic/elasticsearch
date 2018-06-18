@@ -68,7 +68,6 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockIndexEventListener;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportRequest;
@@ -470,7 +469,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * TODO once checksum verification on snapshotting is implemented this test needs to be fixed or split into several
      * parts... We should also corrupt files on the actual snapshot and check that we don't restore the corrupted shard.
      */
-    @TestLogging("org.elasticsearch.repositories:TRACE,org.elasticsearch.snapshots:TRACE")
     public void testCorruptFileThenSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -518,10 +516,6 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 corruptedFile = file;
                 break;
             }
-        }
-        if (snapshotState != SnapshotState.PARTIAL) {
-            logger.info("--> listing shard files for investigation");
-            files.forEach(f -> logger.info("path: {}", f.toAbsolutePath()));
         }
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
         assertThat(corruptedFile, notNullValue());

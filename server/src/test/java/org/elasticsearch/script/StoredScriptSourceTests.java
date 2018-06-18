@@ -50,7 +50,9 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
             if (randomBoolean()) {
                 options.put(Script.CONTENT_TYPE_OPTION, xContentType.mediaType());
             }
-            return StoredScriptSource.parse(BytesReference.bytes(template), xContentType);
+            StoredScriptSource source = StoredScriptSource.parse(BytesReference.bytes(template), xContentType);
+            assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
+            return source;
         } catch (IOException e) {
             throw new AssertionError("Failed to create test instance", e);
         }

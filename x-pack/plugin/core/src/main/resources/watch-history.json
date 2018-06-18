@@ -2,7 +2,6 @@
   "index_patterns": [ ".watcher-history-${xpack.watcher.template.version}*" ],
   "order": 2147483647,
   "settings": {
-    "xpack.watcher.template.version": "${xpack.watcher.template.version}",
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
     "index.auto_expand_replicas": "0-1",
@@ -10,6 +9,9 @@
   },
   "mappings": {
     "doc": {
+      "_meta": {
+        "watcher-history-version": "${xpack.watcher.template.version}"
+      },
       "dynamic_templates": [
         {
           "disabled_payload_fields": {

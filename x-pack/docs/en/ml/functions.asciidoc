@@ -18,27 +18,6 @@ variations (for example, `count`, `low_count`, and `high_count`). These variatio
 apply one-sided tests, detecting anomalies only when the values are low or
 high, depending one which alternative is used.
 
-//For some functions, you can optionally specify a field name in the
-//`by_field_name` property. The analysis then considers whether there is an
-//anomaly for one of more specific values of that field. In {kib}, use the
-//**Key Fields** field in multi-metric jobs or the **by_field_name** field in
-//advanced jobs.
-////
-TODO: Per Sophie, "This is incorrect... Split Data refers to a partition_field_name. Over fields can only be added in Adv Config...
-
-Can you please remove the explanations for by/over/partition fields from the documentation for analytical functions. It's a complex topic and will be easier to review in a separate exercise."
-////
-
-//For some functions, you can also optionally specify a field name in the
-//`over_field_name` property. This property shifts the analysis to be population-
-//or peer-based and uses the field to split the data.  In {kib}, use the
-//**Split Data** field in multi-metric jobs or the **over_field_name** field in
-//advanced jobs.
-
-//You can specify a `partition_field_name` with any function. The analysis is then
-//segmented with completely independent baselines for each value of that field.
-//In {kib}, use the **partition_field_name** field in advanced jobs.
-
 You can specify a `summary_count_field_name` with any function except `metric`.
 When you use `summary_count_field_name`, the {ml} features expect the input
 data to be pre-aggregated. The value of the `summary_count_field_name` field
@@ -55,13 +34,6 @@ functions are strongly affected by empty buckets. For this reason, there are
 `non_null_sum` and `non_zero_count` functions, which are tolerant to sparse data.
 These functions effectively ignore empty buckets.
 
-////
-Some functions can benefit from overlapping buckets. This improves the overall
-accuracy of the results but at the cost of a 2 bucket delay in seeing the results.
-
-The table below provides a high-level summary of the analytical functions provided by the API. Each of the functions is described in detail over the following pages. Note the examples given in these pages use single Detector Configuration objects.
-////
-
 * <<ml-count-functions>>
 * <<ml-geo-functions>>
 * <<ml-info-functions>>
@@ -70,10 +42,23 @@ The table below provides a high-level summary of the analytical functions provid
 * <<ml-sum-functions>>
 * <<ml-time-functions>>
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions/count.asciidoc
 include::functions/count.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions/geo.asciidoc
 include::functions/geo.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions/info.asciidoc
 include::functions/info.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions/metric.asciidoc
 include::functions/metric.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions/rare.asciidoc
 include::functions/rare.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions/sum.asciidoc
 include::functions/sum.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions/time.asciidoc
 include::functions/time.asciidoc[]

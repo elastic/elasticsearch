@@ -70,7 +70,6 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
@@ -1114,7 +1113,7 @@ public class JobProvider {
                 result -> handler.accept(result.result), errorHandler, () -> null);
     }
 
-    public void updateCalendar(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove, MlMetadata mlMetadata,
+    public void updateCalendar(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove,
                                Consumer<Calendar> handler, Consumer<Exception> errorHandler) {
 
         ActionListener<Calendar> getCalendarListener = ActionListener.wrap(

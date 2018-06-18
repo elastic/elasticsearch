@@ -29,7 +29,7 @@ import org.elasticsearch.client.ElasticsearchClient;
  */
 public class RethrottleRequestBuilder extends TasksRequestBuilder<RethrottleRequest, ListTasksResponse, RethrottleRequestBuilder> {
     public RethrottleRequestBuilder(ElasticsearchClient client,
-            Action<RethrottleRequest, ListTasksResponse, RethrottleRequestBuilder> action) {
+            Action<RethrottleRequest, ListTasksResponse> action) {
         super(client, action, new RethrottleRequest());
     }
 

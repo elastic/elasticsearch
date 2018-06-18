@@ -20,10 +20,14 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
@@ -40,7 +44,6 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         request.type(type);
         return execute(request, highLevelClient().snapshot()::createRepository,
             highLevelClient().snapshot()::createRepositoryAsync);
-
     }
 
     public void testCreateRepository() throws IOException {
@@ -48,7 +51,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isAcknowledged());
     }
 
-    public void testModulesGetRepositoriesUsingParams() throws IOException {
+    public void testSnapshotGetRepositoriesUsingParams() throws IOException {
         String testRepository = "test";
         assertTrue(createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
         assertTrue(createTestRepository("other", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
@@ -60,7 +63,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(1, equalTo(response.repositories().size()));
     }
 
-    public void testModulesGetDefaultRepositories() throws IOException {
+    public void testSnapshotGetDefaultRepositories() throws IOException {
         assertTrue(createTestRepository("other", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
         assertTrue(createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
@@ -69,7 +72,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(2, equalTo(response.repositories().size()));
     }
 
-    public void testModulesGetRepositoriesNonExistent() throws IOException {
+    public void testSnapshotGetRepositoriesNonExistent() {
         String repository = "doesnotexist";
         GetRepositoriesRequest request = new GetRepositoriesRequest(new String[]{repository});
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(request,
@@ -78,5 +81,31 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(), equalTo(
             "Elasticsearch exception [type=repository_missing_exception, reason=[" + repository + "] missing]"));
+    }
+
+    public void testSnapshotDeleteRepository() throws IOException {
+        String repository = "test";
+        assertTrue(createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
+
+        GetRepositoriesRequest request = new GetRepositoriesRequest();
+        GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepositories,
+            highLevelClient().snapshot()::getRepositoriesAsync);
+        assertThat(1, equalTo(response.repositories().size()));
+
+        DeleteRepositoryRequest deleteRequest = new DeleteRepositoryRequest(repository);
+        DeleteRepositoryResponse deleteResponse = execute(deleteRequest, highLevelClient().snapshot()::deleteRepository,
+            highLevelClient().snapshot()::deleteRepositoryAsync);
+
+        assertTrue(deleteResponse.isAcknowledged());
+    }
+
+    public void testVerifyRepository() throws IOException {
+        PutRepositoryResponse putRepositoryResponse = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        VerifyRepositoryRequest request = new VerifyRepositoryRequest("test");
+        VerifyRepositoryResponse response = execute(request, highLevelClient().snapshot()::verifyRepository,
+            highLevelClient().snapshot()::verifyRepositoryAsync);
+        assertThat(response.getNodes().size(), equalTo(1));
     }
 }

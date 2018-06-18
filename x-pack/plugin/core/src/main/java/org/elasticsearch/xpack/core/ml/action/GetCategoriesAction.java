@@ -29,19 +29,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetCategoriesAction extends
-Action<GetCategoriesAction.Request, GetCategoriesAction.Response, GetCategoriesAction.RequestBuilder> {
+public class GetCategoriesAction extends Action<GetCategoriesAction.Request, GetCategoriesAction.Response> {
 
     public static final GetCategoriesAction INSTANCE = new GetCategoriesAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/categories/get";
 
     private GetCategoriesAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -163,7 +157,7 @@ Action<GetCategoriesAction.Request, GetCategoriesAction.Response, GetCategoriesA
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         public RequestBuilder(ElasticsearchClient client, GetCategoriesAction action) {
             super(client, action, new Request());

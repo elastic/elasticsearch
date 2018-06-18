@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,8 +39,9 @@ public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTest
     protected UpdateSettingsRequest mutateInstance(UpdateSettingsRequest request) {
         UpdateSettingsRequest mutation = copyRequest(request);
         List<Runnable> mutators = new ArrayList<>();
-        mutators.add(() -> mutation.masterNodeTimeout(randomTimeValue()));
-        mutators.add(() -> mutation.timeout(randomTimeValue()));
+        mutators.add(() -> mutation
+                .masterNodeTimeout(randomValueOtherThan(request.masterNodeTimeout().getStringRep(), ESTestCase::randomTimeValue)));
+        mutators.add(() -> mutation.timeout(randomValueOtherThan(request.masterNodeTimeout().getStringRep(), ESTestCase::randomTimeValue)));
         mutators.add(() -> mutation.settings(mutateSettings(request.settings())));
         mutators.add(() -> mutation.indices(mutateIndices(request.indices())));
         mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(request.indicesOptions(),
@@ -72,7 +74,7 @@ public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTest
 
     private static UpdateSettingsRequest copyRequest(UpdateSettingsRequest request) {
         UpdateSettingsRequest result = new UpdateSettingsRequest(request.settings(), request.indices());
-        result.masterNodeTimeout(request.timeout());
+        result.masterNodeTimeout(request.masterNodeTimeout());
         result.timeout(request.timeout());
         result.indicesOptions(request.indicesOptions());
         result.setPreserveExisting(request.isPreserveExisting());

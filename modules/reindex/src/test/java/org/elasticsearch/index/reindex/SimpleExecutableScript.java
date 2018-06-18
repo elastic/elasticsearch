@@ -21,11 +21,9 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.script.ExecutableScript;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 public class SimpleExecutableScript implements ExecutableScript {
     private final Consumer<Map<String, Object>> script;

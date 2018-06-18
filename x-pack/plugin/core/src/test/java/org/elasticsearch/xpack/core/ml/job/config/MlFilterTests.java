@@ -11,10 +11,9 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.TreeSet;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -40,7 +39,7 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
         }
 
         int size = randomInt(10);
-        List<String> items = new ArrayList<>(size);
+        TreeSet<String> items = new TreeSet<>();
         for (int i = 0; i < size; i++) {
             items.add(randomAlphaOfLengthBetween(1, 20));
         }
@@ -58,7 +57,7 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
     }
 
     public void testNullId() {
-        NullPointerException ex = expectThrows(NullPointerException.class, () -> new MlFilter(null, "", Collections.emptyList()));
+        NullPointerException ex = expectThrows(NullPointerException.class, () -> new MlFilter(null, "", new TreeSet<>()));
         assertEquals(MlFilter.ID.getPreferredName() + " must not be null", ex.getMessage());
     }
 
@@ -87,5 +86,15 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             MlFilter.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    public void testItemsAreSorted() {
+        MlFilter filter = MlFilter.builder("foo").setItems("c", "b", "a").build();
+        assertThat(filter.getItems(), contains("a", "b", "c"));
+    }
+
+    public void testGetItemsReturnsUnmodifiable() {
+        MlFilter filter = MlFilter.builder("foo").setItems("c", "b", "a").build();
+        expectThrows(UnsupportedOperationException.class, () -> filter.getItems().add("x"));
     }
 }

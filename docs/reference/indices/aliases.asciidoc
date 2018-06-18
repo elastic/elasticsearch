@@ -244,6 +244,94 @@ GET /alias2/_search?q=user:kimchy&routing=2,3
 // CONSOLE
 // TEST[continued]
 
+[float]
+[[aliases-write-index]]
+==== Write Index
+
+It is possible to associate the index pointed to by an alias as the write index.
+When specified, all index and update requests against an alias that point to multiple
+indices will attempt to resolve to the one index that is the write index.
+Only one index per alias can be assigned to be the write index at a time. If no write index is specified
+and there are multiple indices referenced by an alias, then writes will not be allowed.
+
+It is possible to specify an index associated with an alias as a write index using both the aliases API
+and index creation API.
+
+[source,js]
+--------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        {
+            "add" : {
+                 "index" : "test",
+                 "alias" : "alias1",
+                 "is_write_index" : true
+            }
+        }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test\n/]
+
+In this example, we associate the alias `alias1` to both `test` and `test2`, where
+`test` will be the index chosen for writing to.
+
+[source,js]
+--------------------------------------------------
+PUT /alias1/_doc/1
+{
+    "foo": "bar"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The new document that was indexed to `/alias1/_doc/1` will be indexed as if it were
+`/test/_doc/1`.
+
+[source,js]
+--------------------------------------------------
+GET /test/_doc/1
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+To swap which index is the write index for an alias, the Aliases API can be leveraged to
+do an atomic swap. The swap is not dependent on the ordering of the actions.
+
+[source,js]
+--------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        {
+            "add" : {
+                 "index" : "test",
+                 "alias" : "alias1",
+                 "is_write_index" : true
+            }
+        }, {
+            "add" : {
+                 "index" : "test2",
+                 "alias" : "alias1",
+                 "is_write_index" : false
+            }
+        }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test\nPUT test2\n/]
+
+[IMPORTANT]
+=====================================
+Aliases that do not explicitly set `is_write_index: true` for an index, and
+only reference one index, will have that referenced index behave as if it is the write index
+until an additional index is referenced. At that point, there will be no write index and
+writes will be rejected.
+=====================================
 
 [float]
 [[alias-adding]]

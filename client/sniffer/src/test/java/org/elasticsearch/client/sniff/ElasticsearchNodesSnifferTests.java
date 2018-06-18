@@ -200,9 +200,21 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
                 }
             }
 
+            int numAttributes = between(0, 5);
+            Map<String, List<String>> attributes = new HashMap<>(numAttributes);
+            for (int j = 0; j < numAttributes; j++) {
+                int numValues = frequently() ? 1 : between(2, 5);
+                List<String> values = new ArrayList<>();
+                for (int v = 0; v < numValues; v++) {
+                    values.add(j + "value" + v);
+                }
+                attributes.put("attr" + j, values);
+            }
+
             Node node = new Node(publishHost, boundHosts, randomAsciiAlphanumOfLength(5),
                     randomAsciiAlphanumOfLength(5),
-                    new Node.Roles(randomBoolean(), randomBoolean(), randomBoolean()));
+                    new Node.Roles(randomBoolean(), randomBoolean(), randomBoolean()),
+                    attributes);
 
             generator.writeObjectFieldStart(nodeId);
             if (getRandom().nextBoolean()) {
@@ -256,18 +268,17 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
             generator.writeFieldName("name");
             generator.writeString(node.getName());
 
-            int numAttributes = RandomNumbers.randomIntBetween(getRandom(), 0, 3);
-            Map<String, String> attributes = new HashMap<>(numAttributes);
-            for (int j = 0; j < numAttributes; j++) {
-                attributes.put("attr" + j, "value" + j);
-            }
             if (numAttributes > 0) {
                 generator.writeObjectFieldStart("attributes");
-            }
-            for (Map.Entry<String, String> entry : attributes.entrySet()) {
-                generator.writeStringField(entry.getKey(), entry.getValue());
-            }
-            if (numAttributes > 0) {
+                for (Map.Entry<String, List<String>> entry : attributes.entrySet()) {
+                    if (entry.getValue().size() == 1) {
+                        generator.writeStringField(entry.getKey(), entry.getValue().get(0));
+                    } else {
+                        for (int v = 0; v < entry.getValue().size(); v++) {
+                            generator.writeStringField(entry.getKey() + "." + v, entry.getValue().get(v));
+                        }
+                    }
+                }
                 generator.writeEndObject();
             }
             generator.writeEndObject();

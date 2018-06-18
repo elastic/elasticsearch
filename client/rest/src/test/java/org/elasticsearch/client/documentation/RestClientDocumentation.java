@@ -36,6 +36,7 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.HasAttributeNodeSelector;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
@@ -190,11 +191,20 @@ public class RestClientDocumentation {
             //tag::rest-client-options-set-singleton
             request.setOptions(COMMON_OPTIONS);
             //end::rest-client-options-set-singleton
-            //tag::rest-client-options-customize
-            RequestOptions.Builder options = COMMON_OPTIONS.toBuilder();
-            options.addHeader("cats", "knock things off of other things");
-            request.setOptions(options);
-            //end::rest-client-options-customize
+            {
+                //tag::rest-client-options-customize-header
+                RequestOptions.Builder options = COMMON_OPTIONS.toBuilder();
+                options.addHeader("cats", "knock things off of other things");
+                request.setOptions(options);
+                //end::rest-client-options-customize-header
+            }
+            {
+                //tag::rest-client-options-customize-attribute
+                RequestOptions.Builder options = COMMON_OPTIONS.toBuilder();
+                options.setNodeSelector(new HasAttributeNodeSelector("rack", "c12")); // <1>
+                request.setOptions(options);
+                //end::rest-client-options-customize-attribute
+            }
         }
         {
             HttpEntity[] documents = new HttpEntity[10];

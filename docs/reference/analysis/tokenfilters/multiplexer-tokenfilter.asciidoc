@@ -75,36 +75,36 @@ And it'd respond:
       "token": "Going",
       "start_offset": 0,
       "end_offset": 5,
-      "type": "<WORD>",
-      "position": 1
+      "type": "<ALPHANUM>",
+      "position": 0
     },
     {
       "token": "going",
       "start_offset": 0,
       "end_offset": 5,
-      "type": "<WORD>",
-      "position": 1
+      "type": "<ALPHANUM>",
+      "position": 0
     },
     {
       "token": "go",
       "start_offset": 0,
       "end_offset": 5,
-      "type": "<WORD>",
-      "position": 1
+      "type": "<ALPHANUM>",
+      "position": 0
     },
     {
       "token": "HOME",
       "start_offset": 6,
       "end_offset": 10,
-      "type": "<WORD>",
-      "position": 2
+      "type": "<ALPHANUM>",
+      "position": 1
     },
     {
       "token": "home",
       "start_offset": 6,
       "end_offset": 10,
-      "type": "<WORD>",
-      "position": 2
+      "type": "<ALPHANUM>",
+      "position": 1
     }
   ]
 }

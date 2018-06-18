@@ -31,11 +31,33 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 
 public class ResizeRequestTests extends ESTestCase {
+
+    public void testCopySettingsValidation() {
+        runTestCopySettingsValidation(false, r -> {
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, r::get);
+            assertThat(e, hasToString(containsString("[copySettings] can not be explicitly set to [false]")));
+        });
+
+        runTestCopySettingsValidation(null, r -> assertNull(r.get().getCopySettings()));
+        runTestCopySettingsValidation(true, r -> assertTrue(r.get().getCopySettings()));
+    }
+
+    private void runTestCopySettingsValidation(final Boolean copySettings, final Consumer<Supplier<ResizeRequest>> consumer) {
+        consumer.accept(() -> {
+            final ResizeRequest request = new ResizeRequest();
+            request.setCopySettings(copySettings);
+            return request;
+        });
+    }
 
     public void testToXContent() throws IOException {
         {
@@ -49,6 +71,7 @@ public class ResizeRequestTests extends ESTestCase {
             Alias alias = new Alias("test_alias");
             alias.routing("1");
             alias.filter("{\"term\":{\"year\":2016}}");
+            alias.writeIndex(true);
             target.alias(alias);
             Settings.Builder settings = Settings.builder();
             settings.put(SETTING_NUMBER_OF_SHARDS, 10);
@@ -56,7 +79,7 @@ public class ResizeRequestTests extends ESTestCase {
             request.setTargetIndex(target);
             String actualRequestBody = Strings.toString(request);
             String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}}," +
-                    "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\"}}}";
+                    "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
             assertEquals(expectedRequestBody, actualRequestBody);
         }
     }

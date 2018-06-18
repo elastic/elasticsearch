@@ -191,5 +191,27 @@ public class SuggestTests extends ESTestCase {
         }
     }
 
-
+    public void testMergingSuggestionOptions() {
+        String suggestedWord = randomAlphaOfLength(10);
+        String secondWord = randomAlphaOfLength(10);
+        Text suggestionText = new Text(suggestedWord + " " + secondWord);
+        Text highlighted = new Text("<em>" + suggestedWord + "</em> " + secondWord);
+        PhraseSuggestion.Entry.Option option1 = new Option(suggestionText, highlighted, 0.7f, false);
+        PhraseSuggestion.Entry.Option option2 = new Option(suggestionText, highlighted, 0.8f, true);
+        PhraseSuggestion.Entry.Option option3 = new Option(suggestionText, highlighted, 0.6f);
+        assertEquals(suggestionText, option1.getText());
+        assertEquals(highlighted, option1.getHighlighted());
+        assertFalse(option1.collateMatch());
+        assertTrue(option1.getScore() > 0.6f);
+        option1.mergeInto(option2);
+        assertEquals(suggestionText, option1.getText());
+        assertEquals(highlighted, option1.getHighlighted());
+        assertTrue(option1.collateMatch());
+        assertTrue(option1.getScore() > 0.7f);
+        option1.mergeInto(option3);
+        assertEquals(suggestionText, option1.getText());
+        assertEquals(highlighted, option1.getHighlighted());
+        assertTrue(option1.getScore() > 0.7f);
+        assertTrue(option1.collateMatch());
+    }
 }

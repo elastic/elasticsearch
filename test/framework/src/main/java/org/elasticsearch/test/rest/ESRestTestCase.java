@@ -491,6 +491,16 @@ public abstract class ESRestTestCase extends ESTestCase {
             new StringEntity(Strings.toString(settings), ContentType.APPLICATION_JSON)));
     }
 
+    protected static Map<String, Object> getIndexSettings(String index) throws IOException {
+        Map<String, String> params = new HashMap<>();
+        params.put("flat_settings", "true");
+        Response response = client().performRequest(HttpGet.METHOD_NAME, index + "/_settings", params);
+        assertOK(response);
+        try (InputStream is = response.getEntity().getContent()) {
+            return XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+    }
+
     protected static boolean indexExists(String index) throws IOException {
         Response response = client().performRequest(HttpHead.METHOD_NAME, index);
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
@@ -498,6 +508,11 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void closeIndex(String index) throws IOException {
         Response response = client().performRequest(HttpPost.METHOD_NAME, index + "/_close");
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+    }
+
+    protected static void openIndex(String index) throws IOException {
+        Response response = client().performRequest(HttpPost.METHOD_NAME, index + "/_open");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 

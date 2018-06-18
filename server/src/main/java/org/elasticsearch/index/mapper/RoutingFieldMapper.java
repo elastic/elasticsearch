@@ -28,6 +28,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -88,7 +89,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
-                    builder.required(TypeParsers.nodeBooleanValue(name, "required", fieldNode, parserContext));
+                    builder.required(XContentMapValues.nodeBooleanValue(fieldNode, name + ".required"));
                     iterator.remove();
                 }
             }
@@ -154,10 +155,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     @Override
     public void preParse(ParseContext context) throws IOException {
         super.parse(context);
-    }
-
-    @Override
-    public void postParse(ParseContext context) throws IOException {
     }
 
     @Override

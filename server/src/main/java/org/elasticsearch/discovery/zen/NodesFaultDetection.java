@@ -44,6 +44,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -66,12 +67,15 @@ public class NodesFaultDetection extends FaultDetection {
 
     private final ConcurrentMap<DiscoveryNode, NodeFD> nodesFD = newConcurrentMap();
 
-    private volatile long clusterStateVersion = ClusterState.UNKNOWN_VERSION;
+    private final Supplier<ClusterState> clusterStateSupplier;
 
     private volatile DiscoveryNode localNode;
 
-    public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
+    public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService,
+                               Supplier<ClusterState> clusterStateSupplier, ClusterName clusterName) {
         super(settings, threadPool, transportService, clusterName);
+
+        this.clusterStateSupplier = clusterStateSupplier;
 
         logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout,
             pingRetryCount);
@@ -208,15 +212,18 @@ public class NodesFaultDetection extends FaultDetection {
             return NodeFD.this.equals(nodesFD.get(node));
         }
 
+        private PingRequest newPingRequest() {
+            return new PingRequest(node, clusterName, localNode, clusterStateSupplier.get().version());
+        }
+
         @Override
         public void run() {
             if (!running()) {
                 return;
             }
-            final PingRequest pingRequest = new PingRequest(node, clusterName, localNode, clusterStateVersion);
             final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING)
                 .withTimeout(pingRetryTimeout).build();
-            transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, new TransportResponseHandler<PingResponse>() {
+            transportService.sendRequest(node, PING_ACTION_NAME, newPingRequest(), options, new TransportResponseHandler<PingResponse>() {
                         @Override
                         public PingResponse newInstance() {
                             return new PingResponse();
@@ -254,7 +261,7 @@ public class NodesFaultDetection extends FaultDetection {
                                 }
                             } else {
                                 // resend the request, not reschedule, rely on send timeout
-                                transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, this);
+                                transportService.sendRequest(node, PING_ACTION_NAME, newPingRequest(), options, this);
                             }
                         }
 

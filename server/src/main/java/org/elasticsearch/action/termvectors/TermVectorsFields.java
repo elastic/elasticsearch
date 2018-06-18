@@ -44,7 +44,7 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * exactly like the {@link Fields} class except for one thing: It can return
  * offsets and payloads even if positions are not present. You must call
  * nextPosition() anyway to move the counter although this method only returns
- * <tt>-1,</tt>, if no positions were returned by the {@link TermVectorsRequest}.
+ * {@code -1,}, if no positions were returned by the {@link TermVectorsRequest}.
  * <p>
  * The data is stored in two byte arrays ({@code headerRef} and
  * {@code termVectors}, both {@link BytesRef}) that have the following format:

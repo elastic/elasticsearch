@@ -14,10 +14,6 @@ setup:
 
 ---
 "put alias per index":
-  - skip:
-      version: " - 5.99.99"
-      reason:  only requested indices are included in 6.x
-
   - do:
       indices.put_alias:
         index: test_index1
@@ -72,10 +68,6 @@ setup:
 
 ---
 "put alias prefix* index":
-  - skip:
-      version: " - 5.99.99"
-      reason:  only requested indices are included in 6.x
-
   - do:
       indices.put_alias:
         index: "test_*"
@@ -91,10 +83,6 @@ setup:
 
 ---
 "put alias in list of indices":
-  - skip:
-      version: " - 5.99.99"
-      reason:  only requested indices are included in 6.x
-
   - do:
       indices.put_alias:
         index: "test_index1,test_index2"

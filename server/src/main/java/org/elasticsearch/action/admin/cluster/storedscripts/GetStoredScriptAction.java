@@ -20,10 +20,8 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class GetStoredScriptAction extends Action<GetStoredScriptRequest, GetStoredScriptResponse,
-        GetStoredScriptRequestBuilder> {
+public class GetStoredScriptAction extends Action<GetStoredScriptRequest, GetStoredScriptResponse> {
 
     public static final GetStoredScriptAction INSTANCE = new GetStoredScriptAction();
     public static final String NAME = "cluster:admin/script/get";
@@ -36,10 +34,4 @@ public class GetStoredScriptAction extends Action<GetStoredScriptRequest, GetSto
     public GetStoredScriptResponse newResponse() {
         return new GetStoredScriptResponse();
     }
-
-    @Override
-    public GetStoredScriptRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new GetStoredScriptRequestBuilder(client, this);
-    }
-
 }

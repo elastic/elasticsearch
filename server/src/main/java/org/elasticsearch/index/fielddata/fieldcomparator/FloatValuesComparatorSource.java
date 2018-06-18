@@ -25,6 +25,7 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
@@ -63,7 +64,7 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
                 final SortedNumericDoubleValues values = indexFieldData.load(context).getDoubleValues();
                 final NumericDoubleValues selectedValues;
                 if (nested == null) {
-                    selectedValues = sortMode.select(values, dMissingValue);
+                    selectedValues = FieldData.replaceMissing(sortMode.select(values), dMissingValue);
                 } else {
                     final BitSet rootDocs = nested.rootDocs(context);
                     final DocIdSetIterator innerDocs = nested.innerDocs(context);

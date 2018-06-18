@@ -23,7 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
@@ -56,7 +55,7 @@ public final class IngestDocument {
     private final Map<String, Object> sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
 
-    public IngestDocument(String index, String type, String id, String routing, String parent,
+    public IngestDocument(String index, String type, String id, String routing,
                           Long version, VersionType versionType, Map<String, Object> source) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
@@ -65,9 +64,6 @@ public final class IngestDocument {
         this.sourceAndMetadata.put(MetaData.ID.getFieldName(), id);
         if (routing != null) {
             this.sourceAndMetadata.put(MetaData.ROUTING.getFieldName(), routing);
-        }
-        if (parent != null) {
-            this.sourceAndMetadata.put(MetaData.PARENT.getFieldName(), parent);
         }
         if (version != null) {
             sourceAndMetadata.put(MetaData.VERSION.getFieldName(), version);
@@ -656,7 +652,6 @@ public final class IngestDocument {
         TYPE(TypeFieldMapper.NAME),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
-        PARENT(ParentFieldMapper.NAME),
         VERSION(VersionFieldMapper.NAME),
         VERSION_TYPE("_version_type");
 

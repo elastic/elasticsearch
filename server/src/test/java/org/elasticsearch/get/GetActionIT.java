@@ -288,79 +288,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
     }
 
-    public void testGetDocWithMultivaluedFieldsMultiTypeBWC() throws Exception {
-        assertTrue("remove this multi type test", Version.CURRENT.before(Version.fromString("7.0.0")));
-        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties")
-            .startObject("field").field("type", "text").field("store", true).endObject()
-            .endObject()
-            .endObject().endObject());
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type2")
-            .startObject("properties")
-            .startObject("field").field("type", "text").field("store", true).endObject()
-            .endObject()
-            .endObject().endObject());
-        assertAcked(prepareCreate("test")
-            .addMapping("type1", mapping1, XContentType.JSON)
-            .addMapping("type2", mapping2, XContentType.JSON)
-            // multi types in 5.6
-            .setSettings(Settings.builder().put("index.refresh_interval", -1).put("index.version.created", Version.V_5_6_0.id)));
-
-        ensureGreen();
-
-        GetResponse response = client().prepareGet("test", "type1", "1").get();
-        assertThat(response.isExists(), equalTo(false));
-        response = client().prepareGet("test", "type2", "1").get();
-        assertThat(response.isExists(), equalTo(false));
-
-        client().prepareIndex("test", "type1", "1")
-            .setSource(jsonBuilder().startObject().array("field", "1", "2").endObject()).get();
-
-        client().prepareIndex("test", "type2", "1")
-            .setSource(jsonBuilder().startObject().array("field", "1", "2").endObject()).get();
-
-        response = client().prepareGet("test", "type1", "1").setStoredFields("field").get();
-        assertThat(response.isExists(), equalTo(true));
-        assertThat(response.getId(), equalTo("1"));
-        assertThat(response.getType(), equalTo("type1"));
-        Set<String> fields = new HashSet<>(response.getFields().keySet());
-        assertThat(fields, equalTo(singleton("field")));
-        assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
-        assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
-        assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
-
-
-        response = client().prepareGet("test", "type2", "1").setStoredFields("field").get();
-        assertThat(response.isExists(), equalTo(true));
-        assertThat(response.getType(), equalTo("type2"));
-        assertThat(response.getId(), equalTo("1"));
-        fields = new HashSet<>(response.getFields().keySet());
-        assertThat(fields, equalTo(singleton("field")));
-        assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
-        assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
-        assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
-
-        // Now test values being fetched from stored fields.
-        refresh();
-        response = client().prepareGet("test", "type1", "1").setStoredFields("field").get();
-        assertThat(response.isExists(), equalTo(true));
-        assertThat(response.getId(), equalTo("1"));
-        fields = new HashSet<>(response.getFields().keySet());
-        assertThat(fields, equalTo(singleton("field")));
-        assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
-        assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
-        assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
-
-        response = client().prepareGet("test", "type2", "1").setStoredFields("field").get();
-        assertThat(response.isExists(), equalTo(true));
-        assertThat(response.getId(), equalTo("1"));
-        fields = new HashSet<>(response.getFields().keySet());
-        assertThat(fields, equalTo(singleton("field")));
-        assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
-        assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
-        assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
-    }
-
     public void testGetWithVersion() {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
@@ -610,48 +537,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
     }
 
-    public void testGetFieldsMetaDataWithParentChild() throws Exception {
-        assertTrue("remove this multi type test", Version.CURRENT.before(Version.fromString("7.0.0")));
-        assertAcked(prepareCreate("test")
-                .addMapping("parent")
-                .addMapping("my-type1", "_parent", "type=parent", "field1", "type=keyword,store=true")
-                .addAlias(new Alias("alias"))
-                .setSettings(Settings.builder().put("index.refresh_interval", -1).put("index.version.created", Version.V_5_6_0.id)));
-                // multi types in 5.6
-
-        client().prepareIndex("test", "my-type1", "1")
-                .setRouting("1")
-                .setParent("parent_1")
-                .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
-                .get();
-
-        GetResponse getResponse = client().prepareGet(indexOrAlias(), "my-type1", "1")
-                .setRouting("1")
-                .setStoredFields("field1")
-                .get();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getField("field1").isMetadataField(), equalTo(false));
-        assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
-        assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
-        assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
-        assertThat(getResponse.getField("_parent").isMetadataField(), equalTo(true));
-        assertThat(getResponse.getField("_parent").getValue().toString(), equalTo("parent_1"));
-
-        flush();
-
-        getResponse = client().prepareGet(indexOrAlias(), "my-type1", "1")
-                .setStoredFields("field1")
-                .setRouting("1")
-                .get();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getField("field1").isMetadataField(), equalTo(false));
-        assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
-        assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
-        assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
-        assertThat(getResponse.getField("_parent").isMetadataField(), equalTo(true));
-        assertThat(getResponse.getField("_parent").getValue().toString(), equalTo("parent_1"));
-    }
-
     public void testGetFieldsNonLeafField() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .addMapping("my-type1", jsonBuilder().startObject().startObject("my-type1").startObject("properties")
@@ -682,8 +567,8 @@ public class GetActionIT extends ESIntegTestCase {
     public void testGetFieldsComplexField() throws Exception {
         assertAcked(prepareCreate("my-index")
             // multi types in 5.6
-            .setSettings(Settings.builder().put("index.refresh_interval", -1).put("index.version.created", Version.V_5_6_0.id))
-                .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
+            .setSettings(Settings.builder().put("index.refresh_interval", -1))
+                .addMapping("my-type", jsonBuilder().startObject().startObject("my-type").startObject("properties")
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")
                                 .startObject("field3").field("type", "object").startObject("properties")
@@ -718,20 +603,19 @@ public class GetActionIT extends ESIntegTestCase {
 
         logger.info("indexing documents");
 
-        client().prepareIndex("my-index", "my-type1", "1").setSource(source, XContentType.JSON).get();
-        client().prepareIndex("my-index", "my-type2", "1").setSource(source, XContentType.JSON).get();
+        client().prepareIndex("my-index", "my-type", "1").setSource(source, XContentType.JSON).get();
 
         logger.info("checking real time retrieval");
 
         String field = "field1.field2.field3.field4";
-        GetResponse getResponse = client().prepareGet("my-index", "my-type1", "1").setStoredFields(field).get();
+        GetResponse getResponse = client().prepareGet("my-index", "my-type", "1").setStoredFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getField(field).isMetadataField(), equalTo(false));
         assertThat(getResponse.getField(field).getValues().size(), equalTo(2));
         assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
 
-        getResponse = client().prepareGet("my-index", "my-type2", "1").setStoredFields(field).get();
+        getResponse = client().prepareGet("my-index", "my-type", "1").setStoredFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getField(field).isMetadataField(), equalTo(false));
         assertThat(getResponse.getField(field).getValues().size(), equalTo(2));
@@ -756,14 +640,7 @@ public class GetActionIT extends ESIntegTestCase {
 
         logger.info("checking post-flush retrieval");
 
-        getResponse = client().prepareGet("my-index", "my-type1", "1").setStoredFields(field).get();
-        assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getField(field).isMetadataField(), equalTo(false));
-        assertThat(getResponse.getField(field).getValues().size(), equalTo(2));
-        assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
-        assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
-
-        getResponse = client().prepareGet("my-index", "my-type2", "1").setStoredFields(field).get();
+        getResponse = client().prepareGet("my-index", "my-type", "1").setStoredFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getField(field).isMetadataField(), equalTo(false));
         assertThat(getResponse.getField(field).getValues().size(), equalTo(2));

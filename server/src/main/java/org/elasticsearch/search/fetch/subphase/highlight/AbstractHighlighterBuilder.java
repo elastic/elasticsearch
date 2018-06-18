@@ -286,8 +286,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     /**
      * Set type of highlighter to use. Out of the box supported types
-     * are <tt>unified</tt>, <tt>plain</tt> and <tt>fvj</tt>.
-     * Defaults to <tt>unified</tt>.
+     * are {@code unified}, {@code plain} and {@code fvj}.
+     * Defaults to {@code unified}.
      * Details of the different highlighter types are covered in the reference guide.
      */
     @SuppressWarnings("unchecked")
@@ -305,7 +305,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     /**
      * Sets what fragmenter to use to break up text that is eligible for highlighting.
-     * This option is only applicable when using the plain highlighterType <tt>highlighter</tt>.
+     * This option is only applicable when using the plain highlighterType {@code highlighter}.
      * Permitted values are "simple" or "span" relating to {@link SimpleFragmenter} and
      * {@link SimpleSpanFragmenter} implementations respectively with the default being "span"
      */
@@ -340,8 +340,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     /**
      * The order of fragments per field. By default, ordered by the order in the
-     * highlighted text. Can be <tt>score</tt>, which then it will be ordered
-     * by score of the fragments, or <tt>none</TT>.
+     * highlighted text. Can be {@code score}, which then it will be ordered
+     * by score of the fragments, or {@code none}.
      */
     public HB order(String order) {
         return order(Order.fromString(order));
@@ -365,9 +365,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Set this to true when using the highlighterType <tt>fvh</tt>
+     * Set this to true when using the highlighterType {@code fvh}
      * and you want to provide highlighting on filter clauses in your
-     * query. Default is <tt>false</tt>.
+     * query. Default is {@code false}.
      */
     @SuppressWarnings("unchecked")
     public HB highlightFilter(Boolean highlightFilter) {
@@ -383,7 +383,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * When using the highlighterType <tt>fvh</tt> this setting
+     * When using the highlighterType {@code fvh} this setting
      * controls which scanner to use for fragment boundaries, and defaults to "simple".
      */
     @SuppressWarnings("unchecked")
@@ -393,7 +393,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * When using the highlighterType <tt>fvh</tt> this setting
+     * When using the highlighterType {@code fvh} this setting
      * controls which scanner to use for fragment boundaries, and defaults to "simple".
      */
     @SuppressWarnings("unchecked")
@@ -410,7 +410,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * When using the highlighterType <tt>fvh</tt> this setting
+     * When using the highlighterType {@code fvh} this setting
      * controls how far to look for boundary characters, and defaults to 20.
      */
     @SuppressWarnings("unchecked")
@@ -427,7 +427,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * When using the highlighterType <tt>fvh</tt> this setting
+     * When using the highlighterType {@code fvh} this setting
      * defines what constitutes a boundary for highlighting. It’s a single string with
      * each boundary character defined in it. It defaults to .,!? \t\n
      */
@@ -445,7 +445,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * When using the highlighterType <tt>fvh</tt> and boundaryScannerType <tt>break_iterator</tt>, this setting
+     * When using the highlighterType {@code fvh} and boundaryScannerType {@code break_iterator}, this setting
      * controls the locale to use by the BreakIterator, defaults to "root".
      */
     @SuppressWarnings("unchecked")

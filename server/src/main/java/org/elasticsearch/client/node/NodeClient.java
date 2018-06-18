@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -48,14 +49,17 @@ public class NodeClient extends AbstractClient {
      * {@link #executeLocally(GenericAction, ActionRequest, TaskListener)}.
      */
     private Supplier<String> localNodeId;
+    private RemoteClusterService remoteClusterService;
 
     public NodeClient(Settings settings, ThreadPool threadPool) {
         super(settings, threadPool);
     }
 
-    public void initialize(Map<GenericAction, TransportAction> actions, Supplier<String> localNodeId) {
+    public void initialize(Map<GenericAction, TransportAction> actions, Supplier<String> localNodeId,
+                           RemoteClusterService remoteClusterService) {
         this.actions = actions;
         this.localNodeId = localNodeId;
+        this.remoteClusterService = remoteClusterService;
     }
 
     @Override
@@ -66,8 +70,8 @@ public class NodeClient extends AbstractClient {
     @Override
     public <    Request extends ActionRequest,
                 Response extends ActionResponse,
-                RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>
-            > void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+                RequestBuilder extends ActionRequestBuilder<Request, Response>
+            > void doExecute(Action<Request, Response> action, Request request, ActionListener<Response> listener) {
         // Discard the task because the Client interface doesn't use it.
         executeLocally(action, request, listener);
     }
@@ -116,5 +120,10 @@ public class NodeClient extends AbstractClient {
             throw new IllegalStateException("failed to find action [" + action + "] to execute");
         }
         return transportAction;
+    }
+
+    @Override
+    public Client getRemoteClusterClient(String clusterAlias) {
+        return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias);
     }
 }

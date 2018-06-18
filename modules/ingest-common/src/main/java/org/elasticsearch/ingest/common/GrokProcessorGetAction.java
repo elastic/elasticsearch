@@ -52,19 +52,13 @@ import static org.elasticsearch.ingest.common.IngestCommonPlugin.GROK_PATTERNS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Request,
-    GrokProcessorGetAction.Response, GrokProcessorGetAction.RequestBuilder> {
+public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Request, GrokProcessorGetAction.Response> {
 
     public static final GrokProcessorGetAction INSTANCE = new GrokProcessorGetAction();
     public static final String NAME = "cluster:admin/ingest/processor/grok/get";
 
     private GrokProcessorGetAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -79,7 +73,7 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Reques
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
         public RequestBuilder(ElasticsearchClient client) {
             super(client, GrokProcessorGetAction.INSTANCE, new Request());
         }

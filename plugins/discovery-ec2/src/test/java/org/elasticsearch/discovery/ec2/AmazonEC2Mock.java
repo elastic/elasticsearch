@@ -22,7 +22,9 @@ package org.elasticsearch.discovery.ec2;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.AmazonWebServiceRequest;
+import com.amazonaws.ClientConfiguration;
 import com.amazonaws.ResponseMetadata;
+import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.regions.Region;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.AcceptVpcPeeringConnectionRequest;
@@ -528,9 +530,12 @@ public class AmazonEC2Mock implements AmazonEC2 {
     public static final String PREFIX_PRIVATE_DNS = "mock-ip-";
     public static final String SUFFIX_PRIVATE_DNS = ".ec2.internal";
 
-    List<Instance> instances = new ArrayList<>();
+    final List<Instance> instances = new ArrayList<>();
+    String endpoint;
+    final AWSCredentialsProvider credentials;
+    final ClientConfiguration configuration;
 
-    public AmazonEC2Mock(int nodes, List<List<Tag>> tagsList) {
+    public AmazonEC2Mock(int nodes, List<List<Tag>> tagsList, AWSCredentialsProvider credentials, ClientConfiguration configuration) {
         if (tagsList != null) {
             assert tagsList.size() == nodes;
         }
@@ -552,7 +557,8 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
             instances.add(instance);
         }
-
+        this.credentials = credentials;
+        this.configuration = configuration;
     }
 
     @Override
@@ -642,7 +648,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public void setEndpoint(String endpoint) throws IllegalArgumentException {
-        throw new UnsupportedOperationException("Not supported in mock");
+        this.endpoint = endpoint;
     }
 
     @Override
@@ -2110,7 +2116,6 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public void shutdown() {
-        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override

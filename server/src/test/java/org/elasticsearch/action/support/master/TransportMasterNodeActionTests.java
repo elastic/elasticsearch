@@ -242,6 +242,39 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
     }
 
+    public void testCheckBlockThrowsException() throws InterruptedException {
+        boolean throwExceptionOnRetry = randomBoolean();
+        Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(60));
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        ClusterBlock block = new ClusterBlock(1, "", true, true,
+            false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
+        ClusterState stateWithBlock = ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
+            .blocks(ClusterBlocks.builder().addGlobalBlock(block)).build();
+        setState(clusterService, stateWithBlock);
+
+        new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+                Set<ClusterBlock> blocks = state.blocks().global();
+                if (throwExceptionOnRetry == false || blocks.isEmpty()) {
+                    throw new RuntimeException("checkBlock has thrown exception");
+                }
+                return new ClusterBlockException(blocks);
+
+            }
+        }.execute(request, listener);
+
+        if (throwExceptionOnRetry == false) {
+            assertListenerThrows("checkBlock has thrown exception", listener, RuntimeException.class);
+        } else {
+            assertFalse(listener.isDone());
+            setState(clusterService, ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes))
+                .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build());
+            assertListenerThrows("checkBlock has thrown exception", listener, RuntimeException.class);
+        }
+    }
+
     public void testForceLocalOperation() throws ExecutionException, InterruptedException {
         Request request = new Request();
         PlainActionFuture<Response> listener = new PlainActionFuture<>();

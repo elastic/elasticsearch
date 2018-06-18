@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.emptyMap;
 
 public class DocumentMapper implements ToXContentFragment {
 
@@ -131,11 +130,6 @@ public class DocumentMapper implements ToXContentFragment {
         this.mapping = mapping;
         this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), this);
 
-        if (metadataMapper(ParentFieldMapper.class).active()) {
-            // mark the routing field mapper as required
-            metadataMapper(RoutingFieldMapper.class).markAsRequired();
-        }
-
         // collect all the mappers for this type
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
@@ -200,10 +194,6 @@ public class DocumentMapper implements ToXContentFragment {
         return mapping.root;
     }
 
-    public UidFieldMapper uidMapper() {
-        return metadataMapper(UidFieldMapper.class);
-    }
-
     @SuppressWarnings({"unchecked"})
     public <T extends MetadataFieldMapper> T metadataMapper(Class<T> type) {
         return mapping.metadataMapper(type);
@@ -227,10 +217,6 @@ public class DocumentMapper implements ToXContentFragment {
 
     public RoutingFieldMapper routingFieldMapper() {
         return metadataMapper(RoutingFieldMapper.class);
-    }
-
-    public ParentFieldMapper parentFieldMapper() {
-        return metadataMapper(ParentFieldMapper.class);
     }
 
     public IndexFieldMapper IndexFieldMapper() {
@@ -290,10 +276,6 @@ public class DocumentMapper implements ToXContentFragment {
             }
         }
         return nestedObjectMapper;
-    }
-
-    public boolean isParent(String type) {
-        return mapperService.getParentTypes().contains(type);
     }
 
     public DocumentMapper merge(Mapping mapping) {

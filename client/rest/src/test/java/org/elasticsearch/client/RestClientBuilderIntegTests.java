@@ -24,7 +24,6 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 import org.apache.http.HttpHost;
-import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -46,8 +45,6 @@ import static org.junit.Assert.fail;
 /**
  * Integration test to validate the builder builds a client with the correct configuration
  */
-//animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
-@IgnoreJRERequirement
 public class RestClientBuilderIntegTests extends RestClientTestCase {
 
     private static HttpsServer httpsServer;
@@ -60,8 +57,6 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
         httpsServer.start();
     }
 
-    //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
-    @IgnoreJRERequirement
     private static class ResponseHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange httpExchange) throws IOException {

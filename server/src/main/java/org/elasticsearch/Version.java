@@ -35,6 +35,7 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class Version implements Comparable<Version>, ToXContentFragment {
     /*
@@ -117,6 +118,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_5_6_8 = new Version(V_5_6_8_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
     public static final int V_5_6_9_ID = 5060999;
     public static final Version V_5_6_9 = new Version(V_5_6_9_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_10_ID = 5061099;
+    public static final Version V_5_6_10 = new Version(V_5_6_10_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_11_ID = 5061199;
+    public static final Version V_5_6_11 = new Version(V_5_6_11_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
     public static final int V_6_0_0_alpha1_ID = 6000001;
     public static final Version V_6_0_0_alpha1 =
             new Version(V_6_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
@@ -151,21 +156,27 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_6_1_3 = new Version(V_6_1_3_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
     public static final int V_6_1_4_ID = 6010499;
     public static final Version V_6_1_4 = new Version(V_6_1_4_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
+    // The below version is missing from the 7.3 JAR
+    private static final org.apache.lucene.util.Version LUCENE_7_2_1 = org.apache.lucene.util.Version.fromBits(7, 2, 1);
     public static final int V_6_2_0_ID = 6020099;
-    public static final Version V_6_2_0 = new Version(V_6_2_0_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
+    public static final Version V_6_2_0 = new Version(V_6_2_0_ID, LUCENE_7_2_1);
     public static final int V_6_2_1_ID = 6020199;
-    public static final Version V_6_2_1 = new Version(V_6_2_1_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
+    public static final Version V_6_2_1 = new Version(V_6_2_1_ID, LUCENE_7_2_1);
     public static final int V_6_2_2_ID = 6020299;
-    public static final Version V_6_2_2 = new Version(V_6_2_2_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
+    public static final Version V_6_2_2 = new Version(V_6_2_2_ID, LUCENE_7_2_1);
     public static final int V_6_2_3_ID = 6020399;
-    public static final Version V_6_2_3 = new Version(V_6_2_3_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
+    public static final Version V_6_2_3 = new Version(V_6_2_3_ID, LUCENE_7_2_1);
     public static final int V_6_2_4_ID = 6020499;
-    public static final Version V_6_2_4 = new Version(V_6_2_4_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
+    public static final Version V_6_2_4 = new Version(V_6_2_4_ID, LUCENE_7_2_1);
     public static final int V_6_3_0_ID = 6030099;
-    public static final Version V_6_3_0 = new Version(V_6_3_0_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
+    public static final Version V_6_3_0 = new Version(V_6_3_0_ID, org.apache.lucene.util.Version.LUCENE_7_3_1);
+    public static final int V_6_3_1_ID = 6030199;
+    public static final Version V_6_3_1 = new Version(V_6_3_1_ID, org.apache.lucene.util.Version.LUCENE_7_3_1);
+    public static final int V_6_4_0_ID = 6040099;
+    public static final Version V_6_4_0 = new Version(V_6_4_0_ID, org.apache.lucene.util.Version.LUCENE_7_4_0);
     public static final int V_7_0_0_alpha1_ID = 7000001;
     public static final Version V_7_0_0_alpha1 =
-        new Version(V_7_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
+        new Version(V_7_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_4_0);
     public static final Version CURRENT = V_7_0_0_alpha1;
 
     static {
@@ -181,6 +192,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         switch (id) {
             case V_7_0_0_alpha1_ID:
                 return V_7_0_0_alpha1;
+            case V_6_4_0_ID:
+                return V_6_4_0;
+            case V_6_3_1_ID:
+                return V_6_3_1;
             case V_6_3_0_ID:
                 return V_6_3_0;
             case V_6_2_4_ID:
@@ -219,6 +234,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 return V_6_0_0_alpha2;
             case V_6_0_0_alpha1_ID:
                 return V_6_0_0_alpha1;
+            case V_5_6_11_ID:
+                return V_5_6_11;
+            case V_5_6_10_ID:
+                return V_5_6_10;
             case V_5_6_9_ID:
                 return V_5_6_9;
             case V_5_6_8_ID:
@@ -492,8 +511,16 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     @SuppressForbidden(reason = "System.out.*")
     public static void main(String[] args) {
-        System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date() + ", JVM: "
-                + JvmInfo.jvmInfo().version());
+        final String versionOutput = String.format(
+                Locale.ROOT,
+                "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
+                Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
+                Build.CURRENT.flavor().displayName(),
+                Build.CURRENT.type().displayName(),
+                Build.CURRENT.shortHash(),
+                Build.CURRENT.date(),
+                JvmInfo.jvmInfo().version());
+        System.out.println(versionOutput);
     }
 
     @Override

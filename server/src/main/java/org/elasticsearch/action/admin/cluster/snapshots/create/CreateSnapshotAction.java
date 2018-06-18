@@ -20,12 +20,11 @@
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Create snapshot action
  */
-public class CreateSnapshotAction extends Action<CreateSnapshotRequest, CreateSnapshotResponse, CreateSnapshotRequestBuilder> {
+public class CreateSnapshotAction extends Action<CreateSnapshotRequest, CreateSnapshotResponse> {
 
     public static final CreateSnapshotAction INSTANCE = new CreateSnapshotAction();
     public static final String NAME = "cluster:admin/snapshot/create";
@@ -37,11 +36,6 @@ public class CreateSnapshotAction extends Action<CreateSnapshotRequest, CreateSn
     @Override
     public CreateSnapshotResponse newResponse() {
         return new CreateSnapshotResponse();
-    }
-
-    @Override
-    public CreateSnapshotRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new CreateSnapshotRequestBuilder(client, this);
     }
 }
 

@@ -163,3 +163,31 @@ setup() {
     assert_file_exist /var/log/elasticsearch/gc.log.0.current
     stop_elasticsearch_service
 }
+
+# Ensures that if $MAX_MAP_COUNT is less than the set value on the OS
+# it will be updated
+@test "[INIT.D] sysctl is run when the value set is too small" {
+  # intentionally a ridiculously low number
+  sysctl -q -w vm.max_map_count=100
+  start_elasticsearch_service
+  max_map_count=$(sysctl -n vm.max_map_count)
+  stop_elasticsearch_service
+
+  [ $max_map_count = 262144 ]
+
+}
+
+# Ensures that if $MAX_MAP_COUNT is greater than the set vaule on the OS
+# we do not attempt to update it this should cover equality as well as I think
+# we can trust that equality operators work as intended.
+@test "[INIT.D] sysctl is not run when it already has a larger or equal value set" {
+  # intentionally set to the default +1
+  sysctl -q -w vm.max_map_count=262145
+  start_elasticsearch_service
+  max_map_count=$(sysctl -n vm.max_map_count)
+  stop_elasticsearch_service
+
+  # default value +1
+  [ $max_map_count = 262145 ]
+
+}

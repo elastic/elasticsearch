@@ -89,9 +89,9 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
                 // cjkAsWords nor myanmarAsWords are not configurable yet.
                 ICUTokenizerConfig config = new DefaultICUTokenizerConfig(true, true) {
                     @Override
-                    public BreakIterator getBreakIterator(int script) {
+                    public RuleBasedBreakIterator getBreakIterator(int script) {
                         if (breakers[script] != null) {
-                            return (BreakIterator) breakers[script].clone();
+                            return (RuleBasedBreakIterator) breakers[script].clone();
                         } else {
                             return super.getBreakIterator(script);
                         }

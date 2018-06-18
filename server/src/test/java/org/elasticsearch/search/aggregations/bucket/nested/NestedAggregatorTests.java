@@ -40,12 +40,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
-import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -127,8 +128,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     expectedNestedDocs += numNestedDocs;
 
                     Document document = new Document();
-                    document.add(new Field(UidFieldMapper.NAME, "type#" + i,
-                        UidFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
                     document.add(new Field(TypeFieldMapper.NAME, "test",
                         TypeFieldMapper.Defaults.FIELD_TYPE));
                     document.add(sequenceIDFields.primaryTerm);
@@ -176,8 +176,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     expectedNestedDocs += numNestedDocs;
 
                     Document document = new Document();
-                    document.add(new Field(UidFieldMapper.NAME, "type#" + i,
-                        UidFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
                     document.add(new Field(TypeFieldMapper.NAME, "test",
                         TypeFieldMapper.Defaults.FIELD_TYPE));
                     document.add(sequenceIDFields.primaryTerm);
@@ -225,8 +224,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     expectedNestedDocs += numNestedDocs;
 
                     Document document = new Document();
-                    document.add(new Field(UidFieldMapper.NAME, "type#" + i,
-                        UidFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
                     document.add(new Field(TypeFieldMapper.NAME, "test",
                         TypeFieldMapper.Defaults.FIELD_TYPE));
                     document.add(sequenceIDFields.primaryTerm);
@@ -275,19 +273,19 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
                 // 1 segment with, 1 root document, with 3 nested sub docs
                 Document document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "type#1", UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "__nested_field", TypeFieldMapper.Defaults.FIELD_TYPE));
                 documents.add(document);
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "type#1", UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "__nested_field", TypeFieldMapper.Defaults.FIELD_TYPE));
                 documents.add(document);
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "type#1", UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "__nested_field", TypeFieldMapper.Defaults.FIELD_TYPE));
                 documents.add(document);
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "type#1", UidFieldMapper.Defaults.FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "test", TypeFieldMapper.Defaults.FIELD_TYPE));
                 document.add(sequenceIDFields.primaryTerm);
                 documents.add(document);
@@ -298,11 +296,11 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 // 1 segment with:
                 // 1 document, with 1 nested subdoc
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "type#2", UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "__nested_field", TypeFieldMapper.Defaults.FIELD_TYPE));
                 documents.add(document);
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "type#2", UidFieldMapper.Defaults.FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "test", TypeFieldMapper.Defaults.FIELD_TYPE));
                 document.add(sequenceIDFields.primaryTerm);
                 documents.add(document);
@@ -310,11 +308,11 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 documents.clear();
                 // and 1 document, with 1 nested subdoc
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "type#3", UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "__nested_field", TypeFieldMapper.Defaults.FIELD_TYPE));
                 documents.add(document);
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "type#3", UidFieldMapper.Defaults.FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), IdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "test", TypeFieldMapper.Defaults.FIELD_TYPE));
                 document.add(sequenceIDFields.primaryTerm);
                 documents.add(document);
@@ -333,7 +331,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
                 BooleanQuery.Builder bq = new BooleanQuery.Builder();
                 bq.add(Queries.newNonNestedFilter(VersionUtils.randomVersion(random())), BooleanClause.Occur.MUST);
-                bq.add(new TermQuery(new Term(UidFieldMapper.NAME, "type#2")), BooleanClause.Occur.MUST_NOT);
+                bq.add(new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("2"))), BooleanClause.Occur.MUST_NOT);
 
                 Nested nested = search(newSearcher(indexReader, false, true),
                     new ConstantScoreQuery(bq.build()), nestedBuilder, fieldType);
@@ -533,19 +531,19 @@ public class NestedAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 List<Document> documents = new ArrayList<>();
                 Document document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "_doc#1", UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "__nested_field", TypeFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new SortedDocValuesField("key", new BytesRef("key1")));
                 document.add(new SortedDocValuesField("value", new BytesRef("a1")));
                 documents.add(document);
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "_doc#1", UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "__nested_field", TypeFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new SortedDocValuesField("key", new BytesRef("key2")));
                 document.add(new SortedDocValuesField("value", new BytesRef("b1")));
                 documents.add(document);
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "_doc#1", UidFieldMapper.Defaults.FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "_doc", TypeFieldMapper.Defaults.FIELD_TYPE));
                 document.add(sequenceIDFields.primaryTerm);
                 documents.add(document);
@@ -554,19 +552,19 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 documents.clear();
 
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "_doc#2", UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "__nested_field", TypeFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new SortedDocValuesField("key", new BytesRef("key1")));
                 document.add(new SortedDocValuesField("value", new BytesRef("a2")));
                 documents.add(document);
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "_doc#2", UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "__nested_field", TypeFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new SortedDocValuesField("key", new BytesRef("key2")));
                 document.add(new SortedDocValuesField("value", new BytesRef("b2")));
                 documents.add(document);
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "_doc#2", UidFieldMapper.Defaults.FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "_doc", TypeFieldMapper.Defaults.FIELD_TYPE));
                 document.add(sequenceIDFields.primaryTerm);
                 documents.add(document);
@@ -575,19 +573,19 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 documents.clear();
 
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "_doc#3", UidFieldMapper.Defaults.FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "__nested_field", TypeFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new SortedDocValuesField("key", new BytesRef("key1")));
                 document.add(new SortedDocValuesField("value", new BytesRef("a3")));
                 documents.add(document);
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "_doc#3", UidFieldMapper.Defaults.FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "__nested_field", TypeFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new SortedDocValuesField("key", new BytesRef("key2")));
                 document.add(new SortedDocValuesField("value", new BytesRef("b3")));
                 documents.add(document);
                 document = new Document();
-                document.add(new Field(UidFieldMapper.NAME, "_doc#1", UidFieldMapper.Defaults.FIELD_TYPE));
+                document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), IdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(TypeFieldMapper.NAME, "_doc", TypeFieldMapper.Defaults.FIELD_TYPE));
                 document.add(sequenceIDFields.primaryTerm);
                 documents.add(document);
@@ -654,8 +652,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         double[] values = new double[numNestedDocs];
         for (int nested = 0; nested < numNestedDocs; nested++) {
             Document document = new Document();
-            document.add(new Field(UidFieldMapper.NAME, "type#" + id,
-                UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(id)),
+                IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
             document.add(new Field(TypeFieldMapper.NAME, "__" + path,
                 TypeFieldMapper.Defaults.FIELD_TYPE));
             long value = randomNonNegativeLong() % 10000;
@@ -671,14 +669,14 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
         for (int numPage : numPages) {
             Document document = new Document();
-            document.add(new Field(UidFieldMapper.NAME, "book#" + id, UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
             document.add(new Field(TypeFieldMapper.NAME, "__nested_chapters", TypeFieldMapper.Defaults.FIELD_TYPE));
             document.add(new SortedNumericDocValuesField("num_pages", numPage));
             documents.add(document);
         }
 
         Document document = new Document();
-        document.add(new Field(UidFieldMapper.NAME, "book#" + id, UidFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
         document.add(new Field(TypeFieldMapper.NAME, "book", TypeFieldMapper.Defaults.FIELD_TYPE));
         document.add(sequenceIDFields.primaryTerm);
         for (String author : authors) {

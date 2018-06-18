@@ -124,7 +124,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             super(Settings.EMPTY, IndexAction.NAME, TransportBulkActionIngestTests.this.transportService,
                     TransportBulkActionIngestTests.this.clusterService,
                     null, null, null, new ActionFilters(Collections.emptySet()), null,
-                    IndexRequest::new, IndexRequest::new, ThreadPool.Names.INDEX, bulkAction, null);
+                    IndexRequest::new, IndexRequest::new, ThreadPool.Names.WRITE, bulkAction, null);
         }
 
         @Override

@@ -71,13 +71,6 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      */
     String routing();
 
-
-    /**
-     * Get the parent for this request
-     * @return the Parent
-     */
-    String parent();
-
     /**
      * Get the document version for this request
      * @return the document version

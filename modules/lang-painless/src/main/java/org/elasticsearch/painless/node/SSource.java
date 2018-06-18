@@ -249,7 +249,7 @@ public final class SSource extends AStatement {
         }
         visitor.visit(WriterConstants.CLASS_VERSION, classAccess, className, null,
             Type.getType(scriptClassInfo.getBaseClass()).getInternalName(), classInterfaces);
-        visitor.visitSource(Location.computeSourceName(name, source), null);
+        visitor.visitSource(Location.computeSourceName(name), null);
 
         // Write the a method to bootstrap def calls
         MethodWriter bootstrapDef = new MethodWriter(Opcodes.ACC_STATIC | Opcodes.ACC_VARARGS, DEF_BOOTSTRAP_METHOD, visitor,

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedRunnable;
@@ -40,11 +39,9 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiConsumer;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
@@ -165,7 +162,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                         new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz"))
                 }, tookInMillis);
 
-        assertEquals("{\"took\":" 
+        assertEquals("{\"took\":"
                         + tookInMillis
                         + ",\"responses\":["
                         + "{"
@@ -225,7 +222,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             byte[] originalBytes = MultiSearchRequest.writeMultiLineFormat(originalRequest, xContentType.xContent());
             MultiSearchRequest parsedRequest = new MultiSearchRequest();
             CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer = (r, p) -> {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p);
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p, false);
                 if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
                     r.source(searchSourceBuilder);
                 }
@@ -273,7 +270,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 searchRequest.allowPartialSearchResults(true);
             }
-            
+
             // scroll is not supported in the current msearch api, so unset it:
             searchRequest.scroll((Scroll) null);
 

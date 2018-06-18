@@ -108,6 +108,15 @@ public interface TcpChannel extends Releasable {
     void sendMessage(BytesReference reference, ActionListener<Void> listener);
 
     /**
+     * Closes the channel without blocking.
+     *
+     * @param channel to close
+     */
+    static <C extends TcpChannel> void closeChannel(C channel) {
+        closeChannel(channel, false);
+    }
+
+    /**
      * Closes the channel.
      *
      * @param channel to close

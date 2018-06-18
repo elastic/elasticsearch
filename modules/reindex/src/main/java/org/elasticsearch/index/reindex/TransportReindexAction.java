@@ -37,6 +37,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
@@ -206,34 +207,39 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         for (Map.Entry<String, String> header : remoteInfo.getHeaders().entrySet()) {
             clientHeaders[i++] = new BasicHeader(header.getKey(), header.getValue());
         }
-        return RestClient.builder(new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme()))
-                .setDefaultHeaders(clientHeaders)
-                .setRequestConfigCallback(c -> {
-                    c.setConnectTimeout(Math.toIntExact(remoteInfo.getConnectTimeout().millis()));
-                    c.setSocketTimeout(Math.toIntExact(remoteInfo.getSocketTimeout().millis()));
-                    return c;
-                })
-                .setHttpClientConfigCallback(c -> {
-                    // Enable basic auth if it is configured
-                    if (remoteInfo.getUsername() != null) {
-                        UsernamePasswordCredentials creds = new UsernamePasswordCredentials(remoteInfo.getUsername(),
-                                remoteInfo.getPassword());
-                        CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-                        credentialsProvider.setCredentials(AuthScope.ANY, creds);
-                        c.setDefaultCredentialsProvider(credentialsProvider);
-                    }
-                    // Stick the task id in the thread name so we can track down tasks from stack traces
-                    AtomicInteger threads = new AtomicInteger();
-                    c.setThreadFactory(r -> {
-                        String name = "es-client-" + taskId + "-" + threads.getAndIncrement();
-                        Thread t = new Thread(r, name);
-                        threadCollector.add(t);
-                        return t;
-                    });
-                    // Limit ourselves to one reactor thread because for now the search process is single threaded.
-                    c.setDefaultIOReactorConfig(IOReactorConfig.custom().setIoThreadCount(1).build());
-                    return c;
-                }).build();
+        final RestClientBuilder builder =
+            RestClient.builder(new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme()))
+            .setDefaultHeaders(clientHeaders)
+            .setRequestConfigCallback(c -> {
+                c.setConnectTimeout(Math.toIntExact(remoteInfo.getConnectTimeout().millis()));
+                c.setSocketTimeout(Math.toIntExact(remoteInfo.getSocketTimeout().millis()));
+                return c;
+            })
+            .setHttpClientConfigCallback(c -> {
+                // Enable basic auth if it is configured
+                if (remoteInfo.getUsername() != null) {
+                    UsernamePasswordCredentials creds = new UsernamePasswordCredentials(remoteInfo.getUsername(),
+                        remoteInfo.getPassword());
+                    CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+                    credentialsProvider.setCredentials(AuthScope.ANY, creds);
+                    c.setDefaultCredentialsProvider(credentialsProvider);
+                }
+                // Stick the task id in the thread name so we can track down tasks from stack traces
+                AtomicInteger threads = new AtomicInteger();
+                c.setThreadFactory(r -> {
+                    String name = "es-client-" + taskId + "-" + threads.getAndIncrement();
+                    Thread t = new Thread(r, name);
+                    threadCollector.add(t);
+                    return t;
+                });
+                // Limit ourselves to one reactor thread because for now the search process is single threaded.
+                c.setDefaultIOReactorConfig(IOReactorConfig.custom().setIoThreadCount(1).build());
+                return c;
+            });
+        if (Strings.hasLength(remoteInfo.getPathPrefix()) && "/".equals(remoteInfo.getPathPrefix()) == false) {
+            builder.setPathPrefix(remoteInfo.getPathPrefix());
+        }
+        return builder.build();
     }
 
     /**
@@ -359,7 +365,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
              * here on out operates on the index request rather than the template.
              */
             index.routing(mainRequest.getDestination().routing());
-            index.parent(mainRequest.getDestination().parent());
             index.setPipeline(mainRequest.getDestination().getPipeline());
             // OpType is synthesized from version so it is handled when we copy version above.
 
@@ -430,14 +435,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 } else {
                     request.setVersion(asLong(to, VersionFieldMapper.NAME));
                 }
-            }
-
-            @Override
-            protected void scriptChangedParent(RequestWrapper<?> request, Object to) {
-                // Have to override routing with parent just in case its changed
-                String routing = Objects.toString(to, null);
-                request.setParent(routing);
-                request.setRouting(routing);
             }
 
             @Override

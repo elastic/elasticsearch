@@ -58,7 +58,6 @@ import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -66,6 +65,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.RestClientTestUtil.getAllErrorStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.getOkStatusCodes;
@@ -95,7 +95,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     private ExecutorService exec = Executors.newFixedThreadPool(1);
     private RestClient restClient;
     private Header[] defaultHeaders;
-    private HttpHost httpHost;
+    private Node node;
     private CloseableHttpAsyncClient httpClient;
     private HostsTrackingFailureListener failureListener;
 
@@ -109,7 +109,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                     public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
                         HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
                         HttpClientContext context = (HttpClientContext) invocationOnMock.getArguments()[2];
-                        assertThat(context.getAuthCache().get(httpHost), instanceOf(BasicScheme.class));
+                        assertThat(context.getAuthCache().get(node.getHost()), instanceOf(BasicScheme.class));
                         final FutureCallback<HttpResponse> futureCallback =
                             (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
                         HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
@@ -147,9 +147,10 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 });
 
         defaultHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header-default");
-        httpHost = new HttpHost("localhost", 9200);
+        node = new Node(new HttpHost("localhost", 9200));
         failureListener = new HostsTrackingFailureListener();
-        restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost}, null, failureListener);
+        restClient = new RestClient(httpClient, 10000, defaultHeaders,
+                singletonList(node), null, failureListener);
     }
 
     /**
@@ -245,7 +246,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 if (errorStatusCode <= 500 || expectedIgnores.contains(errorStatusCode)) {
                     failureListener.assertNotCalled();
                 } else {
-                    failureListener.assertCalled(httpHost);
+                    failureListener.assertCalled(singletonList(node));
                 }
             }
         }
@@ -260,14 +261,14 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             } catch(IOException e) {
                 assertThat(e, instanceOf(ConnectTimeoutException.class));
             }
-            failureListener.assertCalled(httpHost);
+            failureListener.assertCalled(singletonList(node));
             try {
                 performRequest(method, "/soe");
                 fail("request should have failed");
             } catch(IOException e) {
                 assertThat(e, instanceOf(SocketTimeoutException.class));
             }
-            failureListener.assertCalled(httpHost);
+            failureListener.assertCalled(singletonList(node));
         }
     }
 
@@ -280,13 +281,17 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         StringEntity entity = new StringEntity(body, ContentType.APPLICATION_JSON);
         for (String method : Arrays.asList("DELETE", "GET", "PATCH", "POST", "PUT")) {
             for (int okStatusCode : getOkStatusCodes()) {
-                Response response = restClient.performRequest(method, "/" + okStatusCode, Collections.<String, String>emptyMap(), entity);
+                Request request = new Request(method, "/" + okStatusCode);
+                request.setEntity(entity);
+                Response response = restClient.performRequest(request);
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(okStatusCode));
                 assertThat(EntityUtils.toString(response.getEntity()), equalTo(body));
             }
             for (int errorStatusCode : getAllErrorStatusCodes()) {
+                Request request = new Request(method, "/" + errorStatusCode);
+                request.setEntity(entity);
                 try {
-                    restClient.performRequest(method, "/" + errorStatusCode, Collections.<String, String>emptyMap(), entity);
+                    restClient.performRequest(request);
                     fail("request should have failed");
                 } catch(ResponseException e) {
                     Response response = e.getResponse();
@@ -297,8 +302,10 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             }
         }
         for (String method : Arrays.asList("HEAD", "OPTIONS", "TRACE")) {
+            Request request = new Request(method, "/" + randomStatusCode(getRandom()));
+            request.setEntity(entity);
             try {
-                restClient.performRequest(method, "/" + randomStatusCode(getRandom()), Collections.<String, String>emptyMap(), entity);
+                restClient.performRequest(request);
                 fail("request should have failed");
             } catch(UnsupportedOperationException e) {
                 assertThat(e.getMessage(), equalTo(method + " with body is not supported"));
@@ -306,7 +313,11 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
     }
 
-    public void testNullHeaders() throws IOException {
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddHeaders()}.
+     */
+    @Deprecated
+    public void tesPerformRequestOldStyleNullHeaders() throws IOException {
         String method = randomHttpMethod(getRandom());
         int statusCode = randomStatusCode(getRandom());
         try {
@@ -323,20 +334,24 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
     }
 
-    public void testNullParams() throws IOException {
+    /**
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddParameters()}.
+     */
+    @Deprecated
+    public void testPerformRequestOldStyleWithNullParams() throws IOException {
         String method = randomHttpMethod(getRandom());
         int statusCode = randomStatusCode(getRandom());
         try {
             restClient.performRequest(method, "/" + statusCode, (Map<String, String>)null);
             fail("request should have failed");
         } catch(NullPointerException e) {
-            assertEquals("params must not be null", e.getMessage());
+            assertEquals("parameters cannot be null", e.getMessage());
         }
         try {
             restClient.performRequest(method, "/" + statusCode, null, (HttpEntity)null);
             fail("request should have failed");
         } catch(NullPointerException e) {
-            assertEquals("params must not be null", e.getMessage());
+            assertEquals("parameters cannot be null", e.getMessage());
         }
     }
 
@@ -348,9 +363,15 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         for (String method : getHttpMethods()) {
             final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = randomStatusCode(getRandom());
+            Request request = new Request(method, "/" + statusCode);
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            for (Header requestHeader : requestHeaders) {
+                options.addHeader(requestHeader.getName(), requestHeader.getValue());
+            }
+            request.setOptions(options);
             Response esResponse;
             try {
-                esResponse = restClient.performRequest(method, "/" + statusCode, requestHeaders);
+                esResponse = restClient.performRequest(request);
             } catch(ResponseException e) {
                 esResponse = e.getResponse();
             }
@@ -361,16 +382,15 @@ public class RestClientSingleHostTests extends RestClientTestCase {
 
     private HttpUriRequest performRandomRequest(String method) throws Exception {
         String uriAsString = "/" + randomStatusCode(getRandom());
+        Request request = new Request(method, uriAsString);
         URIBuilder uriBuilder = new URIBuilder(uriAsString);
-        final Map<String, String> params = new HashMap<>();
-        boolean hasParams = randomBoolean();
-        if (hasParams) {
+        if (randomBoolean()) {
             int numParams = randomIntBetween(1, 3);
             for (int i = 0; i < numParams; i++) {
-                String paramKey = "param-" + i;
-                String paramValue = randomAsciiOfLengthBetween(3, 10);
-                params.put(paramKey, paramValue);
-                uriBuilder.addParameter(paramKey, paramValue);
+                String name = "param-" + i;
+                String value = randomAsciiAlphanumOfLengthBetween(3, 10);
+                request.addParameter(name, value);
+                uriBuilder.addParameter(name, value);
             }
         }
         if (randomBoolean()) {
@@ -379,81 +399,84 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             if (randomBoolean()) {
                 ignore += "," + Integer.toString(randomFrom(RestClientTestUtil.getAllErrorStatusCodes()));
             }
-            params.put("ignore", ignore);
+            request.addParameter("ignore", ignore);
         }
         URI uri = uriBuilder.build();
 
-        HttpUriRequest request;
+        HttpUriRequest expectedRequest;
         switch(method) {
             case "DELETE":
-                request = new HttpDeleteWithEntity(uri);
+                expectedRequest = new HttpDeleteWithEntity(uri);
                 break;
             case "GET":
-                request = new HttpGetWithEntity(uri);
+                expectedRequest = new HttpGetWithEntity(uri);
                 break;
             case "HEAD":
-                request = new HttpHead(uri);
+                expectedRequest = new HttpHead(uri);
                 break;
             case "OPTIONS":
-                request = new HttpOptions(uri);
+                expectedRequest = new HttpOptions(uri);
                 break;
             case "PATCH":
-                request = new HttpPatch(uri);
+                expectedRequest = new HttpPatch(uri);
                 break;
             case "POST":
-                request = new HttpPost(uri);
+                expectedRequest = new HttpPost(uri);
                 break;
             case "PUT":
-                request = new HttpPut(uri);
+                expectedRequest = new HttpPut(uri);
                 break;
             case "TRACE":
-                request = new HttpTrace(uri);
+                expectedRequest = new HttpTrace(uri);
                 break;
             default:
                 throw new UnsupportedOperationException("method not supported: " + method);
         }
 
-        HttpEntity entity = null;
-        boolean hasBody = request instanceof HttpEntityEnclosingRequest && getRandom().nextBoolean();
-        if (hasBody) {
-            entity = new StringEntity(randomAsciiOfLengthBetween(10, 100), ContentType.APPLICATION_JSON);
-            ((HttpEntityEnclosingRequest) request).setEntity(entity);
+        if (expectedRequest instanceof HttpEntityEnclosingRequest && getRandom().nextBoolean()) {
+            HttpEntity entity = new StringEntity(randomAsciiAlphanumOfLengthBetween(10, 100), ContentType.APPLICATION_JSON);
+            ((HttpEntityEnclosingRequest) expectedRequest).setEntity(entity);
+            request.setEntity(entity);
         }
 
-        Header[] headers = new Header[0];
         final Set<String> uniqueNames = new HashSet<>();
         if (randomBoolean()) {
-            headers = RestClientTestUtil.randomHeaders(getRandom(), "Header");
+            Header[] headers = RestClientTestUtil.randomHeaders(getRandom(), "Header");
+            RequestOptions.Builder options = request.getOptions().toBuilder();
             for (Header header : headers) {
-                request.addHeader(header);
+                options.addHeader(header.getName(), header.getValue());
+                expectedRequest.addHeader(new RequestOptions.ReqHeader(header.getName(), header.getValue()));
                 uniqueNames.add(header.getName());
             }
+            request.setOptions(options);
         }
         for (Header defaultHeader : defaultHeaders) {
             // request level headers override default headers
             if (uniqueNames.contains(defaultHeader.getName()) == false) {
-                request.addHeader(defaultHeader);
+                expectedRequest.addHeader(defaultHeader);
             }
         }
 
         try {
-            if (hasParams == false && hasBody == false && randomBoolean()) {
-                restClient.performRequest(method, uriAsString, headers);
-            } else if (hasBody == false && randomBoolean()) {
-                restClient.performRequest(method, uriAsString, params, headers);
-            } else {
-                restClient.performRequest(method, uriAsString, params, entity, headers);
-            }
+            restClient.performRequest(request);
         } catch(ResponseException e) {
             //all good
         }
-        return request;
+        return expectedRequest;
     }
 
+    /**
+     * @deprecated prefer {@link RestClient#performRequest(Request)}.
+     */
+    @Deprecated
     private Response performRequest(String method, String endpoint, Header... headers) throws IOException {
         return performRequest(method, endpoint, Collections.<String, String>emptyMap(), headers);
     }
 
+    /**
+     * @deprecated prefer {@link RestClient#performRequest(Request)}.
+     */
+    @Deprecated
     private Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
         int methodSelector;
         if (params.isEmpty()) {

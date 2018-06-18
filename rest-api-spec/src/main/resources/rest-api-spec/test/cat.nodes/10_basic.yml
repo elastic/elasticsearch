@@ -60,10 +60,6 @@
 
 ---
 "Additional disk information":
-  - skip:
-      version: " - 5.5.99"
-      reason:  additional disk info added in 5.6.0
-
   - do:
       cat.nodes:
           h: diskAvail,diskTotal,diskUsed,diskUsedPercent
@@ -92,10 +88,6 @@
 
 ---
 "Test cat nodes output with full_id set":
-  - skip:
-      version: " - 5.0.0"
-      reason:  The full_id setting was rejected in 5.0.0 see #21266
-
 
   - do:
       cat.nodes:

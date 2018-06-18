@@ -20,32 +20,32 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService;
 
 /**
- * Provider for {@link Similarity} instances
+ * Wrapper around a {@link Similarity} and its name.
  */
-public interface SimilarityProvider {
+public final class SimilarityProvider {
 
-    /**
-     * Returns the name associated with the Provider
-     *
-     * @return Name of the Provider
-     */
-    String name();
+    private final String name;
+    private final Similarity similarity;
 
-    /**
-     * Returns the {@link Similarity} the Provider is for
-     *
-     * @return Provided {@link Similarity}
-     */
-    Similarity get();
-
-    /** Factory of {@link SimilarityProvider} */
-    @FunctionalInterface
-    interface Factory {
-        /** Create a new {@link SimilarityProvider}. */
-        SimilarityProvider create(String name, Settings settings, Settings indexSettings, ScriptService scriptService);
+    public SimilarityProvider(String name, Similarity similarity) {
+        this.name = name;
+        this.similarity = similarity;
     }
+
+    /**
+     * Return the name of this {@link Similarity}.
+     */
+    public String name() {
+        return name;
+    }
+
+    /**
+     * Return the wrapped {@link Similarity}.
+     */
+    public Similarity get() {
+        return similarity;
+    }
+
 }

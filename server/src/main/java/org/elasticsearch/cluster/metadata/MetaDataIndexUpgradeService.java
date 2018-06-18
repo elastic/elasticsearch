@@ -20,7 +20,9 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -31,8 +33,8 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -142,14 +144,15 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
 
             IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings);
 
-            final Map<String, SimilarityProvider.Factory> similarityMap = new AbstractMap<String, SimilarityProvider.Factory>() {
+            final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarityMap
+                    = new AbstractMap<String, TriFunction<Settings, Version, ScriptService, Similarity>>() {
                 @Override
                 public boolean containsKey(Object key) {
                     return true;
                 }
 
                 @Override
-                public SimilarityProvider.Factory get(Object key) {
+                public TriFunction<Settings, Version, ScriptService, Similarity> get(Object key) {
                     assert key instanceof String : "key must be a string but was: " + key.getClass();
                     return SimilarityService.BUILT_IN.get(SimilarityService.DEFAULT_SIMILARITY);
                 }
@@ -157,7 +160,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                 // this entrySet impl isn't fully correct but necessary as SimilarityService will iterate
                 // over all similarities
                 @Override
-                public Set<Entry<String, SimilarityProvider.Factory>> entrySet() {
+                public Set<Entry<String, TriFunction<Settings, Version, ScriptService, Similarity>>> entrySet() {
                     return Collections.emptySet();
                 }
             };
@@ -183,7 +186,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                     return Collections.emptySet();
                 }
             };
-            try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap, analyzerMap)) {
+            try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
                         mapperRegistry, () -> null);
                 mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);

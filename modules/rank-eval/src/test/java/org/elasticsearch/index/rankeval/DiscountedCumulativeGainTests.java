@@ -19,12 +19,14 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -41,7 +43,7 @@ import java.util.List;
 import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnknownDocuments;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class DiscountedCumulativeGainTests extends ESTestCase {
 
@@ -205,6 +207,32 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         assertEquals(12.392789260714371 / 13.347184833073591, dcg.evaluate("id", hits, ratedDocs).getQualityLevel(), DELTA);
     }
 
+    /**
+     * test that metric returns 0.0 when there are no search results
+     */
+    public void testNoResults() throws Exception {
+        Integer[] relevanceRatings = new Integer[] { 3, 2, 3, null, 1, null };
+        List<RatedDocument> ratedDocs = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            if (i < relevanceRatings.length) {
+                if (relevanceRatings[i] != null) {
+                    ratedDocs.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
+                }
+            }
+        }
+        SearchHit[] hits = new SearchHit[0];
+        DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
+        EvalQueryQuality result = dcg.evaluate("id", hits, ratedDocs);
+        assertEquals(0.0d, result.getQualityLevel(), DELTA);
+        assertEquals(0, filterUnknownDocuments(result.getHitsAndRatings()).size());
+
+        // also check normalized
+        dcg = new DiscountedCumulativeGain(true, null, 10);
+        result = dcg.evaluate("id", hits, ratedDocs);
+        assertEquals(0.0d, result.getQualityLevel(), DELTA);
+        assertEquals(0, filterUnknownDocuments(result.getHitsAndRatings()).size());
+    }
+
     public void testParseFromXContent() throws IOException {
         assertParsedCorrect("{ \"unknown_doc_rating\": 2, \"normalize\": true, \"k\" : 15 }", 2, true, 15);
         assertParsedCorrect("{ \"normalize\": false, \"k\" : 15 }", null, false, 15);
@@ -227,9 +255,8 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
 
     public static DiscountedCumulativeGain createTestItem() {
         boolean normalize = randomBoolean();
-        Integer unknownDocRating = new Integer(randomIntBetween(0, 1000));
-
-        return new DiscountedCumulativeGain(normalize, unknownDocRating, 10);
+        Integer unknownDocRating = frequently() ? Integer.valueOf(randomIntBetween(0, 1000)) : null;
+        return new DiscountedCumulativeGain(normalize, unknownDocRating, randomIntBetween(1, 10));
     }
 
     public void testXContentRoundtrip() throws IOException {
@@ -254,9 +281,27 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             parser.nextToken();
             parser.nextToken();
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            XContentParseException exception = expectThrows(XContentParseException.class,
                     () -> DiscountedCumulativeGain.fromXContent(parser));
-            assertThat(exception.getMessage(), startsWith("[dcg_at] unknown field"));
+            assertThat(exception.getMessage(), containsString("[dcg] unknown field"));
+        }
+    }
+
+    public void testMetricDetails() {
+        double dcg = randomDoubleBetween(0, 1, true);
+        double idcg = randomBoolean() ? 0.0 : randomDoubleBetween(0, 1, true);
+        double expectedNdcg = idcg != 0 ? dcg / idcg : 0.0;
+        int unratedDocs = randomIntBetween(0, 100);
+        DiscountedCumulativeGain.Detail detail = new DiscountedCumulativeGain.Detail(dcg, idcg, unratedDocs);
+        assertEquals(dcg, detail.getDCG(), 0.0);
+        assertEquals(idcg, detail.getIDCG(), 0.0);
+        assertEquals(expectedNdcg, detail.getNDCG(), 0.0);
+        assertEquals(unratedDocs, detail.getUnratedDocs());
+        if (idcg != 0) {
+            assertEquals("{\"dcg\":{\"dcg\":" + dcg + ",\"ideal_dcg\":" + idcg + ",\"normalized_dcg\":" + expectedNdcg
+                    + ",\"unrated_docs\":" + unratedDocs + "}}", Strings.toString(detail));
+        } else {
+            assertEquals("{\"dcg\":{\"dcg\":" + dcg + ",\"unrated_docs\":" + unratedDocs + "}}", Strings.toString(detail));
         }
     }
 

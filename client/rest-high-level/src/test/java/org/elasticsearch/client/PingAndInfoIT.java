@@ -28,12 +28,12 @@ import java.util.Map;
 public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
 
     public void testPing() throws IOException {
-        assertTrue(highLevelClient().ping());
+        assertTrue(highLevelClient().ping(RequestOptions.DEFAULT));
     }
 
     @SuppressWarnings("unchecked")
     public void testInfo() throws IOException {
-        MainResponse info = highLevelClient().info();
+        MainResponse info = highLevelClient().info(RequestOptions.DEFAULT);
         // compare with what the low level client outputs
         Map<String, Object> infoAsMap = entityAsMap(adminClient().performRequest(HttpGet.METHOD_NAME, "/"));
         assertEquals(infoAsMap.get("cluster_name"), info.getClusterName().value());
@@ -42,6 +42,8 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         // only check node name existence, might be a different one from what was hit by low level client in multi-node cluster
         assertNotNull(info.getNodeName());
         Map<String, Object> versionMap = (Map<String, Object>) infoAsMap.get("version");
+        assertEquals(versionMap.get("build_flavor"), info.getBuild().flavor().displayName());
+        assertEquals(versionMap.get("build_type"), info.getBuild().type().displayName());
         assertEquals(versionMap.get("build_hash"), info.getBuild().shortHash());
         assertEquals(versionMap.get("build_date"), info.getBuild().date());
         assertEquals(versionMap.get("build_snapshot"), info.getBuild().isSnapshot());

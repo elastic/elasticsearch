@@ -25,7 +25,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -35,21 +37,34 @@ import java.io.IOException;
  * A source that can record and compare values of similar type.
  */
 abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements Releasable {
+    protected final BigArrays bigArrays;
+    protected final DocValueFormat format;
+    @Nullable
+    protected final MappedFieldType fieldType;
+    protected final boolean missingBucket;
+
     protected final int size;
     protected final int reverseMul;
+
     protected T afterValue;
-    @Nullable
-    protected MappedFieldType fieldType;
 
     /**
-     * Ctr
+     * Creates a new {@link SingleDimensionValuesSource}.
      *
-     * @param fieldType The fieldType associated with the source.
+     * @param bigArrays The big arrays object.
+     * @param format The format of the source.
+     * @param fieldType The field type or null if the source is a script.
+     * @param missingBucket If true, an explicit `null bucket represents documents with missing values.
      * @param size The number of values to record.
      * @param reverseMul -1 if the natural order ({@link SortOrder#ASC} should be reversed.
      */
-    SingleDimensionValuesSource(@Nullable MappedFieldType fieldType, int size, int reverseMul) {
+    SingleDimensionValuesSource(BigArrays bigArrays, DocValueFormat format,
+                                @Nullable MappedFieldType fieldType, boolean missingBucket,
+                                int size, int reverseMul) {
+        this.bigArrays = bigArrays;
+        this.format = format;
         this.fieldType = fieldType;
+        this.missingBucket = missingBucket;
         this.size = size;
         this.reverseMul = reverseMul;
         this.afterValue = null;
@@ -127,6 +142,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      */
     protected boolean checkIfSortedDocsIsApplicable(IndexReader reader, MappedFieldType fieldType) {
         if (fieldType == null ||
+                (missingBucket && afterValue == null) ||
                 fieldType.indexOptions() == IndexOptions.NONE ||
                 // inverse of the natural order
                 reverseMul == -1) {

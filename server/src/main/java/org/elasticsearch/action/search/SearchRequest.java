@@ -75,8 +75,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     private Boolean requestCache;
 
     private Boolean allowPartialSearchResults;
-    
-    
+
+
     private Scroll scroll;
 
     private int batchedReduceSize = 512;
@@ -140,7 +140,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         }
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             allowPartialSearchResults = in.readOptionalBoolean();
-        }           
+        }
     }
 
     @Override
@@ -165,7 +165,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         }
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
-        }         
+        }
     }
 
     @Override
@@ -224,7 +224,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * The document types to execute the search against. Defaults to be executed against
      * all types.
+     * @deprecated Types are going away, prefer filtering on a type.
      */
+    @Deprecated
     public SearchRequest types(String... types) {
         Objects.requireNonNull(types, "types must not be null");
         for (String type : types) {
@@ -259,7 +261,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public SearchRequest preference(String preference) {
@@ -360,7 +362,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     public Boolean requestCache() {
         return this.requestCache;
     }
-    
+
     /**
      * Sets if this request should allow partial results. (If method is not called,
      * will default to the cluster level setting).
@@ -372,8 +374,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     public Boolean allowPartialSearchResults() {
         return this.allowPartialSearchResults;
-    }    
-    
+    }
+
 
     /**
      * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
@@ -395,18 +397,18 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Returns the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
-     * reduce the number of shard reqeusts fired per high level search request. Searches that hit the entire cluster can be throttled
-     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
+     * Returns the number of shard requests that should be executed concurrently on a single node. This value should be used as a
+     * protection mechanism to reduce the number of shard requests fired per high level search request. Searches that hit the entire
+     * cluster can be throttled with this number to reduce the cluster load. The default is {@code 5}
      */
     public int getMaxConcurrentShardRequests() {
-        return maxConcurrentShardRequests == 0 ? 256 : maxConcurrentShardRequests;
+        return maxConcurrentShardRequests == 0 ? 5 : maxConcurrentShardRequests;
     }
 
     /**
-     * Sets the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
-     * reduce the number of shard requests fired per high level search request. Searches that hit the entire cluster can be throttled
-     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
+     * Sets the number of shard requests that should be executed concurrently on a single node. This value should be used as a
+     * protection mechanism to reduce the number of shard requests fired per high level search request. Searches that hit the entire
+     * cluster can be throttled with this number to reduce the cluster load. The default is {@code 5}
      */
     public void setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
         if (maxConcurrentShardRequests < 1) {
@@ -418,7 +420,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
      * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
-     * bounds and the query are disjoint. The default is <tt>128</tt>
+     * bounds and the query are disjoint. The default is {@code 128}
      */
     public void setPreFilterShardSize(int preFilterShardSize) {
         if (preFilterShardSize < 1) {
@@ -431,7 +433,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      * Returns a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
      * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
-     * bounds and the query are disjoint. The default is <tt>128</tt>
+     * bounds and the query are disjoint. The default is {@code 128}
      */
     public int getPreFilterShardSize() {
         return preFilterShardSize;
@@ -508,7 +510,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize, 
+                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
                 allowPartialSearchResults);
     }
 

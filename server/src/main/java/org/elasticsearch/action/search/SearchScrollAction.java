@@ -20,9 +20,8 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class SearchScrollAction extends Action<SearchScrollRequest, SearchResponse, SearchScrollRequestBuilder> {
+public class SearchScrollAction extends Action<SearchScrollRequest, SearchResponse> {
 
     public static final SearchScrollAction INSTANCE = new SearchScrollAction();
     public static final String NAME = "indices:data/read/scroll";
@@ -34,10 +33,5 @@ public class SearchScrollAction extends Action<SearchScrollRequest, SearchRespon
     @Override
     public SearchResponse newResponse() {
         return new SearchResponse();
-    }
-
-    @Override
-    public SearchScrollRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new SearchScrollRequestBuilder(client, this);
     }
 }

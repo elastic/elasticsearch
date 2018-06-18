@@ -20,12 +20,11 @@
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Get repositories action
  */
-public class GetRepositoriesAction extends Action<GetRepositoriesRequest, GetRepositoriesResponse, GetRepositoriesRequestBuilder> {
+public class GetRepositoriesAction extends Action<GetRepositoriesRequest, GetRepositoriesResponse> {
 
     public static final GetRepositoriesAction INSTANCE = new GetRepositoriesAction();
     public static final String NAME = "cluster:admin/repository/get";
@@ -37,11 +36,6 @@ public class GetRepositoriesAction extends Action<GetRepositoriesRequest, GetRep
     @Override
     public GetRepositoriesResponse newResponse() {
         return new GetRepositoriesResponse();
-    }
-
-    @Override
-    public GetRepositoriesRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new GetRepositoriesRequestBuilder(client, this);
     }
 }
 

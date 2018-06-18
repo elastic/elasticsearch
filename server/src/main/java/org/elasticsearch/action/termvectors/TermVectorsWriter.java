@@ -70,6 +70,10 @@ final class TermVectorsWriter {
             Terms topLevelTerms = topLevelFields.terms(field);
 
             // if no terms found, take the retrieved term vector fields for stats
+            if (fieldTermVector == null) {
+                fieldTermVector = EMPTY_TERMS;
+            }
+
             if (topLevelTerms == null) {
                 topLevelTerms = EMPTY_TERMS;
             }

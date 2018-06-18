@@ -627,7 +627,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         UnicastPingRequest(StreamInput in) throws IOException {
             super(in);
             id = in.readInt();
-            timeout = new TimeValue(in);
+            timeout = in.readTimeValue();
             pingResponse = new PingResponse(in);
         }
 
@@ -640,7 +640,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeInt(id);
-            timeout.writeTo(out);
+            out.writeTimeValue(timeout);
             pingResponse.writeTo(out);
         }
     }

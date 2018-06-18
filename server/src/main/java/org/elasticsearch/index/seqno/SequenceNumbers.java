@@ -37,7 +37,7 @@ public class SequenceNumbers {
      */
     public static final long UNASSIGNED_SEQ_NO = -2L;
     /**
-     * Represents no operations have been performed on the shard.
+     * Represents no operations have been performed on the shard. Initial value of a sequence number.
      */
     public static final long NO_OPS_PERFORMED = -1L;
 
@@ -121,6 +121,14 @@ public class SequenceNumbers {
         public CommitInfo(long maxSeqNo, long localCheckpoint) {
             this.maxSeqNo = maxSeqNo;
             this.localCheckpoint = localCheckpoint;
+        }
+
+        @Override
+        public String toString() {
+            return "CommitInfo{" +
+                "maxSeqNo=" + maxSeqNo +
+                ", localCheckpoint=" + localCheckpoint +
+                '}';
         }
     }
 }

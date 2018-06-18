@@ -20,9 +20,10 @@
 package org.elasticsearch.client.sniff.documentation;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer;
-import org.elasticsearch.client.sniff.HostsSniffer;
+import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
+import org.elasticsearch.client.sniff.NodesSniffer;
 import org.elasticsearch.client.sniff.SniffOnFailureListener;
 import org.elasticsearch.client.sniff.Sniffer;
 
@@ -91,12 +92,12 @@ public class SnifferDocumentation {
             RestClient restClient = RestClient.builder(
                     new HttpHost("localhost", 9200, "http"))
                     .build();
-            HostsSniffer hostsSniffer = new ElasticsearchHostsSniffer(
+            NodesSniffer nodesSniffer = new ElasticsearchNodesSniffer(
                     restClient,
-                    ElasticsearchHostsSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT,
-                    ElasticsearchHostsSniffer.Scheme.HTTPS);
+                    ElasticsearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT,
+                    ElasticsearchNodesSniffer.Scheme.HTTPS);
             Sniffer sniffer = Sniffer.builder(restClient)
-                    .setHostsSniffer(hostsSniffer).build();
+                    .setNodesSniffer(nodesSniffer).build();
             //end::sniffer-https
         }
         {
@@ -104,28 +105,28 @@ public class SnifferDocumentation {
             RestClient restClient = RestClient.builder(
                     new HttpHost("localhost", 9200, "http"))
                     .build();
-            HostsSniffer hostsSniffer = new ElasticsearchHostsSniffer(
+            NodesSniffer nodesSniffer = new ElasticsearchNodesSniffer(
                     restClient,
                     TimeUnit.SECONDS.toMillis(5),
-                    ElasticsearchHostsSniffer.Scheme.HTTP);
+                    ElasticsearchNodesSniffer.Scheme.HTTP);
             Sniffer sniffer = Sniffer.builder(restClient)
-                    .setHostsSniffer(hostsSniffer).build();
+                    .setNodesSniffer(nodesSniffer).build();
             //end::sniff-request-timeout
         }
         {
-            //tag::custom-hosts-sniffer
+            //tag::custom-nodes-sniffer
             RestClient restClient = RestClient.builder(
                     new HttpHost("localhost", 9200, "http"))
                     .build();
-            HostsSniffer hostsSniffer = new HostsSniffer() {
+            NodesSniffer nodesSniffer = new NodesSniffer() {
                 @Override
-                public List<HttpHost> sniffHosts() throws IOException {
+                public List<Node> sniff() throws IOException {
                     return null; // <1>
                 }
             };
             Sniffer sniffer = Sniffer.builder(restClient)
-                    .setHostsSniffer(hostsSniffer).build();
-            //end::custom-hosts-sniffer
+                    .setNodesSniffer(nodesSniffer).build();
+            //end::custom-nodes-sniffer
         }
     }
 }

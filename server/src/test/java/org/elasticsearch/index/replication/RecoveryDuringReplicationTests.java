@@ -22,7 +22,6 @@ package org.elasticsearch.index.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -33,11 +32,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
@@ -52,8 +53,12 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -64,6 +69,7 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -128,7 +134,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 shards.flush();
                 translogTrimmed = randomBoolean();
                 if (translogTrimmed) {
-                    final Translog translog = shards.getPrimary().getTranslog();
+                    final Translog translog = getTranslog(shards.getPrimary());
                     translog.getDeletionPolicy().setRetentionAgeInMillis(0);
                     translog.trimUnreferencedReaders();
                 }
@@ -183,9 +189,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     VersionType.EXTERNAL,
                     randomNonNegativeLong(),
                     false,
-                    SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON),
-                    mapping -> {});
-            shards.promoteReplicaToPrimary(promotedReplica);
+                    SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON));
+            shards.promoteReplicaToPrimary(promotedReplica).get();
             oldPrimary.close("demoted", randomBoolean());
             oldPrimary.store().close();
             shards.removeReplica(remainingReplica);
@@ -199,9 +204,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         VersionType.INTERNAL,
                         SourceToParse.source("index", "type", "primary", new BytesArray("{}"), XContentType.JSON),
                         randomNonNegativeLong(),
-                        false,
-                        mapping -> {
-                        });
+                        false);
             }
             final IndexShard recoveredReplica =
                     shards.addReplicaWithExistingPath(remainingReplica.shardPath(), remainingReplica.routingEntry().currentNodeId());
@@ -271,7 +274,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 // otherwise the deletion policy won't trim translog
                 assertBusy(() -> {
                     shards.syncGlobalCheckpoint();
-                    assertThat(newPrimary.getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(newPrimary.seqNoStats().getMaxSeqNo()));
+                    assertThat(newPrimary.getLastSyncedGlobalCheckpoint(), equalTo(newPrimary.seqNoStats().getMaxSeqNo()));
                 });
                 newPrimary.flush(new FlushRequest());
                 uncommittedOpsOnPrimary = shards.indexDocs(randomIntBetween(0, 10));
@@ -340,7 +343,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             // Index more docs - move the global checkpoint >= seqno of the stale operations.
             goodDocs += shards.indexDocs(scaledRandomIntBetween(staleDocs, staleDocs * 5));
             shards.syncGlobalCheckpoint();
-            assertThat(replica.getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(replica.seqNoStats().getMaxSeqNo()));
+            assertThat(replica.getLastSyncedGlobalCheckpoint(), equalTo(replica.seqNoStats().getMaxSeqNo()));
             // Recover a replica again should also rollback the stale documents.
             shards.removeReplica(replica);
             replica.close("recover replica - second time", false);
@@ -355,10 +358,19 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
     @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.action.resync:TRACE")
     public void testResyncAfterPrimaryPromotion() throws Exception {
-        // TODO: check translog trimming functionality once it's implemented
-        try (ReplicationGroup shards = createGroup(2)) {
+        // TODO: check translog trimming functionality once rollback is implemented in Lucene (ES trimming is done)
+        Map<String, String> mappings =
+            Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
             shards.startAll();
-            int initialDocs = shards.indexDocs(randomInt(10));
+            int initialDocs = randomInt(10);
+
+            for (int i = 0; i < initialDocs; i++) {
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "initial_doc_" + i)
+                    .source("{ \"f\": \"normal\"}", XContentType.JSON);
+                shards.index(indexRequest);
+            }
+
             boolean syncedGlobalCheckPoint = randomBoolean();
             if (syncedGlobalCheckPoint) {
                 shards.syncGlobalCheckpoint();
@@ -366,16 +378,30 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
             final IndexShard oldPrimary = shards.getPrimary();
             final IndexShard newPrimary = shards.getReplicas().get(0);
+            final IndexShard justReplica = shards.getReplicas().get(1);
 
             // simulate docs that were inflight when primary failed
-            final int extraDocs = randomIntBetween(0, 5);
+            final int extraDocs = randomInt(5);
             logger.info("--> indexing {} extra docs", extraDocs);
             for (int i = 0; i < extraDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_" + i)
-                    .source("{}", XContentType.JSON);
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_doc_" + i)
+                    .source("{ \"f\": \"normal\"}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                 indexOnReplica(bulkShardRequest, shards, newPrimary);
             }
+
+            final int extraDocsToBeTrimmed = randomIntBetween(0, 10);
+            logger.info("--> indexing {} extra docs to be trimmed", extraDocsToBeTrimmed);
+            for (int i = 0; i < extraDocsToBeTrimmed; i++) {
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_trimmed_" + i)
+                    .source("{ \"f\": \"trimmed\"}", XContentType.JSON);
+                final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
+                // have to replicate to another replica != newPrimary one - the subject to trim
+                indexOnReplica(bulkShardRequest, shards, justReplica);
+            }
+
+            logger.info("--> seqNo primary {} replica {}", oldPrimary.seqNoStats(), newPrimary.seqNoStats());
+
             logger.info("--> resyncing replicas");
             PrimaryReplicaSyncer.ResyncTask task = shards.promoteReplicaToPrimary(newPrimary).get();
             if (syncedGlobalCheckPoint) {
@@ -383,7 +409,36 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             } else {
                 assertThat(task.getResyncedOperations(), greaterThanOrEqualTo(extraDocs));
             }
-            shards.assertAllEqual(initialDocs + extraDocs);
+            List<IndexShard> replicas = shards.getReplicas();
+
+            // check all docs on primary are available on replica
+            Set<String> primaryIds = getShardDocUIDs(newPrimary);
+            assertThat(primaryIds.size(), equalTo(initialDocs + extraDocs));
+            for (IndexShard replica : replicas) {
+                Set<String> replicaIds = getShardDocUIDs(replica);
+                Set<String> temp = new HashSet<>(primaryIds);
+                temp.removeAll(replicaIds);
+                assertThat(replica.routingEntry() + " is missing docs", temp, empty());
+                temp = new HashSet<>(replicaIds);
+                temp.removeAll(primaryIds);
+                // yeah, replica has more docs as there is no Lucene roll back on it
+                assertThat(replica.routingEntry() + " has to have extra docs", temp,
+                    extraDocsToBeTrimmed > 0 ? not(empty()) : empty());
+            }
+
+            // check translog on replica is trimmed
+            int translogOperations = 0;
+            try(Translog.Snapshot snapshot = getTranslog(justReplica).newSnapshot()) {
+                Translog.Operation next;
+                while ((next = snapshot.next()) != null) {
+                    translogOperations++;
+                    assertThat("unexpected op: " + next, (int)next.seqNo(), lessThan(initialDocs + extraDocs));
+                    assertThat("unexpected primaryTerm: " + next.primaryTerm(), next.primaryTerm(), is(oldPrimary.getPrimaryTerm()));
+                    final Translog.Source source = next.getSource();
+                    assertThat(source.source.utf8ToString(), is("{ \"f\": \"normal\"}"));
+                }
+            }
+            assertThat(translogOperations, is(initialDocs + extraDocs));
         }
     }
 
@@ -409,7 +464,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 if (routing.primary()) {
                     return primaryEngineFactory;
                 } else {
-                    return null;
+                    return new InternalEngineFactory();
                 }
             }
         }) {
@@ -503,7 +558,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     @Override
                     protected EngineFactory getEngineFactory(final ShardRouting routing) {
                         if (routing.primary()) {
-                            return null;
+                            return new InternalEngineFactory();
                         } else {
                             return replicaEngineFactory;
                         }

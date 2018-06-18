@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.shrink;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class ShrinkAction extends Action<ResizeRequest, ResizeResponse, ResizeRequestBuilder> {
+public class ShrinkAction extends Action<ResizeRequest, ResizeResponse> {
 
     public static final ShrinkAction INSTANCE = new ShrinkAction();
     public static final String NAME = "indices:admin/shrink";
@@ -34,10 +33,5 @@ public class ShrinkAction extends Action<ResizeRequest, ResizeResponse, ResizeRe
     @Override
     public ResizeResponse newResponse() {
         return new ResizeResponse();
-    }
-
-    @Override
-    public ResizeRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new ResizeRequestBuilder(client, this);
     }
 }

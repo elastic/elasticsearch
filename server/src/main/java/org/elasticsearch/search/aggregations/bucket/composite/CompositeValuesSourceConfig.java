@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -32,13 +32,24 @@ class CompositeValuesSourceConfig {
     private final ValuesSource vs;
     private final DocValueFormat format;
     private final int reverseMul;
+    private final boolean missingBucket;
 
-    CompositeValuesSourceConfig(String name, @Nullable MappedFieldType fieldType, ValuesSource vs, DocValueFormat format, SortOrder order) {
+    /**
+     * Creates a new {@link CompositeValuesSourceConfig}.
+     * @param name The name of the source.
+     * @param fieldType The field type or null if the source is a script.
+     * @param vs The underlying {@link ValuesSource}.
+     * @param format The {@link DocValueFormat} of this source.
+     * @param order The sort order associated with this source.
+     */
+    CompositeValuesSourceConfig(String name, @Nullable MappedFieldType fieldType, ValuesSource vs, DocValueFormat format,
+                                SortOrder order, boolean missingBucket) {
         this.name = name;
         this.fieldType = fieldType;
         this.vs = vs;
         this.format = format;
         this.reverseMul = order == SortOrder.ASC ? 1 : -1;
+        this.missingBucket = missingBucket;
     }
 
     /**
@@ -68,6 +79,13 @@ class CompositeValuesSourceConfig {
      */
     DocValueFormat format() {
         return format;
+    }
+
+    /**
+     * If true, an explicit `null bucket represents documents with missing values.
+     */
+    boolean missingBucket() {
+        return missingBucket;
     }
 
     /**

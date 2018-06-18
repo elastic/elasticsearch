@@ -27,6 +27,7 @@ case "$1" in
             adduser --quiet \
                     --system \
                     --no-create-home \
+                    --home /nonexistent \
                     --ingroup elasticsearch \
                     --disabled-password \
                     --shell /bin/false \
@@ -50,8 +51,9 @@ case "$1" in
         # Create elasticsearch user if not existing
         if ! id elasticsearch > /dev/null 2>&1 ; then
             echo -n "Creating elasticsearch user..."
-            useradd -r \
-                    -M \
+            useradd --system \
+                    --no-create-home \
+                    --home-dir /nonexistent \
                     --gid elasticsearch \
                     --shell /sbin/nologin \
                     --comment "elasticsearch user" \

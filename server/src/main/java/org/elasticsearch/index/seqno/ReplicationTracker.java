@@ -339,6 +339,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 "shard copy " + entry.getKey() + " is in-sync but not tracked";
         }
 
+        // all pending in sync shards are tracked
+        for (String aId : pendingInSync) {
+            assert checkpoints.get(aId) != null : "aId [" + aId + "] is pending in sync but isn't tracked";
+        }
+
         return true;
     }
 
@@ -521,6 +526,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                         checkpoints.put(initializingId, new CheckpointState(localCheckpoint, globalCheckpoint, inSync, inSync));
                     }
                 }
+                if (removedEntries) {
+                    pendingInSync.removeIf(aId -> checkpoints.containsKey(aId) == false);
+                }
             } else {
                 for (String initializingId : initializingAllocationIds) {
                     if (shardAllocationId.equals(initializingId) == false) {
@@ -549,6 +557,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             replicationGroup = calculateReplicationGroup();
             if (primaryMode && removedEntries) {
                 updateGlobalCheckpointOnPrimary();
+                // notify any waiter for local checkpoint advancement to recheck that their shard is still being tracked.
+                notifyAllWaiters();
             }
         }
         assert invariant();

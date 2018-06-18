@@ -106,6 +106,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     return lookup.get(node); },
                 aliasFilters,
                 Collections.emptyMap(),
+                Collections.emptyMap(),
                 null,
                 request,
                 responseListener,
@@ -173,7 +174,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
         };
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        // for the sake of this test we place the replica on the same node. ie. this is not a mistake since we limit per node now
+        DiscoveryNode replicaNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
@@ -197,6 +199,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     assert cluster == null : "cluster was not null: " + cluster;
                     return lookup.get(node); },
                 aliasFilters,
+                Collections.emptyMap(),
                 Collections.emptyMap(),
                 null,
                 request,
@@ -240,7 +243,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
                     return new SearchPhase("test") {
                         @Override
-                        public void run() throws IOException {
+                        public void run() {
                             latch.countDown();
                         }
                     };
@@ -302,6 +305,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                             assert cluster == null : "cluster was not null: " + cluster;
                             return lookup.get(node); },
                         aliasFilters,
+                        Collections.emptyMap(),
                         Collections.emptyMap(),
                         executor,
                         request,

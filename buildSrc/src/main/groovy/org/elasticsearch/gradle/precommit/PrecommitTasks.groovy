@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.precommit
 
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -83,17 +84,14 @@ class PrecommitTasks {
                               getClass().getResource('/forbidden/es-all-signatures.txt')]
             suppressAnnotations = ['**.SuppressForbidden']
         }
-        Task mainForbidden = project.tasks.findByName('forbiddenApisMain')
-        if (mainForbidden != null) {
-            mainForbidden.configure {
-                signaturesURLs += getClass().getResource('/forbidden/es-server-signatures.txt')
-            }
-        }
-        Task testForbidden = project.tasks.findByName('forbiddenApisTest')
-        if (testForbidden != null) {
-            testForbidden.configure {
-                signaturesURLs += getClass().getResource('/forbidden/es-test-signatures.txt')
-                signaturesURLs += getClass().getResource('/forbidden/http-signatures.txt')
+        project.tasks.withType(CheckForbiddenApis) {
+            // we do not use the += operator to add signatures, as conventionMappings of Gradle do not work when it's configured using withType:
+            if (name.endsWith('Test')) {
+                signaturesURLs = project.forbiddenApis.signaturesURLs +
+                    [ getClass().getResource('/forbidden/es-test-signatures.txt'), getClass().getResource('/forbidden/http-signatures.txt') ]
+            } else {
+                signaturesURLs = project.forbiddenApis.signaturesURLs +
+                    [ getClass().getResource('/forbidden/es-server-signatures.txt') ]
             }
         }
         Task forbiddenApis = project.tasks.findByName('forbiddenApis')
@@ -142,23 +140,17 @@ class PrecommitTasks {
             configProperties = [
                 suppressions: checkstyleSuppressions
             ]
-            toolVersion = 7.5
-        }
-        for (String taskName : ['checkstyleMain', 'checkstyleJava9', 'checkstyleTest']) {
-            Task task = project.tasks.findByName(taskName)
-            if (task != null) {
-                project.tasks['check'].dependsOn.remove(task)
-                checkstyleTask.dependsOn(task)
-                task.dependsOn(copyCheckstyleConf)
-                task.inputs.file(checkstyleSuppressions)
-                task.reports {
-                    html.enabled false
-                }
-            }
+            toolVersion = '8.10.1'
         }
 
-        project.tasks.withType(Checkstyle) {
-            dependsOn(copyCheckstyleConf)
+        project.tasks.withType(Checkstyle) { task ->
+            project.tasks[JavaBasePlugin.CHECK_TASK_NAME].dependsOn.remove(task)
+            checkstyleTask.dependsOn(task)
+            task.dependsOn(copyCheckstyleConf)
+            task.inputs.file(checkstyleSuppressions)
+            task.reports {
+                html.enabled false
+            }
         }
 
         return checkstyleTask

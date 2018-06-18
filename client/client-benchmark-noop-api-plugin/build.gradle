@@ -31,6 +31,9 @@ esplugin {
 tasks.remove(assemble)
 build.dependsOn.remove('assemble')
 
+dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false
+
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
 // no unit tests

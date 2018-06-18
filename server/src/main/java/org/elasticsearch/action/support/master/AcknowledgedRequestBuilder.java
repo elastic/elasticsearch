@@ -28,7 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 public abstract class AcknowledgedRequestBuilder<Request extends AcknowledgedRequest<Request>, Response extends AcknowledgedResponse, RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>>
         extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected AcknowledgedRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
+    protected AcknowledgedRequestBuilder(ElasticsearchClient client, Action<Request, Response> action, Request request) {
         super(client, action, request);
     }
 
@@ -43,7 +43,7 @@ public abstract class AcknowledgedRequestBuilder<Request extends AcknowledgedReq
 
     /**
      * Timeout to wait for the operation to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
+     * to {@code 10s}.
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setTimeout(String timeout) {

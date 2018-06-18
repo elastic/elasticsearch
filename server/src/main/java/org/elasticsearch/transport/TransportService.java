@@ -21,6 +21,8 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
@@ -124,6 +126,8 @@ public class TransportService extends AbstractLifecycleComponent {
 
     private final RemoteClusterService remoteClusterService;
 
+    private final boolean validateConnections;
+
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
     private final Transport.Connection localNodeConnection = new Transport.Connection() {
@@ -153,6 +157,9 @@ public class TransportService extends AbstractLifecycleComponent {
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
                             Set<String> taskHeaders) {
         super(settings);
+        // The only time we do not want to validate node connections is when this is a transport client using the simple node sampler
+        this.validateConnections = TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey())) == false ||
+            TransportClient.CLIENT_TRANSPORT_SNIFF.get(settings);
         this.transport = transport;
         this.threadPool = threadPool;
         this.localNodeFactory = localNodeFactory;
@@ -314,6 +321,11 @@ public class TransportService extends AbstractLifecycleComponent {
         return isLocalNode(node) || transport.nodeConnected(node);
     }
 
+    /**
+     * Connect to the specified node with the default connection profile
+     *
+     * @param node the node to connect to
+     */
     public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
         connectToNode(node, null);
     }
@@ -330,8 +342,8 @@ public class TransportService extends AbstractLifecycleComponent {
         }
         transport.connectToNode(node, connectionProfile, (newConnection, actualProfile) -> {
             // We don't validate cluster names to allow for CCS connections.
-            final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true);
-            if (node.equals(remote) == false) {
+            final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true).discoveryNode;
+            if (validateConnections && node.equals(remote) == false) {
                 throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
             }
         });
@@ -366,7 +378,7 @@ public class TransportService extends AbstractLifecycleComponent {
     public DiscoveryNode handshake(
             final Transport.Connection connection,
             final long handshakeTimeout) throws ConnectTransportException {
-        return handshake(connection, handshakeTimeout, clusterName::equals);
+        return handshake(connection, handshakeTimeout, clusterName::equals).discoveryNode;
     }
 
     /**
@@ -378,11 +390,11 @@ public class TransportService extends AbstractLifecycleComponent {
      * @param connection       the connection to a specific node
      * @param handshakeTimeout handshake timeout
      * @param clusterNamePredicate cluster name validation predicate
-     * @return the connected node
+     * @return the handshake response
      * @throws ConnectTransportException if the connection failed
      * @throws IllegalStateException if the handshake failed
      */
-    public DiscoveryNode handshake(
+    public HandshakeResponse handshake(
         final Transport.Connection connection,
         final long handshakeTimeout, Predicate<ClusterName> clusterNamePredicate) throws ConnectTransportException {
         final HandshakeResponse response;
@@ -408,7 +420,7 @@ public class TransportService extends AbstractLifecycleComponent {
             throw new IllegalStateException("handshake failed, incompatible version [" + response.version + "] - " + node);
         }
 
-        return response.discoveryNode;
+        return response;
     }
 
     static class HandshakeRequest extends TransportRequest {
@@ -448,6 +460,14 @@ public class TransportService extends AbstractLifecycleComponent {
             out.writeOptionalWriteable(discoveryNode);
             clusterName.writeTo(out);
             Version.writeVersion(version, out);
+        }
+
+        public DiscoveryNode getDiscoveryNode() {
+            return discoveryNode;
+        }
+
+        public ClusterName getClusterName() {
+            return clusterName;
         }
     }
 

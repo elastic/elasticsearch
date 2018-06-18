@@ -26,10 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
@@ -119,6 +116,16 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
                 @Override
                 public Scroll scroll() {
+                    return null;
+                }
+
+                @Override
+                public String[] indexRoutings() {
+                    return null;
+                }
+
+                @Override
+                public String preference() {
                     return null;
                 }
 

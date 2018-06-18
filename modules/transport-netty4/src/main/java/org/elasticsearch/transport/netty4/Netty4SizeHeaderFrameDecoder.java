@@ -37,17 +37,19 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         try {
             BytesReference networkBytes = Netty4Utils.toBytesReference(in);
-            int messageLength = TcpTransport.readMessageLength(networkBytes) + HEADER_SIZE;
-            // If the message length is -1, we have not read a complete header. If the message length is
-            // greater than the network bytes available, we have not read a complete frame.
-            if (messageLength != -1 && messageLength <= networkBytes.length()) {
-                final ByteBuf message = in.skipBytes(HEADER_SIZE);
-                // 6 bytes would mean it is a ping. And we should ignore.
-                if (messageLength != 6) {
-                    out.add(message);
+            int messageLength = TcpTransport.readMessageLength(networkBytes);
+            // If the message length is -1, we have not read a complete header.
+            if (messageLength != -1) {
+                int messageLengthWithHeader = messageLength + HEADER_SIZE;
+                // If the message length is greater than the network bytes available, we have not read a complete frame.
+                if (messageLengthWithHeader <= networkBytes.length()) {
+                    final ByteBuf message = in.skipBytes(HEADER_SIZE);
+                    // 6 bytes would mean it is a ping. And we should ignore.
+                    if (messageLengthWithHeader != 6) {
+                        out.add(message);
+                    }
                 }
             }
-
         } catch (IllegalArgumentException ex) {
             throw new TooLongFrameException(ex);
         }

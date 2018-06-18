@@ -72,7 +72,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-execute-list
 
 ==== MultiSearchResponse
 
-The `MultiSearchResponse` that is returned by executing the `multiSearch`
+The `MultiSearchResponse` that is returned by executing the `multiSearch` method contains
 a `MultiSearchResponse.Item` for each `SearchRequest` in the
 `MultiSearchRequest`. Each `MultiSearchResponse.Item` contains an
 exception in `getFailure` if the request failed or a

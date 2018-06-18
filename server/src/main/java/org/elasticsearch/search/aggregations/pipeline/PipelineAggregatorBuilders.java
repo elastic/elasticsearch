@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.pipeline.bucketsort.BucketSortPipel
 import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovFnPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 
@@ -78,6 +79,10 @@ public final class PipelineAggregatorBuilders {
         return new PercentilesBucketPipelineAggregationBuilder(name, bucketsPath);
     }
 
+    /**
+     * @deprecated use {@link #movingFunction(String, Script, String, int)} instead
+     */
+    @Deprecated
     public static MovAvgPipelineAggregationBuilder movingAvg(String name, String bucketsPath) {
         return new MovAvgPipelineAggregationBuilder(name, bucketsPath);
     }
@@ -113,5 +118,10 @@ public final class PipelineAggregatorBuilders {
 
     public static SerialDiffPipelineAggregationBuilder diff(String name, String bucketsPath) {
         return new SerialDiffPipelineAggregationBuilder(name, bucketsPath);
+    }
+
+    public static MovFnPipelineAggregationBuilder movingFunction(String name, Script script,
+                                                                 String bucketsPaths, int window) {
+        return new MovFnPipelineAggregationBuilder(name, bucketsPaths, script, window);
     }
 }

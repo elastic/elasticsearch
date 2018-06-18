@@ -21,20 +21,14 @@ package org.elasticsearch.plugin.noop.action.bulk;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class NoopBulkAction extends Action<BulkRequest, BulkResponse, NoopBulkRequestBuilder> {
+public class NoopBulkAction extends Action<BulkRequest, BulkResponse> {
     public static final String NAME = "mock:data/write/bulk";
 
     public static final NoopBulkAction INSTANCE = new NoopBulkAction();
 
     private NoopBulkAction() {
         super(NAME);
-    }
-
-    @Override
-    public NoopBulkRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new NoopBulkRequestBuilder(client, this);
     }
 
     @Override

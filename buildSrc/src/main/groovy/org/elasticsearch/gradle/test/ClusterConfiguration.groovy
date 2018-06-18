@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.elasticsearch.gradle.Version
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.tasks.Input
@@ -37,7 +38,7 @@ class ClusterConfiguration {
     int numBwcNodes = 0
 
     @Input
-    String bwcVersion = null
+    Version bwcVersion = null
 
     @Input
     int httpPort = 0
@@ -63,7 +64,7 @@ class ClusterConfiguration {
     boolean debug = false
 
     /**
-     * Configuration of the setting <tt>discovery.zen.minimum_master_nodes</tt> on the nodes.
+     * Configuration of the setting {@code discovery.zen.minimum_master_nodes} on the nodes.
      * In case of more than one node, this defaults to the number of nodes
      */
     @Input
@@ -86,8 +87,9 @@ class ClusterConfiguration {
      * A closure to call which returns the unicast host to connect to for cluster formation.
      *
      * This allows multi node clusters, or a new cluster to connect to an existing cluster.
-     * The closure takes two arguments, the NodeInfo for the first node in the cluster, and
-     * an AntBuilder which may be used to wait on conditions before returning.
+     * The closure takes three arguments, the NodeInfo for the first node in the cluster,
+     * the NodeInfo for the node current being configured, an AntBuilder which may be used
+     * to wait on conditions before returning.
      */
     @Input
     Closure unicastTransportUri = { NodeInfo seedNode, NodeInfo node, AntBuilder ant ->
@@ -141,10 +143,12 @@ class ClusterConfiguration {
 
     Map<String, String> keystoreSettings = new HashMap<>()
 
+    Map<String, Object> keystoreFiles = new HashMap<>()
+
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
 
-    LinkedHashMap<String, Project> plugins = new LinkedHashMap<>()
+    LinkedHashMap<String, Object> plugins = new LinkedHashMap<>()
 
     List<Project> modules = new ArrayList<>()
 
@@ -167,10 +171,24 @@ class ClusterConfiguration {
         keystoreSettings.put(name, value)
     }
 
+    /**
+     * Adds a file to the keystore. The name is the secure setting name, and the sourceFile
+     * is anything accepted by project.file()
+     */
+    @Input
+    void keystoreFile(String name, Object sourceFile) {
+        keystoreFiles.put(name, sourceFile)
+    }
+
     @Input
     void plugin(String path) {
         Project pluginProject = project.project(path)
         plugins.put(pluginProject.name, pluginProject)
+    }
+
+    @Input
+    void mavenPlugin(String name, String mavenCoords) {
+        plugins.put(name, mavenCoords)
     }
 
     /** Add a module to the cluster. The project must be an esplugin and have a single zip default artifact. */

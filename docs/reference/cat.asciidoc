@@ -93,8 +93,8 @@ Responds with:
 // TESTRESPONSE[s/9300 27 sLBaIGK/\\d+ \\d+ .+/ _cat]
 
 You can also request multiple columns using simple wildcards like
-`/_cat/thread_pool?h=ip,bulk.*` to get all headers (or aliases) starting
-with `bulk.`.
+`/_cat/thread_pool?h=ip,queue*` to get all headers (or aliases) starting
+with `queue`.
 
 [float]
 [[numeric-formats]]

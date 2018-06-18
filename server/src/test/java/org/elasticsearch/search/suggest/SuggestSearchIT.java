@@ -979,6 +979,35 @@ public class SuggestSearchIT extends ESIntegTestCase {
         // assertThat(total, lessThan(1000L)); // Takes many seconds without fix - just for debugging
     }
 
+    public void testSuggestWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("text")
+                            .field("type", "keyword")
+                        .endObject()
+                        .startObject("alias")
+                            .field("type", "alias")
+                            .field("path", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("test", "type").setSource("text", "apple"));
+        builders.add(client().prepareIndex("test", "type").setSource("text", "mango"));
+        builders.add(client().prepareIndex("test", "type").setSource("text", "papaya"));
+        indexRandom(true, false, builders);
+
+        TermSuggestionBuilder termSuggest = termSuggestion("alias").text("appple");
+
+        Suggest searchSuggest = searchSuggest("suggestion", termSuggest);
+        assertSuggestion(searchSuggest, 0, "suggestion", "apple");
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(DummyTemplatePlugin.class);

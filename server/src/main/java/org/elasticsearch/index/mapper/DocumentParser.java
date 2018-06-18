@@ -459,13 +459,18 @@ final class DocumentParser {
     private static void parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper) {
             parseObjectOrNested(context, (ObjectMapper) mapper);
-        } else {
-            FieldMapper fieldMapper = (FieldMapper)mapper;
+        } else if (mapper instanceof FieldMapper) {
+            FieldMapper fieldMapper = (FieldMapper) mapper;
             Mapper update = fieldMapper.parse(context);
             if (update != null) {
                 context.addDynamicMapper(update);
             }
             parseCopyFields(context, fieldMapper.copyTo().copyToFields());
+        } else if (mapper instanceof FieldAliasMapper) {
+            throw new IllegalArgumentException("Cannot write to a field alias [" + mapper.name() + "].");
+        } else {
+            throw new IllegalStateException("The provided mapper [" + mapper.name() + "] has an unrecognized type [" +
+                mapper.getClass().getSimpleName() + "].");
         }
     }
 

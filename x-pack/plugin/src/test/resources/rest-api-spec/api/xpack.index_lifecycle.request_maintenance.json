@@ -1,0 +1,13 @@
+{
+  "xpack.index_lifecycle.request_maintenance": {
+    "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_xpack/index_lifecycle/maintenance/_request",
+      "paths": ["/_xpack/index_lifecycle/_maintenance/_request"],
+      "parts": {},
+      "params": {}
+    },
+    "body": null
+  }
+}

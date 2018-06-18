@@ -1,0 +1,72 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+"Test Maintenance":
+  - do:
+      xpack.index_lifecycle.get_maintenance: {}
+  - match: { in_maintenance: false }
+  - match: { operation_mode: "NORMAL" }
+
+  - do:
+      acknowlege: true
+      xpack.index_lifecycle.put_lifecycle:
+        lifecycle: "my_timeseries_lifecycle"
+        body: |
+           {
+             "policy": {
+               "type": "timeseries",
+               "phases": {
+                 "warm": {
+                   "after": "10s",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 10000
+                     }
+                   }
+                 },
+                 "delete": {
+                   "after": "30s",
+                   "actions": {
+                     "delete": {}
+                   }
+                 }
+               }
+             }
+           }
+
+  - do:
+      xpack.index_lifecycle.get_maintenance: {}
+  - match: { in_maintenance: false }
+  - match: { operation_mode: "NORMAL" }
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.request_maintenance: {}
+
+  - do:
+      xpack.index_lifecycle.get_maintenance: {}
+  - match: { in_maintenance: true }
+  - match: { operation_mode: "MAINTENANCE" }
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.stop_maintenance: {}
+
+  - do:
+      xpack.index_lifecycle.get_maintenance: {}
+  - match: { in_maintenance: false }
+  - match: { operation_mode: "NORMAL" }
+
+  - do:
+      acknowledge: true
+      xpack.index_lifecycle.delete_lifecycle:
+        lifecycle: "my_timeseries_lifecycle"
+
+  - do:
+      catch: missing
+      xpack.index_lifecycle.get_lifecycle:
+        lifecycle: "my_timeseries_lifecycle"

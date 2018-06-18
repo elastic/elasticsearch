@@ -28,16 +28,23 @@ public class MaintenanceModeUpdateTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(ClusterState currentState) {
         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
-
-
-        if (currentMetadata.getMaintenanceMode().isValidChange(mode) == false) {
+        if (currentMetadata != null && currentMetadata.getMaintenanceMode().isValidChange(mode) == false) {
             return currentState;
+        } else if (currentMetadata == null) {
+            currentMetadata = IndexLifecycleMetadata.EMPTY;
+        }
+
+        final OperationMode newMode;
+        if (currentMetadata.getMaintenanceMode().isValidChange(mode)) {
+            newMode = mode;
+        } else {
+            newMode = currentMetadata.getMaintenanceMode();
         }
 
         ClusterState.Builder builder = new ClusterState.Builder(currentState);
         MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
         metadataBuilder.putCustom(IndexLifecycleMetadata.TYPE,
-            new IndexLifecycleMetadata(currentMetadata.getPolicyMetadatas(), mode));
+            new IndexLifecycleMetadata(currentMetadata.getPolicyMetadatas(), newMode));
         builder.metaData(metadataBuilder.build());
         return builder.build();
     }

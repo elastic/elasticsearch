@@ -19,14 +19,25 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.settings.Settings;
+import java.io.Closeable;
+import java.util.Map;
 
-interface AwsS3Service extends LifecycleComponent {
+interface AwsS3Service extends Closeable {
 
     /**
-     * Creates an {@code AmazonS3} client from the given repository metadata and node settings.
+     * Creates then caches an {@code AmazonS3} client using the current client
+     * settings. Returns an {@code AmazonS3Reference} wrapper which has to be
+     * released as soon as it is not needed anymore.
      */
-    AmazonS3 client(Settings repositorySettings);
+    AmazonS3Reference client(String clientName);
+
+    /**
+     * Updates settings for building clients and clears the client cache. Future
+     * client requests will use the new settings to lazily build new clients.
+     *
+     * @param clientsSettings the new refreshed settings
+     * @return the old stale settings
+     */
+    Map<String, S3ClientSettings> refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings);
+
 }

@@ -389,6 +389,7 @@ public class Node implements Closeable {
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
             NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(Stream.of(
                 NetworkModule.getNamedXContents().stream(),
+                indicesModule.getNamedXContents().stream(),
                 searchModule.getNamedXContents().stream(),
                 pluginsService.filterPlugins(Plugin.class).stream()
                     .flatMap(p -> p.getNamedXContent().stream()),

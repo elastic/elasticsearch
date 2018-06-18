@@ -19,6 +19,7 @@ import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
@@ -62,7 +63,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         }
 
         @Override
-        protected void nodeOperation(AllocatedPersistentTask task, @Nullable RollupJob params, Status status) {
+        protected void nodeOperation(AllocatedPersistentTask task, @Nullable RollupJob params, PersistentTaskState state) {
             RollupJobTask rollupJobTask = (RollupJobTask) task;
             SchedulerEngine.Job schedulerJob = new SchedulerEngine.Job(SCHEDULE_NAME + "_" + params.getConfig().getId(),
                     new CronSchedule(params.getConfig().getCron()));
@@ -80,7 +81,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                                                      PersistentTasksCustomMetaData.PersistentTask<RollupJob> persistentTask,
                                                      Map<String, String> headers) {
             return new RollupJobTask(id, type, action, parentTaskId, persistentTask.getParams(),
-                    (RollupJobStatus) persistentTask.getStatus(), client, schedulerEngine, threadPool, headers);
+                    (RollupJobStatus) persistentTask.getState(), client, schedulerEngine, threadPool, headers);
         }
     }
 
@@ -115,15 +116,15 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         }
 
         @Override
-        protected void doSaveState(IndexerState state, Map<String, Object> position, Runnable next) {
-            if (state.equals(IndexerState.ABORTING)) {
+        protected void doSaveState(IndexerState indexerState, Map<String, Object> position, Runnable next) {
+            if (indexerState.equals(IndexerState.ABORTING)) {
                 // If we're aborting, just invoke `next` (which is likely an onFailure handler)
                 next.run();
             } else {
                 // Otherwise, attempt to persist our state
-                final RollupJobStatus status = new RollupJobStatus(state, getPosition());
-                logger.debug("Updating persistent status of job [" + job.getConfig().getId() + "] to [" + state.toString() + "]");
-                updatePersistentStatus(status, ActionListener.wrap(task -> next.run(), exc -> next.run()));
+                final RollupJobStatus state = new RollupJobStatus(indexerState, getPosition());
+                logger.debug("Updating persistent state of job [" + job.getConfig().getId() + "] to [" + indexerState.toString() + "]");
+                updatePersistentTaskState(state, ActionListener.wrap(task -> next.run(), exc -> next.run()));
             }
         }
 
@@ -148,7 +149,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
     private final ThreadPool threadPool;
     private final RollupIndexer indexer;
 
-    RollupJobTask(long id, String type, String action, TaskId parentTask, RollupJob job, RollupJobStatus status,
+    RollupJobTask(long id, String type, String action, TaskId parentTask, RollupJob job, RollupJobStatus state,
                   Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool, Map<String, String> headers) {
         super(id, type, action, RollupField.NAME + "_" + job.getConfig().getId(), parentTask, headers);
         this.job = job;
@@ -158,16 +159,17 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         // If status is not null, we are resuming rather than starting fresh.
         Map<String, Object> initialPosition = null;
         IndexerState initialState = IndexerState.STOPPED;
-        if (status != null) {
-            logger.debug("We have existing status, setting state to [" + status.getState() + "] " +
-                    "and current position to [" + status.getPosition() + "] for job [" + job.getConfig().getId() + "]");
-            if (status.getState().equals(IndexerState.INDEXING)) {
+        if (state != null) {
+            final IndexerState existingState = state.getIndexerState();
+            logger.debug("We have existing state, setting state to [" + existingState + "] " +
+                    "and current position to [" + state.getPosition() + "] for job [" + job.getConfig().getId() + "]");
+            if (existingState.equals(IndexerState.INDEXING)) {
                 /*
                  * If we were indexing, we have to reset back to STARTED otherwise the indexer will be "stuck" thinking
                  * it is indexing but without the actual indexing thread running.
                  */
                 initialState = IndexerState.STARTED;
-            } else if (status.getState().equals(IndexerState.ABORTING) || status.getState().equals(IndexerState.STOPPING)) {
+            } else if (existingState.equals(IndexerState.ABORTING) || existingState.equals(IndexerState.STOPPING)) {
                 // It shouldn't be possible to persist ABORTING, but if for some reason it does,
                 // play it safe and restore the job as STOPPED.  An admin will have to clean it up,
                 // but it won't be running, and won't delete itself either.  Safest option.
@@ -175,9 +177,9 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                 // to restore as STOPEPD
                 initialState = IndexerState.STOPPED;
             } else  {
-                initialState = status.getState();
+                initialState = existingState;
             }
-            initialPosition = status.getPosition();
+            initialPosition = state.getPosition();
         }
         this.indexer = new ClientRollupPageManager(job, initialState, initialPosition,
                 new ParentTaskAssigningClient(client, new TaskId(getPersistentTaskId())));
@@ -227,20 +229,20 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                     + " state was [" + newState + "]"));
             return;
         }
-        final RollupJobStatus status = new RollupJobStatus(IndexerState.STARTED, indexer.getPosition());
-        logger.debug("Updating status for rollup job [" + job.getConfig().getId() + "] to [" + status.getState() + "][" +
-                status.getPosition() + "]");
-        updatePersistentStatus(status,
+        final RollupJobStatus state = new RollupJobStatus(IndexerState.STARTED, indexer.getPosition());
+        logger.debug("Updating state for rollup job [" + job.getConfig().getId() + "] to [" + state.getIndexerState() + "][" +
+                state.getPosition() + "]");
+        updatePersistentTaskState(state,
                 ActionListener.wrap(
                         (task) -> {
-                            logger.debug("Succesfully updated status for rollup job [" + job.getConfig().getId() + "] to ["
-                                    + status.getState() + "][" + status.getPosition() + "]");
+                            logger.debug("Succesfully updated state for rollup job [" + job.getConfig().getId() + "] to ["
+                                    + state.getIndexerState() + "][" + state.getPosition() + "]");
                             listener.onResponse(new StartRollupJobAction.Response(true));
                         },
                         (exc) -> {
                             listener.onFailure(
-                                    new ElasticsearchException("Error while updating status for rollup job [" + job.getConfig().getId()
-                                            + "] to [" + status.getState() + "].", exc)
+                                    new ElasticsearchException("Error while updating state for rollup job [" + job.getConfig().getId()
+                                            + "] to [" + state.getIndexerState() + "].", exc)
                             );
                         }
                 )
@@ -268,17 +270,17 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
             case STOPPING:
                 // update the persistent state only if there is no background job running,
                 // otherwise the state is updated by the indexer when the background job detects the STOPPING state.
-                RollupJobStatus status = new RollupJobStatus(IndexerState.STOPPED, indexer.getPosition());
-                updatePersistentStatus(status,
+                RollupJobStatus state = new RollupJobStatus(IndexerState.STOPPED, indexer.getPosition());
+                updatePersistentTaskState(state,
                         ActionListener.wrap(
                                 (task) -> {
-                                    logger.debug("Succesfully updated status for rollup job [" + job.getConfig().getId()
-                                            + "] to [" + status.getState() + "]");
+                                    logger.debug("Succesfully updated state for rollup job [" + job.getConfig().getId()
+                                            + "] to [" + state.getIndexerState() + "]");
                                     listener.onResponse(new StopRollupJobAction.Response(true));
                                 },
                                 (exc) -> {
-                                    listener.onFailure(new ElasticsearchException("Error while updating status for rollup job ["
-                                            + job.getConfig().getId() + "] to [" + status.getState() + "].", exc));
+                                    listener.onFailure(new ElasticsearchException("Error while updating state for rollup job ["
+                                            + job.getConfig().getId() + "] to [" + state.getIndexerState() + "].", exc));
                                 })
                 );
                 break;

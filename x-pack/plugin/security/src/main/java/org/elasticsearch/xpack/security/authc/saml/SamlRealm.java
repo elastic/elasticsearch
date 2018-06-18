@@ -116,14 +116,13 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.NAME_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.POPULATE_USER_METADATA;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.PRINCIPAL_ATTRIBUTE;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.REQUESTED_AUTHN_CONTEXT_CLASS_REF;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_KEY_ALIAS;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_MESSAGE_TYPES;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SIGNING_SETTING_KEY;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SP_ACS;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SP_ENTITY_ID;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.SP_LOGOUT;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.TYPE;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.REQUESTED_AUTHN_CONTEXT_CLASS_REF;
 
 /**
  * This class is {@link Releasable} because it uses a library that thinks timers and timer tasks
@@ -274,7 +273,7 @@ public final class SamlRealm extends Realm implements Releasable {
         final String serviceProviderId = require(config, SP_ENTITY_ID);
         final String assertionConsumerServiceURL = require(config, SP_ACS);
         final String logoutUrl = config.getSetting(SP_LOGOUT);
-        final List<String> reqAuthnCtxClassRef = REQUESTED_AUTHN_CONTEXT_CLASS_REF.get(config.settings());
+        final List<String> reqAuthnCtxClassRef = config.getSetting(REQUESTED_AUTHN_CONTEXT_CLASS_REF);
         return new SpConfiguration(serviceProviderId, assertionConsumerServiceURL,
             logoutUrl, buildSigningConfiguration(config), buildEncryptionCredential(config), reqAuthnCtxClassRef);
     }

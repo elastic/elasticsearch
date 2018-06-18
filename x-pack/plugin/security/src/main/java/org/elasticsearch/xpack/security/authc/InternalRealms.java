@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCh
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;

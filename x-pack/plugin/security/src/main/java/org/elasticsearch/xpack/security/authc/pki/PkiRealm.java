@@ -15,7 +15,6 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
 import javax.net.ssl.X509TrustManager;
-
 import java.security.MessageDigest;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;

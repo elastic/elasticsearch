@@ -28,8 +28,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
-import org.elasticsearch.xpack.security.authc.ldap.LdapUserSearchSessionFactoryTests;
-
 import static org.elasticsearch.xpack.security.authc.ldap.LdapUserSearchSessionFactoryTests.getLdapUserSearchSessionFactory;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;

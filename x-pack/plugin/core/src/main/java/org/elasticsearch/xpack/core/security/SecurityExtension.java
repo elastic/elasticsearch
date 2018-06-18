@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.core.security;
 
 import org.apache.lucene.util.SPIClassIterator;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.util.ArrayList;

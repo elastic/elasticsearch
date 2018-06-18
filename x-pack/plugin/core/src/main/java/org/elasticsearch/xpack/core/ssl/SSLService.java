@@ -29,8 +29,6 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
-import javax.security.auth.DestroyFailedException;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;

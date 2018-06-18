@@ -50,10 +50,3 @@ versions (and EOL dates), you can continue to use Java 8. See the
 https://www.elastic.co/support/matrix#matrix_jvm[support matrix]
 for all of the JVM options for {es}.
 
-[float]
-=== Improved trend modeling and periodicity testing for forecasting
-
-{stack-ov}/ml-overview.html#ml-forecasting[Forecasting] is now more reliable and
-has greatly improved confidence intervals--particularly for longer time ranges.
-These improvements also affect trend and seasonality modeling during anomaly
-detection.

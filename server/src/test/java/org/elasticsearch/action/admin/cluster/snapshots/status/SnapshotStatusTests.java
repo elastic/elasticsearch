@@ -21,16 +21,19 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 
-public class SnapshotStatusTests extends ESTestCase {
+public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus> {
 
 
     public void testToString() throws Exception {
@@ -145,5 +148,34 @@ public class SnapshotStatusTests extends ESTestCase {
             "  }\n" +
             "}";
         assertEquals(expected, status.toString());
+    }
+
+    @Override
+    protected SnapshotStatus createTestInstance() {
+        SnapshotsInProgress.State state = randomFrom(SnapshotsInProgress.State.values());
+        String uuid = UUIDs.randomBase64UUID();
+        SnapshotId id = new SnapshotId("test-snap", uuid);
+        Snapshot snapshot = new Snapshot("test-repo", id);
+
+        SnapshotIndexShardStatusTests builder = new SnapshotIndexShardStatusTests();
+        builder.createTestInstance();
+
+        List<SnapshotIndexShardStatus> snapshotIndexShardStatuses = new ArrayList<>();
+        for (int idx = 0; idx < randomIntBetween(0, 10); idx++) {
+            SnapshotIndexShardStatus snapshotIndexShardStatus = builder.createTestInstance();
+            snapshotIndexShardStatuses.add(snapshotIndexShardStatus);
+        }
+        boolean includeGlobalState = randomBoolean();
+        return new SnapshotStatus(snapshot, state, snapshotIndexShardStatuses, includeGlobalState);
+    }
+
+    @Override
+    protected SnapshotStatus doParseInstance(XContentParser parser) throws IOException {
+        return SnapshotStatus.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 }

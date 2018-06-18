@@ -40,6 +40,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
@@ -842,6 +843,20 @@ final class RequestConverters {
         Params parameters = new Params(request);
         parameters.withMasterTimeout(verifyRepositoryRequest.masterNodeTimeout());
         parameters.withTimeout(verifyRepositoryRequest.timeout());
+        return request;
+    }
+
+    static Request snapshotsStatus(SnapshotsStatusRequest snapshotsStatusRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(snapshotsStatusRequest.repository())
+            .addCommaSeparatedPathParts(snapshotsStatusRequest.snapshots())
+            .addPathPartAsIs("_status")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(snapshotsStatusRequest.masterNodeTimeout());
+        parameters.putParam("ignore_unavailable", Boolean.toString(snapshotsStatusRequest.ignoreUnavailable()));
         return request;
     }
 

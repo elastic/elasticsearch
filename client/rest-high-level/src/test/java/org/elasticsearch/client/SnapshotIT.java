@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
@@ -28,6 +30,9 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -38,6 +43,7 @@ import java.io.IOException;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
@@ -55,6 +61,12 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         return highLevelClient().getLowLevelClient().performRequest(createSnapshot);
     }
 
+    private Response createTestSnapshot(String repository, String snapshot, String index) throws IOException {
+        Request createSnapshot = new Request("put", String.format(Locale.ROOT, "_snapshot/%s/%s", repository, snapshot));
+        createSnapshot.addParameter("wait_for_completion", "true");
+        createSnapshot.setEntity(new NStringEntity("{\"indices\":\""+index+"\"}", ContentType.APPLICATION_JSON));
+        return highLevelClient().getLowLevelClient().performRequest(createSnapshot);
+    }
 
     public void testCreateRepository() throws IOException {
         PutRepositoryResponse response = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
@@ -117,6 +129,26 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         VerifyRepositoryResponse response = execute(request, highLevelClient().snapshot()::verifyRepository,
             highLevelClient().snapshot()::verifyRepositoryAsync);
         assertThat(response.getNodes().size(), equalTo(1));
+    }
+
+    public void testSnapshotsStatus() throws IOException {
+        PutRepositoryResponse putRepositoryResponse = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        createIndex("test_index", Settings.EMPTY);
+
+        Response snapshotResponse = createTestSnapshot("test", "snapshot", "test_index");
+        assertEquals(2, snapshotResponse.getHttpResponse().getStatusLine().getStatusCode() / 100);
+
+        SnapshotsStatusRequest request = new SnapshotsStatusRequest();
+        request.repository("test");
+        request.snapshots(new String[]{"snapshot"});
+        SnapshotsStatusResponse response = execute(request, highLevelClient().snapshot()::snapshotsStatus,
+            highLevelClient().snapshot()::snapshotsStatusAsync);
+        assertThat(response.getSnapshots().size(), equalTo(1));
+        assertThat(response.getSnapshots().get(0).getSnapshot().getRepository(), equalTo("test"));
+        assertThat(response.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo("snapshot"));
+        assertThat(response.getSnapshots().get(0).getIndices().containsKey("test_index"), is(true));
     }
 
     public void testDeleteSnapshot() throws IOException {

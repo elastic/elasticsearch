@@ -1,0 +1,44 @@
+package org.elasticsearch.action.admin.cluster.snapshots.status;
+
+import java.io.IOException;
+
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.AbstractXContentTestCase;
+
+public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<SnapshotIndexShardStatus> {
+
+    @Override
+    protected SnapshotIndexShardStatus createTestInstance() {
+        return createForIndex(randomAlphaOfLength(10));
+    }
+
+    protected SnapshotIndexShardStatus createForIndex(String indexName) {
+        ShardId shardId = new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), randomIntBetween(0, 500));
+        SnapshotIndexShardStage stage = randomFrom(SnapshotIndexShardStage.values());
+        SnapshotStats stats = new SnapshotStatsTests().createTestInstance();
+        String nodeId = randomAlphaOfLength(20);
+        String failure = null;
+        if (rarely()) {
+            failure = randomAlphaOfLength(200);
+        }
+        return new SnapshotIndexShardStatus(shardId, stage, stats, nodeId, failure);
+    }
+
+    @Override
+    protected SnapshotIndexShardStatus doParseInstance(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        SnapshotIndexShardStatus status = SnapshotIndexShardStatus.fromXContent(parser, parser.currentName());
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        return status;
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+}

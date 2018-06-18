@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +29,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 
@@ -205,6 +208,82 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         return builder.endObject();
     }
 
+    public static SnapshotStats fromXContent(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParser.Token token;
+        long startTime = 0;
+        long time = 0;
+        int incrementalFileCount = 0;
+        int totalFileCount = 0;
+        int processedFileCount = 0;
+        long incrementalSize = 0;
+        long totalSize = 0;
+        long processedSize = 0;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            String currentName = parser.currentName();
+            token = parser.nextToken();
+            if (currentName.equals(Fields.INCREMENTAL)) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                    String innerName = parser.currentName();
+                    token = parser.nextToken();
+                    if (innerName.equals(Fields.FILE_COUNT)) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        incrementalFileCount = parser.intValue();
+                    } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        incrementalSize = parser.longValue();
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse snapshot stats, unknown field [{}]", innerName);
+                    }
+                }
+            } else if (currentName.equals(Fields.PROCESSED)) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                    String innerName = parser.currentName();
+                    token = parser.nextToken();
+                    if (innerName.equals(Fields.FILE_COUNT)) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        processedFileCount = parser.intValue();
+                    } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        processedSize = parser.longValue();
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse snapshot stats, unknown field [{}]", innerName);
+                    }
+                }
+            } else if (currentName.equals(Fields.TOTAL)) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                    String innerName = parser.currentName();
+                    token = parser.nextToken();
+                    if (innerName.equals(Fields.FILE_COUNT)) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        totalFileCount = parser.intValue();
+                    } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        totalSize = parser.longValue();
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse snapshot stats, unknown field [{}]", innerName);
+                    }
+                }
+            } else if (currentName.equals(Fields.START_TIME_IN_MILLIS)) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                startTime = parser.longValue();
+            } else if (currentName.equals(Fields.TIME_IN_MILLIS)) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                time = parser.longValue();
+            } else {
+                throw new ElasticsearchParseException("failed to parse snapshot stats, unknown field [{}]", currentName);
+            }
+        }
+        return new SnapshotStats(startTime, time, incrementalFileCount, totalFileCount, processedFileCount, incrementalSize, totalSize, processedSize);
+    }
+
     void add(SnapshotStats stats) {
         incrementalFileCount += stats.incrementalFileCount;
         totalFileCount += stats.totalFileCount;
@@ -228,5 +307,35 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
             // Update duration
             time = endTime - startTime;
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        SnapshotStats that = (SnapshotStats) o;
+
+        if (startTime != that.startTime) return false;
+        if (time != that.time) return false;
+        if (incrementalFileCount != that.incrementalFileCount) return false;
+        if (totalFileCount != that.totalFileCount) return false;
+        if (processedFileCount != that.processedFileCount) return false;
+        if (incrementalSize != that.incrementalSize) return false;
+        if (totalSize != that.totalSize) return false;
+        return processedSize == that.processedSize;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = (int) (startTime ^ (startTime >>> 32));
+        result = 31 * result + (int) (time ^ (time >>> 32));
+        result = 31 * result + incrementalFileCount;
+        result = 31 * result + totalFileCount;
+        result = 31 * result + processedFileCount;
+        result = 31 * result + (int) (incrementalSize ^ (incrementalSize >>> 32));
+        result = 31 * result + (int) (totalSize ^ (totalSize >>> 32));
+        result = 31 * result + (int) (processedSize ^ (processedSize >>> 32));
+        return result;
     }
 }

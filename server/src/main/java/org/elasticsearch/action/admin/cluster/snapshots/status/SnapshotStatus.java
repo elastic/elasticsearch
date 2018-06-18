@@ -19,7 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Nullable;
@@ -28,7 +30,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,6 +75,18 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
         this.includeGlobalState = includeGlobalState;
         shardsStats = new SnapshotShardsStats(shards);
         updateShardStats();
+    }
+
+    private SnapshotStatus(Snapshot snapshot, State state, List<SnapshotIndexShardStatus> shards,
+                          Map<String, SnapshotIndexStatus> indicesStatus, SnapshotShardsStats shardsStats,
+                          SnapshotStats stats, Boolean includeGlobalState) {
+        this.snapshot = snapshot;
+        this.state = state;
+        this.shards = shards;
+        this.indicesStatus = indicesStatus;
+        this.shardsStats = shardsStats;
+        this.stats = stats;
+        this.includeGlobalState = includeGlobalState;
     }
 
     SnapshotStatus() {
@@ -218,11 +235,107 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
         return builder;
     }
 
+    public static SnapshotStatus fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        if (token == null) {
+            token = parser.nextToken();
+        }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        String name = null;
+        String repository = null;
+        String uuid = null;
+        SnapshotsInProgress.State state = null;
+        Boolean includeGlobalState = null;
+        SnapshotShardsStats shardsStats = null;
+        SnapshotStats stats = null;
+        List<SnapshotIndexShardStatus> shards = new ArrayList<>();
+        Map<String, SnapshotIndexStatus> indices = new HashMap<>();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                String currentFieldName = parser.currentName();
+                if (SNAPSHOT.equals(currentFieldName)) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser::getTokenLocation);
+                    name = parser.text();
+                } else if (REPOSITORY.equals(currentFieldName)) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser::getTokenLocation);
+                    repository = parser.text();
+                } else if (UUID.equals(currentFieldName)) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser::getTokenLocation);
+                    uuid = parser.text();
+                } else if (STATE.equals(currentFieldName)) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser::getTokenLocation);
+                    String stateRaw = parser.text();
+                    try {
+                        state = SnapshotsInProgress.State.valueOf(stateRaw);
+                    } catch (IllegalArgumentException iae) {
+                        throw new ElasticsearchParseException("failed to parse snapshot status, unknown state value [{}]", iae, stateRaw);
+                    }
+                } else if (INCLUDE_GLOBAL_STATE.equals(currentFieldName)) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_BOOLEAN, parser.nextToken(), parser::getTokenLocation);
+                    includeGlobalState = parser.booleanValue();
+                } else if (SnapshotShardsStats.Fields.SHARDS_STATS.equals(currentFieldName)) {
+                    shardsStats = SnapshotShardsStats.fromXContent(parser);
+                } else if (SnapshotStats.Fields.STATS.equals(currentFieldName)) {
+                    stats = SnapshotStats.fromXContent(parser);
+                } else if (INDICES.equals(currentFieldName)) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        SnapshotIndexStatus indexStatus = SnapshotIndexStatus.fromXContent(parser);
+                        indices.put(indexStatus.getIndex(), indexStatus);
+                        shards.addAll(indexStatus.getShards().values());
+                    }
+                } else {
+                    throw new ElasticsearchParseException("failed to parse snapshot status, unknown field [{}]", currentFieldName);
+                }
+            } else {
+                throw new ElasticsearchParseException("failed to parse snapshot status");
+            }
+        }
+        if (name == null) {
+            throw new ElasticsearchParseException("failed to parse snapshot status, missing snapshot name");
+        } else if (uuid == null) {
+            throw new ElasticsearchParseException("failed to parse snapshot status, missing snapshot uuid");
+        } else if (repository == null) {
+            throw new ElasticsearchParseException("failed to parse snapshot status, missing snapshot repository");
+        } else if (state == null) {
+            throw new ElasticsearchParseException("failed to parse snapshot status, missing snapshot state");
+        }
+        Snapshot snapshot = new Snapshot(repository, new SnapshotId(name, uuid));
+        return new SnapshotStatus(snapshot, state, shards, indices, shardsStats, stats, includeGlobalState);
+    }
+
     private void updateShardStats() {
         stats = new SnapshotStats();
         shardsStats = new SnapshotShardsStats(shards);
         for (SnapshotIndexShardStatus shard : shards) {
             stats.add(shard.getStats());
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        SnapshotStatus that = (SnapshotStatus) o;
+
+        if (snapshot != null ? !snapshot.equals(that.snapshot) : that.snapshot != null) return false;
+        if (state != that.state) return false;
+        if (indicesStatus != null ? !indicesStatus.equals(that.indicesStatus) : that.indicesStatus != null)
+            return false;
+        if (shardsStats != null ? !shardsStats.equals(that.shardsStats) : that.shardsStats != null) return false;
+        if (stats != null ? !stats.equals(that.stats) : that.stats != null) return false;
+        return includeGlobalState != null ? includeGlobalState.equals(that.includeGlobalState) : that.includeGlobalState == null;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = snapshot != null ? snapshot.hashCode() : 0;
+        result = 31 * result + (state != null ? state.hashCode() : 0);
+        result = 31 * result + (indicesStatus != null ? indicesStatus.hashCode() : 0);
+        result = 31 * result + (shardsStats != null ? shardsStats.hashCode() : 0);
+        result = 31 * result + (stats != null ? stats.hashCode() : 0);
+        result = 31 * result + (includeGlobalState != null ? includeGlobalState.hashCode() : 0);
+        return result;
     }
 }

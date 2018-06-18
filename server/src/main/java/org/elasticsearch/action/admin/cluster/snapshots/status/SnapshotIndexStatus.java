@@ -19,9 +19,11 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -55,6 +57,13 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
         }
         shardsStats = new SnapshotShardsStats(shards);
         this.indexShards = unmodifiableMap(indexShards);
+    }
+
+    public SnapshotIndexStatus(String index, Map<Integer, SnapshotIndexShardStatus> indexShards, SnapshotShardsStats shardsStats, SnapshotStats stats) {
+        this.index = index;
+        this.indexShards = indexShards;
+        this.shardsStats = shardsStats;
+        this.stats = stats;
     }
 
     /**
@@ -106,5 +115,58 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
         builder.endObject();
         builder.endObject();
         return builder;
+    }
+
+    public static SnapshotIndexStatus fromXContent(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        String indexName = parser.currentName();
+        XContentParser.Token token = parser.nextToken();
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        SnapshotShardsStats shardsStats = null;
+        SnapshotStats stats = null;
+        Map<Integer, SnapshotIndexShardStatus> shards = new HashMap<>();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token.equals(XContentParser.Token.FIELD_NAME)) {
+                String currentName = parser.currentName();
+                if (currentName.equals(SnapshotShardsStats.Fields.SHARDS_STATS)) {
+                    shardsStats = SnapshotShardsStats.fromXContent(parser);
+                } else if (currentName.equals(SnapshotStats.Fields.STATS)) {
+                    stats = SnapshotStats.fromXContent(parser);
+                } else if (currentName.equals(Fields.SHARDS)) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        SnapshotIndexShardStatus shardStatus = SnapshotIndexShardStatus.fromXContent(parser, indexName);
+                        shards.put(shardStatus.getShardId().getId(), shardStatus);
+                    }
+                } else {
+                    throw new ElasticsearchParseException("failed to parse snapshot index status [{}], unknown field [{}]", indexName, currentName);
+                }
+            } else {
+                throw new ElasticsearchParseException("failed to parse snapshot index status [{}]", indexName);
+            }
+        }
+        return new SnapshotIndexStatus(indexName, shards, shardsStats, stats);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        SnapshotIndexStatus that = (SnapshotIndexStatus) o;
+
+        if (index != null ? !index.equals(that.index) : that.index != null) return false;
+        if (indexShards != null ? !indexShards.equals(that.indexShards) : that.indexShards != null) return false;
+        if (shardsStats != null ? !shardsStats.equals(that.shardsStats) : that.shardsStats != null) return false;
+        return stats != null ? stats.equals(that.stats) : that.stats == null;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = index != null ? index.hashCode() : 0;
+        result = 31 * result + (indexShards != null ? indexShards.hashCode() : 0);
+        result = 31 * result + (shardsStats != null ? shardsStats.hashCode() : 0);
+        result = 31 * result + (stats != null ? stats.hashCode() : 0);
+        return result;
     }
 }

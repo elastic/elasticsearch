@@ -31,7 +31,7 @@ PUT /multiplexer_example
             "analyzer" : {
                 "my_analyzer" : {
                     "tokenizer" : "standard",
-                    "filter" : [ "my_multiplexer" ]
+                    "filter" : [ "my_multiplexer", "remove_duplicates" ] <1>
                 }
             },
             "filter" : {
@@ -45,6 +45,12 @@ PUT /multiplexer_example
 }
 --------------------------------------------------
 // CONSOLE
+
+<1> The `remove_duplicates` filter here will prevent identical tokens being emitted
+at the same position.  For example, the token `home` in the `_analyze` script below
+would be emitted from both the `"lowercase"` and the `"lowercase, porter_stem"`
+branches of the multiplexer without this extra filter.  Deduplicating will help
+preserve term statistics that might otherwise produce odd effects in scoring.
 
 And test it like:
 
@@ -88,13 +94,6 @@ And it'd respond:
     },
     {
       "token": "HOME",
-      "start_offset": 6,
-      "end_offset": 10,
-      "type": "<WORD>",
-      "position": 2
-    },
-    {
-      "token": "home",
       "start_offset": 6,
       "end_offset": 10,
       "type": "<WORD>",

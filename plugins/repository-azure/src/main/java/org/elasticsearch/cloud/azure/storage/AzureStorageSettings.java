@@ -19,10 +19,12 @@
 
 package org.elasticsearch.cloud.azure.storage;
 
+import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.RetryPolicy;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -31,7 +33,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
-
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -88,18 +89,17 @@ public final class AzureStorageSettings {
 
 
     @Deprecated
-    public static final Setting<TimeValue> DEPRECATED_TIMEOUT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "timeout",
+    public static final AffixSetting<TimeValue> DEPRECATED_TIMEOUT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "timeout",
         (key) -> Setting.timeSetting(key, Storage.TIMEOUT_SETTING, Property.NodeScope, Property.Deprecated));
     @Deprecated
-    public static final Setting<String> DEPRECATED_ACCOUNT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "account",
+    public static final AffixSetting<String> DEPRECATED_ACCOUNT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "account",
         (key) -> Setting.simpleString(key, Property.NodeScope, Property.Deprecated));
     @Deprecated
-    public static final Setting<String> DEPRECATED_KEY_SETTING = Setting.affixKeySetting(Storage.PREFIX, "key",
+    public static final AffixSetting<String> DEPRECATED_KEY_SETTING = Setting.affixKeySetting(Storage.PREFIX, "key",
         (key) -> Setting.simpleString(key, Property.NodeScope, Property.Deprecated));
     @Deprecated
-    public static final Setting<Boolean> DEPRECATED_DEFAULT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "default",
+    public static final AffixSetting<Boolean> DEPRECATED_DEFAULT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "default",
         (key) -> Setting.boolSetting(key, false, Property.NodeScope, Property.Deprecated));
-
 
     @Deprecated
     private final String name;
@@ -111,36 +111,20 @@ public final class AzureStorageSettings {
     private final boolean activeByDefault;
     private final int maxRetries;
     private final Proxy proxy;
+    private final LocationMode locationMode;
 
-
-    public AzureStorageSettings(String account, String key, String endpointSuffix, TimeValue timeout, int maxRetries,
-                                Proxy.Type proxyType, String proxyHost, Integer proxyPort) {
-        this.name = null;
+    // copy-constructor
+    private AzureStorageSettings(String name, String account, String key, String endpointSuffix, TimeValue timeout, boolean activeByDefault,
+            int maxRetries, Proxy proxy, LocationMode locationMode) {
+        this.name = name;
         this.account = account;
         this.key = key;
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
-        this.activeByDefault = false;
+        this.activeByDefault = activeByDefault;
         this.maxRetries = maxRetries;
-
-        // Register the proxy if we have any
-        // Validate proxy settings
-        if (proxyType.equals(Proxy.Type.DIRECT) && (proxyPort != 0 || Strings.hasText(proxyHost))) {
-            throw new SettingsException("Azure Proxy port or host have been set but proxy type is not defined.");
-        }
-        if (proxyType.equals(Proxy.Type.DIRECT) == false && (proxyPort == 0 || Strings.isEmpty(proxyHost))) {
-            throw new SettingsException("Azure Proxy type has been set but proxy host or port is not defined.");
-        }
-
-        if (proxyType.equals(Proxy.Type.DIRECT)) {
-            proxy = null;
-        } else {
-            try {
-                proxy = new Proxy(proxyType, new InetSocketAddress(InetAddress.getByName(proxyHost), proxyPort));
-            } catch (UnknownHostException e) {
-                throw new SettingsException("Azure proxy host is unknown.", e);
-            }
-        }
+        this.proxy = proxy;
+        this.locationMode = locationMode;
     }
 
     @Deprecated
@@ -153,6 +137,37 @@ public final class AzureStorageSettings {
         this.activeByDefault = activeByDefault;
         this.maxRetries = maxRetries;
         this.proxy = null;
+        this.locationMode = LocationMode.PRIMARY_ONLY;
+    }
+
+    AzureStorageSettings(String account, String key, String endpointSuffix, TimeValue timeout, int maxRetries,
+                                Proxy.Type proxyType, String proxyHost, Integer proxyPort) {
+        this.name = null;
+        this.account = account;
+        this.key = key;
+        this.endpointSuffix = endpointSuffix;
+        this.timeout = timeout;
+        this.activeByDefault = false;
+        this.maxRetries = maxRetries;
+        // Register the proxy if we have any
+        // Validate proxy settings
+        if (proxyType.equals(Proxy.Type.DIRECT) && ((proxyPort != 0) || Strings.hasText(proxyHost))) {
+            throw new SettingsException("Azure Proxy port or host have been set but proxy type is not defined.");
+        }
+        if ((proxyType.equals(Proxy.Type.DIRECT) == false) && ((proxyPort == 0) || Strings.isEmpty(proxyHost))) {
+            throw new SettingsException("Azure Proxy type has been set but proxy host or port is not defined.");
+        }
+
+        if (proxyType.equals(Proxy.Type.DIRECT)) {
+            proxy = null;
+        } else {
+            try {
+                proxy = new Proxy(proxyType, new InetSocketAddress(InetAddress.getByName(proxyHost), proxyPort));
+            } catch (final UnknownHostException e) {
+                throw new SettingsException("Azure proxy host is unknown.", e);
+            }
+        }
+        this.locationMode = LocationMode.PRIMARY_ONLY;
     }
 
     @Deprecated
@@ -189,17 +204,34 @@ public final class AzureStorageSettings {
         return proxy;
     }
 
+    public String buildConnectionString() {
+        final StringBuilder connectionStringBuilder = new StringBuilder();
+        connectionStringBuilder.append("DefaultEndpointsProtocol=https")
+                .append(";AccountName=")
+                .append(account)
+                .append(";AccountKey=")
+                .append(key);
+        if (Strings.hasText(endpointSuffix)) {
+            connectionStringBuilder.append(";EndpointSuffix=").append(endpointSuffix);
+        }
+        return connectionStringBuilder.toString();
+    }
+
+    public LocationMode getLocationMode() {
+        return locationMode;
+    }
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("AzureStorageSettings{");
-        sb.append("name='").append(name).append('\'');
-        sb.append(", account='").append(account).append('\'');
+        sb.append("account='").append(account).append('\'');
         sb.append(", key='").append(key).append('\'');
         sb.append(", activeByDefault='").append(activeByDefault).append('\'');
         sb.append(", timeout=").append(timeout);
         sb.append(", endpointSuffix='").append(endpointSuffix).append('\'');
         sb.append(", maxRetries=").append(maxRetries);
         sb.append(", proxy=").append(proxy);
+        sb.append(", locationMode='").append(locationMode).append('\'');
         sb.append('}');
         return sb.toString();
     }
@@ -216,23 +248,46 @@ public final class AzureStorageSettings {
     }
 
     /**
-     * Parses settings and read all settings available under azure.client.*
+     * Parse and read all settings available under the azure.client.* namespace
      * @param settings settings to parse
      * @return All the named configurations
      */
     public static Map<String, AzureStorageSettings> load(Settings settings) {
+        final Map<String, AzureStorageSettings> regularStorageSettings = loadRegular(settings);
+        final Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> storageSettingsMapTuple = AzureStorageSettings
+                .loadLegacy(settings);
+        final Map<String, AzureStorageSettings> deprecatedStorageSettings = storageSettingsMapTuple.v2();
+        final Map<String, AzureStorageSettings> storageSettings;
+        if (regularStorageSettings.isEmpty() == false) {
+            storageSettings = regularStorageSettings;
+        } else {
+            storageSettings = storageSettingsMapTuple.v2();
+            if (storageSettingsMapTuple.v1() != null) {
+                if (storageSettingsMapTuple.v1().getName().equals("default") == false) {
+                    // We add the primary configuration to the list of all settings with its deprecated name in case someone is
+                    // forcing a specific configuration name when creating the repository instance
+                    deprecatedStorageSettings.put(storageSettingsMapTuple.v1().getName(), storageSettingsMapTuple.v1());
+                }
+                // We add the primary configuration to the list of all settings as the "default" one
+                deprecatedStorageSettings.put("default", storageSettingsMapTuple.v1());
+            }
+        }
+        return storageSettings;
+    }
+    
+    static Map<String, AzureStorageSettings> loadRegular(Settings settings) {
         // Get the list of existing named configurations
-        Map<String, AzureStorageSettings> storageSettings = new HashMap<>();
-        for (String clientName : ACCOUNT_SETTING.getNamespaces(settings)) {
+        final Map<String, AzureStorageSettings> storageSettings = new HashMap<>();
+        for (final String clientName : ACCOUNT_SETTING.getNamespaces(settings)) {
             storageSettings.put(clientName, getClientSettings(settings, clientName));
         }
-
-        if (storageSettings.containsKey("default") == false && storageSettings.isEmpty() == false) {
+        if (false == storageSettings.containsKey("default") && false == storageSettings.isEmpty()) {
             // in case no setting named "default" has been set, let's define our "default"
             // as the first named config we get
-            AzureStorageSettings defaultSettings = storageSettings.values().iterator().next();
+            final AzureStorageSettings defaultSettings = storageSettings.values().iterator().next();
             storageSettings.put("default", defaultSettings);
         }
+        assert storageSettings.containsKey("default") || storageSettings.isEmpty() : "always have 'default' if any";
         return Collections.unmodifiableMap(storageSettings);
     }
 
@@ -272,13 +327,13 @@ public final class AzureStorageSettings {
 
     private static <T> T getConfigValue(Settings settings, String clientName,
                                         Setting.AffixSetting<T> clientSetting) {
-        Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
+        final Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
         return concreteSetting.get(settings);
     }
 
     public static <T> T getValue(Settings settings, String groupName, Setting<T> setting) {
-        Setting.AffixKey k = (Setting.AffixKey) setting.getRawKey();
-        String fullKey = k.toConcreteKey(groupName).toString();
+        final Setting.AffixKey k = (Setting.AffixKey) setting.getRawKey();
+        final String fullKey = k.toConcreteKey(groupName).toString();
         return setting.getConcreteSetting(fullKey).get(settings);
     }
 
@@ -321,5 +376,17 @@ public final class AzureStorageSettings {
             }
         }
         return secondaries;
+    }
+
+    public static Map<String, AzureStorageSettings> overrideLocationMode(Map<String, AzureStorageSettings> clientsSettings,
+            LocationMode locationMode) {
+        final MapBuilder<String, AzureStorageSettings> mapBuilder = new MapBuilder<>();
+        for (final Map.Entry<String, AzureStorageSettings> entry : clientsSettings.entrySet()) {
+            final AzureStorageSettings azureSettings = new AzureStorageSettings(entry.getValue().name, entry.getValue().account,
+                    entry.getValue().key, entry.getValue().endpointSuffix, entry.getValue().timeout, entry.getValue().activeByDefault,
+                    entry.getValue().maxRetries, entry.getValue().proxy, locationMode);
+            mapBuilder.put(entry.getKey(), azureSettings);
+        }
+        return mapBuilder.immutableMap();
     }
 }

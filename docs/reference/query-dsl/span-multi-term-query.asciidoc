@@ -36,3 +36,10 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+
+WARNING: `span_multi` queries will hit too many clauses failure if the number of terms that match the query exceeds the
+boolean query limit (defaults to 1024).To avoid an unbounded expansion you can set the <<query-dsl-multi-term-rewrite,
+rewrite method>> of the multi term query to `top_terms_*` rewrite. Or, if you use `span_multi` on `prefix` query only,
+you can activate the <<index-prefix-config,`index_prefixes`>> field option of the `text` field instead. This will
+rewrite any prefix query on the field to a a single term query that matches the indexed prefix.
+

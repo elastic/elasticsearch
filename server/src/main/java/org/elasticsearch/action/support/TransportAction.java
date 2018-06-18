@@ -20,7 +20,6 @@
 package org.elasticsearch.action.support;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -33,8 +32,6 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 
 public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent {
 
@@ -50,12 +47,6 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         this.actionName = actionName;
         this.filters = actionFilters.filters();
         this.taskManager = taskManager;
-    }
-
-    public final ActionFuture<Response> execute(Request request) {
-        PlainActionFuture<Response> future = newFuture();
-        execute(request, future);
-        return future;
     }
 
     /**

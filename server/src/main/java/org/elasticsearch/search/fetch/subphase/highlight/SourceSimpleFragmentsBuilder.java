@@ -23,7 +23,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -34,9 +34,12 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
 
     private final SearchContext searchContext;
 
-    public SourceSimpleFragmentsBuilder(FieldMapper mapper, SearchContext searchContext, String[] preTags, String[] postTags,
+    public SourceSimpleFragmentsBuilder(MappedFieldType fieldType,
+                                        SearchContext searchContext,
+                                        String[] preTags,
+                                        String[] postTags,
                                         BoundaryScanner boundaryScanner) {
-        super(mapper, preTags, postTags, boundaryScanner);
+        super(fieldType, preTags, postTags, boundaryScanner);
         this.searchContext = searchContext;
     }
 
@@ -48,13 +51,13 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
         SourceLookup sourceLookup = searchContext.lookup().source();
         sourceLookup.setSegmentAndDocument((LeafReaderContext) reader.getContext(), docId);
 
-        List<Object> values = sourceLookup.extractRawValues(mapper.fieldType().name());
+        List<Object> values = sourceLookup.extractRawValues(fieldType.name());
         if (values.isEmpty()) {
             return EMPTY_FIELDS;
         }
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
-            fields[i] = new Field(mapper.fieldType().name(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
+            fields[i] = new Field(fieldType.name(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
         }
         return fields;
     }

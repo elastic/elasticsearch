@@ -104,7 +104,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
                 .issueDate(dateMath("now-10h", now))
                 .type("basic")
                 .expiryDate(dateMath("now-2h", now));
-        License license = SelfGeneratedLicense.create(builder);
+        License license = SelfGeneratedLicense.create(builder, License.VERSION_CURRENT);
 
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
         setInitialState(license, licenseState, Settings.EMPTY);

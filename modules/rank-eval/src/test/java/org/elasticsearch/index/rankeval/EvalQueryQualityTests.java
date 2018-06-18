@@ -68,10 +68,20 @@ public class EvalQueryQualityTests extends ESTestCase {
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAlphaOfLength(10),
                 randomDoubleBetween(0.0, 1.0, true));
         if (randomBoolean()) {
-            if (randomBoolean()) {
+            int metricDetail = randomIntBetween(0, 2);
+            switch (metricDetail) {
+            case 0:
                 evalQueryQuality.setMetricDetails(new PrecisionAtK.Detail(randomIntBetween(0, 1000), randomIntBetween(0, 1000)));
-            } else {
+                break;
+            case 1:
                 evalQueryQuality.setMetricDetails(new MeanReciprocalRank.Detail(randomIntBetween(0, 1000)));
+                break;
+            case 2:
+                evalQueryQuality.setMetricDetails(new DiscountedCumulativeGain.Detail(randomDoubleBetween(0, 1, true),
+                        randomBoolean() ? randomDoubleBetween(0, 1, true) : 0, randomInt()));
+                break;
+            default:
+                throw new IllegalArgumentException("illegal randomized value in test");
             }
         }
         evalQueryQuality.addHitsAndRatings(ratedHits);

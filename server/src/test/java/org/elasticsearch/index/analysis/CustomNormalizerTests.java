@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.MockLowerCaseFilter;
 import org.apache.lucene.analysis.MockTokenizer;
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -53,6 +52,12 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
         assertNotNull(normalizer);
         assertEquals("my_normalizer", normalizer.name());
         assertTokenStreamContents(normalizer.tokenStream("foo", "Cet été-là"), new String[] {"cet été-là"});
+        assertEquals(new BytesRef("cet été-là"), normalizer.normalize("foo", "Cet été-là"));
+
+        normalizer = analysis.indexAnalyzers.getWhitespaceNormalizer("my_normalizer");
+        assertNotNull(normalizer);
+        assertEquals("my_normalizer", normalizer.name());
+        assertTokenStreamContents(normalizer.tokenStream("foo", "Cet été-là"), new String[] {"cet", "été-là"});
         assertEquals(new BytesRef("cet été-là"), normalizer.normalize("foo", "Cet été-là"));
     }
 
@@ -88,7 +93,13 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
         NamedAnalyzer normalizer = analysis.indexAnalyzers.getNormalizer("my_normalizer");
         assertNotNull(normalizer);
         assertEquals("my_normalizer", normalizer.name());
-        assertTokenStreamContents(normalizer.tokenStream("foo", "abc"), new String[] {"zbc"});
+        assertTokenStreamContents(normalizer.tokenStream("foo", "abc acd"), new String[] {"zbc zcd"});
+        assertEquals(new BytesRef("zbc"), normalizer.normalize("foo", "abc"));
+
+        normalizer = analysis.indexAnalyzers.getWhitespaceNormalizer("my_normalizer");
+        assertNotNull(normalizer);
+        assertEquals("my_normalizer", normalizer.name());
+        assertTokenStreamContents(normalizer.tokenStream("foo", "abc acd"), new String[] {"zbc", "zcd"});
         assertEquals(new BytesRef("zbc"), normalizer.normalize("foo", "abc"));
     }
 

@@ -96,17 +96,5 @@ public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, D
         }
 
         public Response() {}
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
-        }
     }
 }

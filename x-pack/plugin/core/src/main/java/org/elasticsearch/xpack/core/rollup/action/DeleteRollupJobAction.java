@@ -106,17 +106,5 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Request,
         public Response(boolean acknowledged) {
             super(acknowledged);
         }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
-        }
     }
 }

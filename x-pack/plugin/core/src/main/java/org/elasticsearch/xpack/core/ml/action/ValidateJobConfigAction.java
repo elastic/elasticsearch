@@ -121,18 +121,6 @@ public class ValidateJobConfigAction extends Action<ValidateJobConfigAction.Requ
         public Response(boolean acknowledged) {
             super(acknowledged);
         }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
-        }
     }
 
 }

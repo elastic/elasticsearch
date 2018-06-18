@@ -162,7 +162,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
 
         if (controlledClock) {
             return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction,
-                availableProcessors, expected::get) {
+                    availableProcessors, expected::get) {
                 @Override
                 void executeSearch(final Queue<SearchRequestSlot> requests, final AtomicArray<MultiSearchResponse.Item> responses,
                         final AtomicInteger responseCounter, final ActionListener<MultiSearchResponse> listener, long startTimeInNanos) {
@@ -172,7 +172,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
             };
         } else {
             return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction,
-                availableProcessors, System::nanoTime) {
+                    availableProcessors, System::nanoTime) {
 
                 @Override
                 void executeSearch(final Queue<SearchRequestSlot> requests, final AtomicArray<MultiSearchResponse.Item> responses,

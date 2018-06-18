@@ -17,29 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
-import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
+import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class PortugueseAnalyzerProvider extends AbstractIndexAnalyzerProvider<PortugueseAnalyzer> {
+public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<ThaiAnalyzer> {
 
-    private final PortugueseAnalyzer analyzer;
+    private final ThaiAnalyzer analyzer;
 
-    public PortugueseAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    ThaiAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new PortugueseAnalyzer(
-            Analysis.parseStopWords(env, settings, PortugueseAnalyzer.getDefaultStopSet()),
-            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
-        );
+        analyzer = new ThaiAnalyzer(
+            Analysis.parseStopWords(env, settings, ThaiAnalyzer.getDefaultStopSet()));
         analyzer.setVersion(version);
     }
 
     @Override
-    public PortugueseAnalyzer get() {
+    public ThaiAnalyzer get() {
         return this.analyzer;
     }
 }

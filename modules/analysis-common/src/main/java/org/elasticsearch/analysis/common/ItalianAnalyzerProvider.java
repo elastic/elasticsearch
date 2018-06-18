@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.ro.RomanianAnalyzer;
+import org.apache.lucene.analysis.it.ItalianAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class RomanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<RomanianAnalyzer> {
+public class ItalianAnalyzerProvider extends AbstractIndexAnalyzerProvider<ItalianAnalyzer> {
 
-    private final RomanianAnalyzer analyzer;
+    private final ItalianAnalyzer analyzer;
 
-    public RomanianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    ItalianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new RomanianAnalyzer(
-            Analysis.parseStopWords(env, settings, RomanianAnalyzer.getDefaultStopSet()),
+        analyzer = new ItalianAnalyzer(
+            Analysis.parseStopWords(env, settings, ItalianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public RomanianAnalyzer get() {
+    public ItalianAnalyzer get() {
         return this.analyzer;
     }
 }

@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.hu.HungarianAnalyzer;
+import org.apache.lucene.analysis.lv.LatvianAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class HungarianAnalyzerProvider extends AbstractIndexAnalyzerProvider<HungarianAnalyzer> {
+public class LatvianAnalyzerProvider extends AbstractIndexAnalyzerProvider<LatvianAnalyzer> {
 
-    private final HungarianAnalyzer analyzer;
+    private final LatvianAnalyzer analyzer;
 
-    public HungarianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    LatvianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new HungarianAnalyzer(
-            Analysis.parseStopWords(env, settings, HungarianAnalyzer.getDefaultStopSet()),
+        analyzer = new LatvianAnalyzer(
+            Analysis.parseStopWords(env, settings, LatvianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public HungarianAnalyzer get() {
+    public LatvianAnalyzer get() {
         return this.analyzer;
     }
 }

@@ -17,26 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
-import org.apache.lucene.analysis.el.GreekAnalyzer;
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class GreekAnalyzerProvider extends AbstractIndexAnalyzerProvider<GreekAnalyzer> {
+public class PortugueseAnalyzerProvider extends AbstractIndexAnalyzerProvider<PortugueseAnalyzer> {
 
-    private final GreekAnalyzer analyzer;
+    private final PortugueseAnalyzer analyzer;
 
-    public GreekAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    PortugueseAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new GreekAnalyzer(
-            Analysis.parseStopWords(env, settings, GreekAnalyzer.getDefaultStopSet()));
+        analyzer = new PortugueseAnalyzer(
+            Analysis.parseStopWords(env, settings, PortugueseAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 
     @Override
-    public GreekAnalyzer get() {
+    public PortugueseAnalyzer get() {
         return this.analyzer;
     }
 }

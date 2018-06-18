@@ -17,32 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.lt.LithuanianAnalyzer;
+import org.apache.lucene.analysis.no.NorwegianAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-/**
- * Provider for {@link LithuanianAnalyzer}
- */
-public class LithuanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<LithuanianAnalyzer> {
+public class NorwegianAnalyzerProvider extends AbstractIndexAnalyzerProvider<NorwegianAnalyzer> {
 
-    private final LithuanianAnalyzer analyzer;
+    private final NorwegianAnalyzer analyzer;
 
-    public LithuanianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    NorwegianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new LithuanianAnalyzer(
-            Analysis.parseStopWords(env, settings, LithuanianAnalyzer.getDefaultStopSet()),
+        analyzer = new NorwegianAnalyzer(
+            Analysis.parseStopWords(env, settings, NorwegianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public LithuanianAnalyzer get() {
+    public NorwegianAnalyzer get() {
         return this.analyzer;
     }
 }

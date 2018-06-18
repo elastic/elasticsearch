@@ -17,29 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
-import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.lv.LatvianAnalyzer;
+import org.apache.lucene.analysis.fa.PersianAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class LatvianAnalyzerProvider extends AbstractIndexAnalyzerProvider<LatvianAnalyzer> {
+public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<PersianAnalyzer> {
 
-    private final LatvianAnalyzer analyzer;
+    private final PersianAnalyzer analyzer;
 
-    public LatvianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    PersianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new LatvianAnalyzer(
-            Analysis.parseStopWords(env, settings, LatvianAnalyzer.getDefaultStopSet()),
-            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
-        );
+        analyzer = new PersianAnalyzer(Analysis.parseStopWords(env, settings, PersianAnalyzer.getDefaultStopSet()));
         analyzer.setVersion(version);
     }
 
     @Override
-    public LatvianAnalyzer get() {
+    public PersianAnalyzer get() {
         return this.analyzer;
     }
 }

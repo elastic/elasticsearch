@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.it.ItalianAnalyzer;
+import org.apache.lucene.analysis.hi.HindiAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class ItalianAnalyzerProvider extends AbstractIndexAnalyzerProvider<ItalianAnalyzer> {
+public class HindiAnalyzerProvider extends AbstractIndexAnalyzerProvider<HindiAnalyzer> {
 
-    private final ItalianAnalyzer analyzer;
+    private final HindiAnalyzer analyzer;
 
-    public ItalianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    HindiAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new ItalianAnalyzer(
-            Analysis.parseStopWords(env, settings, ItalianAnalyzer.getDefaultStopSet()),
+        analyzer = new HindiAnalyzer(
+            Analysis.parseStopWords(env, settings, HindiAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public ItalianAnalyzer get() {
+    public HindiAnalyzer get() {
         return this.analyzer;
     }
 }

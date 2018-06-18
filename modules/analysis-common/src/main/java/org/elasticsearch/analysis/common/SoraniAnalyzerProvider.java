@@ -17,29 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.hi.HindiAnalyzer;
+import org.apache.lucene.analysis.ckb.SoraniAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class HindiAnalyzerProvider extends AbstractIndexAnalyzerProvider<HindiAnalyzer> {
+/**
+ * Provider for {@link SoraniAnalyzer}
+ */
+public class SoraniAnalyzerProvider extends AbstractIndexAnalyzerProvider<SoraniAnalyzer> {
 
-    private final HindiAnalyzer analyzer;
+    private final SoraniAnalyzer analyzer;
 
-    public HindiAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    SoraniAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new HindiAnalyzer(
-            Analysis.parseStopWords(env, settings, HindiAnalyzer.getDefaultStopSet()),
+        analyzer = new SoraniAnalyzer(
+            Analysis.parseStopWords(env, settings, SoraniAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public HindiAnalyzer get() {
+    public SoraniAnalyzer get() {
         return this.analyzer;
     }
 }

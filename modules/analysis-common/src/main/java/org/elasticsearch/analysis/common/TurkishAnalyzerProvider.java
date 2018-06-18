@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.id.IndonesianAnalyzer;
+import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class IndonesianAnalyzerProvider extends AbstractIndexAnalyzerProvider<IndonesianAnalyzer> {
+public class TurkishAnalyzerProvider extends AbstractIndexAnalyzerProvider<TurkishAnalyzer> {
 
-    private final IndonesianAnalyzer analyzer;
+    private final TurkishAnalyzer analyzer;
 
-    public IndonesianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    TurkishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new IndonesianAnalyzer(
-            Analysis.parseStopWords(env, settings, IndonesianAnalyzer.getDefaultStopSet()),
+        analyzer = new TurkishAnalyzer(
+            Analysis.parseStopWords(env, settings, TurkishAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public IndonesianAnalyzer get() {
+    public TurkishAnalyzer get() {
         return this.analyzer;
     }
 }

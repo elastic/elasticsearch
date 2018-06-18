@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold+"]
 [[security-api-get-privileges]]
 === Get application privileges API
 

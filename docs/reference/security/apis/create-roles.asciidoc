@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold+"]
 [[security-api-put-role]]
 === Create or update roles API
 

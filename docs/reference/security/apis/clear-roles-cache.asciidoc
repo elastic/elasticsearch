@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold+"]
 [[security-api-clear-role-cache]]
 === Clear roles cache API
 

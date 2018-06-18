@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold+"]
 [[security-api-get-role-mapping]]
 === Get role mappings API
 

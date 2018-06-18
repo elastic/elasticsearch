@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold+"]
 [[security-api-invalidate-token]]
 === Delete token API
 

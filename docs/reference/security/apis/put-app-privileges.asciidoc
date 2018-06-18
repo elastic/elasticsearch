@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="gold+"]
 [[security-api-put-privileges]]
 === Create or update application privileges API
 

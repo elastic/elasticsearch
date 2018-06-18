@@ -1,19 +1,21 @@
 [role="xpack"]
-[[security-api-enable-user]]
-=== Enable users API
+[testenv="gold+"]
+[[security-api-disable-user]]
+=== Disable users API
 
-Enables users in the native realm. 
+Disables users in the native realm. 
 
 
 ==== Request
 
-`PUT /_xpack/security/user/<username>/_enable` 
+`PUT /_xpack/security/user/<username>/_disable` 
 
 
 ==== Description
 
-By default, when you create users, they are enabled. You can use this enable 
-users API and the <<security-api-disable-user,disable users API>> to change that attribute. 
+By default, when you create users, they are enabled. You can use this API to 
+revoke a user's access to {es}. To re-enable a user, there is an 
+<<security-api-enable-user,enable users API>>. 
 
 For more information about the native realm, see 
 {stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
@@ -32,11 +34,11 @@ To use this API, you must have at least the `manage_security` cluster privilege.
 
 ==== Examples
 
-The following example enables the user `jacknich`:
+The following example disables the user `jacknich`:
 
 [source,js]
 --------------------------------------------------
-PUT /_xpack/security/user/jacknich/_enable
+PUT /_xpack/security/user/jacknich/_disable
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:jacknich_user]

@@ -556,7 +556,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
             @Override
             public void handleResponse(ClusterStateResponse response) {
-                assert transportService.getThreadPool().getThreadContext().isSystemContext() == false : "context is a system context";
                 try {
                     if (remoteClusterName.get() == null) {
                         assert response.getClusterName().value() != null;
@@ -597,7 +596,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
             @Override
             public void handleException(TransportException exp) {
-                assert transportService.getThreadPool().getThreadContext().isSystemContext() == false : "context is a system context";
                 logger.warn(() -> new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterAlias), exp);
                 try {
                     IOUtils.closeWhileHandlingException(connection);

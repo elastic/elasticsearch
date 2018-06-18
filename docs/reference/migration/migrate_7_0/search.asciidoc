@@ -84,3 +84,9 @@ for a particular index with the index setting `index.max_regex_length`.
 
 Search requests with extra content after the main object will no longer be accepted
 by the `_search` endpoint. A parsing exception will be thrown instead.
+
+==== Semantics changed for `max_concurrent_shard_requests`
+
+`max_concurrent_shard_requests` used to limit the total number of concurrent shard
+requests a single high level search request can execute. In 7.0 this changed to be the
+max number of concurrent shard requests per node. The default is now `5`.

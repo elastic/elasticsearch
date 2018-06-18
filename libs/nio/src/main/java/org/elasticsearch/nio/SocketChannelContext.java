@@ -135,7 +135,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             return;
         }
 
-        selector.queueWriteInChannelBuffer(writeOperation);
+        selector.writeToChannel(writeOperation);
     }
 
     public void queueWriteOperation(WriteOperation writeOperation) {
@@ -164,7 +164,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     @Override
     public void closeFromSelector() throws IOException {
         getSelector().assertOnSelectorThread();
-        if (channel.isOpen()) {
+        if (isOpen()) {
             ArrayList<IOException> closingExceptions = new ArrayList<>(3);
             try {
                 super.closeFromSelector();

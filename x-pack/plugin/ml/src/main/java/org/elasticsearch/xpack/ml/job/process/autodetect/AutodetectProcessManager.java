@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
@@ -623,8 +623,8 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     void setJobState(JobTask jobTask, JobState state) {
-        JobTaskStatus taskStatus = new JobTaskStatus(state, jobTask.getAllocationId());
-        jobTask.updatePersistentStatus(taskStatus, new ActionListener<PersistentTask<?>>() {
+        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId());
+        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
             @Override
             public void onResponse(PersistentTask<?> persistentTask) {
                 logger.info("Successfully set job state to [{}] for job [{}]", state, jobTask.getJobId());
@@ -638,8 +638,8 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     void setJobState(JobTask jobTask, JobState state, CheckedConsumer<Exception, IOException> handler) {
-        JobTaskStatus taskStatus = new JobTaskStatus(state, jobTask.getAllocationId());
-        jobTask.updatePersistentStatus(taskStatus, new ActionListener<PersistentTask<?>>() {
+        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId());
+        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
                     @Override
                     public void onResponse(PersistentTask<?> persistentTask) {
                         try {

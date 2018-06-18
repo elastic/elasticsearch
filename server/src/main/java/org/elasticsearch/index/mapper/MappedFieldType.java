@@ -44,7 +44,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
@@ -165,7 +164,7 @@ public abstract class MappedFieldType extends FieldType {
         boolean indexed =  indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
         // TODO: should be validating if index options go "up" (but "down" is ok)
-        if (indexed != mergeWithIndexed || tokenized() != other.tokenized()) {
+        if (indexed != mergeWithIndexed) {
             conflicts.add("mapper [" + name() + "] has different [index] values");
         }
         if (stored() != other.stored()) {

@@ -155,10 +155,7 @@ public class SSLServiceTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         final SSLService sslService = new SSLService(settings, env);
-        SSLConfiguration configuration = sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
-        sslService.createSSLEngine(configuration, null, -1);
-
-        configuration = sslService.getSSLConfiguration("_global");
+        SSLConfiguration configuration = globalConfiguration(sslService);
         sslService.createSSLEngine(configuration, null, -1);
     }
 

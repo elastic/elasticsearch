@@ -55,6 +55,12 @@ accept these permissions either by keeping standard input open and attaching a
 TTY (i.e., using interactive mode to accept the permissions), or by passing the
 `--batch` flag.
 
+==== Implementing custom realms with SPI instead of XPackExtension
+
+The legacy `XPackExtension` extension mechanism has been removed and replaced
+with an SPI based extension mechanism that is installed and built as an
+elasticsearch plugin. For more information about using SPI loaded security extensions in custom realms, see {stack-ov}/custom-realms.html[Integrating with other authentication systems]. 
+
 [[breaking_63_settings_changes]]
 === Settings changes
 

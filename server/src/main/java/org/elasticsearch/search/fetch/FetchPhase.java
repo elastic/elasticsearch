@@ -83,7 +83,7 @@ public class FetchPhase implements SearchPhase {
     @Override
     public void execute(SearchContext context) {
         final FieldsVisitor fieldsVisitor;
-        Set<String> storedFields = null;
+        Set<String> storedFields = new HashSet<>();
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
 
         if (storedFieldsContext == null) {
@@ -113,14 +113,11 @@ public class FetchPhase implements SearchPhase {
                             throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
                         }
                     }
-                    if (storedFields == null) {
-                        storedFields = new HashSet<>();
-                    }
                     storedFields.add(fieldName);
                 }
             }
             boolean loadSource = context.sourceRequested();
-            if (storedFields == null) {
+            if (storedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
                 fieldsVisitor = new FieldsVisitor(loadSource);
             } else {
@@ -310,16 +307,13 @@ public class FetchPhase implements SearchPhase {
                                                        LeafReaderContext subReaderContext) {
         Map<String, DocumentField> searchFields = null;
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
-            FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(
-                storedFields == null ? Collections.emptySet() : storedFields, false);
-            if (nestedFieldsVisitor != null) {
-                loadStoredFields(context, subReaderContext, nestedFieldsVisitor, nestedSubDocId);
-                nestedFieldsVisitor.postProcess(context.mapperService());
-                if (!nestedFieldsVisitor.fields().isEmpty()) {
-                    searchFields = new HashMap<>(nestedFieldsVisitor.fields().size());
-                    for (Map.Entry<String, List<Object>> entry : nestedFieldsVisitor.fields().entrySet()) {
-                        searchFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
-                    }
+            FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedFields, false);
+            loadStoredFields(context, subReaderContext, nestedFieldsVisitor, nestedSubDocId);
+            nestedFieldsVisitor.postProcess(context.mapperService());
+            if (!nestedFieldsVisitor.fields().isEmpty()) {
+                searchFields = new HashMap<>(nestedFieldsVisitor.fields().size());
+                for (Map.Entry<String, List<Object>> entry : nestedFieldsVisitor.fields().entrySet()) {
+                    searchFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
                 }
             }
         }

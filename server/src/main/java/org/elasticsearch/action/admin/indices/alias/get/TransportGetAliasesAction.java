@@ -65,5 +65,4 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         ImmutableOpenMap<String, List<AliasMetaData>> result = state.metaData().findAliases(request.aliases(), concreteIndices);
         listener.onResponse(new GetAliasesResponse(result));
     }
-
 }

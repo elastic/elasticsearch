@@ -69,7 +69,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -829,10 +828,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
         }
         msg.builder.field(Field.ORIGIN_TYPE, "rest");
-        SocketAddress address = request.getRemoteAddress();
-        if (address instanceof InetSocketAddress) {
-            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.format(((InetSocketAddress) request.getRemoteAddress())
-                    .getAddress()));
+        InetSocketAddress address = request.getHttpChannel().getRemoteAddress();
+        if (address != null) {
+            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.format(address.getAddress()));
         } else {
             msg.builder.field(Field.ORIGIN_ADDRESS, address);
         }
@@ -854,10 +852,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
         }
         msg.builder.field(Field.ORIGIN_TYPE, "rest");
-        SocketAddress address = request.getRemoteAddress();
-        if (address instanceof InetSocketAddress) {
-            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.format(((InetSocketAddress) request.getRemoteAddress())
-                    .getAddress()));
+        InetSocketAddress address = request.getHttpChannel().getRemoteAddress();
+        if (address != null) {
+            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.format(address.getAddress()));
         } else {
             msg.builder.field(Field.ORIGIN_ADDRESS, address);
         }
@@ -992,24 +989,22 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     public static Settings customAuditIndexSettings(Settings nodeSettings, Logger logger) {
-        Settings newSettings = Settings.builder()
+        final Settings newSettings = Settings.builder()
                 .put(INDEX_SETTINGS.get(nodeSettings), false)
+                .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX)
                 .build();
         if (newSettings.names().isEmpty()) {
             return Settings.EMPTY;
         }
 
-        // Filter out forbidden settings:
-        Settings.Builder builder = Settings.builder();
-        builder.put(newSettings.filter(k -> {
-            String name = "index." + k;
+        // Filter out forbidden setting
+        return Settings.builder().put(newSettings.filter(name -> {
             if (FORBIDDEN_INDEX_SETTING.equals(name)) {
                 logger.warn("overriding the default [{}} setting is forbidden. ignoring...", name);
                 return false;
             }
             return true;
-        }));
-        return builder.build();
+        })).build();
     }
 
     private void putTemplate(Settings customSettings, Consumer<Exception> consumer) {

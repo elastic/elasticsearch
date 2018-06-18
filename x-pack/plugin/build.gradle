@@ -1,12 +1,8 @@
 import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.test.NodeInfo
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
-import org.elasticsearch.gradle.test.RunTask;
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -15,6 +11,50 @@ archivesBaseName = 'x-pack'
 
 dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+subprojects {
+  afterEvaluate {
+    if (project.plugins.hasPlugin(PluginBuildPlugin)) {
+      // see the root Gradle file for additional logic regarding this configuration
+      project.configurations.create('featureAwarePlugin')
+      project.dependencies.add('featureAwarePlugin', project.configurations.compileClasspath)
+      project.dependencies.add(
+              'featureAwarePlugin',
+              "org.elasticsearch.xpack.test:feature-aware:${org.elasticsearch.gradle.VersionProperties.elasticsearch}")
+      project.dependencies.add('featureAwarePlugin', project.sourceSets.main.output.getClassesDirs())
+
+      final Task featureAwareTask = project.tasks.create("featureAwareCheck", LoggedExec) {
+        description = "Runs FeatureAwareCheck on main classes."
+        dependsOn project.configurations.featureAwarePlugin
+
+        final File successMarker = new File(project.buildDir, 'markers/featureAware')
+        outputs.file(successMarker)
+
+        executable = new File(project.runtimeJavaHome, 'bin/java')
+
+        // default to main class files if such a source set exists
+        final List files = []
+        if (project.sourceSets.findByName("main")) {
+          files.add(project.sourceSets.main.output.classesDir)
+          dependsOn project.tasks.classes
+        }
+        // filter out non-existent classes directories from empty source sets
+        final FileCollection classDirectories = project.files(files).filter { it.exists() }
+
+        doFirst {
+          args('-cp', project.configurations.featureAwarePlugin.asPath, 'org.elasticsearch.xpack.test.feature_aware.FeatureAwareCheck')
+          classDirectories.each { args it.getAbsolutePath() }
+        }
+        doLast {
+          successMarker.parentFile.mkdirs()
+          successMarker.setText("", 'UTF-8')
+        }
+      }
+
+      project.precommit.dependsOn featureAwareTask
+    }
+  }
 }
 
 // https://github.com/elastic/x-plugins/issues/724

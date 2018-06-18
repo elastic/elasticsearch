@@ -19,7 +19,6 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -39,8 +38,6 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class InternalSettingsPreparerTests extends ESTestCase {
 

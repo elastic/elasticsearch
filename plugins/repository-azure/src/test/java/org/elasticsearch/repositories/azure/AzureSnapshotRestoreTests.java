@@ -19,9 +19,7 @@
 
 package org.elasticsearch.repositories.azure;
 
-
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -77,9 +75,9 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
         return Settings.builder().setSecureSettings(generateMockSecureSettings());
     }
 
+    @SuppressWarnings("resource")
     private static AzureStorageService getAzureStorageService() {
-        return new AzureStorageServiceImpl(generateMockSettings().build(),
-            AzureStorageSettings.load(generateMockSettings().build()));
+        return new AzureRepositoryPlugin(generateMockSettings().build()).azureStoreService;
     }
 
     @Override
@@ -94,7 +92,7 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
          * there mustn't be a hyphen between the 2 concatenated numbers
          * (can't have 2 consecutives hyphens on Azure containers)
          */
-        String testName = "snapshot-itest-"
+        final String testName = "snapshot-itest-"
             .concat(RandomizedTest.getContext().getRunnerSeedAsString().toLowerCase(Locale.ROOT));
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
     }
@@ -123,7 +121,7 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
         // It could happen that we run this test really close to a previous one
         // so we might need some time to be able to create the container
         assertBusy(() -> {
-            getAzureStorageService().createContainer("default", LocationMode.PRIMARY_ONLY, containerName);
+            getAzureStorageService().createContainer("default",  containerName);
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -132,7 +130,7 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
      * @param containerName container name to use
      */
     private static void removeTestContainer(String containerName) throws URISyntaxException, StorageException {
-        getAzureStorageService().removeContainer("default", LocationMode.PRIMARY_ONLY, containerName);
+        getAzureStorageService().removeContainer("default", containerName);
     }
 
     @Override
@@ -141,7 +139,7 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
     }
 
     private String getRepositoryPath() {
-        String testName = "it-" + getTestName();
+        final String testName = "it-" + getTestName();
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
     }
 
@@ -159,21 +157,21 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
     public final void wipeAzureRepositories() {
         try {
             client().admin().cluster().prepareDeleteRepository("*").get();
-        } catch (RepositoryMissingException ignored) {
+        } catch (final RepositoryMissingException ignored) {
         }
     }
 
     public void testMultipleRepositories() {
-        Client client = client();
+        final Client client = client();
         logger.info("-->  creating azure repository with path [{}]", getRepositoryPath());
-        PutRepositoryResponse putRepositoryResponse1 = client.admin().cluster().preparePutRepository("test-repo1")
+        final PutRepositoryResponse putRepositoryResponse1 = client.admin().cluster().preparePutRepository("test-repo1")
                 .setType("azure").setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName().concat("-1"))
                         .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
                         .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse1.isAcknowledged(), equalTo(true));
-        PutRepositoryResponse putRepositoryResponse2 = client.admin().cluster().preparePutRepository("test-repo2")
+        final PutRepositoryResponse putRepositoryResponse2 = client.admin().cluster().preparePutRepository("test-repo2")
                 .setType("azure").setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName().concat("-2"))
                         .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
@@ -194,14 +192,14 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
         assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().getTotalHits(), equalTo(100L));
 
         logger.info("--> snapshot 1");
-        CreateSnapshotResponse createSnapshotResponse1 = client.admin().cluster().prepareCreateSnapshot("test-repo1", "test-snap")
+        final CreateSnapshotResponse createSnapshotResponse1 = client.admin().cluster().prepareCreateSnapshot("test-repo1", "test-snap")
             .setWaitForCompletion(true).setIndices("test-idx-1").get();
         assertThat(createSnapshotResponse1.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse1.getSnapshotInfo().successfulShards(),
             equalTo(createSnapshotResponse1.getSnapshotInfo().totalShards()));
 
         logger.info("--> snapshot 2");
-        CreateSnapshotResponse createSnapshotResponse2 = client.admin().cluster().prepareCreateSnapshot("test-repo2", "test-snap")
+        final CreateSnapshotResponse createSnapshotResponse2 = client.admin().cluster().prepareCreateSnapshot("test-repo2", "test-snap")
             .setWaitForCompletion(true).setIndices("test-idx-2").get();
         assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(),
@@ -216,7 +214,7 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
         logger.info("--> delete indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2");
         logger.info("--> restore one index after deletion from snapshot 1");
-        RestoreSnapshotResponse restoreSnapshotResponse1 = client.admin().cluster().prepareRestoreSnapshot("test-repo1", "test-snap")
+        final RestoreSnapshotResponse restoreSnapshotResponse1 = client.admin().cluster().prepareRestoreSnapshot("test-repo1", "test-snap")
             .setWaitForCompletion(true).setIndices("test-idx-1").get();
         assertThat(restoreSnapshotResponse1.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
@@ -226,7 +224,7 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
 
         logger.info("--> restore other index after deletion from snapshot 2");
-        RestoreSnapshotResponse restoreSnapshotResponse2 = client.admin().cluster().prepareRestoreSnapshot("test-repo2", "test-snap")
+        final RestoreSnapshotResponse restoreSnapshotResponse2 = client.admin().cluster().prepareRestoreSnapshot("test-repo2", "test-snap")
             .setWaitForCompletion(true).setIndices("test-idx-2").get();
         assertThat(restoreSnapshotResponse2.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
@@ -252,7 +250,7 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
         }
         refresh();
 
-        ClusterAdminClient client = client().admin().cluster();
+        final ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating azure repository without any path");
         PutRepositoryResponse putRepositoryResponse = client.preparePutRepository(repositoryName).setType("azure")
                 .setSettings(Settings.builder()
@@ -300,9 +298,9 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
      */
     public void testGetDeleteNonExistingSnapshot_28() throws StorageException, URISyntaxException {
         final String repositoryName="test-repo-28";
-        ClusterAdminClient client = client().admin().cluster();
+        final ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating azure repository without any path");
-        PutRepositoryResponse putRepositoryResponse = client.preparePutRepository(repositoryName).setType("azure")
+        final PutRepositoryResponse putRepositoryResponse = client.preparePutRepository(repositoryName).setType("azure")
                 .setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                 ).get();
@@ -311,14 +309,14 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
         try {
             client.prepareGetSnapshots(repositoryName).addSnapshots("nonexistingsnapshotname").get();
             fail("Shouldn't be here");
-        } catch (SnapshotMissingException ex) {
+        } catch (final SnapshotMissingException ex) {
             // Expected
         }
 
         try {
             client.prepareDeleteSnapshot(repositoryName, "nonexistingsnapshotname").get();
             fail("Shouldn't be here");
-        } catch (SnapshotMissingException ex) {
+        } catch (final SnapshotMissingException ex) {
             // Expected
         }
     }
@@ -328,9 +326,9 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
      */
     public void testNonExistingRepo_23() {
         final String repositoryName = "test-repo-test23";
-        Client client = client();
+        final Client client = client();
         logger.info("-->  creating azure repository with path [{}]", getRepositoryPath());
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository(repositoryName)
+        final PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository(repositoryName)
                 .setType("azure").setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                         .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
@@ -342,7 +340,7 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
         try {
             client.admin().cluster().prepareRestoreSnapshot(repositoryName, "no-existing-snapshot").setWaitForCompletion(true).get();
             fail("Shouldn't be here");
-        } catch (SnapshotRestoreException ex) {
+        } catch (final SnapshotRestoreException ex) {
             // Expected
         }
     }
@@ -356,7 +354,7 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
         createTestContainer(container);
         removeTestContainer(container);
 
-        ClusterAdminClient client = client().admin().cluster();
+        final ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating azure repository while container is being removed");
         try {
             client.preparePutRepository("test-repo").setType("azure")
@@ -364,7 +362,7 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
                             .put(Repository.CONTAINER_SETTING.getKey(), container)
                     ).get();
             fail("we should get a RepositoryVerificationException");
-        } catch (RepositoryVerificationException e) {
+        } catch (final RepositoryVerificationException e) {
             // Fine we expect that
         }
     }
@@ -378,9 +376,9 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
      * @throws Exception If anything goes wrong
      */
     public void testGeoRedundantStorage() throws Exception {
-        Client client = client();
+        final Client client = client();
         logger.info("-->  creating azure primary repository");
-        PutRepositoryResponse putRepositoryResponsePrimary = client.admin().cluster().preparePutRepository("primary")
+        final PutRepositoryResponse putRepositoryResponsePrimary = client.admin().cluster().preparePutRepository("primary")
             .setType("azure").setSettings(Settings.builder()
                 .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
             ).get();
@@ -394,7 +392,7 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
         assertThat(endWait - startWait, lessThanOrEqualTo(30000L));
 
         logger.info("-->  creating azure secondary repository");
-        PutRepositoryResponse putRepositoryResponseSecondary = client.admin().cluster().preparePutRepository("secondary")
+        final PutRepositoryResponse putRepositoryResponseSecondary = client.admin().cluster().preparePutRepository("secondary")
             .setType("azure").setSettings(Settings.builder()
                 .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                 .put(Repository.LOCATION_MODE_SETTING.getKey(), "secondary_only")

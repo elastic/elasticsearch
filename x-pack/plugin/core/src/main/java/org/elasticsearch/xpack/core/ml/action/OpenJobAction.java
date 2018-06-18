@@ -23,10 +23,10 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTaskParams;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -127,7 +127,7 @@ public class OpenJobAction extends GenericAction<OpenJobAction.Response> {
         }
     }
 
-    public static class JobParams implements PersistentTaskParams {
+    public static class JobParams implements XPackPlugin.XPackPersistentTaskParams {
 
         /** TODO Remove in 7.0.0 */
         public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
@@ -237,6 +237,11 @@ public class OpenJobAction extends GenericAction<OpenJobAction.Response> {
         public String toString() {
             return Strings.toString(this);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
+        }
     }
 
     public static class Response extends AcknowledgedResponse {
@@ -246,16 +251,6 @@ public class OpenJobAction extends GenericAction<OpenJobAction.Response> {
 
         public Response(boolean acknowledged) {
             super(acknowledged);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            writeAcknowledged(out);
         }
 
         @Override

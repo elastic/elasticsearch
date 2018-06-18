@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.GenericAction;
 
-
 public class PutStoredScriptAction extends GenericAction<PutStoredScriptResponse> {
 
     public static final PutStoredScriptAction INSTANCE = new PutStoredScriptAction();

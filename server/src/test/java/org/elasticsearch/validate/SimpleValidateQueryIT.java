@@ -87,7 +87,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("foo").field("type", "text").endObject()
                         .startObject("bar").field("type", "integer").endObject()
-                        .startObject("baz").field("type", "text").field("analyzer", "snowball").endObject()
+                        .startObject("baz").field("type", "text").field("analyzer", "standard").endObject()
                         .startObject("pin").startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();

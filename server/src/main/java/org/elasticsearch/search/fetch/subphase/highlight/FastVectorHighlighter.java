@@ -36,7 +36,7 @@ import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.Field;
@@ -71,9 +71,9 @@ public class FastVectorHighlighter implements Highlighter {
         SearchContextHighlight.Field field = highlighterContext.field;
         SearchContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
-        FieldMapper mapper = highlighterContext.mapper;
+        MappedFieldType fieldType = highlighterContext.fieldType;
 
-        if (canHighlight(mapper) == false) {
+        if (canHighlight(fieldType) == false) {
             throw new IllegalArgumentException("the field [" + highlighterContext.fieldName +
                 "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
         }
@@ -87,7 +87,7 @@ public class FastVectorHighlighter implements Highlighter {
         HighlighterEntry cache = (HighlighterEntry) hitContext.cache().get(CACHE_KEY);
 
         try {
-            MapperHighlightEntry entry = cache.mappers.get(mapper);
+            FieldHighlightEntry entry = cache.fields.get(fieldType);
             if (entry == null) {
                 FragListBuilder fragListBuilder;
                 BaseFragmentsBuilder fragmentsBuilder;
@@ -97,37 +97,37 @@ public class FastVectorHighlighter implements Highlighter {
                 if (field.fieldOptions().numberOfFragments() == 0) {
                     fragListBuilder = new SingleFragListBuilder();
 
-                    if (!forceSource && mapper.fieldType().stored()) {
-                        fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.fieldOptions().preTags(),
+                    if (!forceSource && fieldType.stored()) {
+                        fragmentsBuilder = new SimpleFragmentsBuilder(fieldType, field.fieldOptions().preTags(),
                                 field.fieldOptions().postTags(), boundaryScanner);
                     } else {
-                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context,
+                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(fieldType, context,
                                 field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                     }
                 } else {
                     fragListBuilder = field.fieldOptions().fragmentOffset() == -1 ?
                         new SimpleFragListBuilder() : new SimpleFragListBuilder(field.fieldOptions().fragmentOffset());
                     if (field.fieldOptions().scoreOrdered()) {
-                        if (!forceSource && mapper.fieldType().stored()) {
+                        if (!forceSource && fieldType.stored()) {
                             fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.fieldOptions().preTags(),
                                     field.fieldOptions().postTags(), boundaryScanner);
                         } else {
-                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(mapper, context,
+                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(fieldType, context,
                                     field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         }
                     } else {
-                        if (!forceSource && mapper.fieldType().stored()) {
-                            fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.fieldOptions().preTags(),
+                        if (!forceSource && fieldType.stored()) {
+                            fragmentsBuilder = new SimpleFragmentsBuilder(fieldType, field.fieldOptions().preTags(),
                                     field.fieldOptions().postTags(), boundaryScanner);
                         } else {
                             fragmentsBuilder =
-                                new SourceSimpleFragmentsBuilder(mapper, context, field.fieldOptions().preTags(),
+                                new SourceSimpleFragmentsBuilder(fieldType, context, field.fieldOptions().preTags(),
                                     field.fieldOptions().postTags(), boundaryScanner);
                         }
                     }
                 }
                 fragmentsBuilder.setDiscreteMultiValueHighlighting(termVectorMultiValue);
-                entry = new MapperHighlightEntry();
+                entry = new FieldHighlightEntry();
                 if (field.fieldOptions().requireFieldMatch()) {
                     /**
                      * we use top level reader to rewrite the query against all readers,
@@ -152,7 +152,7 @@ public class FastVectorHighlighter implements Highlighter {
                     cache.fvh = new org.apache.lucene.search.vectorhighlight.FastVectorHighlighter();
                 }
                 CustomFieldQuery.highlightFilters.set(field.fieldOptions().highlightFilter());
-                cache.mappers.put(mapper, entry);
+                cache.fields.put(fieldType, entry);
             }
             final FieldQuery fieldQuery;
             if (field.fieldOptions().requireFieldMatch()) {
@@ -173,12 +173,12 @@ public class FastVectorHighlighter implements Highlighter {
             // Only send matched fields if they were requested to save time.
             if (field.fieldOptions().matchedFields() != null && !field.fieldOptions().matchedFields().isEmpty()) {
                 fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(),
-                    mapper.fieldType().name(), field.fieldOptions().matchedFields(), fragmentCharSize,
+                    fieldType.name(), field.fieldOptions().matchedFields(), fragmentCharSize,
                     numberOfFragments, entry.fragListBuilder, entry.fragmentsBuilder, field.fieldOptions().preTags(),
                     field.fieldOptions().postTags(), encoder);
             } else {
                 fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(),
-                    mapper.fieldType().name(), fragmentCharSize, numberOfFragments, entry.fragListBuilder,
+                    fieldType.name(), fragmentCharSize, numberOfFragments, entry.fragListBuilder,
                     entry.fragmentsBuilder, field.fieldOptions().preTags(), field.fieldOptions().postTags(), encoder);
             }
 
@@ -193,7 +193,7 @@ public class FastVectorHighlighter implements Highlighter {
                 FieldFragList fieldFragList = new SimpleFieldFragList(-1 /*ignored*/);
                 fieldFragList.add(0, noMatchSize, Collections.<WeightedPhraseInfo>emptyList());
                 fragments = entry.fragmentsBuilder.createFragments(hitContext.reader(), hitContext.docId(),
-                    mapper.fieldType().name(), fieldFragList, 1, field.fieldOptions().preTags(),
+                    fieldType.name(), fieldFragList, 1, field.fieldOptions().preTags(),
                     field.fieldOptions().postTags(), encoder);
                 if (fragments != null && fragments.length > 0) {
                     return new HighlightField(highlighterContext.fieldName, Text.convertFromStringArray(fragments));
@@ -209,9 +209,10 @@ public class FastVectorHighlighter implements Highlighter {
     }
 
     @Override
-    public boolean canHighlight(FieldMapper fieldMapper) {
-        return fieldMapper.fieldType().storeTermVectors() && fieldMapper.fieldType().storeTermVectorOffsets()
-                && fieldMapper.fieldType().storeTermVectorPositions();
+    public boolean canHighlight(MappedFieldType fieldType) {
+        return fieldType.storeTermVectors()
+            && fieldType.storeTermVectorOffsets()
+            && fieldType.storeTermVectorPositions();
     }
 
     private static BoundaryScanner getBoundaryScanner(Field field) {
@@ -244,7 +245,7 @@ public class FastVectorHighlighter implements Highlighter {
         }
     }
 
-    private class MapperHighlightEntry {
+    private class FieldHighlightEntry {
         public FragListBuilder fragListBuilder;
         public FragmentsBuilder fragmentsBuilder;
         public FieldQuery noFieldMatchFieldQuery;
@@ -253,6 +254,6 @@ public class FastVectorHighlighter implements Highlighter {
 
     private class HighlighterEntry {
         public org.apache.lucene.search.vectorhighlight.FastVectorHighlighter fvh;
-        public Map<FieldMapper, MapperHighlightEntry> mappers = new HashMap<>();
+        public Map<MappedFieldType, FieldHighlightEntry> fields = new HashMap<>();
     }
 }

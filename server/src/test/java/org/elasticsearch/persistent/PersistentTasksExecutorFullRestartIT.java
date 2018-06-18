@@ -20,12 +20,12 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,8 +35,6 @@ import java.util.List;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 1)
 public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
@@ -65,7 +63,7 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
             PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
             futures.add(future);
             taskIds[i] = UUIDs.base64UUID();
-            service.sendStartRequest(taskIds[i], TestPersistentTasksExecutor.NAME, randomBoolean() ? null : new TestParams("Blah"), future);
+            service.sendStartRequest(taskIds[i], TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
         }
 
         for (int i = 0; i < numberOfTasks; i++) {

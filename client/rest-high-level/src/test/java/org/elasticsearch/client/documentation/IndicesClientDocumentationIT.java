@@ -62,6 +62,9 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -81,6 +84,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 
@@ -2125,6 +2129,85 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // tag::get-templates-execute-async
         client.indices().getTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::get-templates-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testValidateQuery() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String index = "some_index";
+        createIndex(index, Settings.EMPTY);
+
+        // tag::validate-query-request
+        ValidateQueryRequest request = new ValidateQueryRequest(index); // <1>
+        // end::validate-query-request
+
+        // tag::validate-query-request-query
+        QueryBuilder builder = QueryBuilders
+            .boolQuery() // <1>
+            .must(QueryBuilders.queryStringQuery("*:*"))
+            .filter(QueryBuilders.termQuery("user", "kimchy"));
+        request.query(builder); // <2>
+        // end::validate-query-request-query
+
+        // tag::validate-query-request-explain
+        request.explain(true); // <1>
+        // end::validate-query-request-explain
+
+        // tag::validate-query-request-allShards
+        request.allShards(true); // <1>
+        // end::validate-query-request-allShards
+
+        // tag::validate-query-request-rewrite
+        request.rewrite(true); // <1>
+        // end::validate-query-request-rewrite
+
+        // tag::validate-query-execute
+        ValidateQueryResponse response = client.indices().validateQuery(request, RequestOptions.DEFAULT); // <1>
+        // end::validate-query-execute
+
+        // tag::validate-query-response
+        boolean isValid = response.isValid(); // <1>
+        int totalShards = response.getTotalShards(); // <2>
+        int successfulShards = response.getSuccessfulShards(); // <3>
+        int failedShards = response.getFailedShards(); // <4>
+        if (failedShards > 0) {
+            for(DefaultShardOperationFailedException failure: response.getShardFailures()) { // <5>
+                String failedIndex = failure.index(); // <6>
+                int shardId = failure.shardId(); // <7>
+                String reason = failure.reason(); // <8>
+            }
+        }
+        for(QueryExplanation explanation: response.getQueryExplanation()) { // <9>
+            String explanationIndex = explanation.getIndex(); // <10>
+            int shardId = explanation.getShard(); // <11>
+            String explanationString = explanation.getExplanation(); // <12>
+        }
+        // end::validate-query-response
+
+        // tag::validate-query-execute-listener
+        ActionListener<ValidateQueryResponse> listener =
+            new ActionListener<ValidateQueryResponse>() {
+                @Override
+                public void onResponse(ValidateQueryResponse validateQueryResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::validate-query-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::validate-query-execute-async
+        client.indices().validateQueryAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::validate-query-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

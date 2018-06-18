@@ -1,7 +1,7 @@
 [[sql-getting-started]]
 == Getting Started with SQL
 
-To start using Elasticsearch SQL, create
+To start using {es-sql}, create
 an index with some data to experiment with:
 
 [source,js]

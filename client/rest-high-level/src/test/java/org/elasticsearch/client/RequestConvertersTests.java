@@ -60,6 +60,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -1893,6 +1894,40 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getEndpoint(), equalTo("/_template/" + names.get(putTemplateRequest.name())));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertToXContentBody(putTemplateRequest, request.getEntity());
+    }
+
+    public void testValidateQuery() throws Exception {
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
+        String[] types = randomBoolean() ? generateRandomStringArray(5, 5, false, false) : null;
+        ValidateQueryRequest validateQueryRequest;
+        if (randomBoolean()) {
+            validateQueryRequest = new ValidateQueryRequest(indices);
+        } else {
+            validateQueryRequest = new ValidateQueryRequest();
+            validateQueryRequest.indices(indices);
+        }
+        validateQueryRequest.types(types);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(validateQueryRequest::indicesOptions, validateQueryRequest::indicesOptions, expectedParams);
+        validateQueryRequest.explain(randomBoolean());
+        validateQueryRequest.rewrite(randomBoolean());
+        validateQueryRequest.allShards(randomBoolean());
+        expectedParams.put("explain", Boolean.toString(validateQueryRequest.explain()));
+        expectedParams.put("rewrite", Boolean.toString(validateQueryRequest.rewrite()));
+        expectedParams.put("all_shards", Boolean.toString(validateQueryRequest.allShards()));
+        Request request = RequestConverters.validateQuery(validateQueryRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indices != null && indices.length > 0) {
+            endpoint.add(String.join(",", indices));
+            if (types != null && types.length > 0) {
+                endpoint.add(String.join(",", types));
+            }
+        }
+        endpoint.add("_validate/query");
+        assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertToXContentBody(validateQueryRequest, request.getEntity());
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
     }
 
     public void testGetTemplateRequest() throws Exception {

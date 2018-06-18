@@ -220,8 +220,8 @@ public class FieldConfigWriterTests extends ESTestCase {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(d));
         analysisConfig = builder.build();
 
-        filters.add(new MlFilter("filter_1", Arrays.asList("a", "b")));
-        filters.add(new MlFilter("filter_2", Arrays.asList("c", "d")));
+        filters.add(MlFilter.builder("filter_1").setItems("a", "b").build());
+        filters.add(MlFilter.builder("filter_2").setItems("c", "d").build());
         writer = mock(OutputStreamWriter.class);
 
         createFieldConfigWriter().write();

@@ -53,14 +53,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
 import static org.elasticsearch.client.RestClientTestUtil.randomErrorRetryStatusCode;
 import static org.elasticsearch.client.RestClientTestUtil.randomHttpMethod;
 import static org.elasticsearch.client.RestClientTestUtil.randomOkStatusCode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.hasItem;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -344,7 +342,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         List<Node> newNodes = new ArrayList<>(nodes.size());
         for (int i = 0; i < nodes.size(); i++) {
             Roles roles = i == 0 ? new Roles(false, true, true) : new Roles(true, false, false);
-            newNodes.add(new Node(nodes.get(i).getHost(), null, null, null, roles));
+            newNodes.add(new Node(nodes.get(i).getHost(), null, null, null, roles, null));
         }
         restClient.setNodes(newNodes);
         int rounds = between(1, 10);

@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DefaultShardsIT extends ESRestTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31408")
     public void testDefaultShards() throws IOException {
         final Response response = client().performRequest(new Request("PUT", "/index"));
         final String warning = response.getHeader("Warning");

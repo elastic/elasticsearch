@@ -31,7 +31,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -55,7 +54,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -84,8 +83,7 @@ public class FetchPhase implements SearchPhase {
     @Override
     public void execute(SearchContext context) {
         final FieldsVisitor fieldsVisitor;
-        Set<String> fieldNames = null;
-        List<String> fieldNamePatterns = null;
+        Set<String> storedFields = null;
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
 
         if (storedFieldsContext == null) {
@@ -98,19 +96,16 @@ public class FetchPhase implements SearchPhase {
             // disable stored fields entirely
             fieldsVisitor = null;
         } else {
-            for (String fieldName : context.storedFieldsContext().fieldNames()) {
-                if (fieldName.equals(SourceFieldMapper.NAME)) {
+            for (String fieldNameOrPattern : context.storedFieldsContext().fieldNames()) {
+                if (fieldNameOrPattern.equals(SourceFieldMapper.NAME)) {
                     FetchSourceContext fetchSourceContext = context.hasFetchSourceContext() ? context.fetchSourceContext()
-                            : FetchSourceContext.FETCH_SOURCE;
+                        : FetchSourceContext.FETCH_SOURCE;
                     context.fetchSourceContext(new FetchSourceContext(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
                     continue;
                 }
-                if (Regex.isSimpleMatchPattern(fieldName)) {
-                    if (fieldNamePatterns == null) {
-                        fieldNamePatterns = new ArrayList<>();
-                    }
-                    fieldNamePatterns.add(fieldName);
-                } else {
+
+                Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(fieldNameOrPattern);
+                for (String fieldName : fieldNames) {
                     MappedFieldType fieldType = context.smartNameFieldType(fieldName);
                     if (fieldType == null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
@@ -118,19 +113,18 @@ public class FetchPhase implements SearchPhase {
                             throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
                         }
                     }
-                    if (fieldNames == null) {
-                        fieldNames = new HashSet<>();
+                    if (storedFields == null) {
+                        storedFields = new HashSet<>();
                     }
-                    fieldNames.add(fieldName);
+                    storedFields.add(fieldName);
                 }
             }
             boolean loadSource = context.sourceRequested();
-            if (fieldNames == null && fieldNamePatterns == null) {
+            if (storedFields == null) {
                 // empty list specified, default to disable _source if no explicit indication
                 fieldsVisitor = new FieldsVisitor(loadSource);
             } else {
-                fieldsVisitor = new CustomFieldsVisitor(fieldNames == null ? Collections.emptySet() : fieldNames,
-                        fieldNamePatterns == null ? Collections.emptyList() : fieldNamePatterns, loadSource);
+                fieldsVisitor = new CustomFieldsVisitor(storedFields, loadSource);
             }
         }
 
@@ -149,8 +143,8 @@ public class FetchPhase implements SearchPhase {
                 final SearchHit searchHit;
                 int rootDocId = findRootDocumentIfNested(context, subReaderContext, subDocId);
                 if (rootDocId != -1) {
-                    searchHit = createNestedSearchHit(context, docId, subDocId, rootDocId, fieldNames, fieldNamePatterns,
-                            subReaderContext);
+                    searchHit = createNestedSearchHit(context, docId, subDocId, rootDocId,
+                        storedFields, subReaderContext);
                 } else {
                     searchHit = createSearchHit(context, fieldsVisitor, docId, subDocId, subReaderContext);
                 }
@@ -223,9 +217,12 @@ public class FetchPhase implements SearchPhase {
         return searchHit;
     }
 
-    private SearchHit createNestedSearchHit(SearchContext context, int nestedTopDocId, int nestedSubDocId,
-                                            int rootSubDocId, Set<String> fieldNames,
-                                            List<String> fieldNamePatterns, LeafReaderContext subReaderContext) throws IOException {
+    private SearchHit createNestedSearchHit(SearchContext context,
+                                            int nestedTopDocId,
+                                            int nestedSubDocId,
+                                            int rootSubDocId,
+                                            Set<String> storedFields,
+                                            LeafReaderContext subReaderContext) throws IOException {
         // Also if highlighting is requested on nested documents we need to fetch the _source from the root document,
         // otherwise highlighting will attempt to fetch the _source from the nested doc, which will fail,
         // because the entire _source is only stored with the root document.
@@ -246,7 +243,7 @@ public class FetchPhase implements SearchPhase {
 
 
         Map<String, DocumentField> searchFields =
-                getSearchFields(context, nestedSubDocId, fieldNames, fieldNamePatterns, subReaderContext);
+                getSearchFields(context, nestedSubDocId, storedFields, subReaderContext);
         DocumentMapper documentMapper = context.mapperService().documentMapper(uid.type());
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, nestedSubDocId);
@@ -307,12 +304,14 @@ public class FetchPhase implements SearchPhase {
         return new SearchHit(nestedTopDocId, uid.id(), documentMapper.typeText(), nestedIdentity, searchFields);
     }
 
-    private Map<String, DocumentField> getSearchFields(SearchContext context, int nestedSubDocId, Set<String> fieldNames,
-                                                       List<String> fieldNamePatterns, LeafReaderContext subReaderContext) {
+    private Map<String, DocumentField> getSearchFields(SearchContext context,
+                                                       int nestedSubDocId,
+                                                       Set<String> storedFields,
+                                                       LeafReaderContext subReaderContext) {
         Map<String, DocumentField> searchFields = null;
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
-            FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(fieldNames == null ? Collections.emptySet() : fieldNames,
-                    fieldNamePatterns == null ? Collections.emptyList() : fieldNamePatterns, false);
+            FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(
+                storedFields == null ? Collections.emptySet() : storedFields, false);
             if (nestedFieldsVisitor != null) {
                 loadStoredFields(context, subReaderContext, nestedFieldsVisitor, nestedSubDocId);
                 nestedFieldsVisitor.postProcess(context.mapperService());

@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
@@ -839,6 +840,25 @@ final class RequestConverters {
         Params parameters = new Params(request);
         parameters.withMasterTimeout(verifyRepositoryRequest.masterNodeTimeout());
         parameters.withTimeout(verifyRepositoryRequest.timeout());
+        return request;
+    }
+
+    static Request getSnapshots(GetSnapshotsRequest getSnapshotsRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(getSnapshotsRequest.repository())
+            .addCommaSeparatedPathParts(getSnapshotsRequest.snapshots())
+            .build();
+
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(getSnapshotsRequest.masterNodeTimeout());
+        if (getSnapshotsRequest.ignoreUnavailable()) {
+            parameters.putParam("ignore_unavailable", Boolean.TRUE.toString());
+        }
+        if (getSnapshotsRequest.verbose() == false) {
+            parameters.putParam("verbose", Boolean.FALSE.toString());
+        }
         return request;
     }
 

@@ -575,3 +575,29 @@ gradle.projectsEvaluated {
     }
   }
 }
+
+apply plugin: 'compare-gradle-builds'
+
+if (System.properties.get("build.compare") != null) {
+  compareGradleBuilds {
+    ext.referenceProject = System.properties.get("build.compare")
+    doFirst {
+      if (file(referenceProject).exists() == false) {
+        throw new GradleException(
+                "Use git worktree to check out a version to compare against to ../elasticsearch_build_reference"
+        )
+      }
+    }
+    sourceBuild {
+      gradleVersion = "4.7" // does not default to gradle weapper of project dir, but current version
+      projectDir = referenceProject
+      tasks = ["clean", "assemble"]
+      arguments = ["-Dbuild.compare_friendly=true"]
+    }
+    targetBuild {
+      tasks = ["clean", "assemble"]
+      // use -Dorg.gradle.java.home= to alter jdk versions
+      arguments = ["-Dbuild.compare_friendly=true"]
+    }
+  }
+}

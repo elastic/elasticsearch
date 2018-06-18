@@ -96,3 +96,5 @@ include::tokenfilters/decimal-digit-tokenfilter.asciidoc[]
 include::tokenfilters/fingerprint-tokenfilter.asciidoc[]
 
 include::tokenfilters/minhash-tokenfilter.asciidoc[]
+
+include::tokenfilters/remove-duplicates-tokenfilter.asciidoc[]

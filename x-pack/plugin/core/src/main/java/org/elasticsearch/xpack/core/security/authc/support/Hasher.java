@@ -493,8 +493,13 @@ public enum Hasher {
     }
 
     public static boolean verifyHash(SecureString data, char[] hash) {
-        final Hasher hasher = resolveFromHash(hash);
-        return hasher.verify(data, hash);
+        try {
+            final Hasher hasher = resolveFromHash(hash);
+            return hasher.verify(data, hash);
+        } catch (IllegalArgumentException e) {
+            // The password hash format is invalid, we're unable to verify password
+            return false;
+        }
     }
 
     private static char[] getPbkdf2Hash(SecureString data, int cost) {

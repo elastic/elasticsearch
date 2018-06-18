@@ -44,7 +44,6 @@ class UserAndPassword {
             // The hash was of invalid format, we can't validate the password
             return false;
         }
-
     }
 
     @Override

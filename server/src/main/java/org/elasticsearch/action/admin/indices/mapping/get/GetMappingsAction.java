@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class GetMappingsAction extends Action<GetMappingsRequest, GetMappingsResponse> {
+public class GetMappingsAction extends GenericAction<GetMappingsResponse> {
 
     public static final GetMappingsAction INSTANCE = new GetMappingsAction();
     public static final String NAME = "indices:admin/mappings/get";

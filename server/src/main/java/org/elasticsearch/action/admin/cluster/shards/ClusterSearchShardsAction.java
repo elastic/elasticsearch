@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class ClusterSearchShardsAction extends Action<ClusterSearchShardsRequest, ClusterSearchShardsResponse> {
+public class ClusterSearchShardsAction extends GenericAction<ClusterSearchShardsResponse> {
 
     public static final ClusterSearchShardsAction INSTANCE = new ClusterSearchShardsAction();
     public static final String NAME = "indices:admin/shards/search_shards";

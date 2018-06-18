@@ -662,7 +662,7 @@ public class TransportService extends AbstractLifecycleComponent {
             onRequestReceived(requestId, action);
             final RequestHandlerRegistry reg = getRequestHandler(action);
             if (reg == null) {
-                throw new ActionNotFoundTransportException("Action [" + action + "] not found");
+                throw new ActionNotFoundTransportException("GenericAction [" + action + "] not found");
             }
             final String executor = reg.getExecutor();
             if (ThreadPool.Names.SAME.equals(executor)) {

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecordsAction.Response> {
+public class GetRecordsAction extends GenericAction<GetRecordsAction.Response> {
 
     public static final GetRecordsAction INSTANCE = new GetRecordsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/records/get";

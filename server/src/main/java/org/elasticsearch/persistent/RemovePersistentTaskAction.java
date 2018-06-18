@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -42,7 +42,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask
 import java.io.IOException;
 import java.util.Objects;
 
-public class RemovePersistentTaskAction extends Action<RemovePersistentTaskAction.Request, PersistentTaskResponse> {
+public class RemovePersistentTaskAction extends GenericAction<PersistentTaskResponse> {
 
     public static final RemovePersistentTaskAction INSTANCE = new RemovePersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/remove";

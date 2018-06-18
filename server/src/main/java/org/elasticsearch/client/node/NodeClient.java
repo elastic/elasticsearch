@@ -19,12 +19,11 @@
 
 package org.elasticsearch.client.node;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
@@ -71,29 +70,29 @@ public class NodeClient extends AbstractClient {
     public <    Request extends ActionRequest,
                 Response extends ActionResponse,
                 RequestBuilder extends ActionRequestBuilder<Request, Response>
-            > void doExecute(Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+            > void doExecute(GenericAction<Response> action, Request request, ActionListener<Response> listener) {
         // Discard the task because the Client interface doesn't use it.
         executeLocally(action, request, listener);
     }
 
     /**
-     * Execute an {@link Action} locally, returning that {@link Task} used to track it, and linking an {@link ActionListener}. Prefer this
-     * method if you don't need access to the task when listening for the response. This is the method used to implement the {@link Client}
-     * interface.
+     * Execute an {@link GenericAction} locally, returning that {@link Task} used to track it, and linking an {@link ActionListener}.
+     * Prefer this method if you don't need access to the task when listening for the response. This is the method used to implement
+     * the {@link Client} interface.
      */
     public <    Request extends ActionRequest,
                 Response extends ActionResponse
-            > Task executeLocally(GenericAction<Request, Response> action, Request request, ActionListener<Response> listener) {
+            > Task executeLocally(GenericAction<Response> action, Request request, ActionListener<Response> listener) {
         return transportAction(action).execute(request, listener);
     }
 
     /**
-     * Execute an {@link Action} locally, returning that {@link Task} used to track it, and linking an {@link TaskListener}. Prefer this
-     * method if you need access to the task when listening for the response.
+     * Execute an {@link GenericAction} locally, returning that {@link Task} used to track it, and linking an {@link TaskListener}.
+     * Prefer this method if you need access to the task when listening for the response.
      */
     public <    Request extends ActionRequest,
                 Response extends ActionResponse
-            > Task executeLocally(GenericAction<Request, Response> action, Request request, TaskListener<Response> listener) {
+            > Task executeLocally(GenericAction<Response> action, Request request, TaskListener<Response> listener) {
         return transportAction(action).execute(request, listener);
     }
 
@@ -106,12 +105,12 @@ public class NodeClient extends AbstractClient {
     }
 
     /**
-     * Get the {@link TransportAction} for an {@link Action}, throwing exceptions if the action isn't available.
+     * Get the {@link TransportAction} for an {@link GenericAction}, throwing exceptions if the action isn't available.
      */
     @SuppressWarnings("unchecked")
     private <    Request extends ActionRequest,
                 Response extends ActionResponse
-            > TransportAction<Request, Response> transportAction(GenericAction<Request, Response> action) {
+            > TransportAction<Request, Response> transportAction(GenericAction<Response> action) {
         if (actions == null) {
             throw new IllegalStateException("NodeClient has not been initialized");
         }

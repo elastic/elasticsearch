@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class SearchScrollAction extends Action<SearchScrollRequest, SearchResponse> {
+public class SearchScrollAction extends GenericAction<SearchResponse> {
 
     public static final SearchScrollAction INSTANCE = new SearchScrollAction();
     public static final String NAME = "indices:data/read/scroll";

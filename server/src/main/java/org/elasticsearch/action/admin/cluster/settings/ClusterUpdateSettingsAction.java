@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class ClusterUpdateSettingsAction extends Action<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
+public class ClusterUpdateSettingsAction extends GenericAction<ClusterUpdateSettingsResponse> {
 
     public static final ClusterUpdateSettingsAction INSTANCE = new ClusterUpdateSettingsAction();
     public static final String NAME = "cluster:admin/settings/update";

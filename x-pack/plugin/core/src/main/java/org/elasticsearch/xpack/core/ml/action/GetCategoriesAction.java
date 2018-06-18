@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -29,7 +29,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetCategoriesAction extends Action<GetCategoriesAction.Request, GetCategoriesAction.Response> {
+public class GetCategoriesAction extends GenericAction<GetCategoriesAction.Response> {
 
     public static final GetCategoriesAction INSTANCE = new GetCategoriesAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/categories/get";

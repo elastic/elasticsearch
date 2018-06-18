@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.upgrade.actions;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
@@ -26,7 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Request, IndexUpgradeInfoAction.Response> {
+public class IndexUpgradeInfoAction extends GenericAction<IndexUpgradeInfoAction.Response> {
 
     public static final IndexUpgradeInfoAction INSTANCE = new IndexUpgradeInfoAction();
     public static final String NAME = "cluster:admin/xpack/upgrade/info";

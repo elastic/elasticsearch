@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.license.XPackInfoResponse;
 
-public class XPackInfoAction extends Action<XPackInfoRequest, XPackInfoResponse> {
+public class XPackInfoAction extends GenericAction<XPackInfoResponse> {
 
     public static final String NAME = "cluster:monitor/xpack/info";
     public static final XPackInfoAction INSTANCE = new XPackInfoAction();

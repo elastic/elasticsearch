@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StopRollupJobAction extends Action<StopRollupJobAction.Request, StopRollupJobAction.Response> {
+public class StopRollupJobAction extends GenericAction<StopRollupJobAction.Response> {
 
     public static final StopRollupJobAction INSTANCE = new StopRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/stop";

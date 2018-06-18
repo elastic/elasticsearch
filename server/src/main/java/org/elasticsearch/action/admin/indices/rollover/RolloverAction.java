@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class RolloverAction extends Action<RolloverRequest, RolloverResponse> {
+public class RolloverAction extends GenericAction<RolloverResponse> {
 
     public static final RolloverAction INSTANCE = new RolloverAction();
     public static final String NAME = "indices:admin/rollover";

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 /**
  * Get repositories action
  */
-public class GetRepositoriesAction extends Action<GetRepositoriesRequest, GetRepositoriesResponse> {
+public class GetRepositoriesAction extends GenericAction<GetRepositoriesResponse> {
 
     public static final GetRepositoriesAction INSTANCE = new GetRepositoriesAction();
     public static final String NAME = "cluster:admin/repository/get";

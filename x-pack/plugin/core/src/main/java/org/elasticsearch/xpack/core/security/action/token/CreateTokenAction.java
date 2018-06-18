@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 /**
- * Action for creating a new token
+ * GenericAction for creating a new token
  */
-public final class CreateTokenAction extends Action<CreateTokenRequest, CreateTokenResponse> {
+public final class CreateTokenAction extends GenericAction<CreateTokenResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/token/create";
     public static final CreateTokenAction INSTANCE = new CreateTokenAction();

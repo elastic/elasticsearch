@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class DeletePipelineAction extends Action<DeletePipelineRequest, WritePipelineResponse> {
+public class DeletePipelineAction extends GenericAction<WritePipelineResponse> {
 
     public static final DeletePipelineAction INSTANCE = new DeletePipelineAction();
     public static final String NAME = "cluster:admin/ingest/pipeline/delete";

@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class DeleteLicenseAction extends Action<DeleteLicenseRequest, DeleteLicenseResponse> {
+public class DeleteLicenseAction extends GenericAction<DeleteLicenseResponse> {
 
     public static final DeleteLicenseAction INSTANCE = new DeleteLicenseAction();
     public static final String NAME = "cluster:admin/xpack/license/delete";

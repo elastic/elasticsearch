@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 /**
  * Register repository action
  */
-public class PutRepositoryAction extends Action<PutRepositoryRequest, PutRepositoryResponse> {
+public class PutRepositoryAction extends GenericAction<PutRepositoryResponse> {
 
     public static final PutRepositoryAction INSTANCE = new PutRepositoryAction();
     public static final String NAME = "cluster:admin/repository/put";

@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.activate;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 /**
  * This action acks a watch in memory, and the index
  */
-public class ActivateWatchAction extends Action<ActivateWatchRequest, ActivateWatchResponse> {
+public class ActivateWatchAction extends GenericAction<ActivateWatchResponse> {
 
     public static final ActivateWatchAction INSTANCE = new ActivateWatchAction();
     public static final String NAME = "cluster:admin/xpack/watcher/watch/activate";

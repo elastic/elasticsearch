@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -21,7 +21,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class MlInfoAction extends Action<MlInfoAction.Request, MlInfoAction.Response> {
+public class MlInfoAction extends GenericAction<MlInfoAction.Response> {
 
     public static final MlInfoAction INSTANCE = new MlInfoAction();
     public static final String NAME = "cluster:monitor/xpack/ml/info/get";

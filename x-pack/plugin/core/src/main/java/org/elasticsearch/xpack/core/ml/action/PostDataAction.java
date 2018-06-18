@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PostDataAction extends Action<PostDataAction.Request, PostDataAction.Response> {
+public class PostDataAction extends GenericAction<PostDataAction.Response> {
 
     public static final PostDataAction INSTANCE = new PostDataAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/data/post";

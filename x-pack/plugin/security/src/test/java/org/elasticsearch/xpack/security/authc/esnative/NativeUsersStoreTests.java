@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -77,7 +77,7 @@ public class NativeUsersStoreTests extends ESTestCase {
                     Response extends ActionResponse,
                     RequestBuilder extends ActionRequestBuilder<Request, Response>
                     > void doExecute(
-                    Action<Request, Response> action,
+                    GenericAction<Response> action,
                     Request request,
                     ActionListener<Response> listener) {
                 requests.add(new Tuple<>(request, listener));

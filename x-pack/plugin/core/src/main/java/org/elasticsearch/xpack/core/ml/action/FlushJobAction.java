@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
 
-public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobAction.Response> {
+public class FlushJobAction extends GenericAction<FlushJobAction.Response> {
 
     public static final FlushJobAction INSTANCE = new FlushJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/flush";

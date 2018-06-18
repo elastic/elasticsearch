@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.plugin.noop.action.bulk;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.bulk.BulkResponse;
 
-public class NoopBulkAction extends Action<BulkRequest, BulkResponse> {
+public class NoopBulkAction extends GenericAction<BulkResponse> {
     public static final String NAME = "mock:data/write/bulk";
 
     public static final NoopBulkAction INSTANCE = new NoopBulkAction();

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class IndicesStatsAction extends Action<IndicesStatsRequest, IndicesStatsResponse> {
+public class IndicesStatsAction extends GenericAction<IndicesStatsResponse> {
 
     public static final IndicesStatsAction INSTANCE = new IndicesStatsAction();
     public static final String NAME = "indices:monitor/stats";

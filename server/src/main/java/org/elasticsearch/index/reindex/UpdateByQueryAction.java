@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class UpdateByQueryAction extends Action<UpdateByQueryRequest, BulkByScrollResponse> {
+public class UpdateByQueryAction extends GenericAction<BulkByScrollResponse> {
     public static final UpdateByQueryAction INSTANCE = new UpdateByQueryAction();
     public static final String NAME = "indices:data/write/update/byquery";
 

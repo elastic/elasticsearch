@@ -20,7 +20,7 @@
 package org.elasticsearch.test.client;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -54,7 +54,7 @@ public class NoOpClient extends AbstractClient {
     protected <Request extends ActionRequest,
                     Response extends ActionResponse,
                     RequestBuilder extends ActionRequestBuilder<Request, Response>>
-            void doExecute(Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+            void doExecute(GenericAction<Response> action, Request request, ActionListener<Response> listener) {
         listener.onResponse(null);
     }
 

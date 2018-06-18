@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -66,7 +66,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     public static final String INDEX_NAME = ".security";
     private static final String TEMPLATE_NAME = "SecurityIndexManagerTests-template";
     private SecurityIndexManager manager;
-    private Map<Action<?, ?>, Map<ActionRequest, ActionListener<?>>> actions;
+    private Map<GenericAction<?>, Map<ActionRequest, ActionListener<?>>> actions;
 
     @Before
     public void setUpManager() {
@@ -83,7 +83,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             protected <Request extends ActionRequest,
                     Response extends ActionResponse,
                     RequestBuilder extends ActionRequestBuilder<Request, Response>>
-            void doExecute(Action<Request, Response> action, Request request,
+            void doExecute(GenericAction<Response> action, Request request,
                            ActionListener<Response> listener) {
                 final Map<ActionRequest, ActionListener<?>> map = actions.getOrDefault(action, new HashMap<>());
                 map.put(request, listener);

@@ -21,7 +21,7 @@ package org.elasticsearch.persistent;
 import java.io.IOException;
 import java.util.Objects;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -44,7 +44,7 @@ import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTaskStatusAction.Request, PersistentTaskResponse> {
+public class UpdatePersistentTaskStatusAction extends GenericAction<PersistentTaskResponse> {
 
     public static final UpdatePersistentTaskStatusAction INSTANCE = new UpdatePersistentTaskStatusAction();
     public static final String NAME = "cluster:admin/persistent/update_status";

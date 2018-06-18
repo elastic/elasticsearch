@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.service;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 
-public class WatcherServiceAction extends Action<WatcherServiceRequest, WatcherServiceResponse> {
+public class WatcherServiceAction extends GenericAction<WatcherServiceResponse> {
 
     public static final WatcherServiceAction INSTANCE = new WatcherServiceAction();
     public static final String NAME = "cluster:admin/xpack/watcher/service";

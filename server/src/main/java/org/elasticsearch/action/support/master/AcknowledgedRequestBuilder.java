@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.support.master;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -28,7 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 public abstract class AcknowledgedRequestBuilder<Request extends AcknowledgedRequest<Request>, Response extends AcknowledgedResponse, RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>>
         extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
 
-    protected AcknowledgedRequestBuilder(ElasticsearchClient client, Action<Request, Response> action, Request request) {
+    protected AcknowledgedRequestBuilder(ElasticsearchClient client, GenericAction<Response> action, Request request) {
         super(client, action, request);
     }
 

@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 /**
- * Action for initiating an authentication process using SAML assertions
+ * GenericAction for initiating an authentication process using SAML assertions
  */
-public final class SamlPrepareAuthenticationAction extends Action<SamlPrepareAuthenticationRequest, SamlPrepareAuthenticationResponse> {
+public final class SamlPrepareAuthenticationAction extends GenericAction<SamlPrepareAuthenticationResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/saml/prepare";
     public static final SamlPrepareAuthenticationAction INSTANCE = new SamlPrepareAuthenticationAction();

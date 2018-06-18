@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 /**
- * Action for explaining shard allocation for a shard in the cluster
+ * GenericAction for explaining shard allocation for a shard in the cluster
  */
-public class ClusterAllocationExplainAction extends Action<ClusterAllocationExplainRequest, ClusterAllocationExplainResponse> {
+public class ClusterAllocationExplainAction extends GenericAction<ClusterAllocationExplainResponse> {
 
     public static final ClusterAllocationExplainAction INSTANCE = new ClusterAllocationExplainAction();
     public static final String NAME = "cluster:monitor/allocation/explain";

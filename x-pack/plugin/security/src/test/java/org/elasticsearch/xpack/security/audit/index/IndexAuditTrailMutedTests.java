@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.audit.index;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -72,7 +72,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends
                     ActionRequestBuilder<Request, Response>> void doExecute(
-                    Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+                GenericAction<Response> action, Request request, ActionListener<Response> listener) {
                 clientCalled.set(true);
             }
         }

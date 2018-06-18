@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucketsAction.Response> {
+public class GetBucketsAction extends GenericAction<GetBucketsAction.Response> {
 
     public static final GetBucketsAction INSTANCE = new GetBucketsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/buckets/get";

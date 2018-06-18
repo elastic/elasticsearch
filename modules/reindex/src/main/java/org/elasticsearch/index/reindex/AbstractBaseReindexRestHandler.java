@@ -38,7 +38,7 @@ import java.util.Map;
 
 public abstract class AbstractBaseReindexRestHandler<
                 Request extends AbstractBulkByScrollRequest<Request>,
-                A extends GenericAction<Request, BulkByScrollResponse>
+                A extends GenericAction<BulkByScrollResponse>
             > extends BaseRestHandler {
 
     private final A action;

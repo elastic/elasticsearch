@@ -19,8 +19,8 @@
 
 package org.elasticsearch.persistent;
 
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -383,7 +383,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
     }
 
-    public static class TestTaskAction extends Action<TestTasksRequest, TestTasksResponse> {
+    public static class TestTaskAction extends GenericAction<TestTasksResponse> {
 
         public static final TestTaskAction INSTANCE = new TestTaskAction();
         public static final String NAME = "cluster:admin/persistent/task_test";

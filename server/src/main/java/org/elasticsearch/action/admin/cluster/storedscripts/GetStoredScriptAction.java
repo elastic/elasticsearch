@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class GetStoredScriptAction extends Action<GetStoredScriptRequest, GetStoredScriptResponse> {
+public class GetStoredScriptAction extends GenericAction<GetStoredScriptResponse> {
 
     public static final GetStoredScriptAction INSTANCE = new GetStoredScriptAction();
     public static final String NAME = "cluster:admin/script/get";

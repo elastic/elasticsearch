@@ -22,7 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -745,7 +745,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         protected <Request extends ActionRequest, Response extends ActionResponse,
                 RequestBuilder extends ActionRequestBuilder<Request, Response>> void doExecute(
-                Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+            GenericAction<Response> action, Request request, ActionListener<Response> listener) {
             if (false == expectedHeaders.equals(threadPool().getThreadContext().getHeaders())) {
                 listener.onFailure(
                         new RuntimeException("Expected " + expectedHeaders + " but got " + threadPool().getThreadContext().getHeaders()));

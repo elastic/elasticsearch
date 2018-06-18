@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.delete;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class DeleteIndexAction extends Action<DeleteIndexRequest, DeleteIndexResponse> {
+public class DeleteIndexAction extends GenericAction<DeleteIndexResponse> {
 
     public static final DeleteIndexAction INSTANCE = new DeleteIndexAction();
     public static final String NAME = "indices:admin/delete";

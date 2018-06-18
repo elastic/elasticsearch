@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.rollup.action;
 
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetRollupCapsAction extends Action<GetRollupCapsAction.Request, GetRollupCapsAction.Response> {
+public class GetRollupCapsAction extends GenericAction<GetRollupCapsAction.Response> {
 
     public static final GetRollupCapsAction INSTANCE = new GetRollupCapsAction();
     public static final String NAME = "cluster:monitor/xpack/rollup/get/caps";

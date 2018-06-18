@@ -19,14 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class NodesUsageRequestBuilder
         extends NodesOperationRequestBuilder<NodesUsageRequest, NodesUsageResponse, NodesUsageRequestBuilder> {
 
-    public NodesUsageRequestBuilder(ElasticsearchClient client, Action<NodesUsageRequest, NodesUsageResponse> action) {
+    public NodesUsageRequestBuilder(ElasticsearchClient client, GenericAction<NodesUsageResponse> action) {
         super(client, action, new NodesUsageRequest());
     }
 

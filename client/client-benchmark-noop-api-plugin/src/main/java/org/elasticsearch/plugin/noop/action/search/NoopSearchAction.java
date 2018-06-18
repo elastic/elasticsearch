@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.plugin.noop.action.search;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.search.SearchResponse;
 
-public class NoopSearchAction extends Action<SearchRequest, SearchResponse> {
+public class NoopSearchAction extends GenericAction<SearchResponse> {
     public static final NoopSearchAction INSTANCE = new NoopSearchAction();
     public static final String NAME = "mock:data/read/search";
 

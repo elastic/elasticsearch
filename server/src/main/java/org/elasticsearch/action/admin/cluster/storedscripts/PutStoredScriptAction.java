@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-
-public class PutStoredScriptAction extends Action<PutStoredScriptRequest, PutStoredScriptResponse> {
+public class PutStoredScriptAction extends GenericAction<PutStoredScriptResponse> {
 
     public static final PutStoredScriptAction INSTANCE = new PutStoredScriptAction();
     public static final String NAME = "cluster:admin/script/put";

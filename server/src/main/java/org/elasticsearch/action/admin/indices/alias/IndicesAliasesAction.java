@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class IndicesAliasesAction extends Action<IndicesAliasesRequest, IndicesAliasesResponse> {
+public class IndicesAliasesAction extends GenericAction<IndicesAliasesResponse> {
 
     public static final IndicesAliasesAction INSTANCE = new IndicesAliasesAction();
     public static final String NAME = "indices:admin/aliases";

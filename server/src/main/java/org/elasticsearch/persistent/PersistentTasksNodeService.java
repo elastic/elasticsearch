@@ -78,7 +78,7 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
         PersistentTasksCustomMetaData tasks = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData previousTasks = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 
-        // Cluster State   Local State      Local Action
+        // Cluster State   Local State      Local GenericAction
         //   STARTED         NULL          Create as STARTED, Start
         //   STARTED         STARTED       Noop - running
         //   STARTED         COMPLETED     Noop - waiting for notification ack

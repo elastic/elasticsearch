@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 /**
  * Upgrade index/indices action.
  */
-public class UpgradeAction extends Action<UpgradeRequest, UpgradeResponse> {
+public class UpgradeAction extends GenericAction<UpgradeResponse> {
 
     public static final UpgradeAction INSTANCE = new UpgradeAction();
     public static final String NAME = "indices:admin/upgrade";

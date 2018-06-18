@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 /**
- * This Action gets the stats for the watcher plugin
+ * This GenericAction gets the stats for the watcher plugin
  */
-public class WatcherStatsAction extends Action<WatcherStatsRequest, WatcherStatsResponse> {
+public class WatcherStatsAction extends GenericAction<WatcherStatsResponse> {
 
     public static final WatcherStatsAction INSTANCE = new WatcherStatsAction();
     public static final String NAME = "cluster:monitor/xpack/watcher/stats/dist";

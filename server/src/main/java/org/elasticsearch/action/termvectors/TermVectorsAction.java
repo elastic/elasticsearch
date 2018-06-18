@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class TermVectorsAction extends Action<TermVectorsRequest, TermVectorsResponse> {
+public class TermVectorsAction extends GenericAction<TermVectorsResponse> {
 
     public static final TermVectorsAction INSTANCE = new TermVectorsAction();
     public static final String NAME = "indices:data/read/tv";

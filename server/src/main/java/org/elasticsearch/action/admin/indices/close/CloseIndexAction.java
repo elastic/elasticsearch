@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class CloseIndexAction extends Action<CloseIndexRequest, CloseIndexResponse> {
+public class CloseIndexAction extends GenericAction<CloseIndexResponse> {
 
     public static final CloseIndexAction INSTANCE = new CloseIndexAction();
     public static final String NAME = "indices:admin/close";

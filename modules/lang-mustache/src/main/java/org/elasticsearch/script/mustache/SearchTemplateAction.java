@@ -19,9 +19,9 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class SearchTemplateAction extends Action<SearchTemplateRequest, SearchTemplateResponse> {
+public class SearchTemplateAction extends GenericAction<SearchTemplateResponse> {
 
     public static final SearchTemplateAction INSTANCE = new SearchTemplateAction();
     public static final String NAME = "indices:data/read/search/template";

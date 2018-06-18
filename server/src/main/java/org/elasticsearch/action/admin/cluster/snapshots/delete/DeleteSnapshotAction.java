@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 /**
  * Delete snapshot action
  */
-public class DeleteSnapshotAction extends Action<DeleteSnapshotRequest, DeleteSnapshotResponse> {
+public class DeleteSnapshotAction extends GenericAction<DeleteSnapshotResponse> {
 
     public static final DeleteSnapshotAction INSTANCE = new DeleteSnapshotAction();
     public static final String NAME = "cluster:admin/snapshot/delete";

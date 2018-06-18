@@ -157,7 +157,7 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
             () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
-        assertThat(exc.getMessage(), containsString("Action/metadata line [3] contains an unknown parameter [_foo]"));
+        assertThat(exc.getMessage(), containsString("GenericAction/metadata line [3] contains an unknown parameter [_foo]"));
     }
 
     public void testSimpleBulk9() throws Exception {

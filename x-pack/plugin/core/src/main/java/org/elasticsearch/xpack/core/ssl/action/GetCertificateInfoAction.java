@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ssl.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -22,10 +22,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 /**
- * Action to obtain information about X.509 (SSL/TLS) certificates that are being used by X-Pack.
+ * GenericAction to obtain information about X.509 (SSL/TLS) certificates that are being used by X-Pack.
  * The primary use case is for tracking the expiry dates of certificates.
  */
-public class GetCertificateInfoAction extends Action<GetCertificateInfoAction.Request, GetCertificateInfoAction.Response> {
+public class GetCertificateInfoAction extends GenericAction<GetCertificateInfoAction.Response> {
 
     public static final GetCertificateInfoAction INSTANCE = new GetCertificateInfoAction();
     public static final String NAME = "cluster:monitor/xpack/ssl/certificates/get";

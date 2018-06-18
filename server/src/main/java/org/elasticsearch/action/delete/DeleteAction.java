@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class DeleteAction extends Action<DeleteRequest, DeleteResponse> {
+public class DeleteAction extends GenericAction<DeleteResponse> {
 
     public static final DeleteAction INSTANCE = new DeleteAction();
     public static final String NAME = "indices:data/write/delete";

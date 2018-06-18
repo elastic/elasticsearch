@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
 /**
- * Action to retrieve a role from the security index
+ * GenericAction to retrieve a role from the security index
  */
-public class GetRolesAction extends Action<GetRolesRequest, GetRolesResponse> {
+public class GetRolesAction extends GenericAction<GetRolesResponse> {
 
     public static final GetRolesAction INSTANCE = new GetRolesAction();
     public static final String NAME = "cluster:admin/xpack/security/role/get";

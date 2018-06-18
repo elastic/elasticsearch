@@ -406,8 +406,8 @@ public class ActionModule extends AbstractModule {
             }
 
             public <Request extends ActionRequest, Response extends ActionResponse> void register(
-                    GenericAction<Request, Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
-                    Class<?>... supportTransportActions) {
+                GenericAction<Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
+                Class<?>... supportTransportActions) {
                 register(new ActionHandler<>(action, transportAction, supportTransportActions));
             }
         }

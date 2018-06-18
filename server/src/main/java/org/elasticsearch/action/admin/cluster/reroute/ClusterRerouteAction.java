@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.GenericAction;
 
-public class ClusterRerouteAction extends Action<ClusterRerouteRequest, ClusterRerouteResponse> {
+public class ClusterRerouteAction extends GenericAction<ClusterRerouteResponse> {
 
     public static final ClusterRerouteAction INSTANCE = new ClusterRerouteAction();
     public static final String NAME = "cluster:admin/reroute";

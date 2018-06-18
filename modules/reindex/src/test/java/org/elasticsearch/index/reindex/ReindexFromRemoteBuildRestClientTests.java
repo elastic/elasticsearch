@@ -34,20 +34,22 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class ReindexFromRemoteBuildRestClientTests extends RestClientBuilderTestCase {
     public void testBuildRestClient() throws Exception {
-        RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, new BytesArray("ignored"), null, null, emptyMap(),
+        for(final String path: new String[]{"", null, "/", "path"}) {
+            RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, path, new BytesArray("ignored"), null, null, emptyMap(),
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
-        long taskId = randomLong();
-        List<Thread> threads = synchronizedList(new ArrayList<>());
-        RestClient client = TransportReindexAction.buildRestClient(remoteInfo, taskId, threads);
-        try {
-            assertBusy(() -> assertThat(threads, hasSize(2)));
-            int i = 0;
-            for (Thread thread : threads) {
-                assertEquals("es-client-" + taskId + "-" + i, thread.getName());
-                i++;
+            long taskId = randomLong();
+            List<Thread> threads = synchronizedList(new ArrayList<>());
+            RestClient client = TransportReindexAction.buildRestClient(remoteInfo, taskId, threads);
+            try {
+                assertBusy(() -> assertThat(threads, hasSize(2)));
+                int i = 0;
+                for (Thread thread : threads) {
+                    assertEquals("es-client-" + taskId + "-" + i, thread.getName());
+                    i++;
+                }
+            } finally {
+                client.close();
             }
-        } finally {
-            client.close();
         }
     }
 
@@ -57,7 +59,7 @@ public class ReindexFromRemoteBuildRestClientTests extends RestClientBuilderTest
         for (int i = 0; i < numHeaders; ++i) {
             headers.put("header" + i, Integer.toString(i));
         }
-        RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, new BytesArray("ignored"), null, null,
+        RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, null, new BytesArray("ignored"), null, null,
             headers, RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         long taskId = randomLong();
         List<Thread> threads = synchronizedList(new ArrayList<>());

@@ -16,9 +16,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/ml/functions/rare.asciidoc',
         'en/ml/functions/sum.asciidoc',
         'en/ml/functions/time.asciidoc',
-        'en/rest-api/security/ssl.asciidoc',
-        'en/rest-api/security/users.asciidoc',
-        'en/rest-api/security/tokens.asciidoc',
         'en/rest-api/watcher/put-watch.asciidoc',
         'en/security/authentication/user-cache.asciidoc',
         'en/security/authorization/field-and-document-access-control.asciidoc',
@@ -76,7 +73,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/ml/update-snapshot.asciidoc',
         'en/rest-api/ml/validate-detector.asciidoc',
         'en/rest-api/ml/validate-job.asciidoc',
-        'en/rest-api/security/authenticate.asciidoc',
         'en/rest-api/watcher/stats.asciidoc',
         'en/watcher/example-watches/watching-time-series-data.asciidoc',
 ]

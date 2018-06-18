@@ -45,7 +45,6 @@ POST _xpack/ml/anomaly_detectors/_validate/detector
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
 
 When the validation completes, you receive the following results:
 [source,js]
@@ -54,3 +53,4 @@ When the validation completes, you receive the following results:
   "acknowledged": true
 }
 ----
+// TESTRESPONSE

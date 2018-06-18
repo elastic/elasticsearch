@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
@@ -395,15 +394,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // check basic sanity of the new mapping
             List<ObjectMapper> objectMappers = new ArrayList<>();
             List<FieldMapper> fieldMappers = new ArrayList<>();
+            List<FieldAliasMapper> fieldAliasMappers = new ArrayList<>();
             Collections.addAll(fieldMappers, newMapper.mapping().metadataMappers);
-            MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers);
+            MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers, fieldAliasMappers);
             checkFieldUniqueness(newMapper.type(), objectMappers, fieldMappers, fullPathObjectMappers, fieldTypes);
             checkObjectsCompatibility(objectMappers, fullPathObjectMappers);
             checkPartitionedIndexConstraints(newMapper);
 
             // update lookup data-structures
             // this will in particular make sure that the merged fields are compatible with other types
-            fieldTypes = fieldTypes.copyAndAddAll(newMapper.type(), fieldMappers);
+            fieldTypes = fieldTypes.copyAndAddAll(newMapper.type(), fieldMappers, fieldAliasMappers);
 
             for (ObjectMapper objectMapper : objectMappers) {
                 if (fullPathObjectMappers == this.fullPathObjectMappers) {
@@ -482,7 +482,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (mapper != null) {
             List<FieldMapper> fieldMappers = new ArrayList<>();
             Collections.addAll(fieldMappers, mapper.mapping().metadataMappers);
-            MapperUtils.collect(mapper.root(), new ArrayList<>(), fieldMappers);
+            MapperUtils.collect(mapper.root(), new ArrayList<>(), fieldMappers, new ArrayList<>());
             for (FieldMapper fieldMapper : fieldMappers) {
                 assert fieldMapper.fieldType() == fieldTypes.get(fieldMapper.name()) : fieldMapper.name();
             }

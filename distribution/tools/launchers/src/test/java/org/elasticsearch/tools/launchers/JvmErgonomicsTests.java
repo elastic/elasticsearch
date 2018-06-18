@@ -70,12 +70,14 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
     }
 
     public void testLittleMemoryErgonomicChoices() {
+        String smallHeap = randomFrom(Arrays.asList("64M", "512M", "1024M", "1G"));
         List<String> expectedChoices = Collections.singletonList("-Dio.netty.allocator.type=unpooled");
-        assertEquals(expectedChoices, JvmErgonomics.choose(Arrays.asList("-Xms512M", "-Xmx512M")));
+        assertEquals(expectedChoices, JvmErgonomics.choose(Arrays.asList("-Xms" + smallHeap, "-Xmx" + smallHeap)));
     }
 
     public void testPlentyMemoryErgonomicChoices() {
-        List<String> expectedChoices = Collections.emptyList();
-        assertEquals(expectedChoices, JvmErgonomics.choose(Arrays.asList("-Xms8G", "-Xmx8G")));
+        String largeHeap = randomFrom(Arrays.asList("1025M", "2048M", "2G", "8G"));
+        List<String> expectedChoices = Collections.singletonList("-Dio.netty.allocator.type=pooled");
+        assertEquals(expectedChoices, JvmErgonomics.choose(Arrays.asList("-Xms" + largeHeap, "-Xmx" + largeHeap)));
     }
 }

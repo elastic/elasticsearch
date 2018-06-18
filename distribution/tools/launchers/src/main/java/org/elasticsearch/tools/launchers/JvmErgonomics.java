@@ -53,9 +53,11 @@ final class JvmErgonomics {
         Long heapSize = extractHeapSize(userDefinedJvmOptions);
         Map<String, String> systemProperties = extractSystemProperties(userDefinedJvmOptions);
         if (heapSize != null) {
-            if (heapSize < 1 * GB) {
-                if (systemProperties.containsKey("io.netty.allocator.type") == false) {
+            if (systemProperties.containsKey("io.netty.allocator.type") == false) {
+                if (heapSize <= 1 * GB) {
                     ergonomicChoices.add("-Dio.netty.allocator.type=unpooled");
+                } else {
+                    ergonomicChoices.add("-Dio.netty.allocator.type=pooled");
                 }
             }
         }

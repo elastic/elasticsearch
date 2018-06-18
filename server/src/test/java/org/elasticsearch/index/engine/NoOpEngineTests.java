@@ -41,12 +41,12 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class NoopEngineTests extends EngineTestCase {
+public class NoOpEngineTests extends EngineTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
     public void testNoopEngine() throws IOException {
         engine.close();
-        final NoopEngine engine = new NoopEngine(noopConfig(INDEX_SETTINGS, store, primaryTranslogDir));
+        final NoOpEngine engine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir));
         expectThrows(UnsupportedOperationException.class, () -> engine.index(null));
         expectThrows(UnsupportedOperationException.class, () -> engine.delete(null));
         expectThrows(UnsupportedOperationException.class, () -> engine.noOp(null));
@@ -63,11 +63,11 @@ public class NoopEngineTests extends EngineTestCase {
 
     public void testTwoNoopEngines() throws IOException {
         engine.close();
-        // It's so noop you can even open two engines for the same store without tripping anything,
+        // It's so noOp you can even open two engines for the same store without tripping anything,
         // this ensures we're not doing any kind of locking on the store or filesystem level in
-        // the noop engine
-        final NoopEngine engine1 = new NoopEngine(noopConfig(INDEX_SETTINGS, store, primaryTranslogDir));
-        final NoopEngine engine2 = new NoopEngine(noopConfig(INDEX_SETTINGS, store, primaryTranslogDir));
+        // the noOp engine
+        final NoOpEngine engine1 = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir));
+        final NoOpEngine engine2 = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir));
         engine1.close();
         engine2.close();
     }
@@ -97,24 +97,24 @@ public class NoopEngineTests extends EngineTestCase {
         long maxSeqNo = engine.getSeqNoStats(100L).getMaxSeqNo();
         engine.close();
 
-        final NoopEngine noopEngine = new NoopEngine(noopConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
-        assertThat(noopEngine.getLocalCheckpoint(), equalTo(localCheckpoint));
-        assertThat(noopEngine.getSeqNoStats(100L).getMaxSeqNo(), equalTo(maxSeqNo));
-        try (Engine.IndexCommitRef ref = noopEngine.acquireLastIndexCommit(false)) {
+        final NoOpEngine noOpEngine = new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, primaryTranslogDir, tracker));
+        assertThat(noOpEngine.getLocalCheckpoint(), equalTo(localCheckpoint));
+        assertThat(noOpEngine.getSeqNoStats(100L).getMaxSeqNo(), equalTo(maxSeqNo));
+        try (Engine.IndexCommitRef ref = noOpEngine.acquireLastIndexCommit(false)) {
             try (IndexReader reader = DirectoryReader.open(ref.getIndexCommit())) {
                 assertThat(reader.numDocs(), equalTo(docs));
             }
         }
-        noopEngine.close();
+        noOpEngine.close();
     }
 
     public void testNoopEngineWithInvalidTranslogUUID() throws IOException {
         Path newTranslogDir = createTempDir();
-        // A new translog will have a different UUID than the existing store/noop engine does
+        // A new translog will have a different UUID than the existing store/noOp engine does
         Translog newTranslog = createTranslog(newTranslogDir, () -> 1L);
         newTranslog.close();
         EngineCreationFailureException e = expectThrows(EngineCreationFailureException.class,
-            () -> new NoopEngine(noopConfig(INDEX_SETTINGS, store, newTranslogDir)));
+            () -> new NoOpEngine(noOpConfig(INDEX_SETTINGS, store, newTranslogDir)));
         assertThat(e.getCause(), instanceOf(TranslogCorruptedException.class));
     }
 }

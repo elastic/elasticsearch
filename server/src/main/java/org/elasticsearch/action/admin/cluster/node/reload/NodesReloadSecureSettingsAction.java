@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.reload;
 import org.elasticsearch.action.Action;
 
 public class NodesReloadSecureSettingsAction
-        extends Action<NodesReloadSecureSettingsRequest, NodesReloadSecureSettingsResponse> {
+        extends Action<NodesReloadSecureSettingsResponse> {
 
     public static final NodesReloadSecureSettingsAction INSTANCE = new NodesReloadSecureSettingsAction();
     public static final String NAME = "cluster:admin/nodes/reload_secure_settings";

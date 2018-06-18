@@ -11,7 +11,7 @@ import org.elasticsearch.action.Action;
  * This action executes a watch, either ignoring the schedule and condition or just the schedule and can execute a subset of the actions,
  * optionally persisting the history entry
  */
-public class ExecuteWatchAction extends Action<ExecuteWatchRequest, ExecuteWatchResponse> {
+public class ExecuteWatchAction extends Action<ExecuteWatchResponse> {
 
     public static final ExecuteWatchAction INSTANCE = new ExecuteWatchAction();
     public static final String NAME = "cluster:admin/xpack/watcher/watch/execute";

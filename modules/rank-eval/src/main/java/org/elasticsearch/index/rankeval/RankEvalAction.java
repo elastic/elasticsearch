@@ -24,7 +24,7 @@ import org.elasticsearch.action.Action;
 /**
  * Action for explaining evaluating search ranking results.
  */
-public class RankEvalAction extends Action<RankEvalRequest, RankEvalResponse> {
+public class RankEvalAction extends Action<RankEvalResponse> {
 
     public static final RankEvalAction INSTANCE = new RankEvalAction();
     public static final String NAME = "indices:data/read/rank_eval";

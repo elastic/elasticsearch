@@ -44,7 +44,7 @@ import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTaskStatusAction.Request, PersistentTaskResponse> {
+public class UpdatePersistentTaskStatusAction extends Action<PersistentTaskResponse> {
 
     public static final UpdatePersistentTaskStatusAction INSTANCE = new UpdatePersistentTaskStatusAction();
     public static final String NAME = "cluster:admin/persistent/update_status";

@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class StopDatafeedAction extends Action<StopDatafeedAction.Request, StopDatafeedAction.Response> {
+public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
 
     public static final StopDatafeedAction INSTANCE = new StopDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeed/stop";

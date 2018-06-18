@@ -83,7 +83,7 @@ public class FetchPhase implements SearchPhase {
     @Override
     public void execute(SearchContext context) {
         final FieldsVisitor fieldsVisitor;
-        Set<String> storedFields = new HashSet<>();
+        Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
 
         if (storedFieldsContext == null) {
@@ -112,16 +112,20 @@ public class FetchPhase implements SearchPhase {
                         if (context.getObjectMapper(fieldName) != null) {
                             throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
                         }
+                    } else {
+                        String storedField = fieldType.name();
+                        Set<String> requestedFields = storedToRequestedFields.computeIfAbsent(
+                            storedField, key -> new HashSet<>());
+                        requestedFields.add(fieldName);
                     }
-                    storedFields.add(fieldName);
                 }
             }
             boolean loadSource = context.sourceRequested();
-            if (storedFields.isEmpty()) {
+            if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
                 fieldsVisitor = new FieldsVisitor(loadSource);
             } else {
-                fieldsVisitor = new CustomFieldsVisitor(storedFields, loadSource);
+                fieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), loadSource);
             }
         }
 
@@ -141,9 +145,10 @@ public class FetchPhase implements SearchPhase {
                 int rootDocId = findRootDocumentIfNested(context, subReaderContext, subDocId);
                 if (rootDocId != -1) {
                     searchHit = createNestedSearchHit(context, docId, subDocId, rootDocId,
-                        storedFields, subReaderContext);
+                        storedToRequestedFields, subReaderContext);
                 } else {
-                    searchHit = createSearchHit(context, fieldsVisitor, docId, subDocId, subReaderContext);
+                    searchHit = createSearchHit(context, fieldsVisitor, docId, subDocId,
+                        storedToRequestedFields, subReaderContext);
                 }
 
                 hits[index] = searchHit;
@@ -181,13 +186,18 @@ public class FetchPhase implements SearchPhase {
         return -1;
     }
 
-    private SearchHit createSearchHit(SearchContext context, FieldsVisitor fieldsVisitor, int docId, int subDocId,
+    private SearchHit createSearchHit(SearchContext context,
+                                      FieldsVisitor fieldsVisitor,
+                                      int docId,
+                                      int subDocId,
+                                      Map<String, Set<String>> storedToRequestedFields,
                                       LeafReaderContext subReaderContext) {
         if (fieldsVisitor == null) {
             return new SearchHit(docId);
         }
 
-        Map<String, DocumentField> searchFields = getSearchFields(context, fieldsVisitor, subDocId, subReaderContext);
+        Map<String, DocumentField> searchFields = getSearchFields(context, fieldsVisitor, subDocId,
+            storedToRequestedFields, subReaderContext);
 
         DocumentMapper documentMapper = context.mapperService().documentMapper(fieldsVisitor.uid().type());
         Text typeText;
@@ -209,6 +219,7 @@ public class FetchPhase implements SearchPhase {
     private Map<String, DocumentField> getSearchFields(SearchContext context,
                                                        FieldsVisitor fieldsVisitor,
                                                        int subDocId,
+                                                       Map<String, Set<String>> storedToRequestedFields,
                                                        LeafReaderContext subReaderContext) {
         loadStoredFields(context, subReaderContext, fieldsVisitor, subDocId);
         fieldsVisitor.postProcess(context.mapperService());
@@ -219,7 +230,16 @@ public class FetchPhase implements SearchPhase {
 
         Map<String, DocumentField> searchFields = new HashMap<>(fieldsVisitor.fields().size());
         for (Map.Entry<String, List<Object>> entry : fieldsVisitor.fields().entrySet()) {
-            searchFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
+            String storedField = entry.getKey();
+            List<Object> storedValues = entry.getValue();
+
+            if (storedToRequestedFields.containsKey(storedField)) {
+                for (String requestedField : storedToRequestedFields.get(storedField)) {
+                    searchFields.put(requestedField, new DocumentField(requestedField, storedValues));
+                }
+            } else {
+                searchFields.put(storedField, new DocumentField(storedField, storedValues));
+            }
         }
         return searchFields;
     }
@@ -228,7 +248,7 @@ public class FetchPhase implements SearchPhase {
                                             int nestedTopDocId,
                                             int nestedSubDocId,
                                             int rootSubDocId,
-                                            Set<String> storedFields,
+                                            Map<String, Set<String>> storedToRequestedFields,
                                             LeafReaderContext subReaderContext) throws IOException {
         // Also if highlighting is requested on nested documents we need to fetch the _source from the root document,
         // otherwise highlighting will attempt to fetch the _source from the nested doc, which will fail,
@@ -250,8 +270,9 @@ public class FetchPhase implements SearchPhase {
 
         Map<String, DocumentField> searchFields = null;
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
-            FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedFields, false);
-            searchFields = getSearchFields(context, nestedFieldsVisitor, nestedSubDocId, subReaderContext);
+            FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
+            searchFields = getSearchFields(context, nestedFieldsVisitor, nestedSubDocId,
+                storedToRequestedFields, subReaderContext);
         }
 
         DocumentMapper documentMapper = context.mapperService().documentMapper(uid.type());

@@ -26,15 +26,18 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.StringJoiner;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
@@ -150,31 +153,21 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));
     }
 
-    protected static void assertEqualIngestDocs(IngestDocument response, IngestDocument parsedResponse) {
-        if (response != null && parsedResponse != null) {
-            ElasticsearchAssertions.assertMapEquals(
-                response.getSourceAndMetadata(),
-                parsedResponse.getSourceAndMetadata(),
-                true
-            );
-            assertEquals(response.getIngestMetadata(), parsedResponse.getIngestMetadata());
-        } else if (response == null) {
-            assertNull(parsedResponse);
-        } else {
-            fail("parsed response was null but the expected was non null.");
-        }
-
+    static IngestDocument createRandomIngestDoc() {
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference sourceBytes = RandomObjects.randomSource(random(), xContentType);
+        Map<String, Object> randomSource = XContentHelper.convertToMap(sourceBytes, false, xContentType).v2();
+        return RandomDocumentPicks.randomIngestDocument(random(), randomSource);
     }
 
     @Override
-    protected void assertEqualInstances(WriteableIngestDocument response, WriteableIngestDocument parsedResponse) {
-        assertEqualIngestDocs(response.getIngestDocument(), parsedResponse.getIngestDocument());
+    protected boolean supportsUnknownFields() {
+        return true;
     }
 
     @Override
     protected WriteableIngestDocument createTestInstance() {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        return new WriteableIngestDocument(new IngestDocument(ingestDocument));
+        return new WriteableIngestDocument(createRandomIngestDoc());
     }
 
     @Override
@@ -183,8 +176,18 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        // Cannot support unknown fields because equality changes if new keys are added to _source
-        return false;
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // We cannot have random fields in the _source field and _ingest field
+        return field ->
+            field.startsWith(
+                new StringJoiner(".")
+                    .add(WriteableIngestDocument.DOC_FIELD)
+                    .add(WriteableIngestDocument.SOURCE_FIELD).toString()
+            ) ||
+            field.startsWith(
+                new StringJoiner(".")
+                    .add(WriteableIngestDocument.DOC_FIELD)
+                    .add(WriteableIngestDocument.INGEST_FIELD).toString()
+            );
     }
 }

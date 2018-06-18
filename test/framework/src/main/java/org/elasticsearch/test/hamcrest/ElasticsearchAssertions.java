@@ -64,7 +64,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -670,10 +669,6 @@ public class ElasticsearchAssertions {
      * Compares two maps recursively, using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
     private static void assertMapEquals(Map<String, Object> expected, Map<String, Object> actual) {
-        assertMapEquals(expected, actual, false);
-    }
-
-    public static void assertMapEquals(Map<String, Object> expected, Map<String, Object> actual, boolean convertBase64Strings) {
         assertEquals(expected.size(), actual.size());
         for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {
             String expectedKey = expectedEntry.getKey();
@@ -682,7 +677,7 @@ public class ElasticsearchAssertions {
                 assertTrue(actual.get(expectedKey) == null && actual.containsKey(expectedKey));
             } else {
                 Object actualValue = actual.get(expectedKey);
-                assertObjectEquals(expectedValue, actualValue, convertBase64Strings);
+                assertObjectEquals(expectedValue, actualValue);
             }
         }
     }
@@ -691,12 +686,12 @@ public class ElasticsearchAssertions {
      * Compares two lists recursively, but using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
     @SuppressWarnings("unchecked")
-    private static void assertListEquals(List<Object> expected, List<Object> actual, boolean convertBase64Strings) {
+    private static void assertListEquals(List<Object> expected, List<Object> actual) {
         assertEquals(expected.size(), actual.size());
         Iterator<Object> actualIterator = actual.iterator();
         for (Object expectedValue : expected) {
             Object actualValue = actualIterator.next();
-            assertObjectEquals(expectedValue, actualValue, convertBase64Strings);
+            assertObjectEquals(expectedValue, actualValue);
         }
     }
 
@@ -705,21 +700,15 @@ public class ElasticsearchAssertions {
      * for byte[] through Arrays.equals(byte[], byte[])
      */
     @SuppressWarnings("unchecked")
-    private static void assertObjectEquals(Object expected, Object actual, boolean convertBase64Strings) {
+    private static void assertObjectEquals(Object expected, Object actual) {
         if (expected instanceof Map) {
             assertThat(actual, instanceOf(Map.class));
-            assertMapEquals((Map<String, Object>) expected, (Map<String, Object>) actual, convertBase64Strings);
+            assertMapEquals((Map<String, Object>) expected, (Map<String, Object>) actual);
         } else if (expected instanceof List) {
-            assertListEquals((List<Object>) expected, (List<Object>) actual, convertBase64Strings);
+            assertListEquals((List<Object>) expected, (List<Object>) actual);
         } else if (expected instanceof byte[]) {
             //byte[] is really a special case for binary values when comparing SMILE and CBOR, arrays of other types
             //don't need to be handled. Ordinary arrays get parsed as lists.
-            if (convertBase64Strings && actual instanceof String) {
-                // for objects deserialized from XContent the content might be a Base64 encoded string
-                actual = Base64.getDecoder().decode((String)actual);
-            } else {
-                assertTrue(actual instanceof byte[]);
-            }
             assertArrayEquals((byte[]) expected, (byte[]) actual);
         } else {
             assertEquals(expected, actual);

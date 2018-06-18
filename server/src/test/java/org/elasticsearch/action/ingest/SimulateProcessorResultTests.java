@@ -22,21 +22,21 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.StringJoiner;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.elasticsearch.action.ingest.WriteableIngestDocumentTests.createRandomIngestDoc;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.elasticsearch.action.ingest.WriteableIngestDocumentTests.assertEqualIngestDocs;
 
 public class SimulateProcessorResultTests extends AbstractXContentTestCase<SimulateProcessorResult> {
 
@@ -67,12 +67,12 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
         }
     }
 
-    protected static SimulateProcessorResult createTestInstance(boolean isSuccessful,
+    static SimulateProcessorResult createTestInstance(boolean isSuccessful,
                                                                 boolean isIgnoredException) {
         String processorTag = randomAlphaOfLengthBetween(1, 10);
         SimulateProcessorResult simulateProcessorResult;
         if (isSuccessful) {
-            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            IngestDocument ingestDocument = createRandomIngestDoc();
             if (isIgnoredException) {
                 simulateProcessorResult = new SimulateProcessorResult(processorTag, ingestDocument, new IllegalArgumentException("test"));
             } else {
@@ -109,13 +109,23 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // We cannot have random fields in the _source field and _ingest field
-        return field -> field.contains("doc._source") || field.contains("doc._ingest");
+        return field ->
+            field.startsWith(
+                new StringJoiner(".")
+                    .add(WriteableIngestDocument.DOC_FIELD)
+                    .add(WriteableIngestDocument.SOURCE_FIELD).toString()
+            ) ||
+                field.startsWith(
+                    new StringJoiner(".")
+                        .add(WriteableIngestDocument.DOC_FIELD)
+                        .add(WriteableIngestDocument.INGEST_FIELD).toString()
+                );
     }
 
     static void assertEqualProcessorResults(SimulateProcessorResult response,
                                                       SimulateProcessorResult parsedResponse) {
         assertEquals(response.getProcessorTag(), parsedResponse.getProcessorTag());
-        assertEqualIngestDocs(response.getIngestDocument(), parsedResponse.getIngestDocument());
+        assertEquals(response.getIngestDocument(), parsedResponse.getIngestDocument());
         if (response.getFailure() != null ) {
             assertNotNull(parsedResponse.getFailure());
             assertThat(

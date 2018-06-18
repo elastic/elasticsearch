@@ -62,45 +62,38 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
     static {
         PARSER.declareObjectArray(
             constructorArg(),
-            (p, c) -> {
-                ensureExpectedToken(Token.START_OBJECT, p.currentToken(), p::getTokenLocation);
-                boolean isVerbose = false;
-                boolean isFirst = true;
+            (parser, context) -> {
+                ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
                 SimulateDocumentResult result = null;
-                while (p.nextToken().equals(Token.FIELD_NAME)) {
-                    switch (p.currentName()) {
+                while (parser.nextToken() != Token.END_OBJECT) {
+                    ensureExpectedToken(parser.currentToken(), Token.FIELD_NAME, parser::getTokenLocation);
+                    String fieldName = parser.currentName();
+                    parser.nextToken();
+                    switch(fieldName) {
                         case SimulateDocumentVerboseResult.PROCESSOR_RESULT_FIELD:
-                            assert isFirst || isVerbose;
-                            isVerbose = true;
-                            ensureExpectedToken(Token.START_ARRAY, p.nextToken(), p::getTokenLocation);
+                            ensureExpectedToken(Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
                             List<SimulateProcessorResult> results = new ArrayList<>();
-                            while (p.nextToken().equals(Token.START_OBJECT)) {
-                                results.add(SimulateProcessorResult.fromXContent(p));
+                            while (parser.nextToken().equals(Token.START_OBJECT)) {
+                                results.add(SimulateProcessorResult.fromXContent(parser));
                             }
-                            ensureExpectedToken(Token.END_ARRAY, p.currentToken(), p::getTokenLocation);
+                            ensureExpectedToken(Token.END_ARRAY, parser.currentToken(), parser::getTokenLocation);
                             result = new SimulateDocumentVerboseResult(results);
                             break;
                         case WriteableIngestDocument.DOC_FIELD:
                         case "error":
-                            assert !isVerbose;
-                            if (p.currentName().equals("error")) {
-                                p.nextToken();
-                                result = new SimulateDocumentBaseResult(ElasticsearchException.fromXContent(p));
+                            if (fieldName.equals("error")) {
+                                result = new SimulateDocumentBaseResult(ElasticsearchException.fromXContent(parser));
                             } else {
                                 result = new SimulateDocumentBaseResult(
-                                    WriteableIngestDocument.INGEST_DOC_PARSER.apply(p, null).getIngestDocument()
+                                    WriteableIngestDocument.INGEST_DOC_PARSER.apply(parser, null).getIngestDocument()
                                 );
                             }
-                            ensureExpectedToken(Token.END_OBJECT, p.currentToken(), p::getTokenLocation);
+                            ensureExpectedToken(Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
                             break;
                         default:
-                            p.nextToken();
-                            p.skipChildren();
-                            break;
+                            parser.skipChildren();
                     }
-                    isFirst = false;
                 }
-                ensureExpectedToken(Token.END_OBJECT, p.currentToken(), p::getTokenLocation);
                 assert result != null;
                 return result;
             },

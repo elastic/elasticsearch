@@ -27,11 +27,15 @@ public class TsvLogFileStructureFactory implements LogFileStructureFactory {
      * The reason the last record is allowed to have fewer fields than the others is that
      * it could have been truncated when the file was sampled.
      */
+    @Override
     public boolean canCreateFromSample(String sample) {
         return SeparatedValuesLogFileStructure.canCreateFromSample(terminal, sample, CsvPreference.TAB_PREFERENCE, "TSV");
     }
 
-    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String sample) throws IOException {
-        return new SeparatedValuesLogFileStructure(terminal, sampleFileName, indexName, typeName, sample, CsvPreference.TAB_PREFERENCE);
+    @Override
+    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String sample, String charsetName)
+        throws IOException {
+        return new SeparatedValuesLogFileStructure(terminal, sampleFileName, indexName, typeName, sample, charsetName,
+            CsvPreference.TAB_PREFERENCE);
     }
 }

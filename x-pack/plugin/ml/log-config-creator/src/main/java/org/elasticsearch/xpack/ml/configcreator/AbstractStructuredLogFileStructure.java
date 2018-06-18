@@ -40,8 +40,9 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
     private static final int KEYWORD_MAX_LEN = 256;
     private static final int KEYWORD_MAX_SPACES = 5;
 
-    protected AbstractStructuredLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName) {
-        super(terminal, sampleFileName, indexName, typeName);
+    protected AbstractStructuredLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName,
+                                                 String charsetName) {
+        super(terminal, sampleFileName, indexName, typeName, charsetName);
     }
 
     protected Tuple<String, TimestampMatch> guessTimestampField(List<Map<String, ?>> sampleRecords) {

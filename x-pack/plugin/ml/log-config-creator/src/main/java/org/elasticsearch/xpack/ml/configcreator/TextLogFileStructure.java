@@ -26,13 +26,8 @@ import java.util.regex.Pattern;
 
 public class TextLogFileStructure extends AbstractLogFileStructure implements LogFileStructure {
 
-    private static final String FILEBEAT_MULTILINE_CONFIG_TEMPLATE = "  multiline.pattern: '%s'\n" +
-        "  multiline.negate: true\n" +
-        "  multiline.match: after\n";
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
-        "  paths:\n" +
-        "   - '%s'\n" +
         "%s" +
         "\n" +
         "output.logstash:\n" +
@@ -62,13 +57,6 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "    index => \"%%{[@metadata][beat]}-%%{[@metadata][version]}-%%{+YYYY.MM.dd}\"\n" +
         "  }\n" +
         "}\n";
-    private static final String LOGSTASH_MULTILINE_CONFIG_TEMPLATE = "\n" +
-        "    codec => multiline {\n" +
-        "      pattern => \"%s\"\n" +
-        "      negate => \"true\"\n" +
-        "      what => \"next\"\n" +
-        "    }\n" +
-        "  ";
     private static final String LOGSTASH_FROM_STDIN_TEMPLATE = "input {\n" +
         "  stdin {%s}\n" +
         "}\n" +
@@ -85,8 +73,6 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "}\n";
     private static final String FILEBEAT_TO_INGEST_PIPELINE_WITHOUT_MODULE_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
-        "  paths:\n" +
-        "   - '%s'\n" +
         "%s" +
         "\n" +
         "output.elasticsearch:\n" +
@@ -130,8 +116,8 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
     private String ingestPipelineFromFilebeatConfig;
 
     TextLogFileStructure(Terminal terminal, BeatsModuleStore beatsModuleStore, String sampleFileName, String indexName, String typeName,
-                         String sample) {
-        super(terminal, sampleFileName, indexName, typeName);
+                         String sample, String charsetName) {
+        super(terminal, sampleFileName, indexName, typeName, charsetName);
         this.beatsModuleStore = beatsModuleStore;
         this.sample = sample;
     }
@@ -184,23 +170,22 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         mappings.put("message", "text");
         mappings.put(DEFAULT_TIMESTAMP_FIELD, "date");
 
-        String filebeatMultilineConfig = String.format(Locale.ROOT, FILEBEAT_MULTILINE_CONFIG_TEMPLATE, multiLineRegex);
         // We can't parse directly into @timestamp using Grok, so parse to _timestamp, which the date filter will remove
         String grokPattern = GrokPatternCreator.createGrokPatternFromExamples(sampleMessages, bestTimestamp.v1().grokPatternName,
             "_timestamp", mappings);
         String grokQuote = bestLogstashQuoteFor(grokPattern);
         String logstashFilters = String.format(Locale.ROOT, LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
             bestTimestamp.v1().dateFormat);
-        String logstashMultilineConfig = String.format(Locale.ROOT, LOGSTASH_MULTILINE_CONFIG_TEMPLATE, multiLineRegex);
 
-        filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, sampleFileName, filebeatMultilineConfig);
+        String filebeatInputOptions = makeFilebeatInputOptions(multiLineRegex, null);
+        filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions);
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFilters);
-        logstashFromStdinConfig = String.format(Locale.ROOT, LOGSTASH_FROM_STDIN_TEMPLATE, logstashMultilineConfig, logstashFilters,
-            indexName);
+        logstashFromStdinConfig = String.format(Locale.ROOT, LOGSTASH_FROM_STDIN_TEMPLATE, makeLogstashStdinCodec(multiLineRegex),
+            logstashFilters, indexName);
         BeatsModule matchingModule = (beatsModuleStore != null) ? beatsModuleStore.findMatchingModule(sampleMessages) : null;
         if (matchingModule == null) {
-            filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_WITHOUT_MODULE_TEMPLATE, sampleFileName,
-                filebeatMultilineConfig, typeName);
+            filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_WITHOUT_MODULE_TEMPLATE,
+                filebeatInputOptions, typeName);
             String jsonEscapedGrokPattern = grokPattern.replaceAll("([\\\\\"])", "\\\\$1").replace("\t", "\\t");
             ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_WITHOUT_MODULE_TEMPLATE, typeName,
                 typeName, jsonEscapedGrokPattern, bestTimestamp.v1().dateFormat);
@@ -261,12 +246,12 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
             createConfigs();
         }
 
+        writeMappingsConfigs(directory, mappings);
+
         writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
         writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);
         writeConfigFile(directory, "logstash-from-stdin.conf", logstashFromStdinConfig);
         writeConfigFile(directory, "filebeat-to-ingest-pipeline.yml", filebeatToIngestPipelineConfig);
         writeRestCallConfigs(directory, "ingest-pipeline-from-filebeat.console", ingestPipelineFromFilebeatConfig);
-
-        writeMappingsConfigs(directory, mappings);
     }
 }

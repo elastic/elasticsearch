@@ -26,8 +26,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
 
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
-        "  paths:\n" +
-        "   - '%s'" +
+        "%s" +
         "\n" +
         "output.logstash:\n" +
         "  hosts: [\"localhost:5044\"]\n";
@@ -54,7 +53,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
         "  }\n" +
         "}\n";
     private static final String LOGSTASH_FROM_STDIN_TEMPLATE = "input {\n" +
-        "  stdin {}\n" +
+        "  stdin {%s}\n" +
         "}\n" +
         "\n" +
         "filter {\n" +
@@ -75,8 +74,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
         "}\n";
     private static final String FILEBEAT_TO_INGEST_PIPELINE_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
-        "  paths:\n" +
-        "   - '%s'" +
+        "%s" +
         "\n" +
         "output.elasticsearch:\n" +
         "  hosts: [\"http://localhost:9200\"]\n" +
@@ -107,8 +105,9 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
     private String filebeatToIngestPipelineConfig;
     private String ingestPipelineFromFilebeatConfig;
 
-    JsonLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String sample) throws IOException {
-        super(terminal, sampleFileName, indexName, typeName);
+    JsonLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String sample, String charsetName)
+        throws IOException {
+        super(terminal, sampleFileName, indexName, typeName, charsetName);
 
         sampleRecords = new ArrayList<>();
 
@@ -133,10 +132,12 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
                 timeField.v2().dateFormat);
         }
 
-        filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, sampleFileName);
+        String filebeatInputOptions = makeFilebeatInputOptions(null, null);
+        filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions);
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashDateFilter);
-        logstashFromStdinConfig = String.format(Locale.ROOT, LOGSTASH_FROM_STDIN_TEMPLATE, logstashDateFilter, indexName);
-        filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_TEMPLATE, sampleFileName, typeName);
+        logstashFromStdinConfig = String.format(Locale.ROOT, LOGSTASH_FROM_STDIN_TEMPLATE, makeLogstashStdinCodec(null), logstashDateFilter,
+            indexName);
+        filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_TEMPLATE, filebeatInputOptions, typeName);
         ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_TEMPLATE, typeName, typeName,
             ingestPipelineDateProcessor);
     }
@@ -167,12 +168,12 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
             createConfigs();
         }
 
+        writeMappingsConfigs(directory, mappings);
+
         writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
         writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);
         writeConfigFile(directory, "logstash-from-stdin.conf", logstashFromStdinConfig);
         writeConfigFile(directory, "filebeat-to-ingest-pipeline.yml", filebeatToIngestPipelineConfig);
         writeRestCallConfigs(directory, "ingest-pipeline-from-filebeat.console", ingestPipelineFromFilebeatConfig);
-
-        writeMappingsConfigs(directory, mappings);
     }
 }

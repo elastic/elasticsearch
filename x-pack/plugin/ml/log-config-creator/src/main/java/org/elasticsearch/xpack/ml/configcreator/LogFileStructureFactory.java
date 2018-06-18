@@ -22,8 +22,10 @@ public interface LogFileStructureFactory {
      * @param indexName The name of the index to specify in the Logstash stdin config.
      * @param typeName The name for this type of log file.
      * @param sample A sample from the log file to be ingested.
+     * @param charsetName The name of the character set in which the sample was provided.
      * @return A log file structure object suitable for ingesting the supplied sample.
      * @throws Exception if something goes wrong during creation.
      */
-    LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String sample) throws Exception;
+    LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String sample, String charsetName)
+        throws Exception;
 }

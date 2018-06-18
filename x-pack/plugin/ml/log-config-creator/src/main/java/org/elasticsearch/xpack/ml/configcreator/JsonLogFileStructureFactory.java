@@ -28,6 +28,7 @@ public class JsonLogFileStructureFactory implements LogFileStructureFactory {
      * If there is more than one, they must be newline-delimited.  The
      * documents must be non-empty, to prevent lines containing "{}" from matching.
      */
+    @Override
     public boolean canCreateFromSample(String sample) {
         try {
             String[] sampleLines = sample.split("\n");
@@ -51,7 +52,9 @@ public class JsonLogFileStructureFactory implements LogFileStructureFactory {
         }
     }
 
-    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String sample) throws IOException {
-        return new JsonLogFileStructure(terminal, sampleFileName, indexName, typeName, sample);
+    @Override
+    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String sample, String charsetName)
+        throws IOException {
+        return new JsonLogFileStructure(terminal, sampleFileName, indexName, typeName, sample, charsetName);
     }
 }

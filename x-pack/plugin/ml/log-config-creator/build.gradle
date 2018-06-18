@@ -13,6 +13,7 @@ dependencies {
     compile project(':libs:cli')
     compile project(':libs:grok')
     compile project(':libs:x-content')
+    compile 'com.ibm.icu:icu4j:61.1'
     compile 'net.sf.supercsv:super-csv:2.4.0'
 
     testCompile "org.elasticsearch.test:framework:${version}"

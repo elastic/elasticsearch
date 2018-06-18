@@ -35,11 +35,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
 
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
-        "  paths:\n" +
-        "   - '%s'" +
-        "  multiline.pattern: '^\\s*%s'\n" +
-        "  multiline.negate: true\n" +
-        "  multiline.match: after\n" +
+        "%s" +
         "\n" +
         "output.logstash:\n" +
         "  hosts: [\"localhost:5044\"]\n";
@@ -66,13 +62,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         "  }\n" +
         "}\n";
     private static final String LOGSTASH_FROM_STDIN_TEMPLATE = "input {\n" +
-        "  stdin {\n" +
-        "    codec => multiline {\n" +
-        "      pattern => \"^\\s*%s\"\n" +
-        "      negate => \"true\"\n" +
-        "      what => \"next\"\n" +
-        "    }\n" +
-        "  }\n" +
+        "  stdin {%s}\n" +
         "}\n" +
         "\n" +
         "filter {\n" +
@@ -99,9 +89,9 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
     private String logstashFromFilebeatConfig;
     private String logstashFromStdinConfig;
 
-    XmlLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String sample)
+    XmlLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String sample, String charsetName)
         throws IOException, ParserConfigurationException, SAXException {
-        super(terminal, sampleFileName, indexName, typeName);
+        super(terminal, sampleFileName, indexName, typeName, charsetName);
 
         try (Scanner scanner = new Scanner(sample)) {
             messagePrefix = scanner.next();
@@ -173,9 +163,11 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
 
         String logstashDateFilter = (timeField == null) ? "" : makeLogstashDateFilter(timeField.v1(), timeField.v2().dateFormat);
 
-        filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, sampleFileName, messagePrefix);
+        filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
+            makeFilebeatInputOptions("^\\s*" + messagePrefix, null));
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashDateFilter);
-        logstashFromStdinConfig = String.format(Locale.ROOT, LOGSTASH_FROM_STDIN_TEMPLATE, messagePrefix, logstashDateFilter, indexName);
+        logstashFromStdinConfig = String.format(Locale.ROOT, LOGSTASH_FROM_STDIN_TEMPLATE, makeLogstashStdinCodec("^\\s*" + messagePrefix),
+            logstashDateFilter, indexName);
     }
 
     String getFilebeatToLogstashConfig() {
@@ -196,10 +188,10 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
             createConfigs();
         }
 
+        writeMappingsConfigs(directory, mappings);
+
         writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
         writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);
         writeConfigFile(directory, "logstash-from-stdin.conf", logstashFromStdinConfig);
-
-        writeMappingsConfigs(directory, mappings);
-    }
+        }
 }

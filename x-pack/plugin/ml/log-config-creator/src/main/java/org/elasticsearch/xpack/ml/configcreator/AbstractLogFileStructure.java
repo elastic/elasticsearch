@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.configcreator;
 
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -21,6 +22,29 @@ import java.util.stream.Collectors;
 public abstract class AbstractLogFileStructure {
 
     protected static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
+
+    private static final String FILEBEAT_PATH_TEMPLATE = "  paths:\n" +
+        "   - '%s'\n";
+    private static final String FILEBEAT_ENCODING_TEMPLATE = "  encoding: '%s'\n";
+    private static final String FILEBEAT_MULTILINE_CONFIG_TEMPLATE = "  multiline.pattern: '%s'\n" +
+        "  multiline.negate: true\n" +
+        "  multiline.match: after\n";
+    private static final String FILEBEAT_EXCLUDE_LINES_TEMPLATE = "  exclude_lines: ['^%s']\n";
+
+    private static final String LOGSTASH_ENCODING_TEMPLATE = "      charset => \"%s\"\n";
+    private static final String LOGSTASH_MULTILINE_CONFIG_TEMPLATE = "\n" +
+        "    codec => multiline {\n" +
+        "%s" +
+        "      pattern => \"%s\"\n" +
+        "      negate => \"true\"\n" +
+        "      what => \"previous\"\n" +
+        "    }\n" +
+        "  ";
+    private static final String LOGSTASH_LINE_CONFIG_TEMPLATE = "\n" +
+        "    codec => line {\n" +
+        "%s" +
+        "    }\n" +
+        "  ";
 
     private static final String FIELD_MAPPING_TEMPLATE = "        \"%s\": {\n" +
         "          \"type\": \"%s\"\n" +
@@ -40,12 +64,14 @@ public abstract class AbstractLogFileStructure {
     protected final String sampleFileName;
     protected final String indexName;
     protected final String typeName;
+    protected final String charsetName;
 
-    protected AbstractLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName) {
+    protected AbstractLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String charsetName) {
         this.terminal = Objects.requireNonNull(terminal);
         this.sampleFileName = Objects.requireNonNull(sampleFileName);
         this.indexName = Objects.requireNonNull(indexName);
         this.typeName = Objects.requireNonNull(typeName);
+        this.charsetName = Objects.requireNonNull(charsetName);
     }
 
     protected void writeConfigFile(Path directory, String fileName, String contents) throws IOException {
@@ -69,6 +95,7 @@ public abstract class AbstractLogFileStructure {
     }
 
     protected void writeMappingsConfigs(Path directory, SortedMap<String, String> fieldTypes) throws IOException {
+        terminal.println(Verbosity.VERBOSE, "---");
         String fieldTypeMappings = fieldTypes.entrySet().stream().map(entry -> String.format(Locale.ROOT, FIELD_MAPPING_TEMPLATE,
             entry.getKey(), entry.getValue())).collect(Collectors.joining(",\n"));
         writeRestCallConfigs(directory, "index-mappings.console", String.format(Locale.ROOT, INDEX_MAPPINGS_TEMPLATE, indexName,
@@ -77,5 +104,34 @@ public abstract class AbstractLogFileStructure {
 
     protected static String bestLogstashQuoteFor(String str) {
         return (str.indexOf('"') >= 0) ? "'" : "\""; // NB: fails if field name contains both types of quotes
+    }
+
+    protected String makeFilebeatInputOptions(String multilineRegex, String excludeLinesRegex) {
+        StringBuilder builder = new StringBuilder(String.format(Locale.ROOT, FILEBEAT_PATH_TEMPLATE, sampleFileName));
+        if (charsetName.equals(StandardCharsets.UTF_8.name()) == false) {
+            builder.append(String.format(Locale.ROOT, FILEBEAT_ENCODING_TEMPLATE, charsetName.toLowerCase(Locale.ROOT)));
+        }
+        if (multilineRegex != null) {
+            builder.append(String.format(Locale.ROOT, FILEBEAT_MULTILINE_CONFIG_TEMPLATE, multilineRegex));
+        }
+        if (excludeLinesRegex != null) {
+            builder.append(String.format(Locale.ROOT, FILEBEAT_EXCLUDE_LINES_TEMPLATE, excludeLinesRegex));
+
+        }
+        return builder.toString();
+    }
+
+    protected String makeLogstashStdinCodec(String multilineRegex) {
+
+        String encodingConfig =
+            (charsetName.equals(StandardCharsets.UTF_8.name())) ? "" : String.format(Locale.ROOT, LOGSTASH_ENCODING_TEMPLATE, charsetName);
+        if (multilineRegex == null) {
+            if (encodingConfig.isEmpty()) {
+                return "";
+            }
+            return String.format(Locale.ROOT, LOGSTASH_LINE_CONFIG_TEMPLATE, encodingConfig);
+        }
+
+        return String.format(Locale.ROOT, LOGSTASH_MULTILINE_CONFIG_TEMPLATE, encodingConfig, multilineRegex);
     }
 }

@@ -5,7 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
+
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class XmlLogFileStructureTests extends LogConfigCreatorTestCase {
 
@@ -13,11 +17,22 @@ public class XmlLogFileStructureTests extends LogConfigCreatorTestCase {
 
     public void testCreateConfigsGivenGoodXml() throws Exception {
         assertTrue(factory.canCreateFromSample(XML_SAMPLE));
+        String charset = randomFrom(POSSIBLE_CHARSETS);
         XmlLogFileStructure structure = (XmlLogFileStructure) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME, "log4cxx-xml",
-            XML_SAMPLE);
+            XML_SAMPLE, charset);
         structure.createConfigs();
+        if (charset.equals(StandardCharsets.UTF_8.name())) {
+            assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
+        } else {
+            assertThat(structure.getFilebeatToLogstashConfig(), containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
+        }
         assertThat(structure.getFilebeatToLogstashConfig(), containsString("multiline.pattern: '^\\s*<log4j:event'\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
+        if (charset.equals(StandardCharsets.UTF_8.name())) {
+            assertThat(structure.getLogstashFromStdinConfig(), not(containsString("charset =>")));
+        } else {
+            assertThat(structure.getLogstashFromStdinConfig(), containsString("charset => \"" + charset + "\""));
+        }
         assertThat(structure.getLogstashFromStdinConfig(), containsString("pattern => \"^\\s*<log4j:event\"\n"));
         assertThat(structure.getLogstashFromStdinConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
     }

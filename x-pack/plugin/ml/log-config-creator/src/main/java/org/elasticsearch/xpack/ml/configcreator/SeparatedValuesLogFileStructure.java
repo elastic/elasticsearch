@@ -32,15 +32,8 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
 
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
 
-    private static final String FILEBEAT_EXCLUDE_LINES_TEMPLATE = "  exclude_lines: ['^%s']\n";
-    private static final String FILEBEAT_MULTILINE_CONFIG_TEMPLATE = "  multiline.pattern: '%s'\n" +
-        "  multiline.negate: true\n" +
-        "  multiline.match: after\n";
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
-        "  paths:\n" +
-        "   - '%s'\n" +
-        "%s" +
         "%s" +
         "\n" +
         "output.logstash:\n" +
@@ -74,7 +67,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         "  }\n" +
         "}\n";
     private static final String LOGSTASH_FROM_STDIN_TEMPLATE = "input {\n" +
-        "  stdin {}\n" +
+        "  stdin {%s}\n" +
         "}\n" +
         "\n" +
         "filter {\n" +
@@ -107,8 +100,8 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
     private String logstashFromStdinConfig;
 
     SeparatedValuesLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String sample,
-                                    CsvPreference csvPreference) throws IOException {
-        super(terminal, sampleFileName, indexName, typeName);
+                                    String charsetName, CsvPreference csvPreference) throws IOException {
+        super(terminal, sampleFileName, indexName, typeName, charsetName);
         this.csvPreference = Objects.requireNonNull(csvPreference);
         Tuple<Boolean, String[]> headerInfo = findHeaderFromSample(terminal, sample, csvPreference);
         isCsvHeaderInFile = headerInfo.v1();
@@ -380,22 +373,13 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
             }
         }
 
-        String filebeatExcludeLinesConfig = "";
-        if (isCsvHeaderInFile) {
-            String filebeatColumns = Arrays.stream(csvHeader)
-                .map(column -> "\"?" + column.replace("\"", "\"\"").replaceAll("([\\\\|()\\[\\]{}^$*?])", "\\\\$1") + "\"?")
-                .collect(Collectors.joining(","));
-            filebeatExcludeLinesConfig = String.format(Locale.ROOT, FILEBEAT_EXCLUDE_LINES_TEMPLATE, filebeatColumns);
-        }
-        String filebeatMultilineConfig = "";
-        String logstashDateFilter = "";
-        if (timeLineRegex != null) {
-            filebeatMultilineConfig = String.format(Locale.ROOT, FILEBEAT_MULTILINE_CONFIG_TEMPLATE, timeLineRegex);
-            logstashDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2().dateFormat);
-        }
+        String excludeColumns = isCsvHeaderInFile ? Arrays.stream(csvHeader)
+            .map(column -> "\"?" + column.replace("\"", "\"\"").replaceAll("([\\\\|()\\[\\]{}^$*?])", "\\\\$1") + "\"?")
+            .collect(Collectors.joining(",")) : null;
+        String logstashDateFilter = (timeLineRegex == null) ? "" : makeLogstashDateFilter(timeField.v1(), timeField.v2().dateFormat);
 
-        filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, sampleFileName, filebeatExcludeLinesConfig,
-            filebeatMultilineConfig);
+        filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
+            makeFilebeatInputOptions(timeLineRegex, excludeColumns));
         String logstashColumns = Arrays.stream(csvHeader)
             .map(column -> (column.indexOf('"') >= 0) ? ("'" + column + "'") : ("\"" + column + "\"")).collect(Collectors.joining(", "));
         String separatorIfRequired = (delimiter == ',') ? "" : String.format(Locale.ROOT, SEPARATOR_TEMPLATE, delimiter);
@@ -403,8 +387,8 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, separatorIfRequired, logstashColumns,
             logStashColumnConversions, logstashDateFilter);
         String skipHeaderIfRequired = isCsvHeaderInFile ? "    skip_header => true\n": "";
-        logstashFromStdinConfig = String.format(Locale.ROOT, LOGSTASH_FROM_STDIN_TEMPLATE, separatorIfRequired, logstashColumns,
-            skipHeaderIfRequired, logStashColumnConversions, logstashDateFilter, indexName);
+        logstashFromStdinConfig = String.format(Locale.ROOT, LOGSTASH_FROM_STDIN_TEMPLATE, makeLogstashStdinCodec(timeLineRegex),
+            separatorIfRequired, logstashColumns, skipHeaderIfRequired, logStashColumnConversions, logstashDateFilter, indexName);
     }
 
     String getFilebeatToLogstashConfig() {
@@ -425,11 +409,11 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
             createConfigs();
         }
 
+        writeMappingsConfigs(directory, mappings);
+
         writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
         writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);
         writeConfigFile(directory, "logstash-from-stdin.conf", logstashFromStdinConfig);
-
-        writeMappingsConfigs(directory, mappings);
     }
 
     static String makeColumnConversions(Map<String, String> mappings) {

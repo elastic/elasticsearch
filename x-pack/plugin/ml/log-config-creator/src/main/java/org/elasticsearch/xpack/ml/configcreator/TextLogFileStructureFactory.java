@@ -23,6 +23,7 @@ public class TextLogFileStructureFactory implements LogFileStructureFactory {
     /**
      * This format matches if the sample contains at least one newline and at least one non-newline character
      */
+    @Override
     public boolean canCreateFromSample(String sample) {
         if (sample.indexOf('\n') < 0) {
             terminal.println(Verbosity.VERBOSE, "Not text because sample contains no newlines");
@@ -35,7 +36,8 @@ public class TextLogFileStructureFactory implements LogFileStructureFactory {
         return true;
     }
 
-    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String sample) {
-        return new TextLogFileStructure(terminal, beatsModuleStore, sampleFileName, indexName, typeName, sample);
+    @Override
+    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String sample, String charsetName) {
+        return new TextLogFileStructure(terminal, beatsModuleStore, sampleFileName, indexName, typeName, sample, charsetName);
     }
 }

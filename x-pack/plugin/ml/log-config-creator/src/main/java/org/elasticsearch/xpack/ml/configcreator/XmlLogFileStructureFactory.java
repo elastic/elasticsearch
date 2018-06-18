@@ -36,6 +36,7 @@ public class XmlLogFileStructureFactory implements LogFileStructureFactory {
      * only whitespace is allowed in between them.  The last one does not
      * necessarily have to be complete (as the sample could have truncated it).
      */
+    @Override
     public boolean canCreateFromSample(String sample) {
 
         int completeDocCount = 0;
@@ -114,8 +115,9 @@ public class XmlLogFileStructureFactory implements LogFileStructureFactory {
         return true;
     }
 
-    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String sample)
+    @Override
+    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String sample, String charsetName)
         throws IOException, ParserConfigurationException, SAXException {
-        return new XmlLogFileStructure(terminal, sampleFileName, indexName, typeName, sample);
+        return new XmlLogFileStructure(terminal, sampleFileName, indexName, typeName, sample, charsetName);
     }
 }

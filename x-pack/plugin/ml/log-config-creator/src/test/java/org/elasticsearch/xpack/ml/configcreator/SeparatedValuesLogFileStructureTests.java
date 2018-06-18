@@ -9,12 +9,15 @@ import org.elasticsearch.common.collect.Tuple;
 import org.supercsv.prefs.CsvPreference;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.configcreator.SeparatedValuesLogFileStructure.levenshteinDistance;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCase {
 
@@ -25,8 +28,9 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
             "2018-05-17T13:41:23,hello\n" +
             "2018-05-17T13:41:32,hello again\n";
         assertTrue(factory.canCreateFromSample(sample));
+        String charset = randomFrom(POSSIBLE_CHARSETS);
         SeparatedValuesLogFileStructure structure = (SeparatedValuesLogFileStructure) factory.createFromSample(TEST_FILE_NAME,
-            TEST_INDEX_NAME, "time_message", sample);
+            TEST_INDEX_NAME, "time_message", sample, charset);
         structure.createConfigs();
         assertThat(structure.getFilebeatToLogstashConfig(), containsString("exclude_lines: ['^\"?time\"?,\"?message\"?']\n"));
         assertThat(structure.getFilebeatToLogstashConfig(),
@@ -42,14 +46,25 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
             "world\",2018-05-17T13:41:23\n" +
             "\"hello again\n"; // note that this last record is truncated
         assertTrue(factory.canCreateFromSample(sample));
+        String charset = randomFrom(POSSIBLE_CHARSETS);
         SeparatedValuesLogFileStructure structure = (SeparatedValuesLogFileStructure) factory.createFromSample(TEST_FILE_NAME,
-            TEST_INDEX_NAME, "message_time", sample);
+            TEST_INDEX_NAME, "message_time", sample, charset);
         structure.createConfigs();
+        if (charset.equals(StandardCharsets.UTF_8.name())) {
+            assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
+        } else {
+            assertThat(structure.getFilebeatToLogstashConfig(), containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
+        }
         assertThat(structure.getFilebeatToLogstashConfig(), containsString("exclude_lines: ['^\"?message\"?,\"?time\"?']\n"));
         assertThat(structure.getFilebeatToLogstashConfig(),
             containsString("multiline.pattern: '^.*?,\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("columns => [ \"message\", \"time\" ]\n"));
+        if (charset.equals(StandardCharsets.UTF_8.name())) {
+            assertThat(structure.getLogstashFromStdinConfig(), not(containsString("charset =>")));
+        } else {
+            assertThat(structure.getLogstashFromStdinConfig(), containsString("charset => \"" + charset + "\""));
+        }
         assertThat(structure.getLogstashFromStdinConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
     }
 

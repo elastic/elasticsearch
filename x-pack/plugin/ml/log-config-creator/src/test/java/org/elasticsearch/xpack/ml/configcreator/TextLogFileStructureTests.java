@@ -9,10 +9,13 @@ import org.elasticsearch.common.util.set.Sets;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
 
@@ -25,19 +28,36 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
 
     public void testCreateConfigsGivenElasticsearchLog() throws Exception {
         assertTrue(factory.canCreateFromSample(TEXT_SAMPLE));
+        String charset = randomFrom(POSSIBLE_CHARSETS);
         TextLogFileStructure structure = (TextLogFileStructure) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME, "es",
-            TEXT_SAMPLE);
+            TEXT_SAMPLE, charset);
         structure.createConfigs();
+        if (charset.equals(StandardCharsets.UTF_8.name())) {
+            assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
+        } else {
+            assertThat(structure.getFilebeatToLogstashConfig(), containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
+        }
         assertThat(structure.getFilebeatToLogstashConfig(),
             containsString("multiline.pattern: '^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(),
             containsString("match => { \"message\" => \"\\[%{TIMESTAMP_ISO8601:_timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]" +
                 "\\[.*\" }\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"_timestamp\", \"ISO8601\" ]\n"));
+        if (charset.equals(StandardCharsets.UTF_8.name())) {
+            assertThat(structure.getLogstashFromStdinConfig(), not(containsString("charset =>")));
+        } else {
+            assertThat(structure.getLogstashFromStdinConfig(), containsString("charset => \"" + charset + "\""));
+        }
         assertThat(structure.getLogstashFromStdinConfig(),
             containsString("match => { \"message\" => \"\\[%{TIMESTAMP_ISO8601:_timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]" +
                 "\\[.*\" }\n"));
         assertThat(structure.getLogstashFromStdinConfig(), containsString("match => [ \"_timestamp\", \"ISO8601\" ]\n"));
+        if (charset.equals(StandardCharsets.UTF_8.name())) {
+            assertThat(structure.getFilebeatToIngestPipelineConfig(), not(containsString("encoding:")));
+        } else {
+            assertThat(structure.getFilebeatToIngestPipelineConfig(),
+                containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
+        }
         assertThat(structure.getFilebeatToIngestPipelineConfig(),
             containsString("multiline.pattern: '^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
         assertThat(structure.getIngestPipelineFromFilebeatConfig(),

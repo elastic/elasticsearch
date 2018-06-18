@@ -109,8 +109,9 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragme
         return multi;
     }
 
-    public void setMulti(MultiValueMode multi) {
+    public MultiValuesSourceFieldConfig setMulti(MultiValueMode multi) {
         this.multi = multi;
+        return this;
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.weighted_avg;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -34,14 +35,18 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.equalTo;
 
 public class WeightedAvgAggregatorTests extends AggregatorTestCase {
 
@@ -189,6 +194,247 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testValueSetMissing() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field").setMissing(2);
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig);
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("weight_field", 2)));
+            iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("weight_field", 3)));
+            iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("weight_field", 4)));
+        }, avg -> {
+            double value = (2.0*2.0 + 2.0*3.0 + 2.0*4.0) / (2.0+3.0+4.0);
+            assertEquals(value, avg.getValue(), 0);
+        });
+    }
+
+    public void testWeightSetMissing() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field").setMissing(2);
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig);
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("value_field", 2)));
+            iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("value_field", 3)));
+            iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("value_field", 4)));
+        }, avg -> {
+            double value = (2.0*2.0 + 3.0*2.0 + 4.0*2.0) / (2.0+2.0+2.0);
+            assertEquals(value, avg.getValue(), 0);
+        });
+    }
+
+    public void testWeightSetTimezone() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field").setTimeZone(DateTimeZone.UTC);
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+                iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("value_field", 2)));
+                iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("value_field", 3)));
+                iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("value_field", 4)));
+            }, avg -> {
+               fail("Should not have executed test case");
+            }));
+        assertThat(e.getMessage(), equalTo("Field [weight_field] of type [long] does not support custom time zones"));
+    }
+
+    public void testValueSetTimezone() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field").setTimeZone(DateTimeZone.UTC);
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+                iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("value_field", 2)));
+                iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("value_field", 3)));
+                iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("value_field", 4)));
+            }, avg -> {
+                fail("Should not have executed test case");
+            }));
+        assertThat(e.getMessage(), equalTo("Field [value_field] of type [long] does not support custom time zones"));
+    }
+
+    public void testValueSetMultiAvg() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field").setMulti(MultiValueMode.AVG);
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig);
+
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 2),
+                new SortedNumericDocValuesField("value_field", 3)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 3),
+                new SortedNumericDocValuesField("value_field", 4)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 4),
+                new SortedNumericDocValuesField("value_field", 5)));
+        }, avg -> {
+            double value = (((2.0+3.0)/2.0) + ((3.0+4.0)/2.0) + ((4.0+5.0)/2.0)) / (1.0+1.0+1.0);
+            assertEquals(value, avg.getValue(), 0);
+        });
+    }
+
+    public void testValueSetMultiMax() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field").setMulti(MultiValueMode.MAX);
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig);
+
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 2),
+                new SortedNumericDocValuesField("value_field", 3)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 3),
+                new SortedNumericDocValuesField("value_field", 4)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 4),
+                new SortedNumericDocValuesField("value_field", 5)));
+        }, avg -> {
+            double value = (3.0 + 4.0 + 5.0) / (1.0+1.0+1.0);
+            assertEquals(value, avg.getValue(), 0);
+        });
+    }
+
+    public void testValueSetMultiMin() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field").setMulti(MultiValueMode.MIN);
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig);
+
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 2),
+                new SortedNumericDocValuesField("value_field", 3)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 3),
+                new SortedNumericDocValuesField("value_field", 4)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 4),
+                new SortedNumericDocValuesField("value_field", 5)));
+        }, avg -> {
+            double value = (2.0 + 3.0 + 4.0) / (1.0+1.0+1.0);
+            assertEquals(value, avg.getValue(), 0);
+        });
+    }
+
+    public void testValueSetMultiSum() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field").setMulti(MultiValueMode.SUM);
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig);
+
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 2),
+                new SortedNumericDocValuesField("value_field", 3)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 3),
+                new SortedNumericDocValuesField("value_field", 4)));
+            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("value_field", 4),
+                new SortedNumericDocValuesField("value_field", 5)));
+        }, avg -> {
+            double value = (5.0 + 7.0 + 9.0) / (1.0+1.0+1.0);
+            assertEquals(value, avg.getValue(), 0);
+        });
+    }
+
+    public void testWeightSetMultiAvg() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field").setMulti(MultiValueMode.AVG);
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig);
+
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(Arrays.asList(
+                new SortedNumericDocValuesField("value_field", 2),
+                new SortedNumericDocValuesField("weight_field", 2), new SortedNumericDocValuesField("weight_field", 3)));
+            iw.addDocument(Arrays.asList(
+                new SortedNumericDocValuesField("value_field", 3),
+                new SortedNumericDocValuesField("weight_field", 3), new SortedNumericDocValuesField("weight_field", 4)));
+            iw.addDocument(Arrays.asList(
+                new SortedNumericDocValuesField("value_field", 4),
+                new SortedNumericDocValuesField("weight_field", 4), new SortedNumericDocValuesField("weight_field", 5)));
+        }, avg -> {
+            double value = ((2.0 * (2.0+3.0)/2.0) + (3.0 * (3.0+4.0)/2.0) + (4.0 * (4.0+5.0)/2.0))
+                / ((2.0+3.0)/2.0 + (3.0+4.0)/2.0 + (4.0+5.0)/2.0);
+            assertEquals(value, avg.getValue(), 0);
+        });
+    }
+
+    public void testWeightSetMultiMax() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field").setMulti(MultiValueMode.MAX);
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig);
+
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(Arrays.asList(
+                new SortedNumericDocValuesField("value_field", 2),
+                new SortedNumericDocValuesField("weight_field", 2), new SortedNumericDocValuesField("weight_field", 3)));
+            iw.addDocument(Arrays.asList(
+                new SortedNumericDocValuesField("value_field", 3),
+                new SortedNumericDocValuesField("weight_field", 3), new SortedNumericDocValuesField("weight_field", 4)));
+            iw.addDocument(Arrays.asList(
+                new SortedNumericDocValuesField("value_field", 4),
+                new SortedNumericDocValuesField("weight_field", 4), new SortedNumericDocValuesField("weight_field", 5)));
+        }, avg -> {
+            double value = ((2.0 * 3.0) + (3.0 * 4.0) + (4.0 * 5.0)) / (3.0+4.0+5.0);
+            assertEquals(value, avg.getValue(), 0);
+        });
+    }
+
+    public void testWeightSetMultiMin() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field").setMulti(MultiValueMode.MIN);
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig);
+
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(Arrays.asList(
+                new SortedNumericDocValuesField("value_field", 2),
+                new SortedNumericDocValuesField("weight_field", 2), new SortedNumericDocValuesField("weight_field", 3)));
+            iw.addDocument(Arrays.asList(
+                new SortedNumericDocValuesField("value_field", 3),
+                new SortedNumericDocValuesField("weight_field", 3), new SortedNumericDocValuesField("weight_field", 4)));
+            iw.addDocument(Arrays.asList(
+                new SortedNumericDocValuesField("value_field", 4),
+                new SortedNumericDocValuesField("weight_field", 4), new SortedNumericDocValuesField("weight_field", 5)));
+        }, avg -> {
+            double value = ((2.0 * 2.0) + (3.0 * 3.0) + (4.0 * 4.0)) / (2.0+3.0+4.0);
+            assertEquals(value, avg.getValue(), 0);
+        });
+    }
+
+    public void testWeightSetMultiSum() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field").setMulti(MultiValueMode.SUM);
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig);
+
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(Arrays.asList(
+                new SortedNumericDocValuesField("value_field", 2),
+                new SortedNumericDocValuesField("weight_field", 2), new SortedNumericDocValuesField("weight_field", 3)));
+            iw.addDocument(Arrays.asList(
+                new SortedNumericDocValuesField("value_field", 3),
+                new SortedNumericDocValuesField("weight_field", 3), new SortedNumericDocValuesField("weight_field", 4)));
+            iw.addDocument(Arrays.asList(
+                new SortedNumericDocValuesField("value_field", 4),
+                new SortedNumericDocValuesField("weight_field", 4), new SortedNumericDocValuesField("weight_field", 5)));
+        }, avg -> {
+            double value = ((2.0 * 5.0) + (3.0 * 7.0) + (4.0 * 9.0)) / (5.0+7.0+9.0);
+            assertEquals(value, avg.getValue(), 0);
+        });
+    }
+
     public void testSummationAccuracy() throws IOException {
         // Summing up a normal array and expect an accurate value
         double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
@@ -247,30 +493,31 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalWeightedAvg> verify,
                           NumberFieldMapper.NumberType fieldNumberType) throws IOException {
+
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
         indexWriter.close();
-
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
+        try {
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(fieldNumberType);
+            fieldType.setName("value_field");
+            fieldType.setHasDocValues(true);
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(fieldNumberType);
-        fieldType.setName("value_field");
-        fieldType.setHasDocValues(true);
+            MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType(fieldNumberType);
+            fieldType2.setName("weight_field");
+            fieldType2.setHasDocValues(true);
 
-        MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType(fieldNumberType);
-        fieldType2.setName("weight_field");
-        fieldType2.setHasDocValues(true);
-
-        WeightedAvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType, fieldType2);
-        aggregator.preCollection();
-        indexSearcher.search(query, aggregator);
-        aggregator.postCollection();
-        verify.accept((InternalWeightedAvg) aggregator.buildAggregation(0L));
-
-        indexReader.close();
-        directory.close();
+            WeightedAvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType, fieldType2);
+            aggregator.preCollection();
+            indexSearcher.search(query, aggregator);
+            aggregator.postCollection();
+            verify.accept((InternalWeightedAvg) aggregator.buildAggregation(0L));
+        } finally {
+            indexReader.close();
+            directory.close();
+        }
     }
 }

@@ -1931,8 +1931,8 @@ public class RequestConvertersTests extends ESTestCase {
         DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest("x-script");
 
         Map<String, String> expectedParams = new HashMap<>();
+        setRandomTimeout(deleteStoredScriptRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         setRandomMasterTimeout(deleteStoredScriptRequest, expectedParams);
-        setRandomTimeout(deleteStoredScriptRequest::timeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
 
         Request request = RequestConverters.deleteScript(deleteStoredScriptRequest);
         assertThat(request.getEndpoint(), equalTo("/_scripts/" + deleteStoredScriptRequest.id()));

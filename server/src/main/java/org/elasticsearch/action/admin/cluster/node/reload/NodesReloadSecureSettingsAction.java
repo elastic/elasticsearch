@@ -17,14 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.azure;
+package org.elasticsearch.action.admin.cluster.node.reload;
 
-public class AzureServiceDisableException extends IllegalStateException {
-    public AzureServiceDisableException(String msg) {
-        super(msg);
+import org.elasticsearch.action.Action;
+
+public class NodesReloadSecureSettingsAction
+        extends Action<NodesReloadSecureSettingsRequest, NodesReloadSecureSettingsResponse> {
+
+    public static final NodesReloadSecureSettingsAction INSTANCE = new NodesReloadSecureSettingsAction();
+    public static final String NAME = "cluster:admin/nodes/reload_secure_settings";
+
+    private NodesReloadSecureSettingsAction() {
+        super(NAME);
     }
 
-    public AzureServiceDisableException(String msg, Throwable cause) {
-        super(msg, cause);
+    @Override
+    public NodesReloadSecureSettingsResponse newResponse() {
+        return new NodesReloadSecureSettingsResponse();
     }
+
 }

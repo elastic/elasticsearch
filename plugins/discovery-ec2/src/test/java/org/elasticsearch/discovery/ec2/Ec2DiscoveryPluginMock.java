@@ -17,14 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.azure;
+package org.elasticsearch.discovery.ec2;
 
-public class AzureServiceRemoteException extends IllegalStateException {
-    public AzureServiceRemoteException(String msg) {
-        super(msg);
+import com.amazonaws.services.ec2.model.Tag;
+
+import org.elasticsearch.common.settings.Settings;
+
+import java.util.List;
+
+public class Ec2DiscoveryPluginMock extends Ec2DiscoveryPlugin {
+
+    Ec2DiscoveryPluginMock(Settings settings) {
+        this(settings, 1, null);
     }
 
-    public AzureServiceRemoteException(String msg, Throwable cause) {
-        super(msg, cause);
+    public Ec2DiscoveryPluginMock(Settings settings, int nodes, List<List<Tag>> tagsList) {
+        super(settings, new AwsEc2ServiceMock(settings, nodes, tagsList));
     }
+
 }

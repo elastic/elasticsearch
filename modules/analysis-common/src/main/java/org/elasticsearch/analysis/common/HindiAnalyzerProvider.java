@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
+import org.apache.lucene.analysis.hi.HindiAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class PortugueseAnalyzerProvider extends AbstractIndexAnalyzerProvider<PortugueseAnalyzer> {
+public class HindiAnalyzerProvider extends AbstractIndexAnalyzerProvider<HindiAnalyzer> {
 
-    private final PortugueseAnalyzer analyzer;
+    private final HindiAnalyzer analyzer;
 
-    public PortugueseAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    HindiAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new PortugueseAnalyzer(
-            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, PortugueseAnalyzer.getDefaultStopSet()),
+        analyzer = new HindiAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, HindiAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public PortugueseAnalyzer get() {
+    public HindiAnalyzer get() {
         return this.analyzer;
     }
 }

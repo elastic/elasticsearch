@@ -17,26 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
-import org.apache.lucene.analysis.th.ThaiAnalyzer;
+import org.apache.lucene.analysis.el.GreekAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<ThaiAnalyzer> {
+public class GreekAnalyzerProvider extends AbstractIndexAnalyzerProvider<GreekAnalyzer> {
 
-    private final ThaiAnalyzer analyzer;
+    private final GreekAnalyzer analyzer;
 
-    public ThaiAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    GreekAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new ThaiAnalyzer(
-            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, ThaiAnalyzer.getDefaultStopSet()));
+        analyzer = new GreekAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, GreekAnalyzer.getDefaultStopSet()));
         analyzer.setVersion(version);
     }
 
     @Override
-    public ThaiAnalyzer get() {
+    public GreekAnalyzer get() {
         return this.analyzer;
     }
 }

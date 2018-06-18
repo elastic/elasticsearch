@@ -17,29 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.id.IndonesianAnalyzer;
+import org.apache.lucene.analysis.ckb.SoraniAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class IndonesianAnalyzerProvider extends AbstractIndexAnalyzerProvider<IndonesianAnalyzer> {
+/**
+ * Provider for {@link SoraniAnalyzer}
+ */
+public class SoraniAnalyzerProvider extends AbstractIndexAnalyzerProvider<SoraniAnalyzer> {
 
-    private final IndonesianAnalyzer analyzer;
+    private final SoraniAnalyzer analyzer;
 
-    public IndonesianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    SoraniAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new IndonesianAnalyzer(
-            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, IndonesianAnalyzer.getDefaultStopSet()),
+        analyzer = new SoraniAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, SoraniAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public IndonesianAnalyzer get() {
+    public SoraniAnalyzer get() {
         return this.analyzer;
     }
 }

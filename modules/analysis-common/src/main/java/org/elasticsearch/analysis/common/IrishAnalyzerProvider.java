@@ -17,32 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.ckb.SoraniAnalyzer;
+import org.apache.lucene.analysis.ga.IrishAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
 /**
- * Provider for {@link SoraniAnalyzer}
+ * Provider for {@link IrishAnalyzer}
  */
-public class SoraniAnalyzerProvider extends AbstractIndexAnalyzerProvider<SoraniAnalyzer> {
+public class IrishAnalyzerProvider extends AbstractIndexAnalyzerProvider<IrishAnalyzer> {
 
-    private final SoraniAnalyzer analyzer;
+    private final IrishAnalyzer analyzer;
 
-    public SoraniAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    IrishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new SoraniAnalyzer(
-            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, SoraniAnalyzer.getDefaultStopSet()),
+        analyzer = new IrishAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, IrishAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
         analyzer.setVersion(version);
     }
 
     @Override
-    public SoraniAnalyzer get() {
+    public IrishAnalyzer get() {
         return this.analyzer;
     }
 }

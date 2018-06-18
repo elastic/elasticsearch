@@ -17,29 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
-import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.hu.HungarianAnalyzer;
+import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
+import org.elasticsearch.index.analysis.Analysis;
 
-public class HungarianAnalyzerProvider extends AbstractIndexAnalyzerProvider<HungarianAnalyzer> {
+public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<ThaiAnalyzer> {
 
-    private final HungarianAnalyzer analyzer;
+    private final ThaiAnalyzer analyzer;
 
-    public HungarianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    ThaiAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new HungarianAnalyzer(
-            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, HungarianAnalyzer.getDefaultStopSet()),
-            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
-        );
+        analyzer = new ThaiAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, ThaiAnalyzer.getDefaultStopSet()));
         analyzer.setVersion(version);
     }
 
     @Override
-    public HungarianAnalyzer get() {
+    public ThaiAnalyzer get() {
         return this.analyzer;
     }
 }

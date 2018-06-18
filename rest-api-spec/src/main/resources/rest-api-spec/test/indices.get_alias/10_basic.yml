@@ -20,8 +20,8 @@ setup:
 ---
 "Get all aliases via /_alias":
   - skip:
-      version: all
-      reason: Nik will look on Monday
+      version: " - 5.99.99"
+      reason: 5.x doesn't return indices without aliases (at transport)
   - do:
       indices.create:
         index: test_index_3

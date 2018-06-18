@@ -19,14 +19,9 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 

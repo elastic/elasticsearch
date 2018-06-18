@@ -9,7 +9,6 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -374,7 +373,9 @@ public class LdapRealmTests extends LdapTestCase {
         LdapRealm realm = new LdapRealm(config, ldapFactory,
                 new DnRoleMapper(config, resourceWatcherService), threadPool);
 
-        Map<String, Object> stats = realm.usageStats();
+        PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        realm.usageStats(future);
+        Map<String, Object> stats = future.get();
         assertThat(stats, is(notNullValue()));
         assertThat(stats, hasEntry("name", "ldap-realm"));
         assertThat(stats, hasEntry("order", realm.order()));

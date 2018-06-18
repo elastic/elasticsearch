@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.xpack.core.security.SecurityField;

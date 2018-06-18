@@ -84,6 +84,10 @@ public class SamlRealmSettings {
             RealmSettings.realmSettingPrefix(TYPE), "signing.saml_messages",
             key -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Setting.Property.NodeScope));
 
+    public static final Setting.AffixSetting<List<String>> REQUESTED_AUTHN_CONTEXT_CLASS_REF = Setting.affixKeySetting(
+            RealmSettings.realmSettingPrefix(TYPE), "req_authn_context_class_ref",
+            key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(),Setting.Property.NodeScope));
+
     public static final Setting.AffixSetting<TimeValue> CLOCK_SKEW = Setting.affixKeySetting(
             RealmSettings.realmSettingPrefix(TYPE), "allowed_clock_skew",
             key -> Setting.positiveTimeSetting(key, TimeValue.timeValueMinutes(3), Setting.Property.NodeScope));
@@ -102,7 +106,7 @@ public class SamlRealmSettings {
                 SP_ENTITY_ID, SP_ACS, SP_LOGOUT,
                 NAMEID_FORMAT, NAMEID_ALLOW_CREATE, NAMEID_SP_QUALIFIER, FORCE_AUTHN,
                 POPULATE_USER_METADATA, CLOCK_SKEW,
-                ENCRYPTION_KEY_ALIAS, SIGNING_KEY_ALIAS, SIGNING_MESSAGE_TYPES);
+                ENCRYPTION_KEY_ALIAS, SIGNING_KEY_ALIAS, SIGNING_MESSAGE_TYPES, REQUESTED_AUTHN_CONTEXT_CLASS_REF);
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(TYPE), ENCRYPTION_SETTING_KEY, false));
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(TYPE), SIGNING_SETTING_KEY, false));
         set.addAll(SSLConfigurationSettings.getRealmSettings(TYPE));

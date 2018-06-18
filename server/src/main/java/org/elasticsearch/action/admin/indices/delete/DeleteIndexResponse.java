@@ -20,20 +20,12 @@
 package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
  * A response for a delete index action.
  */
 public class DeleteIndexResponse extends AcknowledgedResponse {
-
-    private static final ConstructingObjectParser<DeleteIndexResponse, Void> PARSER = new ConstructingObjectParser<>("delete_index",
-        true, args -> new DeleteIndexResponse((boolean) args[0]));
-
-    static {
-        declareAcknowledgedField(PARSER);
-    }
 
     DeleteIndexResponse() {
     }
@@ -43,6 +35,6 @@ public class DeleteIndexResponse extends AcknowledgedResponse {
     }
 
     public static DeleteIndexResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return new DeleteIndexResponse(parseAcknowledged(parser));
     }
 }

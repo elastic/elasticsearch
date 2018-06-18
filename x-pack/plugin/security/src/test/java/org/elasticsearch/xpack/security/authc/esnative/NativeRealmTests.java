@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
@@ -17,7 +16,6 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.xpack.security.test.SecurityTestUtils.getClusterIndexHealth;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

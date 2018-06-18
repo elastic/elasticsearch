@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
+import java.util.Map;
+
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
@@ -43,6 +45,16 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
         if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)) {
             clearCache();
         }
+    }
+
+    @Override
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        super.usageStats(ActionListener.wrap(stats ->
+            userStore.getUserCount(ActionListener.wrap(size -> {
+                stats.put("size", size);
+                listener.onResponse(stats);
+            }, listener::onFailure))
+        , listener::onFailure));
     }
 
     // method is used for testing to verify cache expiration since expireAll is final

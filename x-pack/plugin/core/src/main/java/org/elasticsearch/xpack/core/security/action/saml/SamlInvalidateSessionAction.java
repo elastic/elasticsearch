@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action to perform IdP-initiated logout for a SAML-SSO user

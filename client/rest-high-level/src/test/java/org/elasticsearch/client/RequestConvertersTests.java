@@ -1916,22 +1916,28 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testGetScriptRequest() {
-        GetStoredScriptRequest storedScriptRequest = new GetStoredScriptRequest("x-script");
+        GetStoredScriptRequest getStoredScriptRequest = new GetStoredScriptRequest("x-script");
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(getStoredScriptRequest, expectedParams);
 
-        Request request = RequestConverters.getScript(storedScriptRequest);
-        assertThat(request.getEndpoint(), equalTo("/_scripts/" + storedScriptRequest.id()));
+        Request request = RequestConverters.getScript(getStoredScriptRequest);
+        assertThat(request.getEndpoint(), equalTo("/_scripts/" + getStoredScriptRequest.id()));
         assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
-        assertThat(request.getParameters().isEmpty(), equalTo(true));
+        assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), nullValue());
     }
 
     public void testDeleteScriptRequest() {
-        DeleteStoredScriptRequest storedScriptRequest = new DeleteStoredScriptRequest("x-script");
+        DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest("x-script");
 
-        Request request = RequestConverters.deleteScript(storedScriptRequest);
-        assertThat(request.getEndpoint(), equalTo("/_scripts/" + storedScriptRequest.id()));
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(deleteStoredScriptRequest, expectedParams);
+        setRandomTimeout(deleteStoredScriptRequest::timeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
+
+        Request request = RequestConverters.deleteScript(deleteStoredScriptRequest);
+        assertThat(request.getEndpoint(), equalTo("/_scripts/" + deleteStoredScriptRequest.id()));
         assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
-        assertThat(request.getParameters().isEmpty(), equalTo(true));
+        assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), nullValue());
     }
 

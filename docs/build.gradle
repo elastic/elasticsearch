@@ -20,7 +20,6 @@
 apply plugin: 'elasticsearch.docs-test'
 
 integTestCluster {
-  distribution = 'oss-zip'
   /* Enable regexes in painless so our tests don't complain about example
    * snippets that use them. */
   setting 'script.painless.regex.enabled', 'true'

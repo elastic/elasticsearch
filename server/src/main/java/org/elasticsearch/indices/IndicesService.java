@@ -451,7 +451,7 @@ public class IndicesService extends AbstractLifecycleComponent
             idxSettings.getNumberOfReplicas(),
             reason);
 
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings));
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, this::getEngineFactory);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -475,7 +475,8 @@ public class IndicesService extends AbstractLifecycleComponent
         );
     }
 
-    private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
+    // Visible for testing
+    EngineFactory getEngineFactory(final IndexSettings idxSettings) {
         final List<Optional<EngineFactory>> engineFactories =
                 engineFactoryProviders
                         .stream()
@@ -511,7 +512,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public synchronized MapperService createIndexMapperService(IndexMetaData indexMetaData) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopedSettings);
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings));
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, this::getEngineFactory);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }

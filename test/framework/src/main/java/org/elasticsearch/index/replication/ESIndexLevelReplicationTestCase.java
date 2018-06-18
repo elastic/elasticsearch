@@ -59,6 +59,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
@@ -160,8 +161,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
         }
 
-        protected EngineFactory getEngineFactory(ShardRouting routing) {
-            return new InternalEngineFactory();
+        protected Function<IndexSettings, EngineFactory> getEngineFactory(ShardRouting routing) {
+            return indexSettings -> new InternalEngineFactory();
         }
 
         public int indexDocs(final int numOfDoc) throws Exception {

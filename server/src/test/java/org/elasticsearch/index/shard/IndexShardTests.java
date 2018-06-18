@@ -841,7 +841,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexMetaData.Builder indexMetadata = IndexMetaData.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
         final AtomicBoolean synced = new AtomicBoolean();
         final IndexShard primaryShard =
-                newShard(shardRouting, indexMetadata.build(), null, new InternalEngineFactory(), () -> synced.set(true));
+                newShard(shardRouting, indexMetadata.build(), null, s -> new InternalEngineFactory(), () -> synced.set(true));
         // add a replica
         recoverShardFromStore(primaryShard);
         final IndexShard replicaShard = newShard(shardId, false);
@@ -1892,7 +1892,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 shard.shardPath(),
                 shard.indexSettings().getIndexMetaData(),
                 wrapper,
-                new InternalEngineFactory(),
+                s -> new InternalEngineFactory(),
                 () -> {},
                 EMPTY_EVENT_LISTENER);
 
@@ -2044,7 +2044,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 shard.shardPath(),
                 shard.indexSettings().getIndexMetaData(),
                 wrapper,
-                new InternalEngineFactory(),
+                s -> new InternalEngineFactory(),
                 () -> {},
                 EMPTY_EVENT_LISTENER);
 
@@ -2529,7 +2529,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum", "fix")))
             .build();
         final IndexShard newShard = newShard(shardRouting, indexShard.shardPath(), indexMetaData,
-            null, indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
+            null, indexShard.engineFactoryFn, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
 
         Store.MetadataSnapshot storeFileMetaDatas = newShard.snapshotStoreMetadata();
         assertTrue("at least 2 files, commit and data: " + storeFileMetaDatas.toString(), storeFileMetaDatas.size() > 1);
@@ -3029,8 +3029,8 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
         AtomicBoolean markedInactive = new AtomicBoolean();
         AtomicReference<IndexShard> primaryRef = new AtomicReference<>();
-        IndexShard primary = newShard(shardRouting, shardPath, metaData, null, new InternalEngineFactory(), () -> {
-        }, new IndexEventListener() {
+        IndexShard primary = newShard(shardRouting, shardPath, metaData, null,
+            s -> new InternalEngineFactory(), () -> { }, new IndexEventListener() {
             @Override
             public void onShardInactive(IndexShard indexShard) {
                 markedInactive.set(true);

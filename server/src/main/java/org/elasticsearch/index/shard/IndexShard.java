@@ -154,6 +154,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -193,7 +194,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     protected volatile IndexShardState state;
     protected volatile long primaryTerm;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
-    final EngineFactory engineFactory;
+    final Function<IndexSettings, EngineFactory> engineFactoryFn;
 
     private final IndexingOperationListener indexingOperationListeners;
     private final Runnable globalCheckpointSyncer;
@@ -248,7 +249,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             IndexCache indexCache,
             MapperService mapperService,
             SimilarityService similarityService,
-            @Nullable EngineFactory engineFactory,
+            Function<IndexSettings, EngineFactory> engineFactoryFn,
             IndexEventListener indexEventListener,
             IndexSearcherWrapper indexSearcherWrapper,
             ThreadPool threadPool,
@@ -266,7 +267,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.warmer = warmer;
         this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
-        this.engineFactory = Objects.requireNonNull(engineFactory);
+        this.engineFactoryFn = Objects.requireNonNull(engineFactoryFn);
         this.store = store;
         this.indexSortSupplier = indexSortSupplier;
         this.indexEventListener = indexEventListener;
@@ -2115,7 +2116,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     protected Engine newEngine(EngineConfig config) {
-        return engineFactory.newReadWriteEngine(config);
+        return engineFactoryFn.apply(this.indexSettings).newReadWriteEngine(config);
     }
 
     private static void persistMetadata(
@@ -2445,8 +2446,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    EngineFactory getEngineFactory() {
-        return engineFactory;
+    Function<IndexSettings, EngineFactory> getEngineFactoryFn() {
+        return engineFactoryFn;
     }
 
     // for tests

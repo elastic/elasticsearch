@@ -105,7 +105,7 @@ public final class IndexModule {
 
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
-    private final EngineFactory engineFactory;
+    private final Function<IndexSettings, EngineFactory> engineFactoryFn;
     private SetOnce<IndexSearcherWrapperFactory> indexSearcherWrapper = new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
@@ -121,12 +121,13 @@ public final class IndexModule {
      *
      * @param indexSettings    the index settings
      * @param analysisRegistry the analysis registry
-     * @param engineFactory    the engine factory
+     * @param engineFactoryFn  a function from IndexSettings to the engine factory to use
      */
-    public IndexModule(final IndexSettings indexSettings, final AnalysisRegistry analysisRegistry, final EngineFactory engineFactory) {
+    public IndexModule(final IndexSettings indexSettings, final AnalysisRegistry analysisRegistry,
+                       final Function<IndexSettings, EngineFactory> engineFactoryFn) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
-        this.engineFactory = Objects.requireNonNull(engineFactory);
+        this.engineFactoryFn = Objects.requireNonNull(engineFactoryFn);
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
     }
@@ -172,8 +173,8 @@ public final class IndexModule {
      *
      * @return the engine factory
      */
-    EngineFactory getEngineFactory() {
-        return engineFactory;
+    Function<IndexSettings, EngineFactory> getEngineFactoryFn() {
+        return engineFactoryFn;
     }
 
     /**
@@ -382,7 +383,7 @@ public final class IndexModule {
         }
         return new IndexService(indexSettings, environment, xContentRegistry,
                 new SimilarityService(indexSettings, scriptService, similarities),
-                shardStoreDeleter, analysisRegistry, engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService,
+                shardStoreDeleter, analysisRegistry, engineFactoryFn, circuitBreakerService, bigArrays, threadPool, scriptService,
                 client, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry,
                 indicesFieldDataCache, searchOperationListeners, indexOperationListeners, namedWriteableRegistry);
     }

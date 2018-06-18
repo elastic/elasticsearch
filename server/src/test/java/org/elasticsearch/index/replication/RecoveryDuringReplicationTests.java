@@ -63,6 +63,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.both;
@@ -460,12 +461,14 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
         try (ReplicationGroup shards = new ReplicationGroup(metaData) {
             @Override
-            protected EngineFactory getEngineFactory(ShardRouting routing) {
-                if (routing.primary()) {
-                    return primaryEngineFactory;
-                } else {
-                    return new InternalEngineFactory();
-                }
+            protected Function<IndexSettings, EngineFactory> getEngineFactory(ShardRouting routing) {
+                return indexSettings -> {
+                    if (routing.primary()) {
+                        return primaryEngineFactory;
+                    } else {
+                        return new InternalEngineFactory();
+                    }
+                };
             }
         }) {
             shards.startAll();
@@ -556,12 +559,14 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         try (
                 ReplicationGroup shards = new ReplicationGroup(metaData) {
                     @Override
-                    protected EngineFactory getEngineFactory(final ShardRouting routing) {
-                        if (routing.primary()) {
-                            return new InternalEngineFactory();
-                        } else {
-                            return replicaEngineFactory;
-                        }
+                    protected Function<IndexSettings, EngineFactory> getEngineFactory(final ShardRouting routing) {
+                        return indexSettings -> {
+                            if (routing.primary()) {
+                                return new InternalEngineFactory();
+                            } else {
+                                return replicaEngineFactory;
+                            }
+                        };
                     }
                 };
                 AutoCloseable ignored = replicaEngineFactory // make sure we release indexers before closing

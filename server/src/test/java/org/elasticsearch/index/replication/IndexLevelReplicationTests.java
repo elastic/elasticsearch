@@ -61,6 +61,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.hamcrest.Matchers.anyOf;
@@ -244,8 +245,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 new ThrowingDocumentFailureEngineFactory(failureMessage);
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(0)) {
             @Override
-            protected EngineFactory getEngineFactory(ShardRouting routing) {
-                return throwingDocumentFailureEngineFactory;
+            protected Function<IndexSettings, EngineFactory> getEngineFactory(ShardRouting routing) {
+                return s -> throwingDocumentFailureEngineFactory;
             }}) {
 
             // test only primary

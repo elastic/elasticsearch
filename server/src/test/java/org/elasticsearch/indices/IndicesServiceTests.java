@@ -533,9 +533,11 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                     .build();
             final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
             if (value != null && value) {
-                assertThat(indexService.getEngineFactory(), instanceOf(FooEnginePlugin.FooEngineFactory.class));
+                assertThat(indexService.getEngineFactoryFn().apply(new IndexSettings(indexMetaData, builder.build())),
+                    instanceOf(FooEnginePlugin.FooEngineFactory.class));
             } else {
-                assertThat(indexService.getEngineFactory(), instanceOf(InternalEngineFactory.class));
+                assertThat(indexService.getEngineFactoryFn().apply(new IndexSettings(indexMetaData, builder.build())),
+                    instanceOf(InternalEngineFactory.class));
             }
         }
     }
@@ -556,11 +558,21 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                 .build();
 
         final IndicesService indicesService = getIndicesService();
-        final IllegalStateException e =
-                expectThrows(IllegalStateException.class, () -> indicesService.createIndex(indexMetaData, Collections.emptyList()));
+        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> indicesService.getEngineFactory(indexSettings));
         final String pattern =
                 ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
         assertThat(e, hasToString(new RegexMatcher(pattern)));
+
+        final Settings newSettings = Settings.builder().put(settings).put(BarEnginePlugin.BAR_INDEX_SETTING.getKey(), false).build();
+        IndexMetaData newIndexMetaData = new IndexMetaData.Builder(index.getName())
+            .settings(newSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        final IndexSettings newIndexSettings = new IndexSettings(newIndexMetaData, newSettings);
+        final IndexService indexService = indicesService.createIndex(newIndexMetaData, Collections.emptyList());
+        assertThat(indexService.getEngineFactoryFn().apply(newIndexSettings), instanceOf(FooEnginePlugin.FooEngineFactory.class));
     }
 
 }

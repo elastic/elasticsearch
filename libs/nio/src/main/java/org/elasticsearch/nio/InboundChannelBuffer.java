@@ -19,6 +19,7 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
 import java.nio.ByteBuffer;
@@ -41,6 +42,7 @@ public final class InboundChannelBuffer implements AutoCloseable {
     private static final int PAGE_MASK = PAGE_SIZE - 1;
     private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(PAGE_SIZE);
     private static final ByteBuffer[] EMPTY_BYTE_BUFFER_ARRAY = new ByteBuffer[0];
+    private static final Page[] EMPTY_BYTE_PAGE_ARRAY = new Page[0];
 
 
     private final ArrayDeque<Page> pages;
@@ -153,6 +155,46 @@ public final class InboundChannelBuffer implements AutoCloseable {
     }
 
     /**
+     * This method will return an array of {@link Page} representing the bytes from the beginning of
+     * this buffer up through the index argument that was passed. The pages and buffers will be duplicates of
+     * the internal components, so any modifications to the markers {@link ByteBuffer#position()},
+     * {@link ByteBuffer#limit()}, etc will not modify the this class. Additionally, this will internally
+     * retain the underlying pages, so the pages returned by this method must be closed.
+     *
+     * @param to the index to slice up to
+     * @return the pages
+     */
+    public Page[] sliceAndRetainPagesTo(long to) {
+        if (to > capacity) {
+            throw new IndexOutOfBoundsException("can't slice a channel buffer with capacity [" + capacity +
+                "], with slice parameters to [" + to + "]");
+        } else if (to == 0) {
+            return EMPTY_BYTE_PAGE_ARRAY;
+        }
+        long indexWithOffset = to + offset;
+        int pageCount = pageIndex(indexWithOffset);
+        int finalLimit = indexInPage(indexWithOffset);
+        if (finalLimit != 0) {
+            pageCount += 1;
+        }
+
+        Page[] pages = new Page[pageCount];
+        Iterator<Page> pageIterator = this.pages.iterator();
+        Page firstPage = pageIterator.next().duplicate();
+        ByteBuffer firstBuffer = firstPage.byteBuffer;
+        firstBuffer.position(firstBuffer.position() + offset);
+        pages[0] = firstPage;
+        for (int i = 1; i < pages.length; i++) {
+            pages[i] = pageIterator.next().duplicate();
+        }
+        if (finalLimit != 0) {
+            pages[pages.length - 1].byteBuffer.limit(finalLimit);
+        }
+
+        return pages;
+    }
+
+    /**
      * This method will return an array of {@link ByteBuffer} representing the bytes from the index passed
      * through the end of this buffer. The buffers will be duplicates of the internal buffers, so any
      * modifications to the markers {@link ByteBuffer#position()}, {@link ByteBuffer#limit()}, etc will not
@@ -231,16 +273,49 @@ public final class InboundChannelBuffer implements AutoCloseable {
     public static class Page implements AutoCloseable {
 
         private final ByteBuffer byteBuffer;
-        private final Runnable closeable;
+        // This is reference counted as some implementations want to retain the byte pages by calling
+        // sliceAndRetainPagesTo. With reference counting we can increment the reference count, return the
+        // pages, and safely close them when this channel buffer is done with them. The reference count
+        // would be 1 at that point, meaning that the pages will remain until the implementation closes
+        // theirs.
+        private final RefCountedCloseable refCountedCloseable;
 
         public Page(ByteBuffer byteBuffer, Runnable closeable) {
+            this(byteBuffer, new RefCountedCloseable(closeable));
+        }
+
+        private Page(ByteBuffer byteBuffer, RefCountedCloseable refCountedCloseable) {
             this.byteBuffer = byteBuffer;
-            this.closeable = closeable;
+            this.refCountedCloseable = refCountedCloseable;
+        }
+
+        private Page duplicate() {
+            refCountedCloseable.incRef();
+            return new Page(byteBuffer.duplicate(), refCountedCloseable);
+        }
+
+        public ByteBuffer getByteBuffer() {
+            return byteBuffer;
         }
 
         @Override
         public void close() {
-            closeable.run();
+            refCountedCloseable.decRef();
+        }
+
+        private static class RefCountedCloseable extends AbstractRefCounted {
+
+            private final Runnable closeable;
+
+            private RefCountedCloseable(Runnable closeable) {
+                super("byte array page");
+                this.closeable = closeable;
+            }
+
+            @Override
+            protected void closeInternal() {
+                closeable.run();
+            }
         }
     }
 }

@@ -291,14 +291,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                        PageCacheRecycler pageCacheRecycler,
                                                                         CircuitBreakerService circuitBreakerService,
-                                                                        NamedWriteableRegistry namedWriteableRegistry,
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).stream().forEach(p -> transports.putAll(p.getHttpTransports(settings, threadPool, bigArrays,
-                circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, dispatcher)));
+            pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher)));
         return transports;
     }
 

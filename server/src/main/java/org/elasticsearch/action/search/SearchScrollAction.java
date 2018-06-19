@@ -21,7 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.Action;
 
-public class SearchScrollAction extends Action<SearchScrollRequest, SearchResponse> {
+public class SearchScrollAction extends Action<SearchResponse> {
 
     public static final SearchScrollAction INSTANCE = new SearchScrollAction();
     public static final String NAME = "indices:data/read/scroll";

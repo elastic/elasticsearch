@@ -19,11 +19,14 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.microsoft.azure.storage.LocationMode;
+import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.blob.CloudBlobClient;
+
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.Streams;
@@ -40,6 +43,9 @@ import java.security.AccessController;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+
+import static java.util.Collections.emptyMap;
 
 /**
  * In memory storage for unit tests
@@ -53,44 +59,44 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     }
 
     @Override
-    public boolean doesContainerExist(String account, LocationMode mode, String container) {
+    public boolean doesContainerExist(String account, String container) {
         return true;
     }
 
     @Override
-    public void removeContainer(String account, LocationMode mode, String container) {
+    public void removeContainer(String account, String container) {
     }
 
     @Override
-    public void createContainer(String account, LocationMode mode, String container) {
+    public void createContainer(String account, String container) {
     }
 
     @Override
-    public void deleteFiles(String account, LocationMode mode, String container, String path) {
-        final Map<String, BlobMetaData> blobs = listBlobsByPrefix(account, mode, container, path, null);
-        blobs.keySet().forEach(key -> deleteBlob(account, mode, container, key));
+    public void deleteFiles(String account, String container, String path) {
+        final Map<String, BlobMetaData> blobs = listBlobsByPrefix(account, container, path, null);
+        blobs.keySet().forEach(key -> deleteBlob(account, container, key));
     }
 
     @Override
-    public boolean blobExists(String account, LocationMode mode, String container, String blob) {
+    public boolean blobExists(String account, String container, String blob) {
         return blobs.containsKey(blob);
     }
 
     @Override
-    public void deleteBlob(String account, LocationMode mode, String container, String blob) {
+    public void deleteBlob(String account, String container, String blob) {
         blobs.remove(blob);
     }
 
     @Override
-    public InputStream getInputStream(String account, LocationMode mode, String container, String blob) throws IOException {
-        if (!blobExists(account, mode, container, blob)) {
+    public InputStream getInputStream(String account, String container, String blob) throws IOException {
+        if (!blobExists(account, container, blob)) {
             throw new NoSuchFileException("missing blob [" + blob + "]");
         }
         return AzureStorageService.giveSocketPermissionsToStream(new PermissionRequiringInputStream(blobs.get(blob).toByteArray()));
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix) {
+    public Map<String, BlobMetaData> listBlobsByPrefix(String account, String container, String keyPath, String prefix) {
         MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
         blobs.forEach((String blobName, ByteArrayOutputStream bos) -> {
             final String checkBlob;
@@ -108,7 +114,7 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     }
 
     @Override
-    public void writeBlob(String account, LocationMode mode, String container, String blobName, InputStream inputStream, long blobSize)
+    public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize)
         throws URISyntaxException, StorageException, FileAlreadyExistsException {
         if (blobs.containsKey(blobName)) {
             throw new FileAlreadyExistsException(blobName);
@@ -167,5 +173,15 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
             AccessController.checkPermission(new SocketPermission("*", "connect"));
             return super.read(b, off, len);
         }
+    }
+
+    @Override
+    public Tuple<CloudBlobClient, Supplier<OperationContext>> client(String clientName) {
+        return null;
+    }
+
+    @Override
+    public Map<String, AzureStorageSettings> refreshAndClearCache(Map<String, AzureStorageSettings> clientsSettings) {
+        return emptyMap();
     }
 }

@@ -37,6 +37,6 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "sql_translate_action";
+        return "xpack_sql_clear_cursor_action";
     }
 }

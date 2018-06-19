@@ -77,7 +77,7 @@ public class NativeUsersStoreTests extends ESTestCase {
                     Response extends ActionResponse,
                     RequestBuilder extends ActionRequestBuilder<Request, Response>
                     > void doExecute(
-                    Action<Request, Response> action,
+                    Action<Response> action,
                     Request request,
                     ActionListener<Response> listener) {
                 requests.add(new Tuple<>(request, listener));

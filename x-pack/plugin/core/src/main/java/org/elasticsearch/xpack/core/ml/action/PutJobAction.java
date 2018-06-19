@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Response> {
+public class PutJobAction extends Action<PutJobAction.Response> {
 
     public static final PutJobAction INSTANCE = new PutJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/put";

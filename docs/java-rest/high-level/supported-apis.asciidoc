@@ -151,3 +151,14 @@ The Java High Level REST Client supports the following Tasks APIs:
 
 include::tasks/list_tasks.asciidoc[]
 include::tasks/cancel_tasks.asciidoc[]
+
+== Script APIs
+
+The Java High Level REST Client supports the following Scripts APIs:
+
+* <<java-rest-high-get-stored-script>>
+* <<java-rest-high-delete-stored-script>>
+
+include::script/get_script.asciidoc[]
+include::script/delete_script.asciidoc[]
+

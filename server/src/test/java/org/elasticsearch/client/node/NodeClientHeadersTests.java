@@ -21,7 +21,7 @@ package org.elasticsearch.client.node;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
@@ -39,7 +39,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     private static final ActionFilters EMPTY_FILTERS = new ActionFilters(Collections.<ActionFilter>emptySet());
 
     @Override
-    protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
+    protected Client buildClient(Settings headersSettings, Action[] testedActions) {
         Settings settings = HEADER_SETTINGS;
         Actions actions = new Actions(settings, threadPool, testedActions);
         NodeClient client = new NodeClient(settings, threadPool);
@@ -47,10 +47,10 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         return client;
     }
 
-    private static class Actions extends HashMap<GenericAction, TransportAction> {
+    private static class Actions extends HashMap<Action, TransportAction> {
 
-        private Actions(Settings settings, ThreadPool threadPool, GenericAction[] actions) {
-            for (GenericAction action : actions) {
+        private Actions(Settings settings, ThreadPool threadPool, Action[] actions) {
+            for (Action action : actions) {
                 put(action, new InternalTransportAction(settings, action.name(), threadPool));
             }
         }

@@ -23,6 +23,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Response;
@@ -82,7 +83,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                         LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(request.getPolicy(), filteredHeaders);
                         newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
-                        IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies);
+                        IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, OperationMode.NORMAL);
                         newState.metaData(MetaData.builder(currentState.getMetaData())
                                 .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
                         return newState.build();

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 
@@ -59,7 +60,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
             policies.put(policyName, new LifecyclePolicyMetadata(new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, phases),
                     Collections.emptyMap()));
         }
-        return new IndexLifecycleMetadata(policies);
+        return new IndexLifecycleMetadata(policies, randomFrom(OperationMode.values()));
     }
 
     @Override
@@ -93,10 +94,15 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
         IndexLifecycleMetadata metadata = (IndexLifecycleMetadata) instance;
         Map<String, LifecyclePolicyMetadata> policies = metadata.getPolicyMetadatas();
         policies = new TreeMap<>(policies);
-        String policyName = randomAlphaOfLength(10);
-        policies.put(policyName, new LifecyclePolicyMetadata(
+        OperationMode mode = metadata.getMaintenanceMode();
+        if (randomBoolean()) {
+            String policyName = randomAlphaOfLength(10);
+            policies.put(policyName, new LifecyclePolicyMetadata(
                 new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, Collections.emptyMap()), Collections.emptyMap()));
-        return new IndexLifecycleMetadata(policies);
+        } else {
+            mode = randomValueOtherThan(metadata.getMaintenanceMode(), () -> randomFrom(OperationMode.values()));
+        }
+        return new IndexLifecycleMetadata(policies, mode);
     }
 
     @Override

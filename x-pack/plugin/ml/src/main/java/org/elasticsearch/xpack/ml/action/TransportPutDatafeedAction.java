@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
 
@@ -95,7 +96,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else {
-            putDatafeed(request, listener);
+            putDatafeed(request, threadPool.getThreadContext().getHeaders(), listener);
         }
     }
 
@@ -103,7 +104,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                      HasPrivilegesResponse response,
                                      ActionListener<PutDatafeedAction.Response> listener) throws IOException {
         if (response.isCompleteMatch()) {
-            putDatafeed(request, listener);
+            putDatafeed(request, threadPool.getThreadContext().getHeaders(), listener);
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();
@@ -120,7 +121,8 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         }
     }
 
-    private void putDatafeed(PutDatafeedAction.Request request, ActionListener<PutDatafeedAction.Response> listener) {
+    private void putDatafeed(PutDatafeedAction.Request request, Map<String, String> headers,
+                             ActionListener<PutDatafeedAction.Response> listener) {
 
         clusterService.submitStateUpdateTask(
                 "put-datafeed-" + request.getDatafeed().getId(),
@@ -136,16 +138,16 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        return putDatafeed(request, currentState);
+                        return putDatafeed(request, headers, currentState);
                     }
                 });
     }
 
-    private ClusterState putDatafeed(PutDatafeedAction.Request request, ClusterState clusterState) {
+    private ClusterState putDatafeed(PutDatafeedAction.Request request, Map<String, String> headers, ClusterState clusterState) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         MlMetadata currentMetadata = MlMetadata.getMlMetadata(clusterState);
         MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
-                .putDatafeed(request.getDatafeed(), threadPool.getThreadContext()).build();
+                .putDatafeed(request.getDatafeed(), headers).build();
         return ClusterState.builder(clusterState).metaData(
                 MetaData.builder(clusterState.getMetaData()).putCustom(MLMetadataField.TYPE, newMetadata).build())
                 .build();

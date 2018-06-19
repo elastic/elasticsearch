@@ -321,6 +321,22 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Mockito.verifyZeroInteractions(clusterService);
     }
 
+    public void testRunPolicyWithNoStepsInRegistry() {
+        String policyName = "cluster_state_action_policy";
+        StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");
+        ClusterService clusterService = mock(ClusterService.class);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(new PolicyStepsRegistry(), clusterService, () -> 0L);
+        IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class,
+            () -> runner.runPolicy(policyName, indexMetaData, null, randomBoolean()));
+        assertEquals("current step for index [my_index] with policy [cluster_state_action_policy] is not recognized",
+            exception.getMessage());
+        Mockito.verifyZeroInteractions(clusterService);
+
+    }
+
     public void testRunPolicyUnknownStepType() {
         String policyName = "cluster_state_action_policy";
         StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");
@@ -677,8 +693,15 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                         .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
                         .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()));
         Index index = clusterState.metaData().index(indexName).getIndex();
+
         ClusterState newClusterState = IndexLifecycleRunner.moveClusterStateToErrorStep(index, clusterState, currentStep, cause, () -> now);
-        assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, cause, now);
+        assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, now,
+            "{\"type\":\"exception\",\"reason\":\"THIS IS AN EXPECTED CAUSE\"}");
+
+        cause = new IllegalArgumentException("non elasticsearch-exception");
+        newClusterState = IndexLifecycleRunner.moveClusterStateToErrorStep(index, clusterState, currentStep, cause, () -> now);
+        assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, now,
+            "{\"type\":\"illegal_argument_exception\",\"reason\":\"non elasticsearch-exception\"}");
     }
 
     public void testMoveClusterStateToFailedStep() {
@@ -950,13 +973,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertEquals("", LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newIndexSettings));
     }
 
-    private void assertClusterStateOnErrorStep(ClusterState oldClusterState, Index index, StepKey currentStep, ClusterState newClusterState,
-            Exception cause, long now) throws IOException {
-        XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder();
-        causeXContentBuilder.startObject();
-        ElasticsearchException.generateFailureXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause, false);
-        causeXContentBuilder.endObject();
-        String expectedCauseValue = BytesReference.bytes(causeXContentBuilder).utf8ToString();
+    private void assertClusterStateOnErrorStep(ClusterState oldClusterState, Index index, StepKey currentStep,
+                                               ClusterState newClusterState, long now, String expectedCauseValue) throws IOException {
         assertNotSame(oldClusterState, newClusterState);
         MetaData newMetadata = newClusterState.metaData();
         assertNotSame(oldClusterState.metaData(), newMetadata);

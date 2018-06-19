@@ -78,7 +78,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
 
     @Override
     public int consumeReads(InboundChannelBuffer channelBuffer) throws IOException {
-        int bytesConsumed = adaptor.read(channelBuffer.sliceBuffersTo(channelBuffer.getIndex()));
+        int bytesConsumed = adaptor.read(channelBuffer.sliceAndRetainPagesTo(channelBuffer.getIndex()));
         Object message;
         while ((message = adaptor.pollInboundMessage()) != null) {
             handleRequest(message);

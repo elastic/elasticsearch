@@ -68,7 +68,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
 
         XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder();
         causeXContentBuilder.startObject();
-        ElasticsearchException.generateFailureXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause, false);
+        ElasticsearchException.generateThrowableXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause);
         causeXContentBuilder.endObject();
         String expectedCauseValue = BytesReference.bytes(causeXContentBuilder).utf8ToString();
         assertThat(LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newState.metaData().index(index).getSettings()),

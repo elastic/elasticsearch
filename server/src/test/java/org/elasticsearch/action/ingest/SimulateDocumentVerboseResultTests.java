@@ -81,11 +81,6 @@ public class SimulateDocumentVerboseResultTests extends AbstractXContentTestCase
     }
 
     @Override
-    protected boolean assertToXContentEquivalence() {
-        return true;
-    }
-
-    @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // We cannot have random fields in the _source field and _ingest field
         return field ->

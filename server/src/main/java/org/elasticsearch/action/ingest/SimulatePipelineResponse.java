@@ -63,36 +63,42 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
         PARSER.declareObjectArray(
             constructorArg(),
             (parser, context) -> {
-                ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+                Token token = parser.currentToken();
+                ensureExpectedToken(Token.START_OBJECT, token, parser::getTokenLocation);
                 SimulateDocumentResult result = null;
-                while (parser.nextToken() != Token.END_OBJECT) {
-                    ensureExpectedToken(parser.currentToken(), Token.FIELD_NAME, parser::getTokenLocation);
+                while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                    ensureExpectedToken(token, Token.FIELD_NAME, parser::getTokenLocation);
                     String fieldName = parser.currentName();
-                    parser.nextToken();
-                    switch(fieldName) {
-                        case SimulateDocumentVerboseResult.PROCESSOR_RESULT_FIELD:
-                            ensureExpectedToken(Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
-                            List<SimulateProcessorResult> results = new ArrayList<>();
-                            while (parser.nextToken().equals(Token.START_OBJECT)) {
-                                results.add(SimulateProcessorResult.fromXContent(parser));
-                            }
-                            ensureExpectedToken(Token.END_ARRAY, parser.currentToken(), parser::getTokenLocation);
-                            result = new SimulateDocumentVerboseResult(results);
-                            break;
-                        case WriteableIngestDocument.DOC_FIELD:
-                        case "error":
-                            if (fieldName.equals("error")) {
-                                result = new SimulateDocumentBaseResult(ElasticsearchException.fromXContent(parser));
-                            } else {
+                    token = parser.nextToken();
+                    if (token == Token.START_ARRAY) {
+                        switch (fieldName) {
+                            case SimulateDocumentVerboseResult.PROCESSOR_RESULT_FIELD:
+                                List<SimulateProcessorResult> results = new ArrayList<>();
+                                while ((token = parser.nextToken()).equals(Token.START_OBJECT)) {
+                                    results.add(SimulateProcessorResult.fromXContent(parser));
+                                }
+                                ensureExpectedToken(Token.END_ARRAY, token, parser::getTokenLocation);
+                                result = new SimulateDocumentVerboseResult(results);
+                                break;
+                            default:
+                                parser.skipChildren();
+                                break;
+                        }
+                    } else if (token.equals(Token.START_OBJECT)) {
+                        switch (fieldName) {
+                            case WriteableIngestDocument.DOC_FIELD:
                                 result = new SimulateDocumentBaseResult(
                                     WriteableIngestDocument.INGEST_DOC_PARSER.apply(parser, null).getIngestDocument()
                                 );
-                            }
-                            ensureExpectedToken(Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
-                            break;
-                        default:
-                            parser.skipChildren();
-                    }
+                                break;
+                            case "error":
+                                result = new SimulateDocumentBaseResult(ElasticsearchException.fromXContent(parser));
+                                break;
+                            default:
+                                parser.skipChildren();
+                                break;
+                        }
+                    } // else it is a value skip it
                 }
                 assert result != null;
                 return result;

@@ -121,11 +121,6 @@ public class SimulateDocumentBaseResultTests extends AbstractXContentTestCase<Si
         assertEqualDocs(response, parsedResponse);
     }
 
-    @Override
-    protected boolean assertToXContentEquivalence() {
-        return true;
-    }
-
     /**
      * Test parsing {@link SimulateDocumentBaseResult} with inner failures as they don't support asserting on xcontent
      * equivalence, given that exceptions are not parsed back as the same original class. We run the usual

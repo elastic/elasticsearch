@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.CloseableChannel;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -53,6 +54,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
@@ -77,6 +79,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final AtomicLong totalChannelsAccepted = new AtomicLong();
     protected final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     protected volatile BoundTransportAddress boundAddress;
+    private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
@@ -142,7 +145,33 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), new TransportAddress(publishAddress));
     }
 
-    protected abstract TransportAddress bindAddress(InetAddress hostAddress);
+    private TransportAddress bindAddress(final InetAddress hostAddress) {
+        final AtomicReference<Exception> lastException = new AtomicReference<>();
+        final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
+        boolean success = port.iterate(portNumber -> {
+            try {
+                synchronized (httpServerChannels) {
+                    HttpServerChannel httpServerChannel = bind(new InetSocketAddress(hostAddress, portNumber));
+                    httpServerChannels.add(httpServerChannel);
+                    boundSocket.set(httpServerChannel.getLocalAddress());
+                }
+            } catch (Exception e) {
+                lastException.set(e);
+                return false;
+            }
+            return true;
+        });
+        if (!success) {
+            throw new BindHttpException("Failed to bind to [" + port.getPortRangeString() + "]", lastException.get());
+        }
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("Bound http to address {{}}", NetworkAddress.format(boundSocket.get()));
+        }
+        return new TransportAddress(boundSocket.get());
+    }
+
+    protected abstract HttpServerChannel bind(InetSocketAddress hostAddress) throws Exception;
 
     // package private for tests
     static int resolvePublishPort(Settings settings, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {

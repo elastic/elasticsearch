@@ -42,21 +42,19 @@ import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.CloseableChannel;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
-import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
+import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
@@ -66,13 +64,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -284,30 +280,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @Override
-    protected TransportAddress bindAddress(final InetAddress hostAddress) {
-        final AtomicReference<Exception> lastException = new AtomicReference<>();
-        final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
-        boolean success = port.iterate(portNumber -> {
-            try {
-                synchronized (serverChannels) {
-                    ChannelFuture future = serverBootstrap.bind(new InetSocketAddress(hostAddress, portNumber)).sync();
-                    serverChannels.add(future.channel());
-                    boundSocket.set((InetSocketAddress) future.channel().localAddress());
-                }
-            } catch (Exception e) {
-                lastException.set(e);
-                return false;
-            }
-            return true;
-        });
-        if (!success) {
-            throw new BindHttpException("Failed to bind to [" + port.getPortRangeString() + "]", lastException.get());
-        }
-
-        if (logger.isDebugEnabled()) {
-            logger.debug("Bound http to address {{}}", NetworkAddress.format(boundSocket.get()));
-        }
-        return new TransportAddress(boundSocket.get());
+    protected HttpServerChannel bind(InetSocketAddress socketAddress) throws Exception {
+        ChannelFuture future = serverBootstrap.bind(socketAddress).sync();
+        return new Netty4HttpServerChannel(future.channel());
     }
 
     @Override

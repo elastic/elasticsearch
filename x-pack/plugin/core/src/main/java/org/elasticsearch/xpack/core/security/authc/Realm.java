@@ -39,7 +39,6 @@ public abstract class Realm implements Comparable<Realm> {
         this.logger = config.logger(getClass());
     }
 
-
     /**
      * @return The type of this realm
      */

@@ -53,6 +53,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -76,9 +77,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final String[] bindHosts;
     private final String[] publishHosts;
 
-    protected final AtomicLong totalChannelsAccepted = new AtomicLong();
-    protected final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    protected volatile BoundTransportAddress boundAddress;
+    private volatile BoundTransportAddress boundAddress;
+    private final AtomicLong totalChannelsAccepted = new AtomicLong();
+    private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
@@ -119,7 +120,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         return new HttpInfo(boundTransportAddress, maxContentLength.getBytes());
     }
 
-    protected BoundTransportAddress createBoundHttpAddress() {
+    @Override
+    public HttpStats stats() {
+        return new HttpStats(httpChannels.size(), totalChannelsAccepted.get());
+    }
+
+    protected void bindServer() {
         // Bind and start to accept incoming connections.
         InetAddress hostAddresses[];
         try {
@@ -142,7 +148,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         final int publishPort = resolvePublishPort(settings, boundAddresses, publishInetAddress);
         final InetSocketAddress publishAddress = new InetSocketAddress(publishInetAddress, publishPort);
-        return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), new TransportAddress(publishAddress));
+        this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), new TransportAddress(publishAddress));
+        logger.info("{}", boundAddress);
     }
 
     private TransportAddress bindAddress(final InetAddress hostAddress) {
@@ -172,6 +179,39 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     protected abstract HttpServerChannel bind(InetSocketAddress hostAddress) throws Exception;
+
+    @Override
+    protected void doStop() {
+        synchronized (httpServerChannels) {
+            if (httpServerChannels.isEmpty() == false) {
+                try {
+                    CloseableChannel.closeChannels(new ArrayList<>(httpServerChannels), true);
+                } catch (Exception e) {
+                    logger.warn("exception while closing channels", e);
+                } finally {
+                    httpServerChannels.clear();
+                }
+            }
+        }
+
+        try {
+            CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
+        } catch (Exception e) {
+            logger.warn("unexpected exception while closing http channels", e);
+        }
+        httpChannels.clear();
+
+        stopInternal();
+    }
+
+    @Override
+    protected void doClose() {
+    }
+
+    /**
+     * Called to tear down internal resources
+     */
+    protected abstract void stopInternal();
 
     // package private for tests
     static int resolvePublishPort(Settings settings, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {
@@ -226,9 +266,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             CloseableChannel.closeChannel(channel);
         } else {
             logger.warn(() -> new ParameterizedMessage(
-                    "caught exception while handling client http traffic, closing connection {}", channel), e);
+                "caught exception while handling client http traffic, closing connection {}", channel), e);
             CloseableChannel.closeChannel(channel);
         }
+    }
+
+    protected void onServerException(HttpServerChannel channel, Exception e) {
+        logger.error(new ParameterizedMessage("exception from http server channel caught on transport layer [channel={}]", channel), e);
     }
 
     /**
@@ -237,8 +281,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param exception the exception
      */
     protected void onNonChannelException(Exception exception) {
-        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()),
-            exception);
+        String threadName = Thread.currentThread().getName();
+        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", threadName), exception);
     }
 
     protected void serverAcceptedChannel(HttpChannel httpChannel) {

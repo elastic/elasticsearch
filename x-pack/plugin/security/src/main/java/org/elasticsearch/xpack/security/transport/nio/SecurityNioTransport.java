@@ -131,9 +131,8 @@ public class SecurityNioTransport extends NioTransport {
 
         @Override
         public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
-            NioTcpServerChannel nioChannel = new NioTcpServerChannel(profileName, channel);
-            Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
-                new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
+            NioTcpServerChannel nioChannel = new NioTcpServerChannel(profileName, channel);;
+            Consumer<Exception> exceptionHandler = (e) -> onServerException(nioChannel, e);
             Consumer<NioSocketChannel> acceptor = SecurityNioTransport.this::acceptChannel;
             ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, acceptor, exceptionHandler);
             nioChannel.setContext(context);

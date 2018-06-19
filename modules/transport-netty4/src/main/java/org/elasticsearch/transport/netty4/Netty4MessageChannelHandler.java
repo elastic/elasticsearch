@@ -37,7 +37,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     private final Netty4Transport transport;
 
-    Netty4MessageChannelHandler(Netty4Transport transport, String profileName) {
+    Netty4MessageChannelHandler(Netty4Transport transport) {
         this.transport = transport;
     }
 
@@ -67,7 +67,12 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         Netty4Utils.maybeDie(cause);
-        transport.exceptionCaught(ctx, cause);
+        Netty4TcpChannel tcpChannel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
+        if (cause instanceof Error) {
+            transport.onException(tcpChannel, new Exception(cause));
+        } else {
+            transport.onException(tcpChannel, (Exception) cause);
+        }
     }
 
 }

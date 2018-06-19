@@ -42,7 +42,8 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
     @Inject
     public TransportNoopSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                      ActionFilters actionFilters) {
-        super(settings, NoopSearchAction.NAME, threadPool, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
+        super(settings, NoopSearchAction.NAME, threadPool, transportService, actionFilters,
+              (Writeable.Reader<SearchRequest>) SearchRequest::new);
     }
 
     @Override

@@ -51,6 +51,7 @@ public class ExpressionTests extends ESTestCase {
         NumberFieldType fieldType = new NumberFieldType(NumberType.DOUBLE);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fullName("field")).thenReturn(fieldType);
+        when(mapperService.fullName("alias")).thenReturn(fieldType);
 
         SortedNumericDoubleValues doubleValues = mock(SortedNumericDoubleValues.class);
         when(doubleValues.advanceExact(anyInt())).thenReturn(true);
@@ -95,6 +96,14 @@ public class ExpressionTests extends ESTestCase {
 
     public void testFieldAccess() throws IOException {
         SearchScript script = compile("doc['field'].value").newInstance(null);
+        script.setDocument(1);
+
+        double result = script.runAsDouble();
+        assertEquals(2.718, result, 0.0);
+    }
+
+    public void testFieldAccessWithFieldAlias() throws IOException {
+        SearchScript script = compile("doc['alias'].value").newInstance(null);
         script.setDocument(1);
 
         double result = script.runAsDouble();

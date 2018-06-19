@@ -20,7 +20,6 @@
 package org.elasticsearch.node;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.ThreadContext;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;

@@ -210,6 +210,9 @@ The following settings are supported:
 
     Sets the S3 storage class type for the backup files. Values may be
     `standard`, `reduced_redundancy`, `standard_ia`. Defaults to `standard`.
+    All new files created will use the set storage class.
+    Previous snapshot files created with a different storage class will retain
+    their existing storage class and can be changed via the AWS API. 
     Due to the extra complexity with the Glacier class lifecycle, it is not
     currently supported by the plugin. For more information about the
     different classes, see http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide]

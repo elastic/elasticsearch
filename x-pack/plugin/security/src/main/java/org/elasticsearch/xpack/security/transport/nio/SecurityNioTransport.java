@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;

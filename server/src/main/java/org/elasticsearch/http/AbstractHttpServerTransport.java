@@ -53,7 +53,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -147,8 +146,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
 
         final int publishPort = resolvePublishPort(settings, boundAddresses, publishInetAddress);
-        final InetSocketAddress publishAddress = new InetSocketAddress(publishInetAddress, publishPort);
-        this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), new TransportAddress(publishAddress));
+        TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
+        this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), publishAddress);
         logger.info("{}", boundAddress);
     }
 

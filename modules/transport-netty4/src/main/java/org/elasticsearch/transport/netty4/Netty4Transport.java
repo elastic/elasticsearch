@@ -38,8 +38,6 @@ import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;

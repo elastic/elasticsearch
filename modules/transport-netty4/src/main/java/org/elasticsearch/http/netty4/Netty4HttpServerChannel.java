@@ -20,11 +20,8 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelPromise;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.concurrent.CompletableContext;
-import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 

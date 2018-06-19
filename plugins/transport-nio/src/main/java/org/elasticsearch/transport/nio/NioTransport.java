@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;

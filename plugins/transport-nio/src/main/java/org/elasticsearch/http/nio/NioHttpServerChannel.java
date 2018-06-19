@@ -20,15 +20,11 @@
 package org.elasticsearch.http.nio;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.nio.NioServerSocketChannel;
-import org.elasticsearch.nio.NioSocketChannel;
 
 import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
 
 public class NioHttpServerChannel extends NioServerSocketChannel implements HttpServerChannel {
 

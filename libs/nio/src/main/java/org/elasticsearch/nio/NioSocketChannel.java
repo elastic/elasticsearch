@@ -21,6 +21,7 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -30,12 +31,11 @@ public class NioSocketChannel extends NioChannel {
     private final AtomicBoolean contextSet = new AtomicBoolean(false);
     private final SocketChannel socketChannel;
     private volatile InetSocketAddress remoteAddress;
+    private volatile InetSocketAddress localAddress;
     private SocketChannelContext context;
 
     public NioSocketChannel(SocketChannel socketChannel) {
         this.socketChannel = socketChannel;
-        // Calling getRemoteAddress will attempt to set the local address for future calls.
-        getRemoteAddress();
     }
 
     public void setContext(SocketChannelContext context) {
@@ -44,6 +44,14 @@ public class NioSocketChannel extends NioChannel {
         } else {
             throw new IllegalStateException("Context on this channel were already set. It should only be once.");
         }
+    }
+
+    @Override
+    public InetSocketAddress getLocalAddress() {
+        if (localAddress == null) {
+            localAddress = (InetSocketAddress) socketChannel.socket().getLocalSocketAddress();
+        }
+        return localAddress;
     }
 
     @Override
@@ -58,10 +66,17 @@ public class NioSocketChannel extends NioChannel {
 
     public InetSocketAddress getRemoteAddress() {
         if (remoteAddress == null) {
-            try {
-                remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
-            } catch (IOException e) {
-                // We are not care about this exception.
+            Socket socket = socketChannel.socket();
+            // socket.getRemoteSocketAddress() will only return the address if the socket is connected.
+            if (socket.isConnected()) {
+                remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
+            } else {
+                try {
+                    remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
+                } catch (IOException e) {
+                    // This exception will be thrown if the channel is closed. But we do not really care when
+                    // we are just attempting to read the remote address.
+                }
             }
         }
         return remoteAddress;

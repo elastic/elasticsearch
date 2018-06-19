@@ -63,8 +63,9 @@ public class RoundTripTests extends ESTestCase {
             }
             TimeValue socketTimeout = parseTimeValue(randomPositiveTimeValue(), "socketTimeout");
             TimeValue connectTimeout = parseTimeValue(randomPositiveTimeValue(), "connectTimeout");
-            reindex.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), port, query, username, password, headers,
-                    socketTimeout, connectTimeout));
+            reindex.setRemoteInfo(
+                new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), port, null,
+                    query, username, password, headers, socketTimeout, connectTimeout));
         }
         ReindexRequest tripped = new ReindexRequest();
         roundTrip(reindex, tripped);

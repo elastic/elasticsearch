@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.DescribeInstancesRequest;
 import com.amazonaws.services.ec2.model.DescribeInstancesResult;
 import com.amazonaws.services.ec2.model.Filter;
@@ -59,7 +58,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
 
     private final TransportService transportService;
 
-    private final AmazonEC2 client;
+    private final AwsEc2Service awsEc2Service;
 
     private final boolean bindAnyGroup;
 
@@ -76,7 +75,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
     AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
         super(settings);
         this.transportService = transportService;
-        this.client = awsEc2Service.client();
+        this.awsEc2Service = awsEc2Service;
 
         this.hostType = AwsEc2Service.HOST_TYPE_SETTING.get(settings);
         this.discoNodes = new DiscoNodesCache(AwsEc2Service.NODE_CACHE_TIME_SETTING.get(settings));
@@ -103,31 +102,31 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
 
     protected List<DiscoveryNode> fetchDynamicNodes() {
 
-        List<DiscoveryNode> discoNodes = new ArrayList<>();
+        final List<DiscoveryNode> discoNodes = new ArrayList<>();
 
-        DescribeInstancesResult descInstances;
-        try {
+        final DescribeInstancesResult descInstances;
+        try (AmazonEc2Reference clientReference = awsEc2Service.client()) {
             // Query EC2 API based on AZ, instance state, and tag.
 
             // NOTE: we don't filter by security group during the describe instances request for two reasons:
             // 1. differences in VPCs require different parameters during query (ID vs Name)
             // 2. We want to use two different strategies: (all security groups vs. any security groups)
-            descInstances = SocketAccess.doPrivileged(() -> client.describeInstances(buildDescribeInstancesRequest()));
-        } catch (AmazonClientException e) {
+            descInstances = SocketAccess.doPrivileged(() -> clientReference.client().describeInstances(buildDescribeInstancesRequest()));
+        } catch (final AmazonClientException e) {
             logger.info("Exception while retrieving instance list from AWS API: {}", e.getMessage());
             logger.debug("Full exception:", e);
             return discoNodes;
         }
 
         logger.trace("building dynamic unicast discovery nodes...");
-        for (Reservation reservation : descInstances.getReservations()) {
-            for (Instance instance : reservation.getInstances()) {
+        for (final Reservation reservation : descInstances.getReservations()) {
+            for (final Instance instance : reservation.getInstances()) {
                 // lets see if we can filter based on groups
                 if (!groups.isEmpty()) {
-                    List<GroupIdentifier> instanceSecurityGroups = instance.getSecurityGroups();
-                    List<String> securityGroupNames = new ArrayList<>(instanceSecurityGroups.size());
-                    List<String> securityGroupIds = new ArrayList<>(instanceSecurityGroups.size());
-                    for (GroupIdentifier sg : instanceSecurityGroups) {
+                    final List<GroupIdentifier> instanceSecurityGroups = instance.getSecurityGroups();
+                    final List<String> securityGroupNames = new ArrayList<>(instanceSecurityGroups.size());
+                    final List<String> securityGroupIds = new ArrayList<>(instanceSecurityGroups.size());
+                    for (final GroupIdentifier sg : instanceSecurityGroups) {
                         securityGroupNames.add(sg.getGroupName());
                         securityGroupIds.add(sg.getGroupId());
                     }
@@ -162,10 +161,10 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
                     address = instance.getPublicIpAddress();
                 } else if (hostType.startsWith(TAG_PREFIX)) {
                     // Reading the node host from its metadata
-                    String tagName = hostType.substring(TAG_PREFIX.length());
+                    final String tagName = hostType.substring(TAG_PREFIX.length());
                     logger.debug("reading hostname from [{}] instance tag", tagName);
-                    List<Tag> tags = instance.getTags();
-                    for (Tag tag : tags) {
+                    final List<Tag> tags = instance.getTags();
+                    for (final Tag tag : tags) {
                         if (tag.getKey().equals(tagName)) {
                             address = tag.getValue();
                             logger.debug("using [{}] as the instance address", address);
@@ -177,13 +176,13 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
                 if (address != null) {
                     try {
                         // we only limit to 1 port per address, makes no sense to ping 100 ports
-                        TransportAddress[] addresses = transportService.addressesFromString(address, 1);
+                        final TransportAddress[] addresses = transportService.addressesFromString(address, 1);
                         for (int i = 0; i < addresses.length; i++) {
                             logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
                             discoNodes.add(new DiscoveryNode(instance.getInstanceId(), "#cloud-" + instance.getInstanceId() + "-" + i,
                                 addresses[i], emptyMap(), emptySet(), Version.CURRENT.minimumCompatibilityVersion()));
                         }
-                    } catch (Exception e) {
+                    } catch (final Exception e) {
                         final String finalAddress = address;
                         logger.warn(
                             (Supplier<?>)
@@ -201,12 +200,12 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
     }
 
     private DescribeInstancesRequest buildDescribeInstancesRequest() {
-        DescribeInstancesRequest describeInstancesRequest = new DescribeInstancesRequest()
+        final DescribeInstancesRequest describeInstancesRequest = new DescribeInstancesRequest()
             .withFilters(
                 new Filter("instance-state-name").withValues("running", "pending")
             );
 
-        for (Map.Entry<String, List<String>> tagFilter : tags.entrySet()) {
+        for (final Map.Entry<String, List<String>> tagFilter : tags.entrySet()) {
             // for a given tag key, OR relationship for multiple different values
             describeInstancesRequest.withFilters(
                 new Filter("tag:" + tagFilter.getKey()).withValues(tagFilter.getValue())
@@ -238,7 +237,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
 
         @Override
         protected List<DiscoveryNode> refresh() {
-            List<DiscoveryNode> nodes = fetchDynamicNodes();
+            final List<DiscoveryNode> nodes = fetchDynamicNodes();
             empty = nodes.isEmpty();
             return nodes;
         }

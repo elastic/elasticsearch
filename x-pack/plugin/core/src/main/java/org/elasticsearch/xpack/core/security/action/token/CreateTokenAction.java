@@ -10,7 +10,7 @@ import org.elasticsearch.action.Action;
 /**
  * Action for creating a new token
  */
-public final class CreateTokenAction extends Action<CreateTokenRequest, CreateTokenResponse> {
+public final class CreateTokenAction extends Action<CreateTokenResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/token/create";
     public static final CreateTokenAction INSTANCE = new CreateTokenAction();

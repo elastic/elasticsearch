@@ -422,11 +422,11 @@ POST _reindex
 // TEST[s/"username": "user",//]
 // TEST[s/"password": "pass"//]
 
-The `host` parameter must contain a scheme, host, and port (e.g.
-`https://otherhost:9200`). The `username` and `password` parameters are
-optional, and when they are present `_reindex` will connect to the remote
-Elasticsearch node using basic auth. Be sure to use `https` when using
-basic auth or the password will be sent in plain text.
+The `host` parameter must contain a scheme, host, port (e.g.
+`https://otherhost:9200`) and optional path (e.g. `https://otherhost:9200/proxy`).
+The `username` and `password` parameters are optional, and when they are present `_reindex`
+will connect to the remote Elasticsearch node using basic auth. Be sure to use `https` when
+using basic auth or the password will be sent in plain text.
 
 Remote hosts have to be explicitly whitelisted in elasticsearch.yaml using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list

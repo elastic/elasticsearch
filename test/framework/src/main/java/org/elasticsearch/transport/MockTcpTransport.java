@@ -191,7 +191,22 @@ public class MockTcpTransport extends TcpTransport {
     @Override
     protected ConnectionProfile resolveConnectionProfile(ConnectionProfile connectionProfile) {
         ConnectionProfile connectionProfile1 = resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
-        ConnectionProfile.Builder builder = new ConnectionProfile.Builder(LIGHT_PROFILE);
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        Set<TransportRequestOptions.Type> allTypesWithConnection = new HashSet<>();
+        Set<TransportRequestOptions.Type> allTypesWithoutConnection = new HashSet<>();
+        for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile1.getHandles()) {
+            Set<TransportRequestOptions.Type> types = handle.getTypes();
+            if (handle.length > 0) {
+                allTypesWithConnection.addAll(types);
+            } else {
+                allTypesWithoutConnection.addAll(types);
+            }
+        }
+        // make sure we maintain at least the types that are supported by this profile even if we only use a single channel for them.
+        builder.addConnections(1, allTypesWithConnection.toArray(new TransportRequestOptions.Type[0]));
+        if (allTypesWithoutConnection.isEmpty() == false) {
+            builder.addConnections(0, allTypesWithoutConnection.toArray(new TransportRequestOptions.Type[0]));
+        }
         builder.setHandshakeTimeout(connectionProfile1.getHandshakeTimeout());
         builder.setConnectTimeout(connectionProfile1.getConnectTimeout());
         return builder.build();

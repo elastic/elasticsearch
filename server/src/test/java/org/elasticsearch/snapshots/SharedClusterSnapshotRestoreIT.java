@@ -1519,9 +1519,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         ensureGreen();
 
         assertAcked(client.admin().indices().prepareAliases()
-                        .addAlias("test-idx-1", "alias-1")
-                        .addAlias("test-idx-2", "alias-2")
-                        .addAlias("test-idx-3", "alias-3")
+                        .addAlias("test-idx-1", "alias-1", false)
+                        .addAlias("test-idx-2", "alias-2", false)
+                        .addAlias("test-idx-3", "alias-3", false)
         );
 
         logger.info("--> indexing some data");

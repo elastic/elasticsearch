@@ -31,10 +31,10 @@ import org.elasticsearch.transport.TransportService;
 public class TransportActionNodeProxy<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent {
 
     private final TransportService transportService;
-    private final GenericAction<Request, Response> action;
+    private final Action<Response> action;
     private final TransportRequestOptions transportOptions;
 
-    public TransportActionNodeProxy(Settings settings, GenericAction<Request, Response> action, TransportService transportService) {
+    public TransportActionNodeProxy(Settings settings, Action<Response> action, TransportService transportService) {
         super(settings);
         this.action = action;
         this.transportService = transportService;

@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
@@ -43,10 +42,10 @@ import java.util.function.Supplier;
  */
 public class NodeClient extends AbstractClient {
 
-    private Map<GenericAction, TransportAction> actions;
+    private Map<Action, TransportAction> actions;
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
-     * {@link #executeLocally(GenericAction, ActionRequest, TaskListener)}.
+     * {@link #executeLocally(Action, ActionRequest, TaskListener)}.
      */
     private Supplier<String> localNodeId;
     private RemoteClusterService remoteClusterService;
@@ -55,7 +54,7 @@ public class NodeClient extends AbstractClient {
         super(settings, threadPool);
     }
 
-    public void initialize(Map<GenericAction, TransportAction> actions, Supplier<String> localNodeId,
+    public void initialize(Map<Action, TransportAction> actions, Supplier<String> localNodeId,
                            RemoteClusterService remoteClusterService) {
         this.actions = actions;
         this.localNodeId = localNodeId;
@@ -71,7 +70,7 @@ public class NodeClient extends AbstractClient {
     public <    Request extends ActionRequest,
                 Response extends ActionResponse,
                 RequestBuilder extends ActionRequestBuilder<Request, Response>
-            > void doExecute(Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+            > void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
         // Discard the task because the Client interface doesn't use it.
         executeLocally(action, request, listener);
     }
@@ -83,7 +82,7 @@ public class NodeClient extends AbstractClient {
      */
     public <    Request extends ActionRequest,
                 Response extends ActionResponse
-            > Task executeLocally(GenericAction<Request, Response> action, Request request, ActionListener<Response> listener) {
+            > Task executeLocally(Action<Response> action, Request request, ActionListener<Response> listener) {
         return transportAction(action).execute(request, listener);
     }
 
@@ -93,13 +92,13 @@ public class NodeClient extends AbstractClient {
      */
     public <    Request extends ActionRequest,
                 Response extends ActionResponse
-            > Task executeLocally(GenericAction<Request, Response> action, Request request, TaskListener<Response> listener) {
+            > Task executeLocally(Action<Response> action, Request request, TaskListener<Response> listener) {
         return transportAction(action).execute(request, listener);
     }
 
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
-     * {@link #executeLocally(GenericAction, ActionRequest, TaskListener)}.
+     * {@link #executeLocally(Action, ActionRequest, TaskListener)}.
      */
     public String getLocalNodeId() {
         return localNodeId.get();
@@ -111,7 +110,7 @@ public class NodeClient extends AbstractClient {
     @SuppressWarnings("unchecked")
     private <    Request extends ActionRequest,
                 Response extends ActionResponse
-            > TransportAction<Request, Response> transportAction(GenericAction<Request, Response> action) {
+            > TransportAction<Request, Response> transportAction(Action<Response> action) {
         if (actions == null) {
             throw new IllegalStateException("NodeClient has not been initialized");
         }

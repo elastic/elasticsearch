@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
@@ -180,13 +179,13 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
 
         Settings settings = internalCluster().getInstance(Settings.class);
         Settings bucket = settings.getByPrefix("repositories.s3.");
-        AmazonS3 s3Client = internalCluster().getInstance(AwsS3Service.class).client(repositorySettings);
-
-        String bucketName = bucket.get("bucket");
-        logger.info("--> verify encryption for bucket [{}], prefix [{}]", bucketName, basePath);
-        List<S3ObjectSummary> summaries = s3Client.listObjects(bucketName, basePath).getObjectSummaries();
-        for (S3ObjectSummary summary : summaries) {
-            assertThat(s3Client.getObjectMetadata(bucketName, summary.getKey()).getSSEAlgorithm(), equalTo("AES256"));
+        try (AmazonS3Reference s3Client = internalCluster().getInstance(AwsS3Service.class).client("default")) {
+            String bucketName = bucket.get("bucket");
+            logger.info("--> verify encryption for bucket [{}], prefix [{}]", bucketName, basePath);
+            List<S3ObjectSummary> summaries = s3Client.client().listObjects(bucketName, basePath).getObjectSummaries();
+            for (S3ObjectSummary summary : summaries) {
+                assertThat(s3Client.client().getObjectMetadata(bucketName, summary.getKey()).getSSEAlgorithm(), equalTo("AES256"));
+            }
         }
 
         logger.info("--> delete some data");
@@ -443,8 +442,7 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
             // We check that settings has been set in elasticsearch.yml integration test file
             // as described in README
             assertThat("Your settings in elasticsearch.yml are incorrect. Check README file.", bucketName, notNullValue());
-            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(Settings.EMPTY);
-            try {
+            try (AmazonS3Reference s3Client = internalCluster().getInstance(AwsS3Service.class).client("default")) {
                 ObjectListing prevListing = null;
                 //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html
                 //we can do at most 1K objects per delete
@@ -454,9 +452,9 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
                 while (true) {
                     ObjectListing list;
                     if (prevListing != null) {
-                        list = client.listNextBatchOfObjects(prevListing);
+                        list = s3Client.client().listNextBatchOfObjects(prevListing);
                     } else {
-                        list = client.listObjects(bucketName, basePath);
+                        list = s3Client.client().listObjects(bucketName, basePath);
                         multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
                     }
                     for (S3ObjectSummary summary : list.getObjectSummaries()) {
@@ -464,7 +462,7 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
                         //Every 500 objects batch the delete request
                         if (keys.size() > 500) {
                             multiObjectDeleteRequest.setKeys(keys);
-                            client.deleteObjects(multiObjectDeleteRequest);
+                            s3Client.client().deleteObjects(multiObjectDeleteRequest);
                             multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
                             keys.clear();
                         }
@@ -477,7 +475,7 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
                 }
                 if (!keys.isEmpty()) {
                     multiObjectDeleteRequest.setKeys(keys);
-                    client.deleteObjects(multiObjectDeleteRequest);
+                    s3Client.client().deleteObjects(multiObjectDeleteRequest);
                 }
             } catch (Exception ex) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to delete S3 repository [{}]", bucketName), ex);

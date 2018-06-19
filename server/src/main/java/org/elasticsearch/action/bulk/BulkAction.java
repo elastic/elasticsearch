@@ -23,7 +23,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequestOptions;
 
-public class BulkAction extends Action<BulkRequest, BulkResponse> {
+public class BulkAction extends Action<BulkResponse> {
 
     public static final BulkAction INSTANCE = new BulkAction();
     public static final String NAME = "indices:data/write/bulk";

@@ -37,6 +37,8 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -60,6 +62,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -1895,6 +1898,40 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(putTemplateRequest, request.getEntity());
     }
 
+    public void testValidateQuery() throws Exception {
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
+        String[] types = randomBoolean() ? generateRandomStringArray(5, 5, false, false) : null;
+        ValidateQueryRequest validateQueryRequest;
+        if (randomBoolean()) {
+            validateQueryRequest = new ValidateQueryRequest(indices);
+        } else {
+            validateQueryRequest = new ValidateQueryRequest();
+            validateQueryRequest.indices(indices);
+        }
+        validateQueryRequest.types(types);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(validateQueryRequest::indicesOptions, validateQueryRequest::indicesOptions, expectedParams);
+        validateQueryRequest.explain(randomBoolean());
+        validateQueryRequest.rewrite(randomBoolean());
+        validateQueryRequest.allShards(randomBoolean());
+        expectedParams.put("explain", Boolean.toString(validateQueryRequest.explain()));
+        expectedParams.put("rewrite", Boolean.toString(validateQueryRequest.rewrite()));
+        expectedParams.put("all_shards", Boolean.toString(validateQueryRequest.allShards()));
+        Request request = RequestConverters.validateQuery(validateQueryRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indices != null && indices.length > 0) {
+            endpoint.add(String.join(",", indices));
+            if (types != null && types.length > 0) {
+                endpoint.add(String.join(",", types));
+            }
+        }
+        endpoint.add("_validate/query");
+        assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertToXContentBody(validateQueryRequest, request.getEntity());
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+    }
+
     public void testGetTemplateRequest() throws Exception {
         Map<String, String> encodes = new HashMap<>();
         encodes.put("log", "log");
@@ -1909,6 +1946,32 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomLocal(getTemplatesRequest, expectedParams);
         Request request = RequestConverters.getTemplates(getTemplatesRequest);
         assertThat(request.getEndpoint(), equalTo("/_template/" + names.stream().map(encodes::get).collect(Collectors.joining(","))));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testGetScriptRequest() {
+        GetStoredScriptRequest getStoredScriptRequest = new GetStoredScriptRequest("x-script");
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(getStoredScriptRequest, expectedParams);
+
+        Request request = RequestConverters.getScript(getStoredScriptRequest);
+        assertThat(request.getEndpoint(), equalTo("/_scripts/" + getStoredScriptRequest.id()));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testDeleteScriptRequest() {
+        DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest("x-script");
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomTimeout(deleteStoredScriptRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(deleteStoredScriptRequest, expectedParams);
+
+        Request request = RequestConverters.deleteScript(deleteStoredScriptRequest);
+        assertThat(request.getEndpoint(), equalTo("/_scripts/" + deleteStoredScriptRequest.id()));
+        assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), nullValue());
     }

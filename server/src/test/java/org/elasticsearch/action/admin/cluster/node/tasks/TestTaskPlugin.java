@@ -45,7 +45,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -323,7 +322,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
     }
 
-    public static class TestTaskAction extends Action<NodesRequest, NodesResponse> {
+    public static class TestTaskAction extends Action<NodesResponse> {
 
         public static final TestTaskAction INSTANCE = new TestTaskAction();
         public static final String NAME = "cluster:admin/tasks/test";
@@ -340,7 +339,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
     public static class NodesRequestBuilder extends NodesOperationRequestBuilder<NodesRequest, NodesResponse, NodesRequestBuilder> {
 
-        protected NodesRequestBuilder(ElasticsearchClient client, Action<NodesRequest, NodesResponse> action) {
+        protected NodesRequestBuilder(ElasticsearchClient client, Action<NodesResponse> action) {
             super(client, action, new NodesRequest("test"));
         }
 
@@ -454,7 +453,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
     }
 
-    public static class UnblockTestTasksAction extends Action<UnblockTestTasksRequest, UnblockTestTasksResponse> {
+    public static class UnblockTestTasksAction extends Action<UnblockTestTasksResponse> {
 
         public static final UnblockTestTasksAction INSTANCE = new UnblockTestTasksAction();
         public static final String NAME = "cluster:admin/tasks/testunblock";
@@ -472,7 +471,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
     public static class UnblockTestTasksRequestBuilder extends ActionRequestBuilder<UnblockTestTasksRequest, UnblockTestTasksResponse> {
 
         protected UnblockTestTasksRequestBuilder(ElasticsearchClient client,
-                                                 Action<UnblockTestTasksRequest, UnblockTestTasksResponse> action) {
+                                                 Action<UnblockTestTasksResponse> action) {
             super(client, action, new UnblockTestTasksRequest());
         }
     }

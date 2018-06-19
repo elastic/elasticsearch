@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, UnfollowIndexAction.Response> {
+public class UnfollowIndexAction extends Action<UnfollowIndexAction.Response> {
 
     public static final UnfollowIndexAction INSTANCE = new UnfollowIndexAction();
     public static final String NAME = "cluster:admin/xpack/ccr/unfollow_index";

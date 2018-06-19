@@ -77,8 +77,8 @@ Example response:
          "available" : false,
          "enabled" : true,
          "native_code_info" : {
-           "version" : "7.0.0-alpha1-SNAPSHOT",
-           "build_hash" : "99a07c016d5a73"
+           "version" : "6.4.0-SNAPSHOT",
+           "build_hash" : "3d394c6afe2fc5"
         }
       },
       "monitoring" : {
@@ -109,8 +109,8 @@ Example response:
 // TESTRESPONSE[s/"date" : "2015-04-07T13:34:42Z"/"date" : "$body.build.date"/]
 // TESTRESPONSE[s/"uid" : "893361dc-9749-4997-93cb-xxx",/"uid": "$body.license.uid",/]
 // TESTRESPONSE[s/"expiry_date_in_millis" : 1914278399999/"expiry_date_in_millis" : "$body.license.expiry_date_in_millis"/]
-// TESTRESPONSE[s/"version" : "7.0.0-alpha1-SNAPSHOT",/"version": "$body.features.ml.native_code_info.version",/]
-// TESTRESPONSE[s/"build_hash" : "99a07c016d5a73"/"build_hash": "$body.features.ml.native_code_info.build_hash"/]
+// TESTRESPONSE[s/"version" : "6.4.0-SNAPSHOT",/"version": "$body.features.ml.native_code_info.version",/]
+// TESTRESPONSE[s/"build_hash" : "3d394c6afe2fc5"/"build_hash": "$body.features.ml.native_code_info.build_hash"/]
 // So much s/// but at least we test that the layout is close to matching....
 
 The following example only returns the build and features information:

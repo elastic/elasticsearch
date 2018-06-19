@@ -21,31 +21,43 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.transport.TcpChannel;
 
-import java.io.IOException;
-import java.net.StandardSocketOptions;
-import java.nio.channels.SocketChannel;
+import java.net.InetSocketAddress;
+import java.nio.channels.ServerSocketChannel;
 
-public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel {
+/**
+ * This is an implementation of {@link NioServerSocketChannel} that adheres to the {@link TcpChannel}
+ * interface. As it is a server socket, setting SO_LINGER and sending messages is not supported.
+ */
+public class NioTcpServerChannel extends NioServerSocketChannel implements TcpChannel {
 
     private final String profile;
 
-    public TcpNioSocketChannel(String profile, SocketChannel socketChannel) {
+    public NioTcpServerChannel(String profile, ServerSocketChannel socketChannel) {
         super(socketChannel);
         this.profile = profile;
     }
 
+    @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        getContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
+        throw new UnsupportedOperationException("Cannot send a message to a server channel.");
     }
 
     @Override
-    public void setSoLinger(int value) throws IOException {
-        if (isOpen()) {
-            getRawChannel().setOption(StandardSocketOptions.SO_LINGER, value);
-        }
+    public void setSoLinger(int value) {
+        throw new UnsupportedOperationException("Cannot set SO_LINGER on a server channel.");
+    }
+
+    @Override
+    public InetSocketAddress getRemoteAddress() {
+        return null;
+    }
+
+    @Override
+    public void close() {
+        getContext().closeChannel();
     }
 
     @Override
@@ -59,15 +71,9 @@ public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel 
     }
 
     @Override
-    public void close() {
-        getContext().closeChannel();
-    }
-
-    @Override
     public String toString() {
-        return "TcpNioSocketChannel{" +
+        return "TcpNioServerSocketChannel{" +
             "localAddress=" + getLocalAddress() +
-            ", remoteAddress=" + getRemoteAddress() +
             '}';
     }
 }

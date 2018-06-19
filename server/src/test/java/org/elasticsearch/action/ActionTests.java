@@ -21,10 +21,10 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class GenericActionTests extends ESTestCase {
+public class ActionTests extends ESTestCase {
 
     public void testEquals() {
-        class FakeAction extends GenericAction {
+        class FakeAction extends Action {
             protected FakeAction(String name) {
                 super(name);
             }

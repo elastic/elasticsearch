@@ -110,7 +110,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             scripts.put("doc['date'].date.millis", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Dates dates = (ScriptDocValues.Dates) doc.get("date");
-                return dates.getValue().getMillis();
+                return ((ReadableDateTime) dates.getValue()).getMillis();
             });
 
             scripts.put("_fields['num1'].value", vars -> fieldsScript(vars, "num1"));

@@ -197,18 +197,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             serverBootstrap.channel(NioServerSocketChannel.class);
 
             serverBootstrap.childHandler(configureServerChannelHandler());
-            serverBootstrap.handler(new ChannelHandlerAdapter() {
-                @Override
-                public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-                    Netty4Utils.maybeDie(cause);
-                    Netty4HttpServerChannel httpServerChannel = ctx.channel().attr(HTTP_SERVER_CHANNEL_KEY).get();
-                    if (cause instanceof Error) {
-                        onServerException(httpServerChannel, new Exception(cause));
-                    } else {
-                        onServerException(httpServerChannel, (Exception) cause);
-                    }
-                }
-            });
+            serverBootstrap.handler(new ServerChannelExceptionHandler());
 
             serverBootstrap.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings));
             serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
@@ -295,7 +284,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (logger.isTraceEnabled()) {
                 logger.trace("Http read timeout {}", channel);
             }
-            CloseableChannel.closeChannel(channel);;
+            CloseableChannel.closeChannel(channel);
+            ;
         } else {
             super.onException(channel, cause);
         }
@@ -354,4 +344,18 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         }
     }
 
+    @ChannelHandler.Sharable
+    private class ServerChannelExceptionHandler extends ChannelHandlerAdapter {
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            Netty4Utils.maybeDie(cause);
+            Netty4HttpServerChannel httpServerChannel = ctx.channel().attr(HTTP_SERVER_CHANNEL_KEY).get();
+            if (cause instanceof Error) {
+                onServerException(httpServerChannel, new Exception(cause));
+            } else {
+                onServerException(httpServerChannel, (Exception) cause);
+            }
+        }
+    }
 }

@@ -195,18 +195,7 @@ public class Netty4Transport extends TcpTransport {
         serverBootstrap.channel(NioServerSocketChannel.class);
 
         serverBootstrap.childHandler(getServerChannelInitializer(name));
-        serverBootstrap.handler(new ChannelHandlerAdapter() {
-            @Override
-            public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-                Netty4Utils.maybeDie(cause);
-                Netty4TcpServerChannel httpServerChannel = ctx.channel().attr(SERVER_CHANNEL_KEY).get();
-                if (cause instanceof Error) {
-                    onServerException(httpServerChannel, new Exception(cause));
-                } else {
-                    onServerException(httpServerChannel, (Exception) cause);
-                }
-            }
-        });
+        serverBootstrap.handler(new ServerChannelExceptionHandler());
 
         serverBootstrap.childOption(ChannelOption.TCP_NODELAY, profileSettings.tcpNoDelay);
         serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, profileSettings.tcpKeepAlive);
@@ -357,5 +346,20 @@ public class Netty4Transport extends TcpTransport {
                 logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), f.cause());
             }
         });
+    }
+
+    @ChannelHandler.Sharable
+    private class ServerChannelExceptionHandler extends ChannelHandlerAdapter {
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            Netty4Utils.maybeDie(cause);
+            Netty4TcpServerChannel serverChannel = ctx.channel().attr(SERVER_CHANNEL_KEY).get();
+            if (cause instanceof Error) {
+                onServerException(serverChannel, new Exception(cause));
+            } else {
+                onServerException(serverChannel, (Exception) cause);
+            }
+        }
     }
 }

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.ParseField;
-
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.Flushable;
@@ -253,10 +251,6 @@ public final class XContentBuilder implements Closeable, Flushable {
     public XContentBuilder startObject() throws IOException {
         generator.writeStartObject();
         return this;
-    }
-
-    public XContentBuilder startObject(ParseField field) throws IOException {
-        return startObject(field.getPreferredName());
     }
 
     public XContentBuilder startObject(String name) throws IOException {

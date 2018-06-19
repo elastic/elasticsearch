@@ -33,7 +33,7 @@ class RandomizedTestingPlugin implements Plugin<Project> {
                         .findAll { (it instanceof RandomizedTestingTask) == false}
                         .collect { "${it.path} -> ${it.class}" }
                 if (nonConforming.isEmpty() == false) {
-                    throw new GradleException("Found the following `test` tasks:" +
+                    throw new GradleException("Found the ${nonConforming.size()} `test` tasks:" +
                             "\n  ${nonConforming.join("\n  ")}")
                 }
             }

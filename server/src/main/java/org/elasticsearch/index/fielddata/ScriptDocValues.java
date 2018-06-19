@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
-import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
 import java.time.Instant;

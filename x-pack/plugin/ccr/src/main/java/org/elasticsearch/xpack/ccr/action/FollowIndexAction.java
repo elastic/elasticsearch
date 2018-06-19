@@ -53,7 +53,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
-public class FollowIndexAction extends Action<FollowIndexAction.Request, FollowIndexAction.Response> {
+public class FollowIndexAction extends Action<FollowIndexAction.Response> {
 
     public static final FollowIndexAction INSTANCE = new FollowIndexAction();
     public static final String NAME = "cluster:admin/xpack/ccr/follow_index";

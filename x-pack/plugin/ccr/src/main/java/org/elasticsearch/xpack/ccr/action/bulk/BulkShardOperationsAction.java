@@ -7,8 +7,7 @@ package org.elasticsearch.xpack.ccr.action.bulk;
 
 import org.elasticsearch.action.Action;
 
-public class BulkShardOperationsAction
-        extends Action<BulkShardOperationsRequest, BulkShardOperationsResponse> {
+public class BulkShardOperationsAction extends Action<BulkShardOperationsResponse> {
 
     public static final BulkShardOperationsAction INSTANCE = new BulkShardOperationsAction();
     public static final String NAME = "indices:data/write/bulk_shard_operations[s]";

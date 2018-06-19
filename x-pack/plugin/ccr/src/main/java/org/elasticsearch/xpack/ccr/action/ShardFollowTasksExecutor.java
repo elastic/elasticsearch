@@ -434,7 +434,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     Request extends ActionRequest,
                     Response extends ActionResponse,
                     RequestBuilder extends ActionRequestBuilder<Request, Response>>
-                void doExecute(Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+                void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
                     final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
                     try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
                         super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));

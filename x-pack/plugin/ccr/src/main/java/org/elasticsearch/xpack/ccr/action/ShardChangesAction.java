@@ -37,7 +37,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class ShardChangesAction extends Action<ShardChangesAction.Request, ShardChangesAction.Response> {
+public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
     public static final ShardChangesAction INSTANCE = new ShardChangesAction();
     public static final String NAME = "indices:data/read/xpack/ccr/shard_changes";

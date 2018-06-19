@@ -50,8 +50,10 @@ public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJob
     protected void masterOperation(GetJobsAction.Request request, ClusterState state, ActionListener<GetJobsAction.Response> listener)
             throws Exception {
         logger.debug("Get job '{}'", request.getJobId());
-        QueryPage<Job> jobs = jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), state);
-        listener.onResponse(new GetJobsAction.Response(jobs));
+        jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), state, ActionListener.wrap(
+                jobs -> listener.onResponse(new GetJobsAction.Response(jobs)),
+                listener::onFailure
+        ));
     }
 
     @Override

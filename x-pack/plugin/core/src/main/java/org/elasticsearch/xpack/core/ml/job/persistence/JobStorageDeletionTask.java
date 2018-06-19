@@ -17,7 +17,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.logging.Loggers;
@@ -64,12 +63,11 @@ public class JobStorageDeletionTask extends Task {
         this.logger = Loggers.getLogger(getClass());
     }
 
-    public void delete(String jobId, Client client, ClusterState state,
+    public void delete(String jobId, Client client, String jobResultsIndex,
                        CheckedConsumer<Boolean, Exception> finishedHandler,
                        Consumer<Exception> failureHandler) {
 
-        final String indexName = AnomalyDetectorsIndex.getPhysicalIndexFromState(state, jobId);
-        final String indexPattern = indexName + "-*";
+        final String indexPattern = jobResultsIndex + "-*";
 
         ActionListener<Boolean> deleteAliasHandler = ActionListener.wrap(finishedHandler, failureHandler);
 
@@ -77,12 +75,12 @@ public class JobStorageDeletionTask extends Task {
         ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(
                 bulkByScrollResponse -> {
                     if (bulkByScrollResponse.isTimedOut()) {
-                        logger.warn("[{}] DeleteByQuery for indices [{}, {}] timed out.", jobId, indexName, indexPattern);
+                        logger.warn("[{}] DeleteByQuery for indices [{}, {}] timed out.", jobId, jobResultsIndex, indexPattern);
                     }
                     if (!bulkByScrollResponse.getBulkFailures().isEmpty()) {
                         logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}, {}].",
                                 jobId, bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts(),
-                                indexName, indexPattern);
+                                jobResultsIndex, indexPattern);
                         for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
                             logger.warn("DBQ failure: " + failure);
                         }
@@ -94,8 +92,8 @@ public class JobStorageDeletionTask extends Task {
         // Step 4. Delete categorizer state done, DeleteByQuery on the index, matching all docs with the right job_id
         ActionListener<Boolean> deleteCategorizerStateHandler = ActionListener.wrap(
                 response -> {
-                    logger.info("Running DBQ on [" + indexName + "," + indexPattern + "] for job [" + jobId + "]");
-                    SearchRequest searchRequest = new SearchRequest(indexName, indexPattern);
+                    logger.info("Running DBQ on [" + jobResultsIndex + "," + indexPattern + "] for job [" + jobId + "]");
+                    SearchRequest searchRequest = new SearchRequest(jobResultsIndex, indexPattern);
                     DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
                     ConstantScoreQueryBuilder query =
                             new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));

@@ -179,7 +179,7 @@ public class JobProvider {
         try (InputStream stream = source.streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return Job.CONFIG_PARSER.apply(parser, null);
+            return Job.STRICT_PARSER.apply(parser, null);
         } catch (IOException e) {
             LOGGER.error(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
             return null;

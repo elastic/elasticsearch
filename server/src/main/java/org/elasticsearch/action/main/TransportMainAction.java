@@ -50,7 +50,6 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
     protected void doExecute(MainRequest request, ActionListener<MainResponse> listener) {
         ClusterState clusterState = clusterService.state();
         assert Node.NODE_NAME_SETTING.exists(settings);
-        final boolean available = clusterState.getBlocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE) == false;
         listener.onResponse(
             new MainResponse(Node.NODE_NAME_SETTING.get(settings), Version.CURRENT, clusterState.getClusterName(),
                     clusterState.metaData().clusterUUID(), Build.CURRENT));

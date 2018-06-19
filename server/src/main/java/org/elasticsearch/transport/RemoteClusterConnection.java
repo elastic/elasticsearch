@@ -29,10 +29,14 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.main.MainAction;
+import org.elasticsearch.action.main.MainRequest;
+import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -50,6 +54,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -83,11 +88,11 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     private final String clusterAlias;
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
+    private final String localClusterUUID;
     private volatile List<DiscoveryNode> seedNodes;
     private volatile boolean skipUnavailable;
     private final ConnectHandler connectHandler;
-    private SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
-    private final ClusterName localClusterName;
+    private final SetOnce<ClusterNameAndUUID> remoteClusterAndUUID = new SetOnce<>();
 
     /**
      * Creates a new {@link RemoteClusterConnection}
@@ -99,10 +104,15 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
      * @param nodePredicate a predicate to filter eligible remote nodes to connect to
      */
     RemoteClusterConnection(Settings settings, String clusterAlias, List<DiscoveryNode> seedNodes,
-                            TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate) {
+                            TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
+                            String localClusterUUID) {
         super(settings);
-        this.localClusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.transportService = transportService;
+        if ("_na_".equals(localClusterUUID)) {
+            throw new IllegalArgumentException("invalid local clusterstate UUID: " + localClusterUUID);
+        }
+        this.localClusterUUID = Objects.requireNonNull(localClusterUUID);
+
         this.maxNumRemoteConnections = maxNumRemoteConnections;
         this.nodePredicate = nodePredicate;
         this.clusterAlias = clusterAlias;
@@ -312,7 +322,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         return connectHandler.isClosed();
     }
 
-    private ConnectionProfile getRemoteProfile(ClusterName name) {
+    private ConnectionProfile getRemoteProfile() {
         // we can only compare the cluster name to make a decision if we should use a remote profile
         // we can't use a cluster UUID here since we could be connecting to that remote cluster before
         // the remote node has joined its cluster  and have a cluster UUID. The fact that we just lose a
@@ -320,7 +330,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         // have the same name as the local one is minor here.
         // the alternative here is to complicate the remote infrastructure to also wait until we formed a cluster,
         // gained a cluster UUID and then start connecting etc. we rather use this simplification in order to maintain simplicity
-        if (this.localClusterName.equals(name)) {
+        if (remoteClusterAndUUID.get() != null && this.localClusterUUID.equals(remoteClusterAndUUID.get().clusterUUID)) {
             return null;
         } else {
             return remoteProfile;
@@ -438,6 +448,67 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             });
         }
 
+        Transport.Connection findFirstReadyNode(Iterator<DiscoveryNode> seedNodes) throws IOException, InterruptedException {
+            boolean remoteClusterHasNotFormed = false;
+            while (seedNodes.hasNext()) {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new InterruptedException("remote connect thread got interrupted");
+                }
+                final DiscoveryNode seedNode = seedNodes.next();
+                final MainResponse mainResponse;
+                boolean success = false;
+                Transport.Connection connection = transportService.openConnection(seedNode,
+                    ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, null, null));
+                ThreadPool threadPool = transportService.getThreadPool();
+                ThreadContext threadContext = threadPool.getThreadContext();
+                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                    // we stash any context here since this is an internal execution and should not leak any
+                    // existing context information.
+                    threadContext.markAsSystemContext();
+                    PlainTransportFuture<MainResponse> futureHandler = new PlainTransportFuture<>(
+                        new FutureTransportResponseHandler<MainResponse>() {
+                            @Override
+                            public MainResponse read(StreamInput in) throws IOException {
+                                MainResponse response = MainAction.INSTANCE.newResponse();
+                                response.readFrom(in);
+                                return response;
+                            }
+                        });
+                    TransportRequestOptions options = TransportRequestOptions.builder().withTimeout(remoteProfile
+                        .getHandshakeTimeout().millis()).build();
+                    transportService.sendRequest(connection, MainAction.NAME, new MainRequest(), options,
+                        futureHandler);
+                    mainResponse = futureHandler.txGet();
+                    if ("_na_".equals(mainResponse.getClusterUuid()) == false) {
+                        ClusterNameAndUUID clusterNameAndUUID = remoteClusterAndUUID.get();
+                        if (clusterNameAndUUID == null) {
+                            remoteClusterAndUUID.set(new ClusterNameAndUUID(mainResponse.getClusterName(),
+                                mainResponse.getClusterUuid()));
+                        } else if (clusterNameAndUUID.clusterName.equals(mainResponse.getClusterName()) == false) {
+                            throw new IllegalStateException("handshake failed, mismatched cluster name [" + mainResponse.getClusterName()
+                                + "] - " + seedNode);
+                        } else if (clusterNameAndUUID.clusterUUID.equals(mainResponse.getClusterUuid()) == false) {
+                            throw new IllegalStateException("handshake failed, mismatched cluster UUID [" + mainResponse.getClusterUuid()
+                                + "] - " + seedNode);
+                        }
+                        success = true;
+                        return connection;
+                    } else {
+                        remoteClusterHasNotFormed = true;
+                    }
+                } finally {
+                    if (success == false) {
+                        connection.close();
+                    }
+                }
+            }
+            if (remoteClusterHasNotFormed) {
+                throw new IllegalStateException("seed nodes have not joined a cluster yet");
+            } else {
+                throw new IllegalStateException("no seed node left");
+            }
+        }
+
         void collectRemoteNodes(Iterator<DiscoveryNode> seedNodes,
                                 final TransportService transportService, ActionListener<Void> listener) {
             if (Thread.currentThread().isInterrupted()) {
@@ -446,28 +517,23 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             try {
                 if (seedNodes.hasNext()) {
                     cancellableThreads.executeIO(() -> {
-                        final DiscoveryNode seedNode = seedNodes.next();
                         final TransportService.HandshakeResponse handshakeResponse;
-                        Transport.Connection connection = transportService.openConnection(seedNode,
-                            ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, null, null));
+                        Transport.Connection connection = findFirstReadyNode(seedNodes);
                         boolean success = false;
                         try {
                             try {
                                 handshakeResponse = transportService.handshake(connection, remoteProfile.getHandshakeTimeout().millis(),
-                                    (c) -> remoteClusterName.get() == null ? true : c.equals(remoteClusterName.get()));
+                                    (c) -> c.equals(remoteClusterAndUUID.get().clusterName));
                             } catch (IllegalStateException ex) {
                                 logger.warn(() -> new ParameterizedMessage("seed node {} cluster name mismatch expected " +
-                                    "cluster name {}", connection.getNode(), remoteClusterName.get()), ex);
+                                    "cluster name {}", connection.getNode(), remoteClusterAndUUID.get()), ex);
                                 throw ex;
                             }
 
                             final DiscoveryNode handshakeNode = handshakeResponse.getDiscoveryNode();
                             if (nodePredicate.test(handshakeNode) && connectedNodes.size() < maxNumRemoteConnections) {
-                                transportService.connectToNode(handshakeNode, getRemoteProfile(handshakeResponse.getClusterName()));
-                                if (remoteClusterName.get() == null) {
-                                    assert handshakeResponse.getClusterName().value() != null;
-                                    remoteClusterName.set(handshakeResponse.getClusterName());
-                                }
+                                transportService.connectToNode(handshakeNode, getRemoteProfile());
+                                assert handshakeResponse.getClusterName().value() != null;
                                 connectedNodes.add(handshakeNode);
                             }
                             ClusterStateRequest request = new ClusterStateRequest();
@@ -557,10 +623,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             @Override
             public void handleResponse(ClusterStateResponse response) {
                 try {
-                    if (remoteClusterName.get() == null) {
-                        assert response.getClusterName().value() != null;
-                        remoteClusterName.set(response.getClusterName());
-                    }
                     try (Closeable theConnection = connection) { // the connection is unused - see comment in #collectRemoteNodes
                         // we have to close this connection before we notify listeners - this is mainly needed for test correctness
                         // since if we do it afterwards we might fail assertions that check if all high level connections are closed.
@@ -573,7 +635,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                             for (DiscoveryNode node : nodesIter) {
                                 if (nodePredicate.test(node) && connectedNodes.size() < maxNumRemoteConnections) {
                                     try {
-                                        transportService.connectToNode(node, getRemoteProfile(remoteClusterName.get())); // noop if node is
+                                        transportService.connectToNode(node, getRemoteProfile()); // noop if node is
                                         // connected
                                         connectedNodes.add(node);
                                     } catch (ConnectTransportException | IllegalStateException ex) {
@@ -694,6 +756,16 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                 // iterator rollover
                 currentIterator = nodeSet.iterator();
             }
+        }
+    }
+
+    private static class ClusterNameAndUUID {
+        final ClusterName clusterName;
+        final String clusterUUID;
+
+        private ClusterNameAndUUID(ClusterName clusterName, String clusterUUID) {
+            this.clusterName = clusterName;
+            this.clusterUUID = clusterUUID;
         }
     }
 }

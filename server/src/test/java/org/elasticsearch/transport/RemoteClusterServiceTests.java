@@ -24,6 +24,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -127,7 +128,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
     }
 
 
-    public void testGroupClusterIndices() throws IOException {
+    public void testGroupClusterIndices() throws IOException, InterruptedException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
              MockTransportService otherSeedTransport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)) {
@@ -137,8 +138,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             knownNodes.add(otherSeedTransport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool,
-                null)) {
+            try (MockTransportService transportService = startTransport("test", Collections.emptyList(), Version.CURRENT, Settings.EMPTY)) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 Settings.Builder builder = Settings.builder();
@@ -146,7 +146,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 builder.putList("search.remote.cluster_2.seeds", otherSeedNode.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
+                    initializedRemoteClusterService(service);
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
@@ -173,7 +173,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    public void testIncrementallyAddClusters() throws IOException {
+    public void testIncrementallyAddClusters() throws IOException, InterruptedException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
              MockTransportService otherSeedTransport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)) {
@@ -192,7 +192,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 builder.putList("search.remote.cluster_2.seeds", otherSeedNode.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
+                    initializedRemoteClusterService(service);
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.updateRemoteCluster("cluster_1", Collections.singletonList(seedNode.getAddress().address()));
                     assertTrue(service.isCrossClusterSearchEnabled());
@@ -234,11 +234,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             knownNodes.add(c2N2Node);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService transportService = MockTransportService.createNewService(
-                    settings,
-                    Version.CURRENT,
-                    threadPool,
-                    null)) {
+            try (MockTransportService transportService = startTransport("test", Collections.emptyList(), Version.CURRENT, settings)) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 final Settings.Builder builder = Settings.builder();
@@ -249,7 +245,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 try (RemoteClusterService service =
                              new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
+                    initializedRemoteClusterService(service);
                     assertFalse(service.isCrossClusterSearchEnabled());
 
                     final InetSocketAddress c1N1Address = c1N1Node.getAddress().address();
@@ -306,11 +302,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             knownNodes.add(c2N2Node);
             Collections.shuffle(knownNodes, random());
 
-            try (MockTransportService transportService = MockTransportService.createNewService(
-                    settings,
-                    Version.CURRENT,
-                    threadPool,
-                    null)) {
+            try (MockTransportService transportService = startTransport("test", Collections.emptyList(), Version.CURRENT, settings)) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 final Settings.Builder builder = Settings.builder();
@@ -318,7 +310,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 builder.putList("search.remote.cluster_2.seeds", c2N1Node.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
+                    initializedRemoteClusterService(service);
                     assertFalse(service.isCrossClusterSearchEnabled());
 
                     final InetSocketAddress c1N1Address = c1N1Node.getAddress().address();
@@ -353,7 +345,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
     }
 
     private ActionListener<Void> connectionListener(final CountDownLatch latch) {
-        return ActionListener.wrap(x -> latch.countDown(), x -> fail());
+        return ActionListener.wrap(x -> latch.countDown(), x -> {latch.countDown(); throw new AssertionError(x);});
     }
 
     public void testCollectNodes() throws InterruptedException, IOException {
@@ -380,11 +372,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             Collections.shuffle(knownNodes_c1, random());
             Collections.shuffle(knownNodes_c2, random());
 
-            try (MockTransportService transportService = MockTransportService.createNewService(
-                settings,
-                Version.CURRENT,
-                threadPool,
-                null)) {
+            try (MockTransportService transportService = startTransport("test", Collections.emptyList(), Version.CURRENT, settings)) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 final Settings.Builder builder = Settings.builder();
@@ -395,7 +383,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 try (RemoteClusterService service =
                          new RemoteClusterService(settings, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.initializeRemoteClusters();
+                    initializedRemoteClusterService(service);
                     assertFalse(service.isCrossClusterSearchEnabled());
 
                     final InetSocketAddress c1N1Address = c1N1Node.getAddress().address();
@@ -534,12 +522,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
         Settings settings = builder.build();
 
         try {
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (MockTransportService service = startTransport("test", Collections.emptyList(), Version.CURRENT, Settings.EMPTY)) {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterService remoteClusterService = new RemoteClusterService(settings, service)) {
                     assertFalse(remoteClusterService.isCrossClusterSearchEnabled());
-                    remoteClusterService.initializeRemoteClusters();
+                    initializedRemoteClusterService(remoteClusterService);
                     assertTrue(remoteClusterService.isCrossClusterSearchEnabled());
                     {
                         final CountDownLatch latch = new CountDownLatch(1);
@@ -676,6 +664,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 mockTransportService.close();
             }
         }
+    }
+
+    private void initializedRemoteClusterService(RemoteClusterService remoteClusterService) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteClusterService.initializeRemoteClusters(randomBoolean() ? ClusterName.DEFAULT.value() :
+            randomRealisticUnicodeOfLengthBetween(1, 5), Settings.EMPTY, connectionListener(latch));
+        latch.await();
     }
 
     public void testRemoteClusterSkipIfDisconnectedSetting() {

@@ -233,10 +233,6 @@ public class TransportService extends AbstractLifecycleComponent {
             false, false,
             (request, channel) -> channel.sendResponse(
                     new HandshakeResponse(localNode, clusterName, localNode.getVersion())));
-        if (connectToRemoteCluster) {
-            // here we start to connect to the remote clusters
-            remoteClusterService.initializeRemoteClusters();
-        }
     }
 
     @Override
@@ -413,7 +409,6 @@ public class TransportService extends AbstractLifecycleComponent {
         } catch (Exception e) {
             throw new IllegalStateException("handshake failed with " + node, e);
         }
-
         if (!clusterNamePredicate.test(response.clusterName)) {
             throw new IllegalStateException("handshake failed, mismatched cluster name [" + response.clusterName + "] - " + node);
         } else if (response.version.isCompatible(localNode.getVersion()) == false) {

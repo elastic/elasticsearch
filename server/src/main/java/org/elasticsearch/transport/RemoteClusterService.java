@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -49,6 +50,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -103,6 +105,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     private final TransportService transportService;
     private final int numRemoteConnections;
     private volatile Map<String, RemoteClusterConnection> remoteClusters = Collections.emptyMap();
+    private final SetOnce<String> localCusterUUID = new SetOnce<>();
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
@@ -116,6 +119,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @param connectionListener a listener invoked once every configured cluster has been connected to
      */
     private synchronized void updateRemoteClusters(Map<String, List<DiscoveryNode>> seeds, ActionListener<Void> connectionListener) {
+        if (localCusterUUID.get() == null) {
+            connectionListener.onFailure(new IllegalStateException("RemoteClusterService is not initialized no cluster uuid set"));
+            return;
+        }
         if (seeds.containsKey(LOCAL_CLUSTER_GROUP_KEY)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
@@ -139,7 +146,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
                 if (remote == null) { // this is a new cluster we have to add a new representation
                     remote = new RemoteClusterConnection(settings, entry.getKey(), entry.getValue(), transportService, numRemoteConnections,
-                        getNodePredicate(settings));
+                        getNodePredicate(settings), localCusterUUID.get());
                     remoteClusters.put(entry.getKey(), remote);
                 }
 
@@ -327,25 +334,17 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         updateRemoteClusters(Collections.singletonMap(clusterAlias, nodes), connectionListener);
     }
 
-    /**
-     * Connects to all remote clusters in a blocking fashion. This should be called on node startup to establish an initial connection
-     * to all configured seed nodes.
-     */
-    void initializeRemoteClusters() {
-        final TimeValue timeValue = REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Map<String, List<DiscoveryNode>> seeds = RemoteClusterAware.buildRemoteClustersSeeds(settings);
-        updateRemoteClusters(seeds, future);
-        try {
-            future.get(timeValue.millis(), TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (TimeoutException ex) {
-            logger.warn("failed to connect to remote clusters within {}", timeValue.toString());
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to connect to remote clusters", e);
+
+    public void initializeRemoteClusters(String localClusterUUID, Settings clusterSettings, ActionListener<Void> listener) {
+        if (localClusterUUID.equals("_na_")) {
+            throw new IllegalArgumentException("invalid local cluster uuid: " + localClusterUUID);
         }
+        this.localCusterUUID.set(localClusterUUID);
+        Map<String, List<DiscoveryNode>> seeds = RemoteClusterAware.buildRemoteClustersSeeds(Settings.builder().put(settings, false)
+            .put(clusterSettings).build());
+        updateRemoteClusters(seeds, listener);
     }
+
 
     @Override
     public void close() throws IOException {

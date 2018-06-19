@@ -172,7 +172,6 @@ public class MockTcpTransport extends TcpTransport {
             if (success == false) {
                 IOUtils.close(socket);
             }
-
         }
 
         executor.submit(() -> {

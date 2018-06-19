@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLifecycleAction.Response> {
+public class PutLifecycleAction extends Action<PutLifecycleAction.Response> {
     public static final PutLifecycleAction INSTANCE = new PutLifecycleAction();
     public static final String NAME = "cluster:admin/xpack/index_lifecycle/put";
 

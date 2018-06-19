@@ -17,8 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteLifecycleAction
-        extends Action<DeleteLifecycleAction.Request, DeleteLifecycleAction.Response> {
+public class DeleteLifecycleAction extends Action<DeleteLifecycleAction.Response> {
     public static final DeleteLifecycleAction INSTANCE = new DeleteLifecycleAction();
     public static final String NAME = "cluster:admin/xpack/index_lifecycle/delete";
 

@@ -24,7 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class SetPolicyForIndexAction extends Action<SetPolicyForIndexAction.Request, SetPolicyForIndexAction.Response> {
+public class SetPolicyForIndexAction extends Action<SetPolicyForIndexAction.Response> {
     public static final SetPolicyForIndexAction INSTANCE = new SetPolicyForIndexAction();
     public static final String NAME = "indices:admin/xpack/index_lifecycle/set_policy";
 

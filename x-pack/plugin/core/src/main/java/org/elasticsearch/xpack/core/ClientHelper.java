@@ -138,10 +138,9 @@ public final class ClientHelper {
      * @param listener
      *            The listener to call when the action is complete
      */
-    public static <Request extends ActionRequest, Response extends ActionResponse, 
-            RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeWithHeadersAsync(
-        Map<String, String> headers, String origin, Client client, Action<Response> action, Request request,
-        ActionListener<Response> listener) {
+    public static <Request extends ActionRequest, Response extends ActionResponse>
+    void executeWithHeadersAsync(Map<String, String> headers, String origin, Client client, Action<Response> action, Request request,
+                                 ActionListener<Response> listener) {
 
         Map<String, String> filteredHeaders = headers.entrySet().stream().filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -176,8 +175,7 @@ public final class ClientHelper {
         }
 
         @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse,
-                RequestBuilder extends ActionRequestBuilder<Request, Response>> void doExecute(
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
             Action<Response> action, Request request, ActionListener<Response> listener) {
             final Supplier<ThreadContext.StoredContext> supplier = in().threadPool().getThreadContext().newRestorableContext(false);
             try (ThreadContext.StoredContext ignore = in().threadPool().getThreadContext().stashContext()) {

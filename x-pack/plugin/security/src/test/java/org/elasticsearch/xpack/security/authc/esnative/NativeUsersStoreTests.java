@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -74,8 +73,7 @@ public class NativeUsersStoreTests extends ESTestCase {
             @Override
             protected <
                     Request extends ActionRequest,
-                    Response extends ActionResponse,
-                    RequestBuilder extends ActionRequestBuilder<Request, Response>
+                    Response extends ActionResponse
                     > void doExecute(
                     Action<Response> action,
                     Request request,

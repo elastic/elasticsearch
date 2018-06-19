@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SetOperationModeAction extends Action<SetOperationModeAction.Request, SetOperationModeAction.Response> {
+public class SetOperationModeAction extends Action<SetOperationModeAction.Response> {
     public static final SetOperationModeAction INSTANCE = new SetOperationModeAction();
-    public static final String NAME = "cluster:admin/xpack/index_lifecycle/operation_mode";
+    public static final String NAME = "cluster:admin/xpack/index_lifecycle/operation_mode/set";
 
     protected SetOperationModeAction() {
         super(NAME);
@@ -57,9 +57,9 @@ public class SetOperationModeAction extends Action<SetOperationModeAction.Reques
 
         @Override
         public ActionRequestValidationException validate() {
-            if (mode == OperationMode.MAINTENANCE) {
+            if (mode == OperationMode.STOPPED) {
                 ActionRequestValidationException exception = new ActionRequestValidationException();
-                exception.addValidationError("cannot set maintenance mode directly");
+                exception.addValidationError("cannot directly stop index-lifecycle");
                 return exception;
             }
             return null;

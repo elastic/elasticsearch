@@ -11,27 +11,28 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetMaintenanceModeAction;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
+import org.elasticsearch.xpack.core.indexlifecycle.action.SetOperationModeAction;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
 
-public class RestGetOperationModeAction extends BaseRestHandler {
+public class RestStopAction extends BaseRestHandler {
 
-    public RestGetOperationModeAction(Settings settings, RestController controller) {
+    public RestStopAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET,
-            IndexLifecycle.BASE_PATH + "maintenance", this);
+        controller.registerHandler(RestRequest.Method.POST,
+            IndexLifecycle.BASE_PATH + "_stop", this);
     }
 
     @Override
     public String getName() {
-        return "xpack_lifecycle_get_operation_mode_action";
+        return "xpack_lifecycle_stop_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        GetMaintenanceModeAction.Request request = new GetMaintenanceModeAction.Request();
+        SetOperationModeAction.Request request = new SetOperationModeAction.Request(OperationMode.STOPPING);
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
-        return channel -> client.execute(GetMaintenanceModeAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(SetOperationModeAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

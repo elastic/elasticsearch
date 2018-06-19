@@ -20,17 +20,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetMaintenanceModeAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetMaintenanceModeAction.Request;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetMaintenanceModeAction.Response;
+import org.elasticsearch.xpack.core.indexlifecycle.action.GetOperationModeStatusAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.GetOperationModeStatusAction.Request;
+import org.elasticsearch.xpack.core.indexlifecycle.action.GetOperationModeStatusAction.Response;
 
-public class TransportGetMaintenanceAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportGetOperationModeStatusAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
-    public TransportGetMaintenanceAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetMaintenanceModeAction.NAME, transportService, clusterService, threadPool, actionFilters,
+    public TransportGetOperationModeStatusAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                                 ThreadPool threadPool, ActionFilters actionFilters,
+                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, GetOperationModeStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver, Request::new);
     }
 
@@ -49,9 +49,10 @@ public class TransportGetMaintenanceAction extends TransportMasterNodeAction<Req
         IndexLifecycleMetadata metadata = state.metaData().custom(IndexLifecycleMetadata.TYPE);
         final Response response;
         if (metadata == null) {
-            response = new Response(OperationMode.NORMAL);
+            // no need to actually install metadata just yet, but safe to say it is not stopped
+            response = new Response(OperationMode.RUNNING);
         } else {
-            response = new Response(metadata.getMaintenanceMode());
+            response = new Response(metadata.getOperationMode());
         }
         listener.onResponse(response);
     }

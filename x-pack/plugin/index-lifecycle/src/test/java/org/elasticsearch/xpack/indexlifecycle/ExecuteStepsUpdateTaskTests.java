@@ -99,7 +99,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.NORMAL))
+            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING))
             .put(IndexMetaData.builder(indexMetadata))
             .build();
         String nodeId = randomAlphaOfLength(10);

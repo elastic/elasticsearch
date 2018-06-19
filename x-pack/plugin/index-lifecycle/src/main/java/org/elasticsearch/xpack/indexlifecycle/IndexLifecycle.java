@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetMaintenanceModeAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.GetOperationModeStatusAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.SetOperationModeAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
@@ -43,8 +43,8 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
-import org.elasticsearch.xpack.indexlifecycle.action.RestGetOperationModeAction;
-import org.elasticsearch.xpack.indexlifecycle.action.RestRequestMaintenanceAction;
+import org.elasticsearch.xpack.indexlifecycle.action.RestGetOperationModeStatusAction;
+import org.elasticsearch.xpack.indexlifecycle.action.RestStopAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestSetPolicyForIndexAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestExplainLifecycleAction;
@@ -52,8 +52,8 @@ import org.elasticsearch.xpack.indexlifecycle.action.RestGetLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestMoveToStepAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestPutLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestRetryAction;
-import org.elasticsearch.xpack.indexlifecycle.action.RestStopMaintenanceAction;
-import org.elasticsearch.xpack.indexlifecycle.action.TransportGetMaintenanceAction;
+import org.elasticsearch.xpack.indexlifecycle.action.RestStartAction;
+import org.elasticsearch.xpack.indexlifecycle.action.TransportGetOperationModeStatusAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportSetOperationModeAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportSetPolicyForIndexAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportDeleteLifecycleAction;
@@ -160,9 +160,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new RestSetPolicyForIndexAction(settings, restController),
                 new RestMoveToStepAction(settings, restController),
                 new RestRetryAction(settings, restController),
-                new RestRequestMaintenanceAction(settings, restController),
-                new RestStopMaintenanceAction(settings, restController),
-                new RestGetOperationModeAction(settings, restController)
+                new RestStopAction(settings, restController),
+                new RestStartAction(settings, restController),
+                new RestGetOperationModeStatusAction(settings, restController)
             );
     }
 
@@ -180,7 +180,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new ActionHandler<>(MoveToStepAction.INSTANCE, TransportMoveToStepAction.class),
                 new ActionHandler<>(RetryAction.INSTANCE, TransportRetryAction.class),
                 new ActionHandler<>(SetOperationModeAction.INSTANCE, TransportSetOperationModeAction.class),
-                new ActionHandler<>(GetMaintenanceModeAction.INSTANCE, TransportGetMaintenanceAction.class));
+                new ActionHandler<>(GetOperationModeStatusAction.INSTANCE, TransportGetOperationModeStatusAction.class));
     }
 
     @Override

@@ -19,12 +19,11 @@ import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetMaintenanceModeAction
-        extends Action<GetMaintenanceModeAction.Request, GetMaintenanceModeAction.Response> {
-    public static final GetMaintenanceModeAction INSTANCE = new GetMaintenanceModeAction();
-    public static final String NAME = "cluster:admin/xpack/index_lifecycle/maintenance/get";
+public class GetOperationModeStatusAction extends Action<GetOperationModeStatusAction.Response> {
+    public static final GetOperationModeStatusAction INSTANCE = new GetOperationModeStatusAction();
+    public static final String NAME = "cluster:admin/xpack/index_lifecycle/operation_mode/get";
 
-    protected GetMaintenanceModeAction() {
+    protected GetOperationModeStatusAction() {
         super(NAME);
     }
 
@@ -51,8 +50,8 @@ public class GetMaintenanceModeAction
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("in_maintenance_mode", mode == OperationMode.MAINTENANCE);
             builder.field("operation_mode", mode);
+            builder.endObject();
             return builder;
         }
 

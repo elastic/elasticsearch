@@ -19,29 +19,29 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class MaintenanceModeUpdateTaskTests extends ESTestCase {
+public class OperationModeUpdateTaskTests extends ESTestCase {
 
     public void testExecute() {
-        assertMove(OperationMode.NORMAL, OperationMode.MAINTENANCE_REQUESTED);
-        assertMove(OperationMode.MAINTENANCE_REQUESTED, randomFrom(OperationMode.NORMAL, OperationMode.MAINTENANCE));
-        assertMove(OperationMode.MAINTENANCE, OperationMode.NORMAL);
+        assertMove(OperationMode.RUNNING, OperationMode.STOPPING);
+        assertMove(OperationMode.STOPPING, randomFrom(OperationMode.RUNNING, OperationMode.STOPPED));
+        assertMove(OperationMode.STOPPED, OperationMode.RUNNING);
 
         OperationMode mode = randomFrom(OperationMode.values());
         assertNoMove(mode, mode);
-        assertNoMove(OperationMode.MAINTENANCE, OperationMode.MAINTENANCE_REQUESTED);
-        assertNoMove(OperationMode.NORMAL, OperationMode.MAINTENANCE);
+        assertNoMove(OperationMode.STOPPED, OperationMode.STOPPING);
+        assertNoMove(OperationMode.RUNNING, OperationMode.STOPPED);
     }
 
     public void testExecuteWithEmptyMetadata() {
-        OperationMode requestedMode = OperationMode.MAINTENANCE_REQUESTED;
-        OperationMode newMode = executeUpdate(false, IndexLifecycleMetadata.EMPTY.getMaintenanceMode(),
+        OperationMode requestedMode = OperationMode.STOPPING;
+        OperationMode newMode = executeUpdate(false, IndexLifecycleMetadata.EMPTY.getOperationMode(),
             requestedMode, false);
         assertThat(newMode, equalTo(requestedMode));
 
-        requestedMode = randomFrom(OperationMode.NORMAL, OperationMode.MAINTENANCE);
-        newMode = executeUpdate(false, IndexLifecycleMetadata.EMPTY.getMaintenanceMode(),
+        requestedMode = randomFrom(OperationMode.RUNNING, OperationMode.STOPPED);
+        newMode = executeUpdate(false, IndexLifecycleMetadata.EMPTY.getOperationMode(),
             requestedMode, false);
-        assertThat(newMode, equalTo(OperationMode.NORMAL));
+        assertThat(newMode, equalTo(OperationMode.RUNNING));
     }
 
     private void assertMove(OperationMode currentMode, OperationMode requestedMode) {
@@ -64,7 +64,7 @@ public class MaintenanceModeUpdateTaskTests extends ESTestCase {
             metaData.customs(customsMapBuilder.fPut(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata).build());
         }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-        MaintenanceModeUpdateTask task = new MaintenanceModeUpdateTask(requestMode);
+        OperationModeUpdateTask task = new OperationModeUpdateTask(requestMode);
         ClusterState newState = task.execute(state);
         if (assertSameClusterState) {
             assertSame(state, newState);
@@ -73,6 +73,6 @@ public class MaintenanceModeUpdateTaskTests extends ESTestCase {
         }
         IndexLifecycleMetadata newMetaData = newState.metaData().custom(IndexLifecycleMetadata.TYPE);
         assertThat(newMetaData.getPolicyMetadatas(), equalTo(indexLifecycleMetadata.getPolicyMetadatas()));
-        return newMetaData.getMaintenanceMode();
+        return newMetaData.getOperationMode();
     }
 }

@@ -1,10 +1,10 @@
 {
-  "xpack.index_lifecycle.request_maintenance": {
+  "xpack.index_lifecycle.get_status": {
     "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/index_lifecycle/maintenance",
-      "paths": ["/_xpack/index_lifecycle/_maintenance"],
+      "path": "/_xpack/index_lifecycle/_status",
+      "paths": ["/_xpack/index_lifecycle/_status"],
       "parts": {},
       "params": {}
     },

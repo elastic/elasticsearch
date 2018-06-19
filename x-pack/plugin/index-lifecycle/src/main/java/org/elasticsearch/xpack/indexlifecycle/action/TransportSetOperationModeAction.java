@@ -22,7 +22,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.action.SetOperationModeAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.SetOperationModeAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.SetOperationModeAction.Response;
-import org.elasticsearch.xpack.indexlifecycle.MaintenanceModeUpdateTask;
+import org.elasticsearch.xpack.indexlifecycle.OperationModeUpdateTask;
 
 public class TransportSetOperationModeAction extends TransportMasterNodeAction<Request, Response> {
 
@@ -46,11 +46,11 @@ public class TransportSetOperationModeAction extends TransportMasterNodeAction<R
 
     @Override
     protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
-        clusterService.submitStateUpdateTask("ilm_maintenance_update",
+        clusterService.submitStateUpdateTask("ilm_operation_mode_update",
             new AckedClusterStateUpdateTask<Response>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return (new MaintenanceModeUpdateTask(request.getMode())).execute(currentState);
+                    return (new OperationModeUpdateTask(request.getMode())).execute(currentState);
                 }
 
                 @Override

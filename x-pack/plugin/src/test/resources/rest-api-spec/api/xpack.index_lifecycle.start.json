@@ -1,10 +1,10 @@
 {
-  "xpack.index_lifecycle.stop_maintenance": {
+  "xpack.index_lifecycle.start": {
     "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/index_lifecycle/maintenance/_stop",
-      "paths": ["/_xpack/index_lifecycle/_maintenance/_stop"],
+      "path": "/_xpack/index_lifecycle/maintenance/_start",
+      "paths": ["/_xpack/index_lifecycle/_maintenance/_start"],
       "parts": {},
       "params": {}
     },

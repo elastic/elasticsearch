@@ -42,7 +42,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 /**
- * NoopEngine is an engine implementation that does nothing but the bare minimum
+ * NoOpEngine is an engine implementation that does nothing but the bare minimum
  * required in order to have an engine. All attempts to do something (search,
  * index, get), throw {@link UnsupportedOperationException}. This does maintain
  * a translog with a deletion policy so that when flushing, no translog is
@@ -52,7 +52,7 @@ import java.util.stream.Stream;
  * Directory so that the last commit's user data can be read for the historyUUID
  * and last committed segment info.
  */
-final class NoopEngine extends Engine {
+final class NoOpEngine extends Engine {
 
     private static final Translog.Snapshot EMPTY_TRANSLOG_SNAPSHOT = new Translog.Snapshot() {
         @Override
@@ -79,7 +79,7 @@ final class NoopEngine extends Engine {
     private final String historyUUID;
     private final SegmentInfos lastCommittedSegmentInfos;
 
-    NoopEngine(EngineConfig engineConfig) {
+    NoOpEngine(EngineConfig engineConfig) {
         super(engineConfig);
 
         store.incRef();
@@ -114,7 +114,7 @@ final class NoopEngine extends Engine {
                 }
             }
         }
-        logger.trace("created new NoopEngine");
+        logger.trace("created new NoOpEngine");
     }
 
     private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy,
@@ -169,32 +169,32 @@ final class NoopEngine extends Engine {
 
     @Override
     public IndexResult index(Index index) {
-        throw new UnsupportedOperationException("indexing is not supported on a noop engine");
+        throw new UnsupportedOperationException("indexing is not supported on a noOp engine");
     }
 
     @Override
     public DeleteResult delete(Delete delete) {
-        throw new UnsupportedOperationException("deletion is not supported on a noop engine");
+        throw new UnsupportedOperationException("deletion is not supported on a noOp engine");
     }
 
     @Override
     public NoOpResult noOp(NoOp noOp) {
-        throw new UnsupportedOperationException("noop is not supported on a noop engine");
+        throw new UnsupportedOperationException("noOp is not supported on a noOp engine");
     }
 
     @Override
     public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) throws EngineException {
-        throw new UnsupportedOperationException("synced flush is not supported on a noop engine");
+        throw new UnsupportedOperationException("synced flush is not supported on a noOp engine");
     }
 
     @Override
     public GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException {
-        throw new UnsupportedOperationException("gets are not supported on a noop engine");
+        throw new UnsupportedOperationException("gets are not supported on a noOp engine");
     }
 
     @Override
     public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
-        throw new UnsupportedOperationException("searching is not supported on a noop engine");
+        throw new UnsupportedOperationException("searching is not supported on a noOp engine");
     }
 
     @Override
@@ -278,7 +278,7 @@ final class NoopEngine extends Engine {
     // Override the refreshNeeded method so that we don't attempt to acquire a searcher checking if we need to refresh
     @Override
     public boolean refreshNeeded() {
-        // We never need to refresh a noop engine so always return false
+        // We never need to refresh a noOp engine so always return false
         return false;
     }
 

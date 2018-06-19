@@ -566,11 +566,11 @@ public abstract class EngineTestCase extends ESTestCase {
         return config;
     }
 
-    protected EngineConfig noopConfig(IndexSettings indexSettings, Store store, Path translogPath) {
-        return noopConfig(indexSettings, store, translogPath, null);
+    protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath) {
+        return noOpConfig(indexSettings, store, translogPath, null);
     }
 
-    protected EngineConfig noopConfig(IndexSettings indexSettings, Store store, Path translogPath, LongSupplier globalCheckpointSupplier) {
+    protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath, LongSupplier globalCheckpointSupplier) {
         return config(indexSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpointSupplier);
     }
 

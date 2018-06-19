@@ -22,7 +22,7 @@ import java.util.Map;
  * This class wraps a client and calls the client using the headers provided in
  * constructor. The intent is to abstract away the fact that there are headers
  * so {@link Step}s etc. can call this client as if it was a normal client.
- * 
+ *
  * Note: This client will not close the wrapped {@link Client} instance since
  * the intent is that the wrapped client is shared between multiple instances of
  * this class.
@@ -47,9 +47,9 @@ public class LifecyclePolicySecurityClient extends AbstractClient {
     }
 
     @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse, 
+    protected <Request extends ActionRequest, Response extends ActionResponse,
             RequestBuilder extends ActionRequestBuilder<Request, Response>> void doExecute(
-            Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+            Action<Response> action, Request request, ActionListener<Response> listener) {
         ClientHelper.executeWithHeadersAsync(headers, origin, client, action, request, listener);
     }
 }

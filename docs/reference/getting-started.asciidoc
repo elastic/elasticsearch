@@ -158,7 +158,7 @@ On macOS, Elasticsearch can also be installed via https://brew.sh[Homebrew]:
 brew install elasticsearch
 --------------------------------------------------
 
-If installation succeeds, Homebrew will finish by saying that you can start Elasticsearch by entering `elasticsearch`. Do that now. The expected response is described below, under [Successfully running node](#successfully-running-node).
+If installation succeeds, Homebrew will finish by saying that you can start Elasticsearch by entering `elasticsearch`. Do that now. The expected response is described below, under <<successfully-running-node>>.
 
 [float]
 === Installation example with MSI Windows Installer

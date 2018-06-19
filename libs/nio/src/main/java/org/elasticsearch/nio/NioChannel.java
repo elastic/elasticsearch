@@ -32,12 +32,7 @@ import java.util.function.BiConsumer;
  */
 public abstract class NioChannel {
 
-    private final NetworkChannel socketChannel;
     private volatile InetSocketAddress localAddress;
-
-    NioChannel(NetworkChannel socketChannel) {
-        this.socketChannel = socketChannel;
-    }
 
     public boolean isOpen() {
         return getContext().isOpen();
@@ -46,7 +41,7 @@ public abstract class NioChannel {
     public InetSocketAddress getLocalAddress() {
         if (localAddress == null) {
             try {
-                localAddress = (InetSocketAddress) socketChannel.getLocalAddress();
+                localAddress = (InetSocketAddress) getRawChannel().getLocalAddress();
             } catch (IOException e) {}
         }
         return localAddress;

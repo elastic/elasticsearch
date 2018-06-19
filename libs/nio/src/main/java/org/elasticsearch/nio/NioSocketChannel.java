@@ -33,7 +33,6 @@ public class NioSocketChannel extends NioChannel {
     private SocketChannelContext context;
 
     public NioSocketChannel(SocketChannel socketChannel) {
-        super(socketChannel);
         this.socketChannel = socketChannel;
     }
 

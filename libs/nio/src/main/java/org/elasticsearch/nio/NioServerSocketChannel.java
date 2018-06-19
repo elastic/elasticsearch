@@ -29,7 +29,6 @@ public class NioServerSocketChannel extends NioChannel {
     private ServerChannelContext context;
 
     public NioServerSocketChannel(ServerSocketChannel socketChannel) {
-        super(socketChannel);
         this.socketChannel = socketChannel;
     }
 

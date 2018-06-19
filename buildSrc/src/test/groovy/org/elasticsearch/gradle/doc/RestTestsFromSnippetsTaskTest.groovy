@@ -19,9 +19,7 @@
 
 package org.elasticsearch.gradle.doc
 
-import org.elasticsearch.gradle.doc.SnippetsTask.Snippet
-import org.gradle.api.InvalidUserDataException
-
+import static org.elasticsearch.gradle.doc.RestTestsFromSnippetsTask.isDocWriteRequest
 import static org.elasticsearch.gradle.doc.RestTestsFromSnippetsTask.replaceBlockQuote
 
 class RestTestFromSnippetsTaskTest extends GroovyTestCase {
@@ -46,5 +44,12 @@ class RestTestFromSnippetsTaskTest extends GroovyTestCase {
             replaceBlockQuote("\"foo\": \"\"\"bort\" baz\"\"\""));
         assertEquals("\"foo\": \"bort\\n baz\"",
             replaceBlockQuote("\"foo\": \"\"\"bort\n baz\"\"\""));
+    }
+
+    void testIsDocWriteRequest() {
+        assertTrue(isDocWriteRequest("doc-index/doc_id"));
+        assertTrue(isDocWriteRequest("doc_index/doc_type/doc_id"));
+        assertFalse(isDocWriteRequest("doc_index"))
+        assertFalse(isDocWriteRequest("_xpack/ml/datafeeds/datafeed-id/_preview"));
     }
 }

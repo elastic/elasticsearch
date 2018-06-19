@@ -27,7 +27,7 @@ import org.gradle.api.tasks.OutputDirectory
 
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 /**
  * Generates REST tests for each snippet marked // TEST.
@@ -38,6 +38,12 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
      * shouldn't use them.
      */
     private static final List BAD_LANGUAGES = ['json', 'javascript']
+
+    /**
+     * Doc write operations start with an index name that cannot
+     * start with -, _ or + and must be lower case.
+     */
+    private static final Pattern DOCS_WRITE_OP_PATTERN = Pattern.compile("^[^_\\-\\+][a-z_-]+/");
 
     @Input
     Map<String, String> setups = new HashMap()
@@ -98,6 +104,13 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
          * and gce discovery plugins, the snippets should be marked
          * `// NOTCONSOLE`. */
         return snippet.language == 'js' || snippet.curl
+    }
+
+    /**
+     * Is the URL path a doc write request?
+     */
+    static isDocWriteRequest(String path) {
+        return DOCS_WRITE_OP_PATTERN.matcher(path).find();
     }
 
     /**
@@ -308,14 +321,12 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             /* Catch any shard failures. These only cause a non-200 response if
              * no shard succeeds. But we need to fail the tests on all of these
              * because they mean invalid syntax or broken queries or something
-             * else that we don't want to teach people to do. The REST test
-             * framework doesn't allow us to has assertions in the setup
-             * section so we have to skip it there. We also have to skip _cat
-             * actions because they don't return json so we can't is_false
-             * them. That is ok because they don't have this
-             * partial-success-is-success thing.
+             * else that we don't want to teach people to do. Shard failures
+             * can occur in document CRUD operations. The REST test
+             * framework doesn't allow us to have assertions in the setup
+             * section so we have to skip it there.
              */
-            if (false == inSetup && false == path.startsWith('_cat')) {
+            if (false == inSetup && isDocWriteRequest(path)) {
                 current.println("  - is_false: _shards.failures")
             }
         }

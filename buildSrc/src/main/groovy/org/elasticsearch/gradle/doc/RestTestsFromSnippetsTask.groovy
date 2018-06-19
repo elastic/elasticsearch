@@ -27,7 +27,6 @@ import org.gradle.api.tasks.OutputDirectory
 
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.regex.Pattern
 
 /**
  * Generates REST tests for each snippet marked // TEST.
@@ -38,14 +37,6 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
      * shouldn't use them.
      */
     private static final List BAD_LANGUAGES = ['json', 'javascript']
-
-    /**
-     * Doc write operations start with an index name that cannot
-     * start with -, _ or + and must be lower case and are followed
-     * by the doc type or doc Id. If the 2nd part of the path
-     * (after the '/') starts with a '_' then it is an API call.
-     */
-    private static final Pattern DOCS_WRITE_OP_PATTERN = Pattern.compile("^[^_\\-\\+][a-z_-]+/[^_]");
 
     @Input
     Map<String, String> setups = new HashMap()
@@ -109,10 +100,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
     }
 
     /**
-     * Is the URL path a doc write request?
+     * Certain requests should not have the shard failure check because the
+     * format of the response is incompatible i.e. it is not a JSON object.
      */
-    static isDocWriteRequest(String path) {
-        return DOCS_WRITE_OP_PATTERN.matcher(path).find();
+    static shouldAddShardFailureCheck(String path) {
+        return path.startsWith('_cat') == false &&  path.startsWith('_xpack/ml/datafeeds/') == false
     }
 
     /**
@@ -323,12 +315,12 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             /* Catch any shard failures. These only cause a non-200 response if
              * no shard succeeds. But we need to fail the tests on all of these
              * because they mean invalid syntax or broken queries or something
-             * else that we don't want to teach people to do. Shard failures
-             * can occur in document CRUD operations. The REST test
+             * else that we don't want to teach people to do. The REST test
              * framework doesn't allow us to have assertions in the setup
-             * section so we have to skip it there.
+             * section so we have to skip it there. We also omit the assertion
+             * from APIs that don't return a JSON object
              */
-            if (false == inSetup && isDocWriteRequest(path)) {
+            if (false == inSetup && shouldAddShardFailureCheck(path)) {
                 current.println("  - is_false: _shards.failures")
             }
         }

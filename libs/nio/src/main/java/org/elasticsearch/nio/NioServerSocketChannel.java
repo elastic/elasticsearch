@@ -19,7 +19,6 @@
 
 package org.elasticsearch.nio;
 
-import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -29,7 +28,7 @@ public class NioServerSocketChannel extends NioChannel {
     private final AtomicBoolean contextSet = new AtomicBoolean(false);
     private ServerChannelContext context;
 
-    public NioServerSocketChannel(ServerSocketChannel socketChannel) throws IOException {
+    public NioServerSocketChannel(ServerSocketChannel socketChannel) {
         super(socketChannel);
         this.socketChannel = socketChannel;
     }

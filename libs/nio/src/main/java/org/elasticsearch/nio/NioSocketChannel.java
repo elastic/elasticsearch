@@ -27,15 +27,14 @@ import java.util.function.BiConsumer;
 
 public class NioSocketChannel extends NioChannel {
 
-    private final InetSocketAddress remoteAddress;
     private final AtomicBoolean contextSet = new AtomicBoolean(false);
     private final SocketChannel socketChannel;
+    private volatile InetSocketAddress remoteAddress;
     private SocketChannelContext context;
 
-    public NioSocketChannel(SocketChannel socketChannel) throws IOException {
+    public NioSocketChannel(SocketChannel socketChannel) {
         super(socketChannel);
         this.socketChannel = socketChannel;
-        this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
     }
 
     public void setContext(SocketChannelContext context) {
@@ -57,6 +56,11 @@ public class NioSocketChannel extends NioChannel {
     }
 
     public InetSocketAddress getRemoteAddress() {
+        if (remoteAddress == null) {
+            try {
+                remoteAddress = (InetSocketAddress) socketChannel.getLocalAddress();
+            } catch (IOException e) {}
+        }
         return remoteAddress;
     }
 

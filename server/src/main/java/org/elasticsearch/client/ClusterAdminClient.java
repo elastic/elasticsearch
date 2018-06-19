@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRes
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -184,6 +185,11 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Update settings in the cluster.
      */
     ClusterUpdateSettingsRequestBuilder prepareUpdateSettings();
+
+    /**
+     * Re initialize each cluster node and pass them the secret store password.
+     */
+    NodesReloadSecureSettingsRequestBuilder prepareReloadSecureSettings();
 
     /**
      * Reroutes allocation of shards. Advance API.

@@ -36,11 +36,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.Collections.singletonList;
+import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Class responsible for sniffing the http hosts from elasticsearch through the nodes info api and returning them back.
@@ -138,16 +144,19 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
         Set<HttpHost> boundHosts = new HashSet<>();
         String name = null;
         String version = null;
-        String fieldName = null;
-        // Used to read roles from 5.0+
+        /*
+         * Multi-valued attributes come with key = `real_key.index` and we
+         * unflip them after reading them because we can't rely on the order
+         * that they arive.
+         */
+        final Map<String, String> protoAttributes = new HashMap<String, String>();
+
         boolean sawRoles = false;
         boolean master = false;
         boolean data = false;
         boolean ingest = false;
-        // Used to read roles from 2.x
-        Boolean masterAttribute = null;
-        Boolean dataAttribute = null;
-        boolean clientAttribute = false;
+
+        String fieldName = null;
         while (parser.nextToken() != JsonToken.END_OBJECT) {
             if (parser.getCurrentToken() == JsonToken.FIELD_NAME) {
                 fieldName = parser.getCurrentName();
@@ -170,13 +179,12 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
                     }
                 } else if ("attributes".equals(fieldName)) {
                     while (parser.nextToken() != JsonToken.END_OBJECT) {
-                        if (parser.getCurrentToken() == JsonToken.VALUE_STRING && "master".equals(parser.getCurrentName())) {
-                            masterAttribute = toBoolean(parser.getValueAsString());
-                        } else if (parser.getCurrentToken() == JsonToken.VALUE_STRING && "data".equals(parser.getCurrentName())) {
-                            dataAttribute = toBoolean(parser.getValueAsString());
-                        } else if (parser.getCurrentToken() == JsonToken.VALUE_STRING && "client".equals(parser.getCurrentName())) {
-                            clientAttribute = toBoolean(parser.getValueAsString());
-                        } else if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
+                        if (parser.getCurrentToken() == JsonToken.VALUE_STRING) {
+                            String oldValue = protoAttributes.put(parser.getCurrentName(), parser.getValueAsString());
+                            if (oldValue != null) {
+                                throw new IOException("repeated attribute key [" + parser.getCurrentName() + "]");
+                            }
+                        } else {
                             parser.skipChildren();
                         }
                     }
@@ -216,21 +224,74 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
         if (publishedHost == null) {
             logger.debug("skipping node [" + nodeId + "] with http disabled");
             return null;
-        } else {
-            logger.trace("adding node [" + nodeId + "]");
-            if (version.startsWith("2.")) {
-                /*
-                 * 2.x doesn't send roles, instead we try to read them from
-                 * attributes.
-                 */
-                master = masterAttribute == null ? false == clientAttribute : masterAttribute;
-                data = dataAttribute == null ? false == clientAttribute : dataAttribute;
-            } else {
-                assert sawRoles : "didn't see roles for [" + nodeId + "]";
+        }
+
+        Map<String, List<String>> realAttributes = new HashMap<>(protoAttributes.size());
+        List<String> keys = new ArrayList<>(protoAttributes.keySet());
+        for (String key : keys) {
+            if (key.endsWith(".0")) {
+                String realKey = key.substring(0, key.length() - 2);
+                List<String> values = new ArrayList<>();
+                int i = 0;
+                while (true) {
+                    String value = protoAttributes.remove(realKey + "." + i);
+                    if (value == null) {
+                        break;
+                    }
+                    values.add(value);
+                    i++;
+                }
+                realAttributes.put(realKey, unmodifiableList(values));
             }
-            assert boundHosts.contains(publishedHost) :
-                    "[" + nodeId + "] doesn't make sense! publishedHost should be in boundHosts";
-            return new Node(publishedHost, boundHosts, name, version, new Roles(master, data, ingest));
+        }
+        for (Map.Entry<String, String> entry : protoAttributes.entrySet()) {
+            realAttributes.put(entry.getKey(), singletonList(entry.getValue()));
+        }
+
+        if (version.startsWith("2.")) {
+            /*
+             * 2.x doesn't send roles, instead we try to read them from
+             * attributes.
+             */
+            boolean clientAttribute = v2RoleAttributeValue(realAttributes, "client", false);
+            Boolean masterAttribute = v2RoleAttributeValue(realAttributes, "master", null);
+            Boolean dataAttribute = v2RoleAttributeValue(realAttributes, "data", null);
+            master = masterAttribute == null ? false == clientAttribute : masterAttribute;
+            data = dataAttribute == null ? false == clientAttribute : dataAttribute;
+        } else {
+            assert sawRoles : "didn't see roles for [" + nodeId + "]";
+        }
+        assert boundHosts.contains(publishedHost) :
+                "[" + nodeId + "] doesn't make sense! publishedHost should be in boundHosts";
+        logger.trace("adding node [" + nodeId + "]");
+        return new Node(publishedHost, boundHosts, name, version, new Roles(master, data, ingest),
+                unmodifiableMap(realAttributes));
+    }
+
+    /**
+     * Returns {@code defaultValue} if the attribute didn't come back,
+     * {@code true} or {@code false} if it did come back as
+     * either of those, or throws an IOException if the attribute
+     * came back in a strange way.
+     */
+    private static Boolean v2RoleAttributeValue(Map<String, List<String>> attributes,
+            String name, Boolean defaultValue) throws IOException {
+        List<String> valueList = attributes.remove(name);
+        if (valueList == null) {
+            return defaultValue;
+        }
+        if (valueList.size() != 1) {
+            throw new IOException("expected only a single attribute value for [" + name + "] but got "
+                    + valueList);
+        }
+        switch (valueList.get(0)) {
+        case "true":
+            return true;
+        case "false":
+            return false;
+        default:
+            throw new IOException("expected [" + name + "] to be either [true] or [false] but was ["
+                    + valueList.get(0) + "]");
         }
     }
 
@@ -246,17 +307,6 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
         @Override
         public String toString() {
             return name;
-        }
-    }
-
-    private static boolean toBoolean(String string) {
-        switch (string) {
-        case "true":
-            return true;
-        case "false":
-            return false;
-        default:
-            throw new IllegalArgumentException("[" + string + "] is not a valid boolean");
         }
     }
 }

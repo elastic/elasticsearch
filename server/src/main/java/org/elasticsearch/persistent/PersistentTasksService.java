@@ -35,7 +35,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -113,13 +112,14 @@ public class PersistentTasksService extends AbstractComponent {
      * Notifies the master node that the state of a persistent task has changed.
      * <p>
      * Persistent task implementers shouldn't call this method directly and use
-     * {@link AllocatedPersistentTask#updatePersistentStatus} instead
+     * {@link AllocatedPersistentTask#updatePersistentTaskState} instead
      */
-    void updateStatus(final String taskId,
-                      final long taskAllocationID,
-                      final Task.Status status,
-                      final ActionListener<PersistentTask<?>> listener) {
-        UpdatePersistentTaskStatusAction.Request request = new UpdatePersistentTaskStatusAction.Request(taskId, taskAllocationID, status);
+    void sendUpdateStateRequest(final String taskId,
+                                final long taskAllocationID,
+                                final PersistentTaskState taskState,
+                                final ActionListener<PersistentTask<?>> listener) {
+        UpdatePersistentTaskStatusAction.Request request =
+            new UpdatePersistentTaskStatusAction.Request(taskId, taskAllocationID, taskState);
         execute(request, UpdatePersistentTaskStatusAction.INSTANCE, listener);
     }
 
@@ -137,7 +137,7 @@ public class PersistentTasksService extends AbstractComponent {
      * The origin is set in the context and the listener is wrapped to ensure the proper context is restored
      */
     private <Req extends ActionRequest, Resp extends PersistentTaskResponse>
-        void execute(final Req request, final Action<Req, Resp> action, final ActionListener<PersistentTask<?>> listener) {
+        void execute(final Req request, final Action<Resp> action, final ActionListener<PersistentTask<?>> listener) {
             try {
                 final ThreadContext threadContext = client.threadPool().getThreadContext();
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);

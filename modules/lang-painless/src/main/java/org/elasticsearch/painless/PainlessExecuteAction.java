@@ -62,7 +62,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request, PainlessExecuteAction.Response> {
+public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response> {
 
     static final PainlessExecuteAction INSTANCE = new PainlessExecuteAction();
     private static final String NAME = "cluster:admin/scripts/painless/execute";

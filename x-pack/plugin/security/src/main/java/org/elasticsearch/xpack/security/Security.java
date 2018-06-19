@@ -843,8 +843,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                        PageCacheRecycler pageCacheRecycler,
                                                                         CircuitBreakerService circuitBreakerService,
-                                                                        NamedWriteableRegistry namedWriteableRegistry,
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher) {

@@ -16,3 +16,9 @@ Cross-Cluster-Search::
 
 Rest API::
 * The Clear Cache API only supports `POST` as HTTP method
+
+Aggregations::
+* The Percentiles and PercentileRanks aggregations now return `null` in the REST response,
+  instead of `NaN`.  This makes it consistent with the rest of the aggregations.  Note:
+  this only applies to the REST response, the java objects continue to return `NaN` (also
+  consistent with other aggregations)

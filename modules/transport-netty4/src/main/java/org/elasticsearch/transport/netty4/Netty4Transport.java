@@ -333,10 +333,10 @@ public class Netty4Transport extends TcpTransport {
             addClosedExceptionLogger(ch);
             NettyTcpChannel nettyTcpChannel = new NettyTcpChannel(ch, name);
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
-            serverAcceptedChannel(nettyTcpChannel);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, name));
+            serverAcceptedChannel(nettyTcpChannel);
         }
 
         @Override

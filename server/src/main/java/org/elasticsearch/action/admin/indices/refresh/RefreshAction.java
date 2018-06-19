@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.Action;
 
-public class RefreshAction extends Action<RefreshRequest, RefreshResponse> {
+public class RefreshAction extends Action<RefreshResponse> {
 
     public static final RefreshAction INSTANCE = new RefreshAction();
     public static final String NAME = "indices:admin/refresh";

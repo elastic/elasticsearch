@@ -26,31 +26,31 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.ec2.AwsEc2Service;
 import org.elasticsearch.discovery.ec2.AwsEc2ServiceImpl;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class AwsEc2ServiceImplTests extends ESTestCase {
 
     public void testAWSCredentialsWithSystemProviders() {
-        AWSCredentialsProvider credentialsProvider = AwsEc2ServiceImpl.buildCredentials(logger, Settings.EMPTY);
+        final AWSCredentialsProvider credentialsProvider = AwsEc2ServiceImpl.buildCredentials(logger,
+                Ec2ClientSettings.getClientSettings(Settings.EMPTY));
         assertThat(credentialsProvider, instanceOf(DefaultAWSCredentialsProviderChain.class));
     }
 
     public void testAWSCredentialsWithElasticsearchAwsSettings() {
-        MockSecureSettings secureSettings = new MockSecureSettings();
+        final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("discovery.ec2.access_key", "aws_key");
         secureSettings.setString("discovery.ec2.secret_key", "aws_secret");
-        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         launchAWSCredentialsWithElasticsearchSettingsTest(settings, "aws_key", "aws_secret");
     }
 
     protected void launchAWSCredentialsWithElasticsearchSettingsTest(Settings settings, String expectedKey, String expectedSecret) {
-        AWSCredentials credentials = AwsEc2ServiceImpl.buildCredentials(logger, settings).getCredentials();
+        final AWSCredentials credentials = AwsEc2ServiceImpl.buildCredentials(logger, Ec2ClientSettings.getClientSettings(settings))
+                .getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is(expectedKey));
         assertThat(credentials.getAWSSecretKey(), is(expectedSecret));
     }
@@ -61,10 +61,10 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
     }
 
     public void testAWSConfigurationWithAwsSettings() {
-        MockSecureSettings secureSettings = new MockSecureSettings();
+        final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("discovery.ec2.proxy.username", "aws_proxy_username");
         secureSettings.setString("discovery.ec2.proxy.password", "aws_proxy_password");
-        Settings settings = Settings.builder()
+        final Settings settings = Settings.builder()
             .put("discovery.ec2.protocol", "http")
             .put("discovery.ec2.proxy.host", "aws_proxy_host")
             .put("discovery.ec2.proxy.port", 8080)
@@ -81,7 +81,8 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
                                               String expectedProxyUsername,
                                               String expectedProxyPassword,
                                               int expectedReadTimeout) {
-        ClientConfiguration configuration = AwsEc2ServiceImpl.buildConfiguration(logger, settings);
+        final ClientConfiguration configuration = AwsEc2ServiceImpl.buildConfiguration(logger,
+                Ec2ClientSettings.getClientSettings(settings));
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
         assertThat(configuration.getProtocol(), is(expectedProtocol));
@@ -92,16 +93,4 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
         assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout));
     }
 
-    public void testDefaultEndpoint() {
-        String endpoint = AwsEc2ServiceImpl.findEndpoint(logger, Settings.EMPTY);
-        assertThat(endpoint, nullValue());
-    }
-
-    public void testSpecificEndpoint() {
-        Settings settings = Settings.builder()
-            .put(AwsEc2Service.ENDPOINT_SETTING.getKey(), "ec2.endpoint")
-            .build();
-        String endpoint = AwsEc2ServiceImpl.findEndpoint(logger, settings);
-        assertThat(endpoint, is("ec2.endpoint"));
-    }
 }

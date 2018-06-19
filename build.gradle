@@ -53,9 +53,23 @@ subprojects {
   description = "Elasticsearch subproject ${project.path}"
 }
 
+apply plugin: 'nebula.info-scm'
+String licenseCommit
+if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
+  licenseCommit = scminfo.change ?: "master" // leniency for non git builds
+} else {
+  licenseCommit = "v${version}"
+}
+String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
+
 subprojects {
+  // Default to the apache license
   project.ext.licenseName = 'The Apache Software License, Version 2.0'
   project.ext.licenseUrl = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+
+  // But stick the Elastic license url in project.ext so we can get it if we need to switch to it
+  project.ext.elasticLicenseUrl = elasticLicenseUrl
+
   // we only use maven publish to add tasks for pom generation
   plugins.withType(MavenPublishPlugin).whenPluginAdded {
     publishing {

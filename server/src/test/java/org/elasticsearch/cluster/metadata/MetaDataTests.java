@@ -99,6 +99,34 @@ public class MetaDataTests extends ESTestCase {
         }
     }
 
+    public void testValidateAliasWriteOnly() {
+        String alias = randomAlphaOfLength(5);
+        String indexA = randomAlphaOfLength(6);
+        String indexB = randomAlphaOfLength(7);
+        Boolean aWriteIndex = randomBoolean() ? null : randomBoolean();
+        Boolean bWriteIndex;
+        if (Boolean.TRUE.equals(aWriteIndex)) {
+            bWriteIndex = randomFrom(Boolean.FALSE, null);
+        } else {
+            bWriteIndex = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
+        }
+        // when only one index/alias pair exist
+        MetaData metaData = MetaData.builder().put(buildIndexMetaData(indexA, alias, aWriteIndex)).build();
+
+        // when alias points to two indices, but valid
+        // one of the following combinations: [(null, null), (null, true), (null, false), (false, false)]
+        MetaData.builder(metaData).put(buildIndexMetaData(indexB, alias, bWriteIndex)).build();
+
+        // when too many write indices
+        Exception exception = expectThrows(IllegalStateException.class,
+            () -> {
+                IndexMetaData.Builder metaA = buildIndexMetaData(indexA, alias, true);
+                IndexMetaData.Builder metaB = buildIndexMetaData(indexB, alias, true);
+                MetaData.builder().put(metaA).put(metaB).build();
+            });
+        assertThat(exception.getMessage(), startsWith("alias [" + alias + "] has more than one write index ["));
+    }
+
     public void testResolveIndexRouting() {
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
                 .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
@@ -426,6 +454,13 @@ public class MetaDataTests extends ESTestCase {
             assertIndexMappingsNoFields(mappings, "index3");
             assertIndexMappingsNotFiltered(mappings, "index2");
         }
+    }
+
+    private IndexMetaData.Builder buildIndexMetaData(String name, String alias, Boolean writeIndex) {
+        return IndexMetaData.builder(name)
+            .settings(settings(Version.CURRENT)).creationDate(randomNonNegativeLong())
+            .putAlias(AliasMetaData.builder(alias).writeIndex(writeIndex))
+            .numberOfShards(1).numberOfReplicas(0);
     }
 
     @SuppressWarnings("unchecked")

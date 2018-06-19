@@ -1,8 +1,9 @@
 [role="xpack"]
+[testenv="basic"]
 [[info-api]]
 == Info API
 
-The info API provides general information about the installed {xpack}.
+The info API provides general information about the installed {xpack} features.
 
 [float]
 === Request
@@ -55,16 +56,15 @@ Example response:
       "date" : "2015-04-07T13:34:42Z"
    },
    "license" : {
-      "uid" : "893361dc-9749-4997-93cb-802e3dofh7aa",
-      "type" : "trial",
-      "mode" : "trial",
-      "status" : "active",
-      "expiry_date_in_millis" : 1914278399999
+      "uid" : "893361dc-9749-4997-93cb-xxx",
+      "type" : "basic",
+      "mode" : "basic",
+      "status" : "active"
    },
    "features" : {
       "graph" : {
          "description" : "Graph Data Exploration for the Elastic Stack",
-         "available" : true,
+         "available" : false,
          "enabled" : true
       },
       "index_lifecycle" : {
@@ -74,16 +74,16 @@ Example response:
       },
       "logstash" : {
          "description" : "Logstash management component for X-Pack",
-         "available" : true,
+         "available" : false,
          "enabled" : true
       },
       "ml" : {
          "description" : "Machine Learning for the Elastic Stack",
-         "available" : true,
+         "available" : false,
          "enabled" : true,
          "native_code_info" : {
-           "version" : "6.0.0-alpha1-SNAPSHOT",
-           "build_hash" : "d081461967d61a"
+           "version" : "7.0.0-alpha1-SNAPSHOT",
+           "build_hash" : "99a07c016d5a73"
         }
       },
       "monitoring" : {
@@ -98,12 +98,12 @@ Example response:
       },
       "security" : {
          "description" : "Security for the Elastic Stack",
-         "available" : true,
+         "available" : false,
          "enabled" : true
       },
       "watcher" : {
          "description" : "Alerting, Notification and Automation for the Elastic Stack",
-         "available" : true,
+         "available" : false,
          "enabled" : true
       }
    },
@@ -112,10 +112,10 @@ Example response:
 ------------------------------------------------------------
 // TESTRESPONSE[s/"hash" : "2798b1a3ce779b3611bb53a0082d4d741e4d3168",/"hash" : "$body.build.hash",/]
 // TESTRESPONSE[s/"date" : "2015-04-07T13:34:42Z"/"date" : "$body.build.date"/]
-// TESTRESPONSE[s/"uid" : "893361dc-9749-4997-93cb-802e3dofh7aa",/"uid": "$body.license.uid",/]
+// TESTRESPONSE[s/"uid" : "893361dc-9749-4997-93cb-xxx",/"uid": "$body.license.uid",/]
 // TESTRESPONSE[s/"expiry_date_in_millis" : 1914278399999/"expiry_date_in_millis" : "$body.license.expiry_date_in_millis"/]
-// TESTRESPONSE[s/"version" : "6.0.0-alpha1-SNAPSHOT",/"version": "$body.features.ml.native_code_info.version",/]
-// TESTRESPONSE[s/"build_hash" : "d081461967d61a"/"build_hash": "$body.features.ml.native_code_info.build_hash"/]
+// TESTRESPONSE[s/"version" : "7.0.0-alpha1-SNAPSHOT",/"version": "$body.features.ml.native_code_info.version",/]
+// TESTRESPONSE[s/"build_hash" : "99a07c016d5a73"/"build_hash": "$body.features.ml.native_code_info.build_hash"/]
 // So much s/// but at least we test that the layout is close to matching....
 
 The following example only returns the build and features information:

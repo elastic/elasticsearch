@@ -40,15 +40,13 @@ import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -57,6 +55,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.BindHttpException;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
@@ -64,7 +63,6 @@ import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.netty4.Netty4OpenChannelsHandler;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.io.IOException;
@@ -171,10 +169,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     protected final List<Channel> serverChannels = new ArrayList<>();
 
-    // package private for testing
-    Netty4OpenChannelsHandler serverOpenChannels;
-
-
     private final Netty4CorsConfig corsConfig;
 
     public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
@@ -216,8 +210,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            this.serverOpenChannels = new Netty4OpenChannelsHandler(logger);
-
             serverBootstrap = new ServerBootstrap();
 
             serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
@@ -281,10 +273,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             builder.allowCredentials();
         }
         String[] strMethods = Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
-        HttpMethod[] methods = Arrays.asList(strMethods)
-            .stream()
+        HttpMethod[] methods = Arrays.stream(strMethods)
             .map(HttpMethod::valueOf)
-            .toArray(size -> new HttpMethod[size]);
+            .toArray(HttpMethod[]::new);
         return builder.allowedRequestMethods(methods)
             .maxAge(SETTING_CORS_MAX_AGE.get(settings))
             .allowedRequestHeaders(Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
@@ -327,15 +318,21 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     Netty4Utils.closeChannels(serverChannels);
                 } catch (IOException e) {
                     logger.trace("exception while closing channels", e);
+                } finally {
+                    serverChannels.clear();
                 }
-                serverChannels.clear();
             }
         }
 
-        if (serverOpenChannels != null) {
-            serverOpenChannels.close();
-            serverOpenChannels = null;
+        // TODO: Move all of channel closing to abstract class once server channels are handled
+        try {
+            CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
+        } catch (Exception e) {
+            logger.warn("unexpected exception while closing http channels", e);
         }
+        httpChannels.clear();
+
+
 
         if (serverBootstrap != null) {
             serverBootstrap.config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS).awaitUninterruptibly();
@@ -349,38 +346,18 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     @Override
     public HttpStats stats() {
-        Netty4OpenChannelsHandler channels = serverOpenChannels;
-        return new HttpStats(channels == null ? 0 : channels.numberOfOpenChannels(), channels == null ? 0 : channels.totalChannels());
+        return new HttpStats(httpChannels.size(), totalChannelsAccepted.get());
     }
 
-    public Netty4CorsConfig getCorsConfig() {
-        return corsConfig;
-    }
-
-    protected void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+    @Override
+    protected void onException(HttpChannel channel, Exception cause) {
         if (cause instanceof ReadTimeoutException) {
             if (logger.isTraceEnabled()) {
-                logger.trace("Read timeout [{}]", ctx.channel().remoteAddress());
+                logger.trace("Http read timeout {}", channel);
             }
-            ctx.channel().close();
+            CloseableChannel.closeChannel(channel);;
         } else {
-            if (!lifecycle.started()) {
-                // ignore
-                return;
-            }
-            if (!NetworkExceptionHelper.isCloseConnectionException(cause)) {
-                logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "caught exception while handling client http traffic, closing connection {}", ctx.channel()),
-                    cause);
-                ctx.channel().close();
-            } else {
-                logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "caught exception while handling client http traffic, closing connection {}", ctx.channel()),
-                    cause);
-                ctx.channel().close();
-            }
+            super.onException(channel, cause);
         }
     }
 
@@ -404,9 +381,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
-            Netty4HttpChannel nettyTcpChannel = new Netty4HttpChannel(ch);
-            ch.attr(HTTP_CHANNEL_KEY).set(nettyTcpChannel);
-            ch.pipeline().addLast("openChannels", transport.serverOpenChannels);
+            Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
+            ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
                 handlingSettings.getMaxInitialLineLength(),
@@ -423,10 +399,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
             if (handlingSettings.isCorsEnabled()) {
-                ch.pipeline().addLast("cors", new Netty4CorsHandler(transport.getCorsConfig()));
+                ch.pipeline().addLast("cors", new Netty4CorsHandler(transport.corsConfig));
             }
             ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(transport.logger, transport.pipeliningMaxEvents));
             ch.pipeline().addLast("handler", requestHandler);
+            transport.serverAcceptedChannel(nettyHttpChannel);
         }
 
         @Override

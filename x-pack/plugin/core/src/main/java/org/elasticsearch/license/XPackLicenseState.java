@@ -254,7 +254,11 @@ public class XPackLicenseState {
 
     public XPackLicenseState(Settings settings) {
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        this.isSecurityExplicitlyEnabled = settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) && isSecurityEnabled;
+        // 6.0+ requires TLS for production licenses, so if TLS is enabled and security is enabled
+        // we can interpret this as an explicit enabling of security if the security enabled
+        // setting is not explicitly set
+        this.isSecurityExplicitlyEnabled = isSecurityEnabled &&
+            (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) || XPackSettings.TRANSPORT_SSL_ENABLED.get(settings));
     }
 
     /** Updates the current state of the license, which will change what features are available. */

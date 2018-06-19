@@ -21,7 +21,6 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -36,6 +35,12 @@ public class NioSocketChannel extends NioChannel {
 
     public NioSocketChannel(SocketChannel socketChannel) {
         this.socketChannel = socketChannel;
+        try {
+            remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
+        } catch (IOException e) {
+            // This exception will be thrown if the channel is closed. But we do not really care when
+            // we are just attempting to read the remote address.
+        }
     }
 
     public void setContext(SocketChannelContext context) {
@@ -65,20 +70,6 @@ public class NioSocketChannel extends NioChannel {
     }
 
     public InetSocketAddress getRemoteAddress() {
-        if (remoteAddress == null) {
-            Socket socket = socketChannel.socket();
-            // socket.getRemoteSocketAddress() will only return the address if the socket is connected.
-            if (socket.isConnected()) {
-                remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
-            } else {
-                try {
-                    remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
-                } catch (IOException e) {
-                    // This exception will be thrown if the channel is closed. But we do not really care when
-                    // we are just attempting to read the remote address.
-                }
-            }
-        }
         return remoteAddress;
     }
 

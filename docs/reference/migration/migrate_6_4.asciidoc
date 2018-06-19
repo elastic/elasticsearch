@@ -1,6 +1,14 @@
 [[breaking-changes-6.4]]
 == Breaking changes in 6.4
 
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 6.4.
+
+* <<breaking_64_api_changes>>
+* <<breaking_64_scripting_changes>>
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
 [[breaking_64_api_changes]]
 === API changes
 
@@ -38,3 +46,26 @@ support for these formats will be removed in the next major release.
 
 This includes `template` stored scripts format and
 formats that do not encapsulate the script inside a `script` json object.
+
+[[breaking_64_rest_client_changes]]
+=== REST Client
+
+==== Old low level ++performRequest++s deprecated
+The versions of `performRequest` and `performRequestAsync` that were in the
+low level client in 6.3 have been deprecated in favor of
+`performRequest(Request)` and `performRequestAsync(Request, ActionListener)`.
+These will allow us to add more features to the client without adding more
+variants of `performRequest`.
+
+==== Old high level request methods deprecated
+All request methods on the high level client have been deprecated in favor
+of a new variant that takes `RequestOptions`. This allows users of the high
+level client to customize many options on individual requests that were not
+available otherwise.
+
+==== HostSniffer renamed to NodeSniffer and signature changed
+To provide allow the `Sniffer` to pick up more metadata we changed it from
+sniffing ++HttpHost++s to sniffing ++Node++s, a new class introduced to contain
+both connection information and metadata like the node's role or any
+attributes defined in elasticsearch.yml. These can be used by the new
+`RequestOptions#setNodeSelector`.

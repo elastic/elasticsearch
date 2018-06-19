@@ -1,6 +1,15 @@
 [[breaking-changes-6.3]]
 == Breaking changes in 6.3
 
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 6.3.
+
+* <<breaking_63_api_changes>>
+* <<breaking_63_plugins_changes>>
+* <<breaking_63_settings_changes>>
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
 [[breaking_63_api_changes]]
 === API changes
 
@@ -46,6 +55,12 @@ accept these permissions either by keeping standard input open and attaching a
 TTY (i.e., using interactive mode to accept the permissions), or by passing the
 `--batch` flag.
 
+==== Implementing custom realms with SPI instead of XPackExtension
+
+The legacy `XPackExtension` extension mechanism has been removed and replaced
+with an SPI based extension mechanism that is installed and built as an
+elasticsearch plugin. For more information about using SPI loaded security extensions in custom realms, see {stack-ov}/custom-realms.html[Integrating with other authentication systems]. 
+
 [[breaking_63_settings_changes]]
 === Settings changes
 
@@ -79,3 +94,11 @@ place) you can start Elasticsearch with the JVM option
 `-Des.thread_pool.write.use_bulk_as_display_name=true` to have Elasticsearch
 continue to display the name of this thread pool as `bulk`. Elasticsearch will
 stop observing this system property in 7.0.0.
+
+==== Enabling monitoring 
+
+By default when you install {xpack}, monitoring is enabled but data collection
+is disabled. To enable data collection, use the new
+`xpack.monitoring.collection.enabled` setting. You can update this setting by
+using the <<cluster-update-settings,Cluster Update Settings API>>. For more
+information, see <<monitoring-settings>>.

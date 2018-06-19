@@ -11,7 +11,9 @@ setup:
 
 ---
 "Check empty aliases when getting all aliases via /_alias":
-
+  - skip:
+      version: " - 5.99.99"
+      reason: 5.x doesn't return indices without aliases (at transport)
   - do:
       indices.get_alias: {}
 

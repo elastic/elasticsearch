@@ -426,8 +426,7 @@ public class BeatsModuleStoreTests extends ESTestCase {
             "  paths:\n" +
             "   - 'my_dir/access.log'\n" +
             "  exclude_files: [\".gz$\"]", apache2AccessModule.inputDefinition);
-        assertEquals(APACHE2_ACCESS_PIPELINE.replace("{{ _ingest.on_failure_message }}", "error").trim(),
-            apache2AccessModule.ingestPipeline);
+        assertEquals(APACHE2_ACCESS_PIPELINE.trim(), apache2AccessModule.ingestPipeline);
     }
 
     public void testPopulateModuleData() throws IOException {

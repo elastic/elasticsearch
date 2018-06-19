@@ -15,12 +15,15 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -28,6 +31,19 @@ import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 import static org.elasticsearch.common.xcontent.yaml.YamlXContent.yamlXContent;
 
 public final class BeatsModuleStore {
+
+    private static final Set<String> BROAD_MATCH_FORMATS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+        "apache2", "system"
+    )));
+    private static final Map<String, String> FORMAT_ABBREVIATIONS;
+    static {
+        Map<String, String> formatAbbreviations = new HashMap<>();
+        formatAbbreviations.put("apache2", "apache");
+        formatAbbreviations.put("mongodb", "mongo");
+        formatAbbreviations.put("mysql", "my");
+        formatAbbreviations.put("postgresql", "pg");
+        FORMAT_ABBREVIATIONS = Collections.unmodifiableMap(formatAbbreviations);
+    }
 
     private final List<BeatsModule> beatsModules;
 
@@ -60,12 +76,26 @@ public final class BeatsModuleStore {
 
         try {
             Files.find(moduleDir, 3, (path, attrs) -> path.getFileName().toString().equals("manifest.yml"))
-                .forEach(path -> parseModule(path, beatsModules, sampleFileName));
+                .forEach(path -> considerModule(path, beatsModules, sampleFileName));
         } catch (UncheckedIOException e) {
             throw e.getCause();
         }
 
         return beatsModules;
+    }
+
+    static void considerModule(Path manifestPath, List<BeatsModule> beatsModules, String sampleFileName) {
+        String moduleName = manifestPath.getName(manifestPath.getNameCount() - 3).toString();
+
+        // Ignore specialist modules that have no connection to the sample file name
+        if (BROAD_MATCH_FORMATS.contains(moduleName) == false && sampleFileName.contains(moduleName) == false) {
+            String abbreviation = FORMAT_ABBREVIATIONS.get(moduleName);
+            if (abbreviation == null || sampleFileName.contains(abbreviation) == false) {
+                return;
+            }
+        }
+
+        parseModule(manifestPath, beatsModules, sampleFileName);
     }
 
     static void parseModule(Path manifestPath, List<BeatsModule> beatsModules, String sampleFileName) {
@@ -83,7 +113,8 @@ public final class BeatsModuleStore {
                     // are:
                     // 1. "{{.format}}" in the ingest pipeline file name with "plain".
                     // 2. "{{$path}}" in the filebeat config with the path to the sample file that was provided.
-                    // 3. "{{ _ingest.on_failure_message }}" in the ingest pipeline config with "error".
+                    // 3. "{< if .convert_timezone >}" is taken to be true.
+                    // 4. "{{ _ingest.on_failure_message }}" is preserved.
                     // Other variables are simply removed.
                     String inputDefinition;
                     try (Stream<String> strm = Files.lines(manifestPath.getParent().resolve(manifestContent.get("input").toString()))) {
@@ -103,9 +134,10 @@ public final class BeatsModuleStore {
                     String ingestPipelineFileName = manifestContent.get("ingest_pipeline").toString().replace("{{.format}}", "plain");
                     try (Stream<String> strm = Files.lines(manifestPath.getParent().resolve(ingestPipelineFileName))) {
                         ingestPipeline = strm.flatMap(line -> {
-                            if (line.contains("{{ _ingest.on_failure_message }}")) {
-                                return Stream.of(line.replace("{{ _ingest.on_failure_message }}", "error"));
-                            } else if (line.contains("{{")) {
+                            if (line.contains("{< if .convert_timezone >}\"timezone\": \"{{ beat.timezone }}\",{< end >}")) {
+                                return Stream.of(line.replace("{< if .convert_timezone >}\"timezone\": \"{{ beat.timezone }}\",{< end >}",
+                                    "\"timezone\": \"{{ beat.timezone }}\","));
+                            } else if (line.contains("{{") && line.contains("{{ _ingest.on_failure_message }}") == false) {
                                 return Stream.empty();
                             } else {
                                 return Stream.of(line);
@@ -171,7 +203,10 @@ public final class BeatsModuleStore {
                     patternBank.putAll(customPatternDefinitions);
                 }
 
-                return patterns.stream().map(pattern -> new Grok(patternBank, pattern)).collect(Collectors.toList());
+                // Ignore patterns that are simply a %{GREEDYDATA:something}, as they will match too widely
+                return patterns.stream()
+                    .filter(pattern -> pattern.startsWith("%{GREEDYDATA") == false || pattern.indexOf('}') < pattern.length() - 1)
+                    .map(pattern -> new Grok(patternBank, pattern)).collect(Collectors.toList());
             }
         }
 

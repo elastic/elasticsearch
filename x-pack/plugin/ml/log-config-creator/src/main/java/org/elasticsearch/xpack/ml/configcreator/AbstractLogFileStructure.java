@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -45,6 +46,18 @@ public abstract class AbstractLogFileStructure {
         "%s" +
         "    }\n" +
         "  ";
+
+    // These next two are needed because Joda will throw an error if asked to parse fractional seconds
+    // more granular than milliseconds, so we need to truncate the fractional part to 3 digits
+    private static final String LOGSTASH_FRACTIONAL_SECONDS_GSUB_TEMPLATE = "  mutate {\n" +
+        "    gsub => [ %s%s%s, \"([:.,]\\d{3})\\d*\", \"\\1\" ]\n" +
+        "  }\n";
+    private static final String INGEST_PIPELINE_FRACTIONAL_SECONDS_GSUB_TEMPLATE = ",\n" +
+        "      \"gsub\": {\n" +
+        "        \"field\": \"%s\",\n" +
+        "        \"pattern\": \"([:.,]\\d{3})\\d*\",\n" +
+        "        \"replacement\": \"$1\"\n" +
+        "      }";
 
     private static final String FIELD_MAPPING_TEMPLATE = "        \"%s\": {\n" +
         "          \"type\": \"%s\"\n" +
@@ -133,5 +146,18 @@ public abstract class AbstractLogFileStructure {
         }
 
         return String.format(Locale.ROOT, LOGSTASH_MULTILINE_CONFIG_TEMPLATE, encodingConfig, multilineRegex);
+    }
+
+    protected String makeLogstashFractionalSecondsGsubFilter(String timeFieldName, TimestampMatch timestampMatch) {
+
+        String fieldQuote = bestLogstashQuoteFor(timeFieldName);
+        return timestampMatch.hasFractionalComponentSmallerThanMillisecond ?
+            String.format(Locale.ROOT, LOGSTASH_FRACTIONAL_SECONDS_GSUB_TEMPLATE, fieldQuote, timeFieldName, fieldQuote) : "";
+    }
+
+    protected String makeIngestPipelineFractionalSecondsGsubFilter(String timeFieldName, TimestampMatch timestampMatch) {
+
+        return timestampMatch.hasFractionalComponentSmallerThanMillisecond ?
+            String.format(Locale.ROOT, INGEST_PIPELINE_FRACTIONAL_SECONDS_GSUB_TEMPLATE, timeFieldName) : "";
     }
 }

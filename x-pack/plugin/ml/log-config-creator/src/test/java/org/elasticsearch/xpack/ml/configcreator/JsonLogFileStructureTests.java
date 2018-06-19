@@ -40,6 +40,6 @@ public class JsonLogFileStructureTests extends LogConfigCreatorTestCase {
                 containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
         }
         assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"field\": \"timestamp\",\n"));
-        assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"formats\": [ \"UNIX_MS\" ]\n"));
+        assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"formats\": [ \"UNIX_MS\" ],\n"));
     }
 }

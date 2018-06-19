@@ -34,7 +34,7 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
         structure.createConfigs();
         assertThat(structure.getFilebeatToLogstashConfig(), containsString("exclude_lines: ['^\"?time\"?,\"?message\"?']\n"));
         assertThat(structure.getFilebeatToLogstashConfig(),
-            containsString("multiline.pattern: '^\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
+            containsString("multiline.pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("columns => [ \"time\", \"message\" ]\n"));
         assertThat(structure.getLogstashFromStdinConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));

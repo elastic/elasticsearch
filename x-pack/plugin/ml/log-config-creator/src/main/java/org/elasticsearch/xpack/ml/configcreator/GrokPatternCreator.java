@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
  */
 public final class GrokPatternCreator {
 
-    private static final Pattern PUNCTUATION_OR_SPACE = Pattern.compile("[\"'`‘’“”#@%=\\\\/|~:;,<>()\\[\\]{}«»^$*¿?¡!§¶ \t]");
+    private static final Pattern PUNCTUATION_OR_SPACE = Pattern.compile("[\"'`‘’“”#@%=\\\\/|~:;,<>()\\[\\]{}«»^$*¿?¡!§¶ \t\n]");
     private static final Pattern NEEDS_ESCAPING = Pattern.compile("[\\\\|()\\[\\]{}^$*?]");
 
     private static final String PREFACE = "preface";
@@ -44,8 +44,6 @@ public final class GrokPatternCreator {
         new GrokPatternCandidate("CATALINA_DATESTAMP", "date", "extra_timestamp"),
         new GrokPatternCandidate("TOMCAT_DATESTAMP", "date", "extra_timestamp"),
         new GrokPatternCandidate("CISCOTIMESTAMP", "date", "extra_timestamp"),
-        new GrokPatternCandidate("DATE", "date", "date"),
-        new GrokPatternCandidate("TIME", "date", "time"),
         new GrokPatternCandidate("LOGLEVEL", "keyword", "loglevel"),
         new GrokPatternCandidate("URI", "keyword", "uri"),
         new GrokPatternCandidate("UUID", "keyword", "uuid"),
@@ -55,6 +53,8 @@ public final class GrokPatternCreator {
         new GrokPatternCandidate("EMAILADDRESS", "keyword", "email"),
         // TODO: would be nice to have IPORHOST here, but HOST matches almost all words
         new GrokPatternCandidate("IP", "ip", "ipaddress"),
+        new GrokPatternCandidate("DATE", "date", "date"),
+        new GrokPatternCandidate("TIME", "date", "time"),
         // This already includes pre/post break conditions
         new GrokPatternCandidate("QUOTEDSTRING", "keyword", "field", "", ""),
         // Can't use \b as the break before, because it doesn't work for negative numbers (the
@@ -88,7 +88,7 @@ public final class GrokPatternCreator {
         processCandidateAndSplit(fieldNameCountStore, overallGrokPatternBuilder, seedCandidate, seedFieldName, true, sampleMessages,
             mappings);
 
-        return overallGrokPatternBuilder.toString();
+        return overallGrokPatternBuilder.toString().replace("\t", "\\t").replace("\n", "\\n");
     }
 
     /**
@@ -268,7 +268,8 @@ public final class GrokPatternCreator {
             this.grokPatternName = grokPatternName;
             this.mappingType = mappingType;
             this.fieldName = fieldName;
-            this.grok = new Grok(Grok.getBuiltinPatterns(), "%{DATA:" + PREFACE + "}" + preBreak + "%{" + grokPatternName + ":this}" +
+            // The (?m) here has the Ruby meaning, which is equivalent to (?s) in Java
+            this.grok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}" + preBreak + "%{" + grokPatternName + ":this}" +
                 postBreak + "%{GREEDYDATA:" + EPILOGUE + "}");
         }
     }

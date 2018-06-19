@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.configcreator;
 
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.BeatsModuleStore.BeatsModule;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
@@ -23,8 +24,11 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class TextLogFileStructure extends AbstractLogFileStructure implements LogFileStructure {
+
+    private static final String INTERIM_TIMESTAMP_FIELD = "_timestamp";
 
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
@@ -36,9 +40,10 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "  grok {\n" +
         "    match => { \"message\" => %s%s%s }\n" +
         "  }\n" +
+        "%s" +
         "  date {\n" +
-        "    match => [ \"_timestamp\", \"%s\" ]\n" +
-        "    remove_field => [ \"_timestamp\" ]\n" +
+        "    match => [ \"" + INTERIM_TIMESTAMP_FIELD + "\", %s ]\n" +
+        "    remove_field => [ \"" + INTERIM_TIMESTAMP_FIELD + "\" ]\n" +
         "  }\n" +
         "}\n" ;
     private static final String LOGSTASH_FROM_FILEBEAT_TEMPLATE = "input {\n" +
@@ -86,13 +91,14 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "      \"grok\": {\n" +
         "        \"field\": \"message\",\n" +
         "        \"patterns\": [ \"%s\" ]\n" +
-        "      },\n" +
+        "      }%s,\n" +
         "      \"date\": {\n" +
-        "        \"field\": \"_timestamp\",\n" +
-        "        \"formats\": [ \"%s\" ]\n" +
+        "        \"field\": \"" + INTERIM_TIMESTAMP_FIELD + "\",\n" +
+        "        \"formats\": [ %s ],\n" +
+        "        \"timezone\": \"{{ beat.timezone }}\"\n" +
         "      },\n" +
         "      \"remove\": {\n" +
-        "        \"field\": \"_timestamp\"\n" +
+        "        \"field\": \"" + INTERIM_TIMESTAMP_FIELD + "\"\n" +
         "      }\n" +
         "    }\n" +
         "  ]\n" +
@@ -152,19 +158,26 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
             throw new Exception("Could not find a timestamp in the log sample provided");
         }
 
+        terminal.println(Verbosity.VERBOSE, "Most common timestamp format is [" + bestTimestamp.v1() + "]");
+
         List<String> sampleMessages = new ArrayList<>();
-        StringBuilder message = new StringBuilder(sampleLines[0]);
+        StringBuilder message = null;
         String multiLineRegex = createMultiLineMessageStartRegex(bestTimestamp.v2(), bestTimestamp.v1().simplePattern.pattern());
         Pattern multiLinePattern = Pattern.compile(multiLineRegex);
-        for (int i = 1; i < sampleLines.length; ++i) {
-            if (multiLinePattern.matcher(sampleLines[i]).find()) {
-                sampleMessages.add(message.toString());
-                message = new StringBuilder(sampleLines[i]);
+        for (String sampleLine : sampleLines) {
+            if (multiLinePattern.matcher(sampleLine).find()) {
+                if (message != null) {
+                    sampleMessages.add(message.toString());
+                }
+                message = new StringBuilder(sampleLine);
             } else {
-                message.append('\n').append(sampleLines[i]);
+                // If message is null here then the sample probably began with the incomplete ending of a previous message
+                if (message != null) {
+                    message.append('\n').append(sampleLine);
+                }
             }
         }
-        sampleMessages.add(message.toString());
+        // Don't add the last message, as it might be partial and mess up subsequent pattern finding
 
         mappings = new TreeMap<>();
         mappings.put("message", "text");
@@ -172,10 +185,11 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
 
         // We can't parse directly into @timestamp using Grok, so parse to _timestamp, which the date filter will remove
         String grokPattern = GrokPatternCreator.createGrokPatternFromExamples(sampleMessages, bestTimestamp.v1().grokPatternName,
-            "_timestamp", mappings);
+            INTERIM_TIMESTAMP_FIELD, mappings);
         String grokQuote = bestLogstashQuoteFor(grokPattern);
+        String dateFormatsStr = bestTimestamp.v1().dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\""));
         String logstashFilters = String.format(Locale.ROOT, LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
-            bestTimestamp.v1().dateFormat);
+            makeLogstashFractionalSecondsGsubFilter(INTERIM_TIMESTAMP_FIELD, bestTimestamp.v1()), dateFormatsStr);
 
         String filebeatInputOptions = makeFilebeatInputOptions(multiLineRegex, null);
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions);
@@ -186,9 +200,10 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         if (matchingModule == null) {
             filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_WITHOUT_MODULE_TEMPLATE,
                 filebeatInputOptions, typeName);
-            String jsonEscapedGrokPattern = grokPattern.replaceAll("([\\\\\"])", "\\\\$1").replace("\t", "\\t");
+            String jsonEscapedGrokPattern = grokPattern.replaceAll("([\\\\\"])", "\\\\$1");
             ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_WITHOUT_MODULE_TEMPLATE, typeName,
-                typeName, jsonEscapedGrokPattern, bestTimestamp.v1().dateFormat);
+                typeName, jsonEscapedGrokPattern,
+                makeIngestPipelineFractionalSecondsGsubFilter(INTERIM_TIMESTAMP_FIELD, bestTimestamp.v1()), dateFormatsStr);
         } else {
             String aOrAn = ("aeiou".indexOf(matchingModule.fileType.charAt(0)) >= 0) ? "an" : "a";
             terminal.println("An existing filebeat module [" + matchingModule.moduleName +
@@ -207,8 +222,8 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         for (String sampleLine : sampleLines) {
             TimestampMatch match = TimestampFormatFinder.findFirstMatch(sampleLine);
             if (match != null) {
-                TimestampMatch pureMatch = new TimestampMatch(match.candidateIndex, "", match.dateFormat, match.simplePattern,
-                    match.grokPatternName, "");
+                TimestampMatch pureMatch = new TimestampMatch(match.candidateIndex, "", match.dateFormats, match.simplePattern,
+                    match.grokPatternName, "", match.hasFractionalComponentSmallerThanMillisecond);
                 timestampMatches.compute(pureMatch, (k, v) -> {
                     if (v == null) {
                         return new Tuple<>(1, new HashSet<>(Collections.singletonList(match.preface)));
@@ -237,6 +252,9 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         StringBuilder builder = new StringBuilder("^");
         GrokPatternCreator.addIntermediateRegex(builder, prefaces);
         builder.append(timestampRegex);
+        if (builder.substring(0, 3).equals("^\\b")) {
+            builder.delete(1, 3);
+        }
         return builder.toString();
     }
 

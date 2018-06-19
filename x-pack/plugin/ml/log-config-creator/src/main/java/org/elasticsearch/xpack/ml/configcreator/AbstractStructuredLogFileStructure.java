@@ -29,8 +29,9 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
         "      \"" + DEFAULT_TIMESTAMP_FIELD + "\" => %s%s%s \n" +
         "    }\n" +
         "  }\n";
-    private static final String LOGSTASH_DATE_FILTER_TEMPLATE = "  date {\n" +
-        "    match => [ %s%s%s, \"%s\" ]\n" +
+    private static final String LOGSTASH_DATE_FILTER_TEMPLATE = "%s" +
+        "  date {\n" +
+        "    match => [ %s%s%s, %s ]\n" +
         "  }\n" +
         "%s";
 
@@ -92,6 +93,8 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
             }
 
             if (allGood) {
+                terminal.println(Verbosity.VERBOSE, "Guessing timestamp field is [" + firstSampleMatch.v1() +
+                    "] with format [" + firstSampleMatch.v2() + "]");
                 return firstSampleMatch;
             }
         }
@@ -99,12 +102,14 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
         return null;
     }
 
-    protected String makeLogstashDateFilter(String timeFieldName, String dateFormat) {
+    protected String makeLogstashDateFilter(String timeFieldName, TimestampMatch timestampMatch) {
 
         String fieldQuote = bestLogstashQuoteFor(timeFieldName);
         String copyFilter = DEFAULT_TIMESTAMP_FIELD.equals(timeFieldName) ? "" :
             String.format(Locale.ROOT, LOGSTASH_DATE_COPY_TEMPLATE, fieldQuote, timeFieldName, fieldQuote);
-        return String.format(Locale.ROOT, LOGSTASH_DATE_FILTER_TEMPLATE, fieldQuote, timeFieldName, fieldQuote, dateFormat, copyFilter);
+        return String.format(Locale.ROOT, LOGSTASH_DATE_FILTER_TEMPLATE,
+            makeLogstashFractionalSecondsGsubFilter(timeFieldName, timestampMatch), fieldQuote, timeFieldName, fieldQuote,
+            timestampMatch.dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\"")), copyFilter);
     }
 
     protected SortedMap<String, String> guessMappings(List<Map<String, ?>> sampleRecords) {

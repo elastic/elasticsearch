@@ -161,7 +161,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
         mappings = guessMappings(sampleRecords);
 
-        String logstashDateFilter = (timeField == null) ? "" : makeLogstashDateFilter(timeField.v1(), timeField.v2().dateFormat);
+        String logstashDateFilter = (timeField == null) ? "" : makeLogstashDateFilter(timeField.v1(), timeField.v2());
 
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
             makeFilebeatInputOptions("^\\s*" + messagePrefix, null));

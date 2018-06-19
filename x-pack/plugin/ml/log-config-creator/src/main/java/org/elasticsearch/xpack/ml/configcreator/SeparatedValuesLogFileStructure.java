@@ -360,7 +360,11 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
             StringBuilder builder = new StringBuilder("^");
             for (String column : csvHeader) {
                 if (timeField.v1().equals(column)) {
-                    timeLineRegex = builder.append(timeField.v2().simplePattern.pattern()).toString();
+                    builder.append(timeField.v2().simplePattern.pattern());
+                    if (builder.substring(0, 3).equals("^\\b")) {
+                        builder.delete(1, 3);
+                    }
+                    timeLineRegex = builder.toString();
                     break;
                 } else {
                     builder.append(".*?");
@@ -376,7 +380,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         String excludeColumns = isCsvHeaderInFile ? Arrays.stream(csvHeader)
             .map(column -> "\"?" + column.replace("\"", "\"\"").replaceAll("([\\\\|()\\[\\]{}^$*?])", "\\\\$1") + "\"?")
             .collect(Collectors.joining(",")) : null;
-        String logstashDateFilter = (timeLineRegex == null) ? "" : makeLogstashDateFilter(timeField.v1(), timeField.v2().dateFormat);
+        String logstashDateFilter = (timeLineRegex == null) ? "" : makeLogstashDateFilter(timeField.v1(), timeField.v2());
 
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
             makeFilebeatInputOptions(timeLineRegex, excludeColumns));

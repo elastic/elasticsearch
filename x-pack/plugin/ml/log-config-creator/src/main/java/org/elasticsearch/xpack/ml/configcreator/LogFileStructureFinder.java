@@ -133,7 +133,7 @@ public final class LogFileStructureFinder {
 
             if (pureAsciiSoFar) {
                 terminal.println(Verbosity.VERBOSE, "Using character encoding [" + StandardCharsets.UTF_8.name() +
-                    "], which matched the input with confidence [" + utf8CharsetMatch.get().getConfidence() + "%] - first [" +
+                    "], which matched the input with [" + utf8CharsetMatch.get().getConfidence() + "%] confidence - first [" +
                     (BUFFER_SIZE / 1024) + "kB] of input was pure ASCII");
                 return utf8CharsetMatch.get();
             }
@@ -144,11 +144,11 @@ public final class LogFileStructureFinder {
             String name = charsetMatch.getName();
             if (Charset.isSupported(name) && FILEBEAT_SUPPORTED_ENCODINGS.contains(name.toLowerCase(Locale.ROOT))) {
                 terminal.println(Verbosity.VERBOSE, "Using character encoding [" + name +
-                    "], which matched the input with confidence [" + charsetMatch.getConfidence() + "%]");
+                    "], which matched the input with [" + charsetMatch.getConfidence() + "%] confidence");
                 return charsetMatch;
             } else {
-                terminal.println(Verbosity.VERBOSE, "Character encoding [" + name + "] matched the input with confidence [" +
-                    charsetMatch.getConfidence() + "%] but was rejected as it is not supported by [" +
+                terminal.println(Verbosity.VERBOSE, "Character encoding [" + name + "] matched the input with [" +
+                    charsetMatch.getConfidence() + "%] confidence but was rejected as it is not supported by [" +
                     (Charset.isSupported(name) ? "filebeat" : "the JVM") + "]");
             }
         }

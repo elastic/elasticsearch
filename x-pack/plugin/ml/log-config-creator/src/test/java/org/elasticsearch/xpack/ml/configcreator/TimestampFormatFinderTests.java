@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -12,6 +13,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.util.Arrays;
 import java.util.Locale;
 
 public class TimestampFormatFinderTests extends LogConfigCreatorTestCase {
@@ -64,7 +66,7 @@ public class TimestampFormatFinderTests extends LogConfigCreatorTestCase {
         // Note: some of the time formats give millisecond accuracy, some second accuracy and some minute accuracy
 
         checkAndValidateDateFormat(new TimestampMatch(0, "", "YYYY-MM-dd HH:mm:ss,SSS Z",
-                "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3} ", "TOMCAT_DATESTAMP", ""), "2018-05-15 17:14:56,374 +0100",
+                "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}", "TOMCAT_DATESTAMP", ""), "2018-05-15 17:14:56,374 +0100",
             1526400896374L);
 
         checkAndValidateDateFormat(new TimestampMatch(8, "", "EEE MMM dd YYYY HH:mm:ss zzz",
@@ -101,8 +103,8 @@ public class TimestampFormatFinderTests extends LogConfigCreatorTestCase {
                 "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b", "HTTPDERROR_DATE", ""),
             "Tue May 15 17:14:56 2018", 1526400896000L);
 
-        checkAndValidateDateFormat(new TimestampMatch(18, "", "MMM dd HH:mm:ss", "\\b[A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
-            "SYSLOGTIMESTAMP", ""), "May 15 17:14:56", 1526400896000L);
+        checkAndValidateDateFormat(new TimestampMatch(18, "", Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
+            "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b", "SYSLOGTIMESTAMP", ""), "May 15 17:14:56", 1526400896000L);
 
         checkAndValidateDateFormat(new TimestampMatch(19, "", "dd/MMM/YYYY:HH:mm:ss Z",
                 "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ", "HTTPDATE", ""), "15/May/2018:17:14:56 +0100", 1526400896000L);
@@ -111,8 +113,9 @@ public class TimestampFormatFinderTests extends LogConfigCreatorTestCase {
                 "\\b[A-Z]\\S{2,8} \\d{1,2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b", "CATALINA_DATESTAMP", ""), "May 15, 2018 5:14:56 PM",
             1526400896000L);
 
-        checkAndValidateDateFormat(new TimestampMatch(21, "", "MMM dd YYYY HH:mm:ss",
-                "\\b[A-Z]\\S{2,8} \\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b", "CISCOTIMESTAMP", ""), "May 15 2018 17:14:56", 1526400896000L);
+        checkAndValidateDateFormat(new TimestampMatch(21, "", Arrays.asList("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"),
+                "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b", "CISCOTIMESTAMP", ""), "May 15 2018 17:14:56",
+            1526400896000L);
     }
 
     public void testFindFirstMatchGivenOnlySystemDate() {
@@ -122,14 +125,18 @@ public class TimestampFormatFinderTests extends LogConfigCreatorTestCase {
         assertEquals(new TimestampMatch(22, "", "UNIX_MS", "\\b\\d{13}\\b", "POSINT", ""),
             TimestampFormatFinder.findFirstFullMatch("1526400896374"));
 
-        assertEquals(new TimestampMatch(23, "", "UNIX", "\\b\\d{10}\\b", "POSINT", ""),
+        assertEquals(new TimestampMatch(23, "", "UNIX", "\\b\\d{10}\\.\\d{3,9}\\b", "NUMBER", ""),
+            TimestampFormatFinder.findFirstMatch("1526400896.736"));
+        assertEquals(new TimestampMatch(23, "", "UNIX", "\\b\\d{10}\\.\\d{3,9}\\b", "NUMBER", ""),
+            TimestampFormatFinder.findFirstFullMatch("1526400896.736"));
+        assertEquals(new TimestampMatch(24, "", "UNIX", "\\b\\d{10}\\b", "POSINT", ""),
             TimestampFormatFinder.findFirstMatch("1526400896"));
-        assertEquals(new TimestampMatch(23, "", "UNIX", "\\b\\d{10}\\b", "POSINT", ""),
+        assertEquals(new TimestampMatch(24, "", "UNIX", "\\b\\d{10}\\b", "POSINT", ""),
             TimestampFormatFinder.findFirstFullMatch("1526400896"));
 
-        assertEquals(new TimestampMatch(24, "", "TAI64N", "\\b[0-9A-Fa-f]{24}\\b", "BASE16NUM", ""),
+        assertEquals(new TimestampMatch(25, "", "TAI64N", "\\b[0-9A-Fa-f]{24}\\b", "BASE16NUM", ""),
             TimestampFormatFinder.findFirstMatch("400000005afb159a164ac980"));
-        assertEquals(new TimestampMatch(24, "", "TAI64N", "\\b[0-9A-Fa-f]{24}\\b", "BASE16NUM", ""),
+        assertEquals(new TimestampMatch(25, "", "TAI64N", "\\b[0-9A-Fa-f]{24}\\b", "BASE16NUM", ""),
             TimestampFormatFinder.findFirstFullMatch("400000005afb159a164ac980"));
     }
 
@@ -141,16 +148,32 @@ public class TimestampFormatFinderTests extends LogConfigCreatorTestCase {
         // All the test times are for Tue May 15 2018 16:14:56 UTC, which is 17:14:56 in London
         DateTimeZone zone = DateTimeZone.forID("Europe/London");
         DateTime parsed;
-        switch (expected.dateFormat) {
-            case "ISO8601":
-                parsed = ISODateTimeFormat.dateTimeParser().withZone(zone).withDefaultYear(2018).parseDateTime(text);
-                break;
-            default:
-                DateTimeFormatter parser = DateTimeFormat.forPattern(expected.dateFormat).withZone(zone).withLocale(Locale.UK);
-                parsed = parser.withDefaultYear(2018).parseDateTime(text);
-                break;
+        for (int i = 0; i < expected.dateFormats.size(); ++i) {
+            try {
+                String dateFormat = expected.dateFormats.get(i);
+                switch (dateFormat) {
+                    case "ISO8601":
+                        parsed = ISODateTimeFormat.dateTimeParser().withZone(zone).withDefaultYear(2018).parseDateTime(text);
+                        break;
+                    default:
+                        DateTimeFormatter parser = DateTimeFormat.forPattern(dateFormat).withZone(zone).withLocale(Locale.UK);
+                        parsed = parser.withDefaultYear(2018).parseDateTime(text);
+                        break;
+                }
+                if (expectedEpochMs == parsed.getMillis()) {
+                    break;
+                }
+                // If the last one isn't right then propagate
+                if (i == expected.dateFormats.size() - 1) {
+                    assertEquals(expectedEpochMs, parsed.getMillis());
+                }
+            } catch (RuntimeException e) {
+                // If the last one throws then propagate
+                if (i == expected.dateFormats.size() - 1) {
+                    throw e;
+                }
+            }
         }
-        assertEquals(expectedEpochMs, parsed.getMillis());
         assertTrue(expected.simplePattern.matcher(text).find());
     }
 
@@ -172,9 +195,9 @@ public class TimestampFormatFinderTests extends LogConfigCreatorTestCase {
                 " org.apache.tomcat.util.http.Parameters processParameters"),
             TimestampFormatFinder.findFirstMatch("Aug 29, 2009 12:03:57 AM org.apache.tomcat.util.http.Parameters processParameters"));
 
-        assertEquals(new TimestampMatch(18, "", "MMM dd HH:mm:ss", "\\b[A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b", "SYSLOGTIMESTAMP",
-                " esxi1.acme.com Vpxa: [3CB3FB90 verbose 'vpxavpxaInvtVm' opID=WFU-33d82c31] [VpxaInvtVmChangeListener] " +
-                    "Guest DiskInfo Changed"),
+        assertEquals(new TimestampMatch(18, "", Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
+                "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b", "SYSLOGTIMESTAMP", " esxi1.acme.com Vpxa: " +
+                    "[3CB3FB90 verbose 'vpxavpxaInvtVm' opID=WFU-33d82c31] [VpxaInvtVmChangeListener] Guest DiskInfo Changed"),
             TimestampFormatFinder.findFirstMatch("Oct 19 17:04:44 esxi1.acme.com Vpxa: [3CB3FB90 verbose 'vpxavpxaInvtVm' " +
                 "opID=WFU-33d82c31] [VpxaInvtVmChangeListener] Guest DiskInfo Changed"));
 
@@ -184,9 +207,34 @@ public class TimestampFormatFinderTests extends LogConfigCreatorTestCase {
             TimestampFormatFinder.findFirstMatch("559550912540598297\t2016-04-20T14:06:53\t2016-04-20T21:06:53Z\t38545844\tserv02nw07\t" +
                 "192.168.114.28\tAuthpriv\tInfo\tsshd\tsubsystem request for sftp"));
 
-        assertEquals(new TimestampMatch(18, "", "MMM dd HH:mm:ss", "\\b[A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b", "SYSLOGTIMESTAMP",
+        assertEquals(new TimestampMatch(18, "", Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
+                "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b", "SYSLOGTIMESTAMP",
                 " dnsserv named[22529]: error (unexpected RCODE REFUSED) resolving 'www.elastic.co/A/IN': 95.110.68.206#53"),
             TimestampFormatFinder.findFirstMatch("Sep  8 11:55:35 dnsserv named[22529]: error (unexpected RCODE REFUSED) resolving " +
                 "'www.elastic.co/A/IN': 95.110.68.206#53"));
+
+        assertEquals(new TimestampMatch(3, "", "YYYY-MM-dd HH:mm:ss.SSS", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}",
+                "TIMESTAMP_ISO8601",
+                "|INFO    |VirtualServer |1  |client  'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client " +
+                    "'User1'(id:2) in channel '3er Instanz'(id:2)", true),
+            TimestampFormatFinder.findFirstMatch("2018-01-06 19:22:20.106822|INFO    |VirtualServer |1  |client " +
+                " 'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client 'User1'(id:2) in channel '3er Instanz'(id:2)"));
+    }
+
+    public void testInterpretFractionalSeconds() {
+        assertEquals(new Tuple<>(',', false), TimestampFormatFinder.interpretFractionalSeconds("Sep  8 11:55:35"));
+        assertEquals(new Tuple<>(',', false), TimestampFormatFinder.interpretFractionalSeconds("29/Jun/2016:12:11:31 +0000"));
+        assertEquals(new Tuple<>('.', true), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06 17:21:25.764368"));
+        assertEquals(new Tuple<>(',', true), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764363438"));
+        assertEquals(new Tuple<>(',', false), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764"));
+        assertEquals(new Tuple<>('.', false), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25.764"));
+        assertEquals(new Tuple<>('.', true), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06 17:21:25.764368Z"));
+        assertEquals(new Tuple<>(',', true), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764363438Z"));
+        assertEquals(new Tuple<>(',', false), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764Z"));
+        assertEquals(new Tuple<>('.', false), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25.764Z"));
+        assertEquals(new Tuple<>('.', true), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06 17:21:25.764368 Z"));
+        assertEquals(new Tuple<>(',', true), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764363438 Z"));
+        assertEquals(new Tuple<>(',', false), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764 Z"));
+        assertEquals(new Tuple<>('.', false), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25.764 Z"));
     }
 }

@@ -64,13 +64,13 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
             containsString("\"patterns\": [ \"\\\\[%{TIMESTAMP_ISO8601:_timestamp}\\\\]\\\\[%{LOGLEVEL:loglevel} \\\\]" +
                 "\\\\[.*\" ]\n"));
         assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"field\": \"_timestamp\",\n"));
-        assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"formats\": [ \"ISO8601\" ]\n"));
+        assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"formats\": [ \"ISO8601\" ],\n"));
     }
 
     public void testCreateMultiLineMessageStartRegexGivenNoPrefaces() {
         for (TimestampFormatFinder.CandidateTimestampFormat candidateTimestampFormat : TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS) {
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();
-            assertEquals("^" + simpleDateRegex,
+            assertEquals("^" + simpleDateRegex.replaceFirst("^\\\\b", ""),
                 TextLogFileStructure.createMultiLineMessageStartRegex(Collections.emptySet(), simpleDateRegex));
         }
     }
@@ -78,7 +78,7 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
     public void testCreateMultiLineMessageStartRegexGivenOneEmptyPreface() {
         for (TimestampFormatFinder.CandidateTimestampFormat candidateTimestampFormat : TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS) {
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();
-            assertEquals("^" + simpleDateRegex,
+            assertEquals("^" + simpleDateRegex.replaceFirst("^\\\\b", ""),
                 TextLogFileStructure.createMultiLineMessageStartRegex(Collections.singleton(""), simpleDateRegex));
         }
     }

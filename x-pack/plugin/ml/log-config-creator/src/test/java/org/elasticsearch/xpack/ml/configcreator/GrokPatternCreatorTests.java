@@ -218,9 +218,10 @@ public class GrokPatternCreatorTests extends ESTestCase {
                 "Invalid chunk ignored.");
         Map<String, String> mappings = new HashMap<>();
 
-        assertEquals("%{CATALINA_DATESTAMP:_timestamp} .*",
+        assertEquals("%{CATALINA_DATESTAMP:_timestamp} .*? .*?\\n%{LOGLEVEL:loglevel}: .*",
             GrokPatternCreator.createGrokPatternFromExamples(sampleMessages, "CATALINA_DATESTAMP", "_timestamp", mappings));
-        assertEquals(0, mappings.size());
+        assertEquals(1, mappings.size());
+        assertEquals("keyword", mappings.get("loglevel"));
     }
 
     public void testCreateGrokPatternFromExamplesGivenMultiTimestampLogs() {
@@ -237,8 +238,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
                 "Info\tsshd\tsubsystem request for sftp");
         Map<String, String> mappings = new HashMap<>();
 
-        assertEquals("%{INT:field}\t%{TIMESTAMP_ISO8601:_timestamp}\t%{TIMESTAMP_ISO8601:extra_timestamp}\t%{INT:field2}\t.*?\t" +
-                "%{IP:ipaddress}\t.*?\t%{LOGLEVEL:loglevel}\t.*",
+        assertEquals("%{INT:field}\\t%{TIMESTAMP_ISO8601:_timestamp}\\t%{TIMESTAMP_ISO8601:extra_timestamp}\\t%{INT:field2}\\t.*?\\t" +
+                "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
             GrokPatternCreator.createGrokPatternFromExamples(sampleMessages, "TIMESTAMP_ISO8601", "_timestamp", mappings));
         assertEquals(5, mappings.size());
         assertEquals("long", mappings.get("field"));

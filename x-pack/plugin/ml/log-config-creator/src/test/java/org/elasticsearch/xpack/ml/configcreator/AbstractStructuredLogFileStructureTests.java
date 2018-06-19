@@ -15,6 +15,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.contains;
+
 public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTestCase {
 
     private static class TestStructuredLogFileStructure extends AbstractStructuredLogFileStructure {
@@ -32,7 +34,7 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
         Tuple<String, TimestampMatch> match = testStructure.guessTimestampField(Collections.singletonList(sample));
         assertNotNull(match);
         assertEquals("field1", match.v1());
-        assertEquals("ISO8601", match.v2().dateFormat);
+        assertThat(match.v2().dateFormats, contains("ISO8601"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -42,7 +44,7 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
         Tuple<String, TimestampMatch> match = testStructure.guessTimestampField(Arrays.asList(sample1, sample2));
         assertNotNull(match);
         assertEquals("field1", match.v1());
-        assertEquals("ISO8601", match.v2().dateFormat);
+        assertThat(match.v2().dateFormats, contains("ISO8601"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -68,7 +70,7 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
         Tuple<String, TimestampMatch> match = testStructure.guessTimestampField(Collections.singletonList(sample));
         assertNotNull(match);
         assertEquals("time", match.v1());
-        assertEquals("YYYY-MM-dd HH:mm:ss,SSS", match.v2().dateFormat);
+        assertThat(match.v2().dateFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -84,7 +86,7 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
         Tuple<String, TimestampMatch> match = testStructure.guessTimestampField(Arrays.asList(sample1, sample2));
         assertNotNull(match);
         assertEquals("time", match.v1());
-        assertEquals("YYYY-MM-dd HH:mm:ss,SSS", match.v2().dateFormat);
+        assertThat(match.v2().dateFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -113,7 +115,7 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
         Tuple<String, TimestampMatch> match = testStructure.guessTimestampField(Arrays.asList(sample1, sample2));
         assertNotNull(match);
         assertEquals("time", match.v1());
-        assertEquals("YYYY-MM-dd HH:mm:ss,SSS", match.v2().dateFormat);
+        assertThat(match.v2().dateFormats, contains("YYYY-MM-dd HH:mm:ss,SSS"));
         assertEquals("TIMESTAMP_ISO8601", match.v2().grokPatternName);
     }
 
@@ -129,7 +131,7 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
         Tuple<String, TimestampMatch> match = testStructure.guessTimestampField(Arrays.asList(sample1, sample2));
         assertNotNull(match);
         assertEquals("time", match.v1());
-        assertEquals("MMM dd YYYY HH:mm:ss", match.v2().dateFormat);
+        assertThat(match.v2().dateFormats, contains("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"));
         assertEquals("CISCOTIMESTAMP", match.v2().grokPatternName);
     }
 
@@ -149,18 +151,18 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
     public void testSamplesWithManyFieldsInconsistentAndConsistentTimeFields() {
         Map<String, Object> sample1 = new LinkedHashMap<>();
         sample1.put("foo", "not a time");
-        sample1.put("time1", "2018-05-24 17:28:31,735");
-        sample1.put("time2", "May 24 2018 17:28:31");
+        sample1.put("time1", "2018-05-09 17:28:31,735");
+        sample1.put("time2", "May  9 2018 17:28:31");
         sample1.put("bar", 17);
         Map<String, Object> sample2 = new LinkedHashMap<>();
         sample2.put("foo", "whatever");
-        sample2.put("time2", "May 29 2018 11:53:02");
-        sample2.put("time3", "Tue, May 29 2018 11:53:02");
+        sample2.put("time2", "May 10 2018 11:53:02");
+        sample2.put("time3", "Thu, May 10 2018 11:53:02");
         sample2.put("bar", 42);
         Tuple<String, TimestampMatch> match = testStructure.guessTimestampField(Arrays.asList(sample1, sample2));
         assertNotNull(match);
         assertEquals("time2", match.v1());
-        assertEquals("MMM dd YYYY HH:mm:ss", match.v2().dateFormat);
+        assertThat(match.v2().dateFormats, contains("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"));
         assertEquals("CISCOTIMESTAMP", match.v2().grokPatternName);
     }
 

@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 
@@ -79,10 +80,11 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
         "output.elasticsearch:\n" +
         "  hosts: [\"http://localhost:9200\"]\n" +
         "  pipeline: \"%s\"\n";
-    private static final String INGEST_PIPELINE_DATE_PROCESSOR_TEMPLATE = ",\n" +
+    private static final String INGEST_PIPELINE_DATE_PROCESSOR_TEMPLATE = "%s,\n" +
         "      \"date\": {\n" +
         "        \"field\": \"%s\",\n" +
-        "        \"formats\": [ \"%s\" ]\n" +
+        "        \"formats\": [ %s ],\n" +
+        "        \"timezone\": \"{{ beat.timezone }}\"\n" +
         "      }\n";
     private static final String INGEST_PIPELINE_FROM_FILEBEAT_TEMPLATE = "PUT _ingest/pipeline/%s\n" +
         "{\n" +
@@ -126,10 +128,11 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
         String logstashDateFilter = "";
         String ingestPipelineDateProcessor = "";
         if (timeField != null) {
-            logstashDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2().dateFormat);
+            logstashDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2());
             String jsonEscapedField = timeField.v1().replaceAll("([\\\\\"])", "\\\\$1").replace("\t", "\\t");
-            ingestPipelineDateProcessor = String.format(Locale.ROOT, INGEST_PIPELINE_DATE_PROCESSOR_TEMPLATE, jsonEscapedField,
-                timeField.v2().dateFormat);
+            ingestPipelineDateProcessor = String.format(Locale.ROOT, INGEST_PIPELINE_DATE_PROCESSOR_TEMPLATE,
+                makeIngestPipelineFractionalSecondsGsubFilter(jsonEscapedField, timeField.v2()), jsonEscapedField,
+                timeField.v2().dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\"")));
         }
 
         String filebeatInputOptions = makeFilebeatInputOptions(null, null);

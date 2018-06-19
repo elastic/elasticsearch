@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.xpack.sql.proto.Mode.JDBC;
@@ -36,7 +36,8 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     @Inject
     public TransportSqlQueryAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
                                    PlanExecutor planExecutor, SqlLicenseChecker sqlLicenseChecker) {
-        super(settings, SqlQueryAction.NAME, threadPool, transportService, actionFilters, (Supplier<SqlQueryRequest>) SqlQueryRequest::new);
+        super(settings, SqlQueryAction.NAME, threadPool, transportService, actionFilters,
+            (Writeable.Reader<SqlQueryRequest>) SqlQueryRequest::new);
 
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;

@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.SearchHit;
@@ -36,13 +37,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
-import java.util.function.Supplier;
 
 public class TransportNoopSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
     @Inject
     public TransportNoopSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                      ActionFilters actionFilters) {
-        super(settings, NoopSearchAction.NAME, threadPool, transportService, actionFilters, (Supplier<SearchRequest>) SearchRequest::new);
+        super(settings, NoopSearchAction.NAME, threadPool, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
     }
 
     @Override

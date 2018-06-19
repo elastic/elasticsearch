@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.PipelineStore;
@@ -31,7 +32,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class SimulatePipelineTransportAction extends HandledTransportAction<SimulatePipelineRequest, SimulatePipelineResponse> {
 
@@ -42,7 +42,7 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
     public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                            ActionFilters actionFilters, NodeService nodeService) {
         super(settings, SimulatePipelineAction.NAME, threadPool, transportService, actionFilters,
-            (Supplier<SimulatePipelineRequest>) SimulatePipelineRequest::new);
+            (Writeable.Reader<SimulatePipelineRequest>) SimulatePipelineRequest::new);
         this.pipelineStore = nodeService.getIngestService().getPipelineStore();
         this.executionService = new SimulateExecutionService(threadPool);
     }

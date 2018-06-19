@@ -19,13 +19,12 @@
 
 package org.elasticsearch.action.search;
 
-import java.util.function.Supplier;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,7 +45,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                                        ClusterService clusterService, ActionFilters actionFilters,
                                        SearchTransportService searchTransportService, SearchPhaseController searchPhaseController) {
         super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters,
-            (Supplier<SearchScrollRequest>) SearchScrollRequest::new);
+            (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.searchPhaseController = searchPhaseController;

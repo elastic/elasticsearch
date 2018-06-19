@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import java.util.function.Supplier;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -28,7 +27,8 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
     @Inject
     public TransportSqlClearCursorAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                          ActionFilters actionFilters, PlanExecutor planExecutor, SqlLicenseChecker sqlLicenseChecker) {
-        super(settings, NAME, threadPool, transportService, actionFilters, (Supplier<SqlClearCursorRequest>) SqlClearCursorRequest::new);
+        super(settings, NAME, threadPool, transportService, actionFilters,
+              (Writeable.Reader<SqlClearCursorRequest>) SqlClearCursorRequest::new);
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
     }

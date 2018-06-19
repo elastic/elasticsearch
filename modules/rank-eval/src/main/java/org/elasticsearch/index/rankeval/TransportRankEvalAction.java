@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -49,7 +50,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 import static org.elasticsearch.index.rankeval.RatedRequest.validateEvaluatedQuery;
@@ -76,7 +76,8 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, Client client,
                                    TransportService transportService, ScriptService scriptService,
                                    NamedXContentRegistry namedXContentRegistry) {
-        super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters, (Supplier<RankEvalRequest>) RankEvalRequest::new);
+        super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters,
+              (Writeable.Reader<RankEvalRequest>) RankEvalRequest::new);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;

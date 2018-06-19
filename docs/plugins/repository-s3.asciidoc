@@ -100,7 +100,7 @@ Those that must be stored in the keystore are marked as `Secure` and are *reload
 `protocol`::
 
     The protocol to use to connect to s3. Valid values are either `http`
-    or `https`. Defaults to `https`. 
+    or `https`. Defaults to `https`.
 
 `proxy.host`::
 
@@ -112,11 +112,11 @@ Those that must be stored in the keystore are marked as `Secure` and are *reload
 
 `proxy.username`::
 
-    The username to connect to the `proxy.host` with. (Secure)    
+    The username to connect to the `proxy.host` with. (Secure)
 
 `proxy.password`::
 
-    The password to connect to the `proxy.host` with. (Secure)    
+    The password to connect to the `proxy.host` with. (Secure)
 
 `read_timeout`::
 
@@ -209,10 +209,10 @@ The following settings are supported:
 `storage_class`::
 
     Sets the S3 storage class for objects stored in the snapshot repository.
-    Values may be `standard`, `reduced_redundancy`, `standard_ia`. 
-    Defaults to `standard`. Changing this setting on an existing repository 
+    Values may be `standard`, `reduced_redundancy`, `standard_ia`.
+    Defaults to `standard`. Changing this setting on an existing repository
     only affects the storage class for newly created objects, resulting in a
-    mixed usage of storage classes. Additionally, S3 Lifecycle Policies can 
+    mixed usage of storage classes. Additionally, S3 Lifecycle Policies can
     be used to manage the storage class of existing objects.
     Due to the extra complexity with the Glacier class lifecycle, it is not
     currently supported by the plugin. For more information about the

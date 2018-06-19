@@ -231,7 +231,12 @@ final class RequestConverters {
         String[] types = getFieldMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.types();
         String[] fields = getFieldMappingsRequest.fields() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.fields();
 
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint(indices, "_mapping", types, "field", fields));
+        String endpoint = new EndpointBuilder().addCommaSeparatedPathParts(indices)
+            .addPathPartAsIs("_mapping").addCommaSeparatedPathParts(types)
+            .addPathPartAsIs("field").addCommaSeparatedPathParts(fields)
+            .build();
+
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         Params parameters = new Params(request);
         parameters.withIndicesOptions(getFieldMappingsRequest.indicesOptions());
@@ -921,13 +926,6 @@ final class RequestConverters {
     static String endpoint(String[] indices, String endpoint, String[] suffixes) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint)
                 .addCommaSeparatedPathParts(suffixes).build();
-    }
-
-    static String endpoint(String[] indices, String endpoint, String[] suffixes, String extraEndpoint, String[] extraSuffixes) {
-        return new EndpointBuilder().addCommaSeparatedPathParts(indices)
-            .addPathPartAsIs(endpoint).addCommaSeparatedPathParts(suffixes)
-            .addPathPartAsIs(extraEndpoint).addCommaSeparatedPathParts(extraSuffixes)
-            .build();
     }
 
     static String endpoint(String[] indices, String endpoint, String type) {

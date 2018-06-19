@@ -472,11 +472,16 @@ public class RequestConvertersTests extends ESTestCase {
             getFieldMappingsRequest.types((String[]) null);
         }
 
-        String[] fields = new String[randomIntBetween(1, 5)];
-        for(int i = 0; i < fields.length; i++) {
-            fields[i] = randomAlphaOfLengthBetween(3, 10);
+        String[] fields = null;
+        if (randomBoolean()) {
+            fields = new String[randomIntBetween(1, 5)];
+            for (int i = 0; i < fields.length; i++) {
+                fields[i] = randomAlphaOfLengthBetween(3, 10);
+            }
+            getFieldMappingsRequest.fields(fields);
+        } else if (randomBoolean()) {
+            getFieldMappingsRequest.fields((String[]) null);
         }
-        getFieldMappingsRequest.fields(fields);
 
         Map<String, String> expectedParams = new HashMap<>();
 
@@ -493,7 +498,9 @@ public class RequestConvertersTests extends ESTestCase {
             endpoint.add(type);
         }
         endpoint.add("field");
-        endpoint.add(String.join(",", fields));
+        if (fields != null) {
+            endpoint.add(String.join(",", fields));
+        }
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
 
         assertThat(expectedParams, equalTo(request.getParameters()));

@@ -31,16 +31,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.ReferringFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.indices.analysis.AnalysisModule;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory implements ReferringFilterFactory {
 
@@ -85,8 +81,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory im
             String[] parts = Strings.tokenizeToStringArray(filter, ",");
             if (parts.length == 1) {
                 filters.add(resolveFilterFactory(factories, parts[0]));
-            }
-            else {
+            } else {
                 List<TokenFilterFactory> chain = new ArrayList<>();
                 for (String subfilter : parts) {
                     chain.add(resolveFilterFactory(factories, subfilter));
@@ -116,8 +111,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory im
     private TokenFilterFactory resolveFilterFactory(Map<String, TokenFilterFactory> factories, String name) {
         if (factories.containsKey(name) == false) {
             throw new IllegalArgumentException("Multiplexing filter [" + name() + "] refers to undefined tokenfilter [" + name + "]");
-        }
-        else {
+        } else {
             return factories.get(name);
         }
     }

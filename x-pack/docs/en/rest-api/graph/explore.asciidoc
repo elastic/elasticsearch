@@ -267,8 +267,7 @@ The response from the explore API looks like this:
    ]
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"vertices"/$body.$_path/]
-// TESTRESPONSE[s/"connections"/$body.$_path/]
+// NOTCONSOLE
 
 <1> An array of all of the vertices that were discovered. A vertex is an indexed
 term, so the field and term value are provided. The `weight` attribute specifies
@@ -344,8 +343,7 @@ POST clicklogs/_xpack/graph/_explore
    }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:clicklogs_index]
+// NOTCONSOLE
 <1> Disable `use_significance` to include all associated terms, not just the
 ones that are significantly associated with the query.
 <2> Increase the sample size to consider a larger set of documents on

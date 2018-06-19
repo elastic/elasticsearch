@@ -1017,6 +1017,10 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
     }
 
+    public static Setting<String> simpleString(String key, String defaultValue, Property... properties) {
+        return new Setting<>(key, s -> defaultValue, Function.identity(), properties);
+    }
+
     public static int parseInt(String s, int minValue, String key) {
         return parseInt(s, minValue, Integer.MAX_VALUE, key);
     }

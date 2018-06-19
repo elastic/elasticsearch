@@ -90,7 +90,7 @@ public class NativeUsersStore extends AbstractComponent {
         super(settings);
         this.client = client;
         this.securityIndex = securityIndex;
-        final char[] emptyPasswordHash = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings), Hasher.BCRYPT).
+        final char[] emptyPasswordHash = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings)).
             hash(new SecureString("".toCharArray()));
         this.disabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, false, true);
         this.enabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, true, true);
@@ -655,16 +655,21 @@ public class NativeUsersStore extends AbstractComponent {
         public final char[] passwordHash;
         public final boolean enabled;
         public final boolean hasEmptyPassword;
+        private final Hasher hasher;
 
         ReservedUserInfo(char[] passwordHash, boolean enabled, boolean hasEmptyPassword) {
             this.passwordHash = passwordHash;
             this.enabled = enabled;
             this.hasEmptyPassword = hasEmptyPassword;
+            this.hasher = Hasher.resolveFromHash(this.passwordHash);
         }
 
         ReservedUserInfo deepClone() {
             return new ReservedUserInfo(Arrays.copyOf(passwordHash, passwordHash.length), enabled, hasEmptyPassword);
         }
 
+        boolean verifyPassword(SecureString data) {
+            return hasher.verify(data, this.passwordHash);
+        }
     }
 }

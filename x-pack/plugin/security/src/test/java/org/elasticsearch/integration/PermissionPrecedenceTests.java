@@ -13,7 +13,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.util.Collections;
@@ -50,7 +49,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).
+        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().
             hash(new SecureString("test123".toCharArray())));
         return "admin:" + usersPasswdHashed + "\n" +
             "client:" + usersPasswdHashed + "\n" +

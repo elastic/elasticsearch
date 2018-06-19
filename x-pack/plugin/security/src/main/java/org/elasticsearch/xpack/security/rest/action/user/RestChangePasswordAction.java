@@ -18,6 +18,7 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -58,12 +59,12 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
         } else {
             username = request.param("username");
         }
-
+        final Hasher passwordHasher = Hasher.resolve(XPackSettings
+            .PASSWORD_HASHING_ALGORITHM.get(settings));
         final String refresh = request.param("refresh");
         return channel ->
                 new SecurityClient(client)
-                    .prepareChangePassword(username, request.requiredContent(), request.getXContentType(), XPackSettings
-                        .PASSWORD_HASHING_ALGORITHM.get(settings))
+                    .prepareChangePassword(username, request.requiredContent(), request.getXContentType(), passwordHasher)
                         .setRefreshPolicy(refresh)
                         .execute(new RestBuilderListener<ChangePasswordResponse>(channel) {
                             @Override

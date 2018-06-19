@@ -22,10 +22,12 @@ class UserAndPassword {
 
     private final User user;
     private final char[] passwordHash;
+    private final Hasher hasher;
 
     UserAndPassword(User user, char[] passwordHash) {
         this.user = user;
         this.passwordHash = passwordHash;
+        this.hasher = Hasher.resolveFromHash(this.passwordHash);
     }
 
     public User user() {
@@ -37,13 +39,7 @@ class UserAndPassword {
     }
 
     boolean verifyPassword(SecureString data) {
-        try {
-            Hasher hasher = Hasher.resolveFromHash(this.passwordHash);
             return hasher.verify(data, this.passwordHash);
-        } catch (IllegalArgumentException e) {
-            // The hash was of invalid format, we can't validate the password
-            return false;
-        }
     }
 
     @Override

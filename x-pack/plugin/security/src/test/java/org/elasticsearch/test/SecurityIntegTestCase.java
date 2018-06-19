@@ -39,6 +39,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
@@ -522,7 +523,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         return customSecuritySettingsSource.isSslEnabled();
     }
 
-    protected static String getFastStoredHashAlgoForTests() {
-        return randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9");
+    protected static Hasher getFastStoredHashAlgoForTests() {
+        return Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
     }
 }

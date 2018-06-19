@@ -124,7 +124,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
             if (users.containsKey(username)) {
                 throw new UserException(ExitCodes.CODE_ERROR, "User [" + username + "] already exists");
             }
-            final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()), Hasher.BCRYPT);
+            final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()));
             users = new HashMap<>(users); // make modifiable
             users.put(username, hasher.hash(new SecureString(password)));
             FileUserPasswdStore.writeFile(users, passwordFile);
@@ -228,7 +228,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
             if (users.containsKey(username) == false) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
-            final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()), Hasher.BCRYPT);
+            final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()));
             users.put(username, hasher.hash(new SecureString(password)));
             FileUserPasswdStore.writeFile(users, file);
 

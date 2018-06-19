@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import java.util.Collections;
 
@@ -20,7 +19,7 @@ public class AnalyzeTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(new SecureString
+        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(new SecureString
             ("test123".toCharArray())));
         return super.configUsers() +
             "analyze_indices:" + usersPasswdHashed + "\n" +

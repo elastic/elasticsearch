@@ -72,8 +72,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         this.anonymousUser = anonymousUser;
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.securityIndex = securityIndex;
-
-        this.reservedRealmHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings), Hasher.BCRYPT);
+        this.reservedRealmHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
         final char[] emptyPasswordHash = reservedRealmHasher.hash(new SecureString("".toCharArray()));
         disabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, false, true);
         enabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, true, true);
@@ -95,7 +94,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                     try {
                         if (userInfo.hasEmptyPassword) {
                             result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
-                        } else if (Hasher.verifyHash(token.credentials(), userInfo.passwordHash)) {
+                        } else if (userInfo.verifyPassword(token.credentials())) {
                             final User user = getUser(token.principal(), userInfo);
                             result = AuthenticationResult.success(user);
                         } else {

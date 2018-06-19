@@ -70,7 +70,7 @@ public class UsersToolTests extends CommandTestCase {
         IOUtils.rm(homeDir);
         confDir = homeDir.resolve("config");
         Files.createDirectories(confDir);
-        hasher = Hasher.resolve(randomFrom("bcrypt", "pbkdf2"), Hasher.BCRYPT);
+        hasher = Hasher.resolve(randomFrom("bcrypt", "pbkdf2"));
         String defaultPassword = SecuritySettingsSourceField.TEST_PASSWORD;
         Files.write(confDir.resolve("users"), Arrays.asList(
             "existing_user:" + new String(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)),
@@ -175,7 +175,7 @@ public class UsersToolTests extends CommandTestCase {
             String gotHash = usernameHash[1];
             SecureString expectedHash = new SecureString(password.toCharArray());
             // CommandTestCase#execute runs passwd with default settings, so bcrypt with cost of 10
-            Hasher bcryptHasher = Hasher.resolve("bcrypt", Hasher.BCRYPT);
+            Hasher bcryptHasher = Hasher.resolve("bcrypt");
             assertTrue("Could not validate password for user", bcryptHasher.verify(expectedHash, gotHash.toCharArray()));
             return;
         }

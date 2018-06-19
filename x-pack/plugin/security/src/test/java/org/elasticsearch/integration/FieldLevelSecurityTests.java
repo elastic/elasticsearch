@@ -38,7 +38,6 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -83,7 +82,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswHashed = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(USERS_PASSWD));
+        final String usersPasswHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
         return super.configUsers() +
             "user1:" + usersPasswHashed + "\n" +
             "user2:" + usersPasswHashed + "\n" +

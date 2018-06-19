@@ -134,7 +134,7 @@ public class ReservedRealmTests extends ESTestCase {
         final String principal = expectedUser.principal();
         final SecureString newPassword = new SecureString("foobar".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
-        final Hasher hasher = Hasher.resolve("bcrypt", Hasher.BCRYPT);
+        final Hasher hasher = Hasher.resolve("bcrypt");
         when(securityIndex.indexExists()).thenReturn(true);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
@@ -287,7 +287,7 @@ public class ReservedRealmTests extends ESTestCase {
         when(securityIndex.indexExists()).thenReturn(true);
         SecureString password = new SecureString("password".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
-        final Hasher hasher = Hasher.resolve("bcrypt", Hasher.BCRYPT);
+        final Hasher hasher = Hasher.resolve("bcrypt");
         char[] hash = hasher.hash(password);
         ReservedUserInfo userInfo = new ReservedUserInfo(hash, true, false);
         mockGetAllReservedUserInfo(usersStore, Collections.singletonMap("elastic", userInfo));
@@ -348,7 +348,7 @@ public class ReservedRealmTests extends ESTestCase {
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
         SecureString password = new SecureString("password".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
-        final Hasher hasher = Hasher.resolve("bcrypt", Hasher.BCRYPT);
+        final Hasher hasher = Hasher.resolve("bcrypt");
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
             char[] hash = hasher.hash(password);

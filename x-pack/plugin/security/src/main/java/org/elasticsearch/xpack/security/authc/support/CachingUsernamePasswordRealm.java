@@ -36,7 +36,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     protected CachingUsernamePasswordRealm(String type, RealmConfig config, ThreadPool threadPool) {
         super(type, config);
-        cacheHasher = Hasher.resolve(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING.get(config.settings()), Hasher.SSHA256);
+        cacheHasher = Hasher.resolve(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING.get(config.settings()));
         this.threadPool = threadPool;
         TimeValue ttl = CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING.get(config.settings());
         if (ttl.getNanos() > 0) {

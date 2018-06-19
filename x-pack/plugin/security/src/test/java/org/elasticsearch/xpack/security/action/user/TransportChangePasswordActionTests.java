@@ -113,7 +113,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
     public void testValidUser() {
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        final Hasher hasher = Hasher.resolve("pbkdf2", Hasher.BCRYPT);
+        final Hasher hasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
         request.passwordHash(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));

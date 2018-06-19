@@ -135,7 +135,6 @@ public class HasherTests extends ESTestCase {
                 .toCharArray());
         });
         assertThat(e.getMessage(), containsString("unknown hash format for hash"));
-
     }
 
     private static void testHasherSelfGenerated(Hasher hasher) {

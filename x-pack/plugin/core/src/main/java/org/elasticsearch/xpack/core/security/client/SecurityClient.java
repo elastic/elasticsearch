@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledResponse;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import java.io.IOException;
 import java.util.List;
@@ -187,13 +188,13 @@ public class SecurityClient {
         client.execute(DeleteUserAction.INSTANCE, request, listener);
     }
 
-    public PutUserRequestBuilder preparePutUser(String username, BytesReference source, XContentType xContentType, String hashingAlgorithm)
+    public PutUserRequestBuilder preparePutUser(String username, BytesReference source, XContentType xContentType, Hasher hasher)
         throws IOException {
-        return new PutUserRequestBuilder(client).source(username, source, xContentType, hashingAlgorithm);
+        return new PutUserRequestBuilder(client).source(username, source, xContentType, hasher);
     }
 
-    public PutUserRequestBuilder preparePutUser(String username, char[] password, String hashingAlgorithm, String... roles) {
-        return new PutUserRequestBuilder(client).username(username).password(password, hashingAlgorithm).roles(roles);
+    public PutUserRequestBuilder preparePutUser(String username, char[] password, Hasher hasher, String... roles) {
+        return new PutUserRequestBuilder(client).username(username).password(password, hasher).roles(roles);
     }
 
     public void putUser(PutUserRequest request, ActionListener<PutUserResponse> listener) {
@@ -204,13 +205,13 @@ public class SecurityClient {
      * Populates the {@link ChangePasswordRequest} with the username and password. Note: the passed in char[] will be cleared by this
      * method.
      */
-    public ChangePasswordRequestBuilder prepareChangePassword(String username, char[] password, String hashingAlgorithm) {
-        return new ChangePasswordRequestBuilder(client).username(username).password(password, hashingAlgorithm);
+    public ChangePasswordRequestBuilder prepareChangePassword(String username, char[] password, Hasher hasher) {
+        return new ChangePasswordRequestBuilder(client).username(username).password(password, hasher);
     }
 
     public ChangePasswordRequestBuilder prepareChangePassword(String username, BytesReference source, XContentType xContentType,
-                                                              String hashingAlgorithm) throws IOException {
-        return new ChangePasswordRequestBuilder(client).username(username).source(source, xContentType, hashingAlgorithm);
+                                                              Hasher hasher) throws IOException {
+        return new ChangePasswordRequestBuilder(client).username(username).source(source, xContentType, hasher);
     }
 
     public void changePassword(ChangePasswordRequest request, ActionListener<ChangePasswordResponse> listener) {

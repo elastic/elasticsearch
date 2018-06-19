@@ -16,7 +16,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -33,7 +32,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(Hasher.resolve(getFastStoredHashAlgoForTests()).hash(new SecureString
+        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(new SecureString
             ("test123".toCharArray())));
         return super.configUsers() +
             "create_only:" + usersPasswdHashed + "\n" +

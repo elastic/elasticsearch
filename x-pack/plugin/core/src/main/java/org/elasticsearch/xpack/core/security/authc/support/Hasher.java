@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
@@ -34,11 +35,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
-                return false;
-            }
-            return BCrypt.checkpw(text, hashStr);
+            return verifyBcryptHash(text, hash);
         }
     },
 
@@ -51,11 +48,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
-                return false;
-            }
-            return BCrypt.checkpw(text, hashStr);
+            return verifyBcryptHash(text, hash);
         }
     },
 
@@ -68,11 +61,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
-                return false;
-            }
-            return BCrypt.checkpw(text, hashStr);
+            return verifyBcryptHash(text, hash);
         }
     },
 
@@ -85,11 +74,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
-                return false;
-            }
-            return BCrypt.checkpw(text, hashStr);
+            return verifyBcryptHash(text, hash);
         }
     },
 
@@ -102,11 +87,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
-                return false;
-            }
-            return BCrypt.checkpw(text, hashStr);
+            return verifyBcryptHash(text, hash);
         }
     },
 
@@ -119,11 +100,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
-                return false;
-            }
-            return BCrypt.checkpw(text, hashStr);
+            return verifyBcryptHash(text, hash);
         }
     },
 
@@ -136,11 +113,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
-                return false;
-            }
-            return BCrypt.checkpw(text, hashStr);
+            return verifyBcryptHash(text, hash);
         }
     },
 
@@ -153,11 +126,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
-                return false;
-            }
-            return BCrypt.checkpw(text, hashStr);
+            return verifyBcryptHash(text, hash);
         }
     },
 
@@ -170,11 +139,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
-                return false;
-            }
-            return BCrypt.checkpw(text, hashStr);
+            return verifyBcryptHash(text, hash);
         }
     },
 
@@ -187,11 +152,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
-                return false;
-            }
-            return BCrypt.checkpw(text, hashStr);
+            return verifyBcryptHash(text, hash);
         }
     },
 
@@ -204,11 +165,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
-                return false;
-            }
-            return BCrypt.checkpw(text, hashStr);
+            return verifyBcryptHash(text, hash);
         }
     },
 
@@ -221,11 +178,7 @@ public enum Hasher {
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
-                return false;
-            }
-            return BCrypt.checkpw(text, hashStr);
+            return verifyBcryptHash(text, hash);
         }
     },
 
@@ -418,10 +371,7 @@ public enum Hasher {
     private static final String PBKDF2_PREFIX = "{PBKDF2}";
     private static final int PBKDF2_DEFAULT_COST = 10000;
 
-    public static Hasher resolve(String name, Hasher defaultHasher) {
-        if (name == null) {
-            return defaultHasher;
-        }
+    public static Hasher resolve(String name) {
         switch (name.toLowerCase(Locale.ROOT)) {
             case "bcrypt":
                 return BCRYPT;
@@ -471,7 +421,7 @@ public enum Hasher {
             case "clear_text":
                 return NOOP;
             default:
-                return defaultHasher;
+                throw new IllegalArgumentException("unknown hash function [" + name + "]");
         }
     }
 
@@ -517,7 +467,7 @@ public enum Hasher {
             result.put(Base64.getEncoder().encodeToString(secretKeyFactory.generateSecret(keySpec).getEncoded()));
             return result.array();
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Can't use PKDF2 for password hashing", e);
+            throw new ElasticsearchException("Can't use PBKDF2 for password hashing", e);
         }
     }
 
@@ -539,16 +489,16 @@ public enum Hasher {
             String pwdHash = Base64.getEncoder().encodeToString(secretKeyFactory.generateSecret(keySpec).getEncoded());
             return CharArrays.constantTimeEquals(pwdHash, tokens[2]);
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Can't use PKDF2 for password hashing", e);
+            throw new ElasticsearchException("Can't use PBKDF2 for password hashing", e);
         }
     }
 
-    public static Hasher resolve(String name) {
-        Hasher hasher = resolve(name, null);
-        if (hasher == null) {
-            throw new IllegalArgumentException("unknown hash function [" + name + "]");
+    private static boolean verifyBcryptHash(SecureString text, char[] hash) {
+        String hashStr = new String(hash);
+        if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+            return false;
         }
-        return hasher;
+        return BCrypt.checkpw(text, hashStr);
     }
 
     public static List<String> getAvailableAlgoStoredHash() {

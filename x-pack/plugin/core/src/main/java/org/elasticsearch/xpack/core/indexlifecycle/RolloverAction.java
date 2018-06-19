@@ -130,7 +130,7 @@ public class RolloverAction implements LifecycleAction {
         StepKey updateDateStepKey = new StepKey(phase, NAME, UpdateRolloverLifecycleDateStep.NAME);
         RolloverStep rolloverStep = new RolloverStep(new StepKey(phase, NAME, RolloverStep.NAME), updateDateStepKey, client,
             maxSize, maxAge, maxDocs);
-        UpdateRolloverLifecycleDateStep updateDateStep = new UpdateRolloverLifecycleDateStep(updateDateStepKey, nextStepKey, client);
+        UpdateRolloverLifecycleDateStep updateDateStep = new UpdateRolloverLifecycleDateStep(updateDateStepKey, nextStepKey);
         return Arrays.asList(rolloverStep, updateDateStep);
     }
 

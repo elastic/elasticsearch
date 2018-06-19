@@ -488,8 +488,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
-        securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(), authzService, getLicenseState(),
-                getSslService(), securityContext.get(), destructiveOperations));
+        securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(),
+                authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations, clusterService));
 
         final Set<RequestInterceptor> requestInterceptors;
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {

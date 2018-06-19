@@ -24,11 +24,15 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.node.MockNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.Transport;
@@ -42,7 +46,10 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -108,6 +115,7 @@ public class LicensingTests extends SecurityIntegTestCase {
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
+            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
                 .build();
     }
 
@@ -116,6 +124,11 @@ public class LicensingTests extends SecurityIntegTestCase {
         ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(Netty4Plugin.class); // for http
         return plugins;
+    }
+
+    @Override
+    protected int maxNumberOfNodes() {
+        return super.maxNumberOfNodes() + 1;
     }
 
     @Before
@@ -250,6 +263,33 @@ public class LicensingTests extends SecurityIntegTestCase {
             fail("should not have been able to connect to a node!");
         } catch (NoNodeAvailableException e) {
             // expected
+        }
+    }
+
+    public void testNodeJoinWithoutSecurityExplicitlyEnabled() throws Exception {
+        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
+        enableLicensing(mode);
+        ensureGreen();
+
+        Path home = createTempDir();
+        Path conf = home.resolve("config");
+        Files.createDirectories(conf);
+        Settings nodeSettings = Settings.builder()
+            .put(nodeSettings(maxNumberOfNodes() - 1).filter(s -> "xpack.security.enabled".equals(s) == false))
+            .put("node.name", "my-test-node")
+            .put("network.host", "localhost")
+            .put("cluster.name", internalCluster().getClusterName())
+            .put("discovery.zen.minimum_master_nodes",
+                internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
+            .put("path.home", home)
+            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
+            .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "test-zen")
+            .build();
+        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class);
+        try (Node node = new MockNode(nodeSettings, mockPlugins)) {
+            node.start();
+            ensureStableCluster(cluster().size() + 1);
         }
     }
 

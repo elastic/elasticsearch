@@ -49,7 +49,7 @@ class RestTestFromSnippetsTaskTest extends GroovyTestCase {
     void testIsDocWriteRequest() {
         assertTrue(isDocWriteRequest("doc-index/doc_id"));
         assertTrue(isDocWriteRequest("doc_index/doc_type/doc_id"));
-        assertFalse(isDocWriteRequest("doc_index"))
+        assertFalse(isDocWriteRequest("doc_index/_search"))
         assertFalse(isDocWriteRequest("_xpack/ml/datafeeds/datafeed-id/_preview"));
     }
 }

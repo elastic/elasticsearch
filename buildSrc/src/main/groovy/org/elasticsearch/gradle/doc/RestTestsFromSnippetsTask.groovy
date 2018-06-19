@@ -41,9 +41,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
 
     /**
      * Doc write operations start with an index name that cannot
-     * start with -, _ or + and must be lower case.
+     * start with -, _ or + and must be lower case and are followed
+     * by the doc type or doc Id. If the 2nd part of the path
+     * (after the '/') starts with a '_' then it is an API call.
      */
-    private static final Pattern DOCS_WRITE_OP_PATTERN = Pattern.compile("^[^_\\-\\+][a-z_-]+/");
+    private static final Pattern DOCS_WRITE_OP_PATTERN = Pattern.compile("^[^_\\-\\+][a-z_-]+/[^_]");
 
     @Input
     Map<String, String> setups = new HashMap()

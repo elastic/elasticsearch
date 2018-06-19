@@ -63,7 +63,7 @@ public abstract class FilterClient extends AbstractClient {
 
     @Override
     protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> void doExecute(
-            Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+        Action<Response> action, Request request, ActionListener<Response> listener) {
         in().execute(action, request, listener);
     }
 

@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class RetryAction extends Action<RetryAction.Request, RetryAction.Response> {
+public class RetryAction extends Action<RetryAction.Response> {
     public static final RetryAction INSTANCE = new RetryAction();
     public static final String NAME = "indices:admin/xpack/index_lifecycle/retry";
 

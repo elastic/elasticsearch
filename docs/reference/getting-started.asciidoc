@@ -219,6 +219,7 @@ And now we are ready to start our node and single cluster:
 --------------------------------------------------
 
 [float]
+[[successfully-running-node]]
 === Successfully running node
 
 If everything goes well with installation, you should see a bunch of messages that look like below:

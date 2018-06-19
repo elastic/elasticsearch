@@ -208,6 +208,7 @@ POST clicklogs/_xpack/graph/_explore
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:clicklogs_index]
 <1> Seed the exploration with a query. This example is searching
 clicklogs for people who searched for the term "midi".
 <2> Identify the vertices to include in the graph. This example is looking for
@@ -266,7 +267,9 @@ The response from the explore API looks like this:
    ]
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"vertices"/$body.$_path/]
+// TESTRESPONSE[s/"connections"/$body.$_path/]
+
 <1> An array of all of the vertices that were discovered. A vertex is an indexed
 term, so the field and term value are provided. The `weight` attribute specifies
 a significance score. The `depth` attribute specifies the hop-level at which
@@ -342,6 +345,7 @@ POST clicklogs/_xpack/graph/_explore
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:clicklogs_index]
 <1> Disable `use_significance` to include all associated terms, not just the
 ones that are significantly associated with the query.
 <2> Increase the sample size to consider a larger set of documents on
@@ -402,6 +406,7 @@ POST clicklogs/_xpack/graph/_explore
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:clicklogs_index]
 <1> The vertices you want to start from are specified
 as an array of terms in an `include` clause.
 <2> The `exclude` clause prevents terms you already know about from being

@@ -94,7 +94,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         expectObjectException(() -> Strings.toString(builder().endObject()));
 
         expectValueException(() -> builder().startObject("foo").endObject());
-        expectNonNullFieldException(() -> builder().startObject().startObject(null));
+        expectNonNullFieldException(() -> builder().startObject().startObject((String)null));
 
         assertResult("{}", () -> builder().startObject().endObject());
         assertResult("{'foo':{}}", () -> builder().startObject().startObject("foo").endObject().endObject());

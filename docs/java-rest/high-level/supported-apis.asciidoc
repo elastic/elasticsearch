@@ -76,6 +76,7 @@ Index Management::
 
 Mapping Management::
 * <<java-rest-high-put-mapping>>
+* <<java-rest-high-get-field-mappings>>
 
 Alias Management::
 * <<java-rest-high-update-aliases>>
@@ -97,6 +98,7 @@ include::indices/force_merge.asciidoc[]
 include::indices/rollover.asciidoc[]
 include::indices/put_mapping.asciidoc[]
 include::indices/get_mappings.asciidoc[]
+include::indices/get_field_mappings.asciidoc[]
 include::indices/update_aliases.asciidoc[]
 include::indices/exists_alias.asciidoc[]
 include::indices/get_alias.asciidoc[]

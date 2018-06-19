@@ -47,6 +47,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -222,6 +223,20 @@ final class RequestConverters {
         parameters.withMasterTimeout(getMappingsRequest.masterNodeTimeout());
         parameters.withIndicesOptions(getMappingsRequest.indicesOptions());
         parameters.withLocal(getMappingsRequest.local());
+        return request;
+    }
+
+    static Request getFieldMappings(GetFieldMappingsRequest getFieldMappingsRequest) throws IOException {
+        String[] indices = getFieldMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.indices();
+        String[] types = getFieldMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.types();
+        String[] fields = getFieldMappingsRequest.fields() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.fields();
+
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint(indices, "_mapping", types, "field", fields));
+
+        Params parameters = new Params(request);
+        parameters.withIndicesOptions(getFieldMappingsRequest.indicesOptions());
+        parameters.withIncludeDefaults(getFieldMappingsRequest.includeDefaults());
+        parameters.withLocal(getFieldMappingsRequest.local());
         return request;
     }
 
@@ -906,6 +921,13 @@ final class RequestConverters {
     static String endpoint(String[] indices, String endpoint, String[] suffixes) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint)
                 .addCommaSeparatedPathParts(suffixes).build();
+    }
+
+    static String endpoint(String[] indices, String endpoint, String[] suffixes, String extraEndpoint, String[] extraSuffixes) {
+        return new EndpointBuilder().addCommaSeparatedPathParts(indices)
+            .addPathPartAsIs(endpoint).addCommaSeparatedPathParts(suffixes)
+            .addPathPartAsIs(extraEndpoint).addCommaSeparatedPathParts(extraSuffixes)
+            .build();
     }
 
     static String endpoint(String[] indices, String endpoint, String type) {

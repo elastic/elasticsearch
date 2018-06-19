@@ -49,6 +49,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -135,6 +136,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request,
             leaderIndex = in.readString();
             followIndex = in.readString();
             batchSize = in.readVLong();
+            concurrentProcessors = in.readVInt();
             processorMaxTranslogBytes = in.readVLong();
         }
 
@@ -144,7 +146,25 @@ public class FollowIndexAction extends Action<FollowIndexAction.Request,
             out.writeString(leaderIndex);
             out.writeString(followIndex);
             out.writeVLong(batchSize);
+            out.writeVInt(concurrentProcessors);
             out.writeVLong(processorMaxTranslogBytes);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            return batchSize == request.batchSize &&
+                concurrentProcessors == request.concurrentProcessors &&
+                processorMaxTranslogBytes == request.processorMaxTranslogBytes &&
+                Objects.equals(leaderIndex, request.leaderIndex) &&
+                Objects.equals(followIndex, request.followIndex);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(leaderIndex, followIndex, batchSize, concurrentProcessors, processorMaxTranslogBytes);
         }
     }
 

@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexAction.Request, CreateAndFollowIndexAction.Response,
     CreateAndFollowIndexAction.RequestBuilder> {
@@ -96,6 +97,19 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             followRequest.writeTo(out);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            return Objects.equals(followRequest, request.followRequest);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(followRequest);
         }
     }
 
@@ -152,6 +166,21 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return followIndexCreated == response.followIndexCreated &&
+                followIndexShardsAcked == response.followIndexShardsAcked &&
+                indexFollowingStarted == response.indexFollowingStarted;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(followIndexCreated, followIndexShardsAcked, indexFollowingStarted);
         }
     }
 

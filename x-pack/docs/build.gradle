@@ -438,6 +438,11 @@ setups['server_metrics_startdf'] = setups['server_metrics_openjob'] + '''
       xpack.ml.start_datafeed:
         datafeed_id: "datafeed-total-requests"
 '''
+setups['server_metrics_flush'] = setups['server_metrics_startdf'] + '''
+  - do:
+      xpack.ml.flush_job:
+        job_id: "total-requests" 
+'''
 setups['calendar_outages'] = '''
   - do:
         xpack.ml.put_calendar:

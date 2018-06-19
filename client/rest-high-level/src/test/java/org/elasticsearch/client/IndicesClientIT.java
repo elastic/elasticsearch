@@ -24,8 +24,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -76,14 +74,12 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
@@ -1243,32 +1239,5 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ElasticsearchException notFound = expectThrows(ElasticsearchException.class, () -> execute(
             new GetIndexTemplatesRequest().names("the-template-*"), client.indices()::getTemplate, client.indices()::getTemplateAsync));
         assertThat(notFound.status(), equalTo(RestStatus.NOT_FOUND));
-    }
-
-    public void testPutScript() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-        XContentType xContentType = randomFrom(XContentType.values());
-        PutStoredScriptRequest request = new PutStoredScriptRequest()
-            .id("script1");
-
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            builder.startObject();
-            builder.startObject("script")
-                .field("lang", "painless")
-                .field("source", "Math.log(_score * 2) + params.multiplier")
-                .endObject();
-            builder.endObject();
-            request.content(BytesReference.bytes(builder), xContentType);
-        }
-
-        PutStoredScriptResponse response = execute(request,
-            client.indices()::putScript, client.indices()::putScriptAsync);
-        assertThat(response.isAcknowledged(), equalTo(true));
-
-        Map<String, Object> script = getAsMap("/_scripts/script1");
-        assertThat(extractValue("_id", script), equalTo("script1"));
-        assertThat(extractValue("found", script), equalTo(true));
-        assertThat(extractValue("script.lang", script), equalTo("painless"));
-        assertThat(extractValue("script.source", script), equalTo("Math.log(_score * 2) + params.multiplier"));
     }
 }

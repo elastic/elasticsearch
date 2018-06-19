@@ -213,7 +213,7 @@ public class KerberosTicketValidator {
      * Performs authentication using provided keytab
      *
      * @param keytabFilePath Keytab file path
-     * @param krbDebug if {@code true} enables jaas krb5 login module debug logs..
+     * @param krbDebug if {@code true} enables jaas krb5 login module debug logs.
      * @return authenticated {@link LoginContext} instance. Note: This needs to be
      *         closed using {@link LoginContext#logout()} after usage.
      * @throws PrivilegedActionException when privileged action threw exception

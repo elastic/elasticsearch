@@ -93,3 +93,9 @@ change for date fields, which are now formatted based on the format that is
 configured in the mappings by default. This behavior can be changed by
 specifying a <<search-request-docvalue-fields,`format`>> with the doc-value
 field.
+
+==== Semantics changed for `max_concurrent_shard_requests`
+
+`max_concurrent_shard_requests` used to limit the total number of concurrent shard
+requests a single high level search request can execute. In 7.0 this changed to be the
+max number of concurrent shard requests per node. The default is now `5`.

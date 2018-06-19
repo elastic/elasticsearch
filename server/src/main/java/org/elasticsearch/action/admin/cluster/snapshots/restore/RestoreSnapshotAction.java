@@ -24,7 +24,7 @@ import org.elasticsearch.action.Action;
 /**
  * Restore snapshot action
  */
-public class RestoreSnapshotAction extends Action<RestoreSnapshotRequest, RestoreSnapshotResponse> {
+public class RestoreSnapshotAction extends Action<RestoreSnapshotResponse> {
 
     public static final RestoreSnapshotAction INSTANCE = new RestoreSnapshotAction();
     public static final String NAME = "cluster:admin/snapshot/restore";

@@ -28,7 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 public abstract class InstanceShardOperationRequestBuilder<Request extends InstanceShardOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends InstanceShardOperationRequestBuilder<Request, Response, RequestBuilder>>
         extends ActionRequestBuilder<Request, Response> {
 
-    protected InstanceShardOperationRequestBuilder(ElasticsearchClient client, Action<Request, Response> action, Request request) {
+    protected InstanceShardOperationRequestBuilder(ElasticsearchClient client, Action<Response> action, Request request) {
         super(client, action, request);
     }
 

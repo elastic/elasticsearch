@@ -74,6 +74,7 @@ import java.util.function.UnaryOperator;
  * <li>{@link RepositoryPlugin}
  * <li>{@link ScriptPlugin}
  * <li>{@link SearchPlugin}
+ * <li>{@link ReloadablePlugin}
  * </ul>
  * <p>In addition to extension points this class also declares some {@code @Deprecated} {@code public final void onModule} methods. These
  * methods should cause any extensions of {@linkplain Plugin} that used the pre-5.x style extension syntax to fail to build and point the

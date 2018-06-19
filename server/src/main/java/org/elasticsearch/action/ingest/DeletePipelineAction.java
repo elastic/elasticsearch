@@ -21,7 +21,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.Action;
 
-public class DeletePipelineAction extends Action<DeletePipelineRequest, WritePipelineResponse> {
+public class DeletePipelineAction extends Action<WritePipelineResponse> {
 
     public static final DeletePipelineAction INSTANCE = new DeletePipelineAction();
     public static final String NAME = "cluster:admin/ingest/pipeline/delete";

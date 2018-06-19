@@ -95,8 +95,8 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
-                .indices(request.getConfig().getIndexPattern())
-                .fields(request.getConfig().getAllFields().toArray(new String[0]));
+            .indices(request.getConfig().getIndexPattern())
+            .fields(request.getConfig().getAllFields().toArray(new String[0]));
 
         client.fieldCaps(fieldCapsRequest, new ActionListener<FieldCapabilitiesResponse>() {
             @Override

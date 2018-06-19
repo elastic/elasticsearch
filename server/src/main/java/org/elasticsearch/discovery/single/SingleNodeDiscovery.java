@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.transport.TransportService;
@@ -61,6 +62,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     public synchronized void publish(final ClusterChangedEvent event,
                                      final AckListener ackListener) {
         clusterState = event.state();
+        ackListener.onCommit(TimeValue.ZERO);
         CountDownLatch latch = new CountDownLatch(1);
 
         ClusterApplyListener listener = new ClusterApplyListener() {

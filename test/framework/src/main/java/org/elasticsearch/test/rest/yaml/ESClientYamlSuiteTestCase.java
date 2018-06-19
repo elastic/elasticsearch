@@ -21,17 +21,16 @@ package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.HttpHost;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -51,11 +50,20 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Runs a suite of yaml tests shared with all the official Elasticsearch clients against against an elasticsearch cluster.
+ * Runs a suite of yaml tests shared with all the official Elasticsearch
+ * clients against against an elasticsearch cluster.
+ * <p>
+ * <strong>IMPORTANT</strong>: These tests sniff the cluster for metadata
+ * and hosts on startup and replace the list of hosts that they are
+ * configured to use with the list sniffed from the cluster. So you can't
+ * control which nodes receive the request by providing the right list of
+ * nodes in the <code>tests.rest.cluster</code> system property. Instead
+ * the tests must explictly use `node_selector`s.
  */
 public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
@@ -113,6 +121,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     @Before
     public void initAndResetContext() throws Exception {
         if (restTestExecutionContext == null) {
+            // Sniff host metadata in case we need it in the yaml tests
+            List<Node> nodesWithMetadata = sniffHostMetadata(adminClient());
+            client().setNodes(nodesWithMetadata);
+            adminClient().setNodes(nodesWithMetadata);
+
             assert adminExecutionContext == null;
             assert blacklistPathMatchers == null;
             final ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
@@ -383,5 +396,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     protected boolean randomizeContentType() {
         return true;
+    }
+
+    /**
+     * Sniff the cluster for host metadata.
+     */
+    private List<Node> sniffHostMetadata(RestClient client) throws IOException {
+        ElasticsearchNodesSniffer.Scheme scheme =
+            ElasticsearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
+        ElasticsearchNodesSniffer sniffer = new ElasticsearchNodesSniffer(
+                adminClient(), ElasticsearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
+        return sniffer.sniff();
     }
 }

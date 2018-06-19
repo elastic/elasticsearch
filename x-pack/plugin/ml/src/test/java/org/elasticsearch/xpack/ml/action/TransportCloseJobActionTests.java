@@ -51,7 +51,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         mlBuilder.putJob(BaseMlIntegTestCase.createScheduledJob("job_id").build(new Date()), false);
         mlBuilder.putDatafeed(BaseMlIntegTestCase.createDatafeed("datafeed_id", "job_id",
-                Collections.singletonList("*")), null);
+                Collections.singletonList("*")), Collections.emptyMap());
         final PersistentTasksCustomMetaData.Builder startDataFeedTaskBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", null, JobState.OPENED, startDataFeedTaskBuilder);
         addTask("datafeed_id", 0L, null, DatafeedState.STARTED, startDataFeedTaskBuilder);
@@ -314,7 +314,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
                                PersistentTasksCustomMetaData.Builder tasks) {
         tasks.addTask(MLMetadataField.datafeedTaskId(datafeedId), StartDatafeedAction.TASK_NAME,
                 new StartDatafeedAction.DatafeedParams(datafeedId, startTime), new Assignment(nodeId, "test assignment"));
-        tasks.updateTaskStatus(MLMetadataField.datafeedTaskId(datafeedId), state);
+        tasks.updateTaskState(MLMetadataField.datafeedTaskId(datafeedId), state);
     }
 
 }

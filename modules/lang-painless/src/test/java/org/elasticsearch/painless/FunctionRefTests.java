@@ -184,6 +184,11 @@ public class FunctionRefTests extends ScriptTestCase {
                                  "def map = new HashMap(); f(map::getOrDefault)"));
     }
 
+    public void testInterfaceStaticMethod() {
+        assertEquals(-1, exec("Supplier get(Supplier supplier) { return supplier }" +
+                              "Supplier s = get(Comparator::naturalOrder); s.get().compare(1, 2)"));
+    }
+
     public void testMethodMissing() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("List l = [2, 1]; l.sort(Integer::bogus); return l.get(0);");

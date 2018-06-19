@@ -11,7 +11,7 @@ description = 'Request and response objects shared by the cli, jdbc ' +
         'and the Elasticsearch plugin'
 
 dependencies {
-    compile (project(':libs:elasticsearch-core')) {
+    compile (project(':libs:core')) {
         transitive = false
     }
     compile (project(':libs:x-content')) {

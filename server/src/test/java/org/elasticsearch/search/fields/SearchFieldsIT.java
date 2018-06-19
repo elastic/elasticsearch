@@ -1003,6 +1003,98 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(fetchedDate, equalTo(date));
     }
 
+
+    public void testStoredFieldsWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field1")
+                            .field("type", "text")
+                            .field("store", true)
+                        .endObject()
+                        .startObject("field2")
+                            .field("type", "text")
+                            .field("store", false)
+                        .endObject()
+                        .startObject("field1-alias")
+                            .field("type", "alias")
+                            .field("path", "field1")
+                        .endObject()
+                        .startObject("field2-alias")
+                            .field("type", "alias")
+                            .field("path", "field2")
+                        .endObject()
+                    .endObject()
+            .endObject()
+        .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+
+        index("test", "type", "1", "field1", "value1", "field2", "value2");
+        refresh("test");
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addStoredField("field1-alias")
+            .addStoredField("field2-alias")
+            .get();
+        assertHitCount(searchResponse, 1L);
+
+        SearchHit hit = searchResponse.getHits().getAt(0);
+        assertEquals(1, hit.getFields().size());
+        assertTrue(hit.getFields().containsKey("field1-alias"));
+
+        DocumentField field = hit.getFields().get("field1-alias");
+        assertThat(field.getValue().toString(), equalTo("value1"));
+    }
+
+    public void testWildcardStoredFieldsWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field1")
+                            .field("type", "text")
+                            .field("store", true)
+                        .endObject()
+                        .startObject("field2")
+                            .field("type", "text")
+                            .field("store", false)
+                        .endObject()
+                        .startObject("field1-alias")
+                            .field("type", "alias")
+                            .field("path", "field1")
+                        .endObject()
+                        .startObject("field2-alias")
+                            .field("type", "alias")
+                            .field("path", "field2")
+                        .endObject()
+                    .endObject()
+            .endObject()
+        .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+
+        index("test", "type", "1", "field1", "value1", "field2", "value2");
+        refresh("test");
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addStoredField("field*")
+            .get();
+        assertHitCount(searchResponse, 1L);
+
+        SearchHit hit = searchResponse.getHits().getAt(0);
+        assertEquals(2, hit.getFields().size());
+        assertTrue(hit.getFields().containsKey("field1"));
+        assertTrue(hit.getFields().containsKey("field1-alias"));
+
+        DocumentField field = hit.getFields().get("field1");
+        assertThat(field.getValue().toString(), equalTo("value1"));
+
+        DocumentField fieldAlias = hit.getFields().get("field1-alias");
+        assertThat(fieldAlias.getValue().toString(), equalTo("value1"));
+    }
+
     public void testLoadMetadata() throws Exception {
         assertAcked(prepareCreate("test"));
 

@@ -96,7 +96,7 @@ public enum ValueType implements Writeable {
     private final byte id;
     private String preferredName;
 
-    public final static ParseField VALUE_TYPE = new ParseField("value_type", "valueType");
+    public static final ParseField VALUE_TYPE = new ParseField("value_type", "valueType");
 
     ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType,
             Class<? extends IndexFieldData> fieldDataType, DocValueFormat defaultFormat) {

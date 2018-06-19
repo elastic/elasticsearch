@@ -50,7 +50,8 @@ public class ParsedWeightedAvg extends ParsedSingleValueNumericMetricsAggregatio
         return builder;
     }
 
-    private static final ObjectParser<ParsedWeightedAvg, Void> PARSER = new ObjectParser<>(ParsedWeightedAvg.class.getSimpleName(), true, ParsedWeightedAvg::new);
+    private static final ObjectParser<ParsedWeightedAvg, Void> PARSER
+        = new ObjectParser<>(ParsedWeightedAvg.class.getSimpleName(), true, ParsedWeightedAvg::new);
 
     static {
         declareSingleValueFields(PARSER, Double.POSITIVE_INFINITY);

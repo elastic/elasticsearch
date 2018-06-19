@@ -36,7 +36,8 @@ public abstract class ArrayValuesSourceAggregatorFactory<VS extends ValuesSource
     protected Map<String, ValuesSourceConfig<VS>> configs;
 
     public ArrayValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig<VS>> configs,
-                                              SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                              SearchContext context, AggregatorFactory<?> parent,
+                                              AggregatorFactories.Builder subFactoriesBuilder,
                                               Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metaData);
         this.configs = configs;
@@ -63,6 +64,7 @@ public abstract class ArrayValuesSourceAggregatorFactory<VS extends ValuesSource
                                                  Map<String, Object> metaData) throws IOException;
 
     protected abstract Aggregator doCreateInternal(Map<String, VS> valuesSources, Aggregator parent, boolean collectsFromSingleBucket,
-                                                   List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
+                                                   List<PipelineAggregator> pipelineAggregators,
+                                                   Map<String, Object> metaData) throws IOException;
 
 }

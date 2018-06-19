@@ -256,8 +256,9 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     protected abstract ArrayValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context,
-                                                                            Map<String, ValuesSourceConfig<VS>> configs, AggregatorFactory<?> parent,
-                                                                            AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+                                                                Map<String, ValuesSourceConfig<VS>> configs,
+                                                                AggregatorFactory<?> parent,
+                                                                AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
     public ValuesSourceConfig<VS> config(SearchContext context, String field, Script script) {
 

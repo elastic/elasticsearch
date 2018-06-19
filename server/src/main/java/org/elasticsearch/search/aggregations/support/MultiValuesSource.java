@@ -27,7 +27,6 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Predicate;
 
 /**
  * Class to encapsulate a set of ValuesSource objects labeled by field name
@@ -104,7 +103,7 @@ public abstract class MultiValuesSource <VS extends ValuesSource> {
         public GeoPointValuesSource(MultiValuesSourceConfig<ValuesSource.GeoPoint> valuesSourceConfigs,
                                     QueryShardContext context) throws IOException {
             values = new HashMap<>(valuesSourceConfigs.getMap().size());
-            for (Map.Entry<String, MultiValuesSourceConfig.Wrapper<ValuesSource.GeoPoint>> entry : valuesSourceConfigs.getMap().entrySet()) {
+            for (Map.Entry<String, MultiValuesSourceConfig.Wrapper<ValuesSource.GeoPoint>> entry : valuesSourceConfigs.getMap().entrySet()){
                 values.put(entry.getKey(), new Wrapper<>(entry.getValue().getMulti(),
                     entry.getValue().getConfig().toValuesSource(context)));
             }

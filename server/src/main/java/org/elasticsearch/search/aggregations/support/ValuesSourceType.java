@@ -33,7 +33,7 @@ public enum ValuesSourceType implements Writeable {
     BYTES,
     GEOPOINT;
 
-    public final static ParseField VALUE_SOURCE_TYPE = new ParseField("value_source_type");
+    public static final ParseField VALUE_SOURCE_TYPE = new ParseField("value_source_type");
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

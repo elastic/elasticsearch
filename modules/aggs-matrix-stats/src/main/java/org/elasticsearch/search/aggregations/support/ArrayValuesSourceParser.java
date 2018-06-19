@@ -197,8 +197,10 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
      *            method
      * @return the created factory
      */
-    protected abstract ArrayValuesSourceAggregationBuilder<VS, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                                                ValueType targetValueType, Map<ParseField, Object> otherOptions);
+    protected abstract ArrayValuesSourceAggregationBuilder<VS, ?> createFactory(String aggregationName,
+                                                                                ValuesSourceType valuesSourceType,
+                                                                                ValueType targetValueType,
+                                                                                Map<ParseField, Object> otherOptions);
 
     /**
      * Allows subclasses of {@link ArrayValuesSourceParser} to parse extra

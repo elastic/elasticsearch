@@ -2,6 +2,7 @@ package com.carrotsearch.gradle.junit4
 
 import com.carrotsearch.ant.tasks.junit4.JUnit4
 import org.gradle.api.AntBuilder
+import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -9,12 +10,34 @@ import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.testing.Test
 
+import java.util.concurrent.atomic.AtomicBoolean
+
 class RandomizedTestingPlugin implements Plugin<Project> {
+
+    static private AtomicBoolean sanityCheckConfigured = new AtomicBoolean(false)
 
     void apply(Project project) {
         setupSeed(project)
         replaceTestTask(project.tasks)
         configureAnt(project.ant)
+        configureSanityCheck(project)
+    }
+
+    private static void configureSanityCheck(Project project) {
+        // Check the task graph to confirm tasks were indeed replaced
+        // https://github.com/elastic/elasticsearch/issues/31324
+        if (sanityCheckConfigured.getAndSet(true) == false) {
+            project.rootProject.getGradle().getTaskGraph().whenReady {
+                def nonConforming = project.getGradle().getTaskGraph().allTasks
+                        .findAll { it.name == "test" }
+                        .findAll { (it instanceof RandomizedTestingTask) == false}
+                        .collect { "${it.path} -> ${it.class}" }
+                if (nonConforming.isEmpty() == false) {
+                    throw new GradleException("Found the following `test` tasks:" +
+                            "\n  ${nonConforming.join("\n  ")}")
+                }
+            }
+        }
     }
 
     /**

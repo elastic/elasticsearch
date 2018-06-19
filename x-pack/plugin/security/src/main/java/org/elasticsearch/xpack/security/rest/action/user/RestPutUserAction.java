@@ -36,6 +36,9 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestPutUserAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
+    private final Hasher passwordHasher = Hasher.resolve(XPackSettings
+        .PASSWORD_HASHING_ALGORITHM.get(settings));
+
     public RestPutUserAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/user/{username}", this);
@@ -49,8 +52,6 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final Hasher passwordHasher = Hasher.resolve(XPackSettings
-            .PASSWORD_HASHING_ALGORITHM.get(settings));
         PutUserRequestBuilder requestBuilder = new SecurityClient(client)
             .preparePutUser(request.param("username"), request.requiredContent(), request.getXContentType(), passwordHasher)
                 .setRefreshPolicy(request.param("refresh"));

@@ -56,7 +56,7 @@ Elasticsearch query. For example:
   }
 }
 --------------------------------------------------
-
+// NOTCONSOLE
 
 vertices::
 Specifies or more fields that contain the terms you want to include in the
@@ -70,6 +70,7 @@ graph as vertices. For example:
     }
 ]
 --------------------------------------------------
+// NOTCONSOLE
 
 field::: Identifies a field in the documents of interest.
 include::: Identifies the terms of interest that form the starting points
@@ -107,6 +108,7 @@ associated with the specified vertices. For example:
   ]
 }
 --------------------------------------------------
+// NOTCONSOLE
 +
 NOTE: Connections can be nested inside the `connections` object to
 explore additional relationships in the data. Each level of nesting is
@@ -132,6 +134,7 @@ Contains the fields you are interested in. For example:
   }
 ]
 --------------------------------------------------
+// NOTCONSOLE
 
 controls:: Direct the Graph API how to build the graph.
 
@@ -167,6 +170,7 @@ a maximum number of documents per value for that field. For example:
   "max_docs_per_value": 500
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 // [float]
 // === Authorization
@@ -262,6 +266,7 @@ The response from the explore API looks like this:
    ]
 }
 --------------------------------------------------
+// TESTRESPONSE
 <1> An array of all of the vertices that were discovered. A vertex is an indexed
 term, so the field and term value are provided. The `weight` attribute specifies
 a significance score. The `depth` attribute specifies the hop-level at which

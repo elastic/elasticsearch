@@ -24,7 +24,6 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.nio.NioSocketChannel;
 
-import java.io.IOException;
 import java.nio.channels.SocketChannel;
 
 public class NioHttpChannel extends NioSocketChannel implements HttpChannel {

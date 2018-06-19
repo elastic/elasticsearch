@@ -30,6 +30,10 @@ public class NioServerSocketChannel extends NioChannel {
 
     public NioServerSocketChannel(ServerSocketChannel socketChannel) {
         this.socketChannel = socketChannel;
+        // Calling getLocalAddress will attempt to set the local address for future calls. This only happens
+        // if the channel is bound (which is the case for server channels but likely not the case for socket
+        // channels).
+        getLocalAddress();
     }
 
     /**

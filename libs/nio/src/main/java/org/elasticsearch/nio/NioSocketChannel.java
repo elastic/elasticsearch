@@ -34,6 +34,8 @@ public class NioSocketChannel extends NioChannel {
 
     public NioSocketChannel(SocketChannel socketChannel) {
         this.socketChannel = socketChannel;
+        // Calling getRemoteAddress will attempt to set the local address for future calls.
+        getRemoteAddress();
     }
 
     public void setContext(SocketChannelContext context) {
@@ -57,8 +59,10 @@ public class NioSocketChannel extends NioChannel {
     public InetSocketAddress getRemoteAddress() {
         if (remoteAddress == null) {
             try {
-                remoteAddress = (InetSocketAddress) socketChannel.getLocalAddress();
-            } catch (IOException e) {}
+                remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
+            } catch (IOException e) {
+                // We are not care about this exception.
+            }
         }
         return remoteAddress;
     }

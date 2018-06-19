@@ -117,6 +117,9 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         }
         if (isConnected) {
             connectContext.complete(null);
+            // Calling getLocalAddress will attempt to set the local address for future calls. We are calling
+            // it here as the channel should have a local address once the connection is complete.
+            channel.getLocalAddress();
         }
         return isConnected;
     }

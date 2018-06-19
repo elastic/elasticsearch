@@ -42,7 +42,9 @@ public abstract class NioChannel {
         if (localAddress == null) {
             try {
                 localAddress = (InetSocketAddress) getRawChannel().getLocalAddress();
-            } catch (IOException e) {}
+            } catch (IOException e) {
+                // We are not care about this exception.
+            }
         }
         return localAddress;
     }

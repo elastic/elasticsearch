@@ -75,7 +75,7 @@ public class SimpleKdcLdapServer {
         this.ldiff = ldiff;
         this.krb5DebugBackupConfigValue = AccessController.doPrivileged(new PrivilegedExceptionAction<Boolean>() {
             @Override
-            @SuppressForbidden(reason = "set or clear system property krb5 debug in tests")
+            @SuppressForbidden(reason = "set or clear system property krb5 debug in kerberos tests")
             public Boolean run() throws Exception {
                 boolean oldDebugSetting = Boolean.parseBoolean(System.getProperty("sun.security.krb5.debug"));
                 System.setProperty("sun.security.krb5.debug", Boolean.TRUE.toString());
@@ -93,7 +93,7 @@ public class SimpleKdcLdapServer {
         logger.info("SimpleKdcLdapServer started.");
     }
 
-    @SuppressForbidden(reason = "Uses Apache Kdc which requires usage of java.io.File")
+    @SuppressForbidden(reason = "Uses Apache Kdc which requires usage of java.io.File in order to create a SimpleKdcServer")
     private void init() throws Exception {
         // start ldap server
         createLdapServiceAndStart();
@@ -121,7 +121,7 @@ public class SimpleKdcLdapServer {
         assert Files.exists(this.workDir.resolve("backend.conf"));
     }
 
-    @SuppressForbidden(reason = "Uses Apache Kdc which requires usage of java.io.File")
+    @SuppressForbidden(reason = "Uses Apache Kdc which requires usage of java.io.File in order to create a SimpleKdcServer")
     private void prepareKdcServerAndStart() throws Exception {
         // transport
         simpleKdc.setWorkDir(workDir.toFile());
@@ -200,7 +200,7 @@ public class SimpleKdcLdapServer {
         AccessController.doPrivileged(new PrivilegedExceptionAction<Void>() {
 
             @Override
-            @SuppressForbidden(reason = "set or clear system property krb5 debug in tests")
+            @SuppressForbidden(reason = "set or clear system property krb5 debug in kerberos tests")
             public Void run() throws Exception {
                 if (simpleKdc != null) {
                     try {

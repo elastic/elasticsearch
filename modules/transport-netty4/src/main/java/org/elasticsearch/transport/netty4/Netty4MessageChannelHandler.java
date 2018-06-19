@@ -36,11 +36,9 @@ import org.elasticsearch.transport.Transports;
 final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     private final Netty4Transport transport;
-    private final String profileName;
 
     Netty4MessageChannelHandler(Netty4Transport transport, String profileName) {
         this.transport = transport;
-        this.profileName = profileName;
     }
 
     @Override
@@ -58,7 +56,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             // netty always copies a buffer, either in NioWorker in its read handler, where it copies to a fresh
             // buffer, or in the cumulative buffer, which is cleaned each time so it could be bigger than the actual size
             BytesReference reference = Netty4Utils.toBytesReference(buffer, remainingMessageSize);
-            Attribute<NettyTcpChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
+            Attribute<Netty4TcpChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
             transport.messageReceived(reference, channelAttribute.get());
         } finally {
             // Set the expected position of the buffer, no matter what happened

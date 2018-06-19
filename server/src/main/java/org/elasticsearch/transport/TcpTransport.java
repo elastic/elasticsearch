@@ -210,7 +210,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     // node id to actual channel
     private final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
-    private final Map<String, List<TcpChannel>> serverChannels = newConcurrentMap();
+    private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
     private final Set<TcpChannel> acceptedChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final KeyedLock<String> connectionLock = new KeyedLock<>();
@@ -792,9 +792,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
         boolean success = portsRange.iterate(portNumber -> {
             try {
-                TcpChannel channel = bind(name, new InetSocketAddress(hostAddress, portNumber));
+                TcpServerChannel channel = bind(name, new InetSocketAddress(hostAddress, portNumber));
                 synchronized (serverChannels) {
-                    List<TcpChannel> list = serverChannels.get(name);
+                    List<TcpServerChannel> list = serverChannels.get(name);
                     if (list == null) {
                         list = new ArrayList<>();
                         serverChannels.put(name, list);
@@ -957,9 +957,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             closeLock.writeLock().lock();
             try {
                 // first stop to accept any incoming connections so nobody can connect to this transport
-                for (Map.Entry<String, List<TcpChannel>> entry : serverChannels.entrySet()) {
+                for (Map.Entry<String, List<TcpServerChannel>> entry : serverChannels.entrySet()) {
                     String profile = entry.getKey();
-                    List<TcpChannel> channels = entry.getValue();
+                    List<TcpServerChannel> channels = entry.getValue();
                     ActionListener<Void> closeFailLogger = ActionListener.wrap(c -> {},
                         e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e));
                     channels.forEach(c -> c.addCloseListener(closeFailLogger));
@@ -1072,7 +1072,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param name    the profile name
      * @param address the address to bind to
      */
-    protected abstract TcpChannel bind(String name, InetSocketAddress address) throws IOException;
+    protected abstract TcpServerChannel bind(String name, InetSocketAddress address) throws IOException;
 
     /**
      * Initiate a single tcp socket channel.

@@ -237,7 +237,7 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
-    private static final class FakeChannel implements TcpChannel {
+    private static final class FakeChannel implements TcpChannel, TcpServerChannel {
 
         private final AtomicReference<BytesReference> messageCaptor;
 

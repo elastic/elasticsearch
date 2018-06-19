@@ -57,7 +57,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/license/delete-license.asciidoc',
         'en/rest-api/license/update-license.asciidoc',
         'en/ml/api-quickref.asciidoc',
-        'en/rest-api/ml/delete-calendar-event.asciidoc',
         'en/rest-api/ml/delete-snapshot.asciidoc',
         'en/rest-api/ml/forecast.asciidoc',
         'en/rest-api/ml/get-bucket.asciidoc',
@@ -71,8 +70,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/ml/preview-datafeed.asciidoc',
         'en/rest-api/ml/revert-snapshot.asciidoc',
         'en/rest-api/ml/update-snapshot.asciidoc',
-        'en/rest-api/ml/validate-detector.asciidoc',
-        'en/rest-api/ml/validate-job.asciidoc',
         'en/rest-api/watcher/stats.asciidoc',
         'en/watcher/example-watches/watching-time-series-data.asciidoc',
 ]

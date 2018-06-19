@@ -113,41 +113,6 @@ public final class IOUtils {
     }
 
     /**
-     * Closes all given {@link Closeable}s. Some of the {@linkplain Closeable}s may be null; they are
-     * ignored. After everything is closed, the method either throws the first {@link RuntimeException} it
-     * hit while closing with other exceptions added as suppressed, or completes normally if there were
-     * no exceptions. If the first exception is not a {@linkplain RuntimeException}, it is wrapped in a
-     * {@linkplain RuntimeException}.
-     *
-     * @param objects objects to close
-     */
-    public static void closeAndConvertToRuntimeExceptions(final Iterable<? extends Closeable> objects) {
-        RuntimeException closingException = null;
-        for (final Closeable object : objects) {
-            try {
-                if (object != null) {
-                    object.close();
-                }
-            } catch (RuntimeException e) {
-                if (closingException == null) {
-                    closingException = e;
-                } else {
-                    closingException.addSuppressed(e);
-                }
-            } catch (IOException e) {
-                if (closingException == null) {
-                    closingException = new RuntimeException(e);
-                } {
-                    closingException.addSuppressed(e);
-                }
-            }
-        }
-        if (closingException != null) {
-            throw closingException;
-        }
-    }
-
-    /**
      * Closes all given {@link Closeable}s, suppressing all thrown exceptions. Some of the {@link Closeable}s may be null, they are ignored.
      *
      * @param objects objects to close

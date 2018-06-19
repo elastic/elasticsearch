@@ -25,6 +25,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -33,7 +35,8 @@ import java.util.concurrent.ExecutionException;
 public interface CloseableChannel extends Closeable {
 
     /**
-     * Closes the channel. This might be an asynchronous process. There is no guarantee that the channel
+     * Closes the channel. For most implementations, this will be be an asynchronous process. For this
+     * reason, this method does not throw {@link java.io.IOException} There is no guarantee that the channel
      * will be closed when this method returns. Use the {@link #addCloseListener(ActionListener)} method
      * to implement logic that depends on knowing when the channel is closed.
      */
@@ -83,7 +86,12 @@ public interface CloseableChannel extends Closeable {
      * @param blocking indicates if we should block on channel close
      */
     static <C extends CloseableChannel> void closeChannels(List<C> channels, boolean blocking) {
-        IOUtils.closeAndConvertToRuntimeExceptions(channels);
+        try {
+            IOUtils.close(channels);
+        } catch (IOException e) {
+            // The CloseableChannel#close method does not throw IOException, so this should not occur.
+            throw new UncheckedIOException(e);
+        }
         if (blocking) {
             ArrayList<ActionFuture<Void>> futures = new ArrayList<>(channels.size());
             for (final C channel : channels) {

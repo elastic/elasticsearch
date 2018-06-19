@@ -4867,7 +4867,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testKeepOperationsNotSeenByMergePolicy() throws IOException {
+    public void testKeepMinRetainedSeqNoByMergePolicy() throws IOException {
         IOUtils.close(engine, store);
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
@@ -4883,7 +4883,7 @@ public class InternalEngineTests extends EngineTestCase {
         store = createStore();
         engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get));
         assertThat(engine.getMinRetainedSeqNo(), equalTo(0L));
-        long lastSeqNoSeenByMP = engine.getMinRetainedSeqNo();
+        long lastMinRetainedSeqNo = engine.getMinRetainedSeqNo();
         for (Engine.Operation op : operations) {
             final Engine.Result result;
             if (op instanceof Engine.Index) {
@@ -4922,7 +4922,7 @@ public class InternalEngineTests extends EngineTestCase {
             try (Engine.IndexCommitRef commitRef = engine.acquireSafeIndexCommit()) {
                 IndexCommit safeCommit = commitRef.getIndexCommit();
                 if (safeCommit.getUserData().containsKey(Engine.MIN_RETAINED_SEQNO)) {
-                    lastSeqNoSeenByMP = Long.parseLong(safeCommit.getUserData().get(Engine.MIN_RETAINED_SEQNO));
+                    lastMinRetainedSeqNo = Long.parseLong(safeCommit.getUserData().get(Engine.MIN_RETAINED_SEQNO));
                 }
             }
         }
@@ -4933,7 +4933,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         trimUnsafeCommits(engine.config());
         try (InternalEngine recoveringEngine = new InternalEngine(engine.config())) {
-            assertThat(recoveringEngine.getMinRetainedSeqNo(), equalTo(lastSeqNoSeenByMP));
+            assertThat(recoveringEngine.getMinRetainedSeqNo(), equalTo(lastMinRetainedSeqNo));
         }
     }
 

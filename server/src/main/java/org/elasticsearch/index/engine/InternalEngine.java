@@ -259,13 +259,13 @@ public class InternalEngine extends Engine {
 
     private SoftDeletesPolicy newSoftDeletesPolicy() throws IOException {
         final Map<String, String> commitUserData = store.readLastCommittedSegmentsInfo().userData;
-        final long lastSeqNoSeenByMergePolicy;
+        final long lastMinRetainedSeqNo;
         if (commitUserData.containsKey(Engine.MIN_RETAINED_SEQNO)) {
-            lastSeqNoSeenByMergePolicy = Long.parseLong(commitUserData.get(Engine.MIN_RETAINED_SEQNO));
+            lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(Engine.MIN_RETAINED_SEQNO));
         } else {
-            lastSeqNoSeenByMergePolicy = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO)) + 1;
+            lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO)) + 1;
         }
-        return new SoftDeletesPolicy(translog::getLastSyncedGlobalCheckpoint, lastSeqNoSeenByMergePolicy,
+        return new SoftDeletesPolicy(translog::getLastSyncedGlobalCheckpoint, lastMinRetainedSeqNo,
             engineConfig.getIndexSettings().getSoftDeleteRetentionOperations());
     }
 

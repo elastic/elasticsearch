@@ -21,8 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class GetLifecycleAction
-        extends Action<GetLifecycleAction.Request, GetLifecycleAction.Response> {
+public class GetLifecycleAction extends Action<GetLifecycleAction.Response> {
     public static final GetLifecycleAction INSTANCE = new GetLifecycleAction();
     public static final String NAME = "cluster:admin/xpack/index_lifecycle/get";
 

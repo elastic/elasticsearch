@@ -123,7 +123,7 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
             source = null;
         }
 
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             id = in.readString();
         }
     }
@@ -143,7 +143,7 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
                 out.writeString(source.getSource());
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeString(id);
         }
     }

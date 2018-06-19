@@ -1,10 +1,29 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -18,34 +37,34 @@ import java.util.function.BiFunction;
 
 public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragment {
     private String fieldName;
-    private Object missing = null;
-    private Script script = null;
-    private DateTimeZone timeZone = null;
-    private MultiValueMode multi = MultiValueMode.AVG;
+    private Object missing;
+    private Script script;
+    private DateTimeZone timeZone;
+    private MultiValueMode multi;
 
     private static final String NAME = "field_config";
     private static final ParseField MULTI = new ParseField("multi");
 
-    public static final BiFunction<Boolean, Boolean, ConstructingObjectParser<MultiValuesSourceFieldConfig, Void>> PARSER
+    public static final BiFunction<Boolean, Boolean, ObjectParser<MultiValuesSourceFieldConfig.Builder, Void>> PARSER
         = (scriptable, timezoneAware) -> {
 
-        ConstructingObjectParser<MultiValuesSourceFieldConfig, Void> parser
-            = new ConstructingObjectParser<>(MultiValuesSourceFieldConfig.NAME, false, o -> new MultiValuesSourceFieldConfig((String)o[0]));
+        ObjectParser<MultiValuesSourceFieldConfig.Builder, Void> parser
+            = new ObjectParser<>(MultiValuesSourceFieldConfig.NAME, MultiValuesSourceFieldConfig.Builder::new);
 
-        parser.declareString(ConstructingObjectParser.constructorArg(), ParseField.CommonFields.FIELD);
-        parser.declareField(MultiValuesSourceFieldConfig::setMissing, XContentParser::objectText,
+        parser.declareString(MultiValuesSourceFieldConfig.Builder::setFieldName, ParseField.CommonFields.FIELD);
+        parser.declareField(MultiValuesSourceFieldConfig.Builder::setMissing, XContentParser::objectText,
             ParseField.CommonFields.MISSING, ObjectParser.ValueType.VALUE);
-        parser.declareField(MultiValuesSourceFieldConfig::setMulti, p -> MultiValueMode.fromString(p.text()), MULTI,
+        parser.declareField(MultiValuesSourceFieldConfig.Builder::setMulti, p -> MultiValueMode.fromString(p.text()), MULTI,
             ObjectParser.ValueType.STRING);
 
         if (scriptable) {
-            parser.declareField(MultiValuesSourceFieldConfig::setScript,
+            parser.declareField(MultiValuesSourceFieldConfig.Builder::setScript,
                 (p, context) -> Script.parse(p),
                 Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
         }
 
         if (timezoneAware) {
-            parser.declareField(MultiValuesSourceFieldConfig::setTimeZone, p -> {
+            parser.declareField(MultiValuesSourceFieldConfig.Builder::setTimeZone, p -> {
                 if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                     return DateTimeZone.forID(p.text());
                 } else {
@@ -56,9 +75,12 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragme
         return parser;
     };
 
-
-    public MultiValuesSourceFieldConfig(String fieldName) {
+    private MultiValuesSourceFieldConfig(String fieldName, Object missing, Script script, DateTimeZone timeZone, MultiValueMode multi) {
         this.fieldName = fieldName;
+        this.missing = missing;
+        this.script = script;
+        this.timeZone = timeZone;
+        this.multi = multi;
     }
 
     public MultiValuesSourceFieldConfig(StreamInput in) throws IOException {
@@ -73,45 +95,21 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragme
         return missing;
     }
 
-    public MultiValuesSourceFieldConfig setMissing(Object missing) {
-        this.missing = missing;
-        return this;
-    }
-
     public Script getScript() {
         return script;
-    }
-
-    public MultiValuesSourceFieldConfig setScript(Script script) {
-        this.script = script;
-        return this;
     }
 
     public DateTimeZone getTimeZone() {
         return timeZone;
     }
 
-    public MultiValuesSourceFieldConfig setTimeZone(DateTimeZone timeZone) {
-        this.timeZone = timeZone;
-        return this;
-    }
-
     public String getFieldName() {
         return fieldName;
     }
 
-    public MultiValuesSourceFieldConfig setFieldName(String fieldName) {
-        this.fieldName = fieldName;
-        return this;
-    }
 
     public MultiValueMode getMulti() {
         return multi;
-    }
-
-    public MultiValuesSourceFieldConfig setMulti(MultiValueMode multi) {
-        this.multi = multi;
-        return this;
     }
 
     @Override
@@ -141,5 +139,78 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentFragme
             builder.field(MULTI.getPreferredName(), multi);
         }
         return builder;
+    }
+
+    public static class Builder {
+        private String fieldName;
+        private Object missing = null;
+        private Script script = null;
+        private DateTimeZone timeZone = null;
+        private MultiValueMode multi = MultiValueMode.AVG;
+
+        public String getFieldName() {
+            return fieldName;
+        }
+
+        public Builder setFieldName(String fieldName) {
+            this.fieldName = fieldName;
+            return this;
+        }
+
+        public Object getMissing() {
+            return missing;
+        }
+
+        public Builder setMissing(Object missing) {
+            this.missing = missing;
+            return this;
+        }
+
+        public Script getScript() {
+            return script;
+        }
+
+        public Builder setScript(Script script) {
+            this.script = script;
+            return this;
+        }
+
+        public DateTimeZone getTimeZone() {
+            return timeZone;
+        }
+
+        public Builder setTimeZone(DateTimeZone timeZone) {
+            this.timeZone = timeZone;
+            return this;
+        }
+
+        public MultiValueMode getMulti() {
+            return multi;
+        }
+
+        public Builder setMulti(MultiValueMode multi) {
+            this.multi = multi;
+            return this;
+        }
+
+        public MultiValuesSourceFieldConfig build() {
+            if (Strings.isNullOrEmpty(fieldName) && script == null) {
+                throw new IllegalArgumentException("[" +  ParseField.CommonFields.FIELD.getPreferredName()
+                    + "] and [" + Script.SCRIPT_PARSE_FIELD.getPreferredName() + "] cannot both be null.  " +
+                    "Please specify one or the other.");
+            }
+
+            if (Strings.isNullOrEmpty(fieldName) == false && script != null) {
+                throw new IllegalArgumentException("[" +  ParseField.CommonFields.FIELD.getPreferredName()
+                    + "] and [" + Script.SCRIPT_PARSE_FIELD.getPreferredName() + "] cannot both be configured.  " +
+                    "Please specify one or the other.");
+            }
+
+            if (multi == null) {
+                throw new IllegalArgumentException("[" + MULTI.getPreferredName() + "] cannot be null");
+            }
+
+            return new MultiValuesSourceFieldConfig(fieldName, missing, script, timeZone, multi);
+        }
     }
 }

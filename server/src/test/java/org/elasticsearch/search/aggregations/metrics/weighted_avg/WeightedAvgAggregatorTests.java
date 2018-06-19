@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.weighted_avg;
 
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -51,8 +50,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class WeightedAvgAggregatorTests extends AggregatorTestCase {
 
     public void testNoDocs() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -64,8 +63,8 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoMatchingField() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -78,8 +77,8 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesSortedNumericDocValuesNoWeight() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -93,8 +92,8 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesSortedNumericDocValuesWeights() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -113,8 +112,8 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -128,8 +127,8 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testQueryFiltering() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -143,8 +142,8 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testQueryFilteringWeights() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -162,8 +161,8 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testQueryFiltersAll() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -177,8 +176,8 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testQueryFiltersAllWeights() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -195,8 +194,11 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueSetMissing() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field").setMissing(2);
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("value_field")
+            .setMissing(2)
+            .build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -211,8 +213,11 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testWeightSetMissing() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field").setMissing(2);
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig =  new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("weight_field")
+            .setMissing(2)
+            .build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -227,8 +232,11 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testWeightSetTimezone() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field").setTimeZone(DateTimeZone.UTC);
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("weight_field")
+            .setTimeZone(DateTimeZone.UTC)
+            .build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -245,8 +253,11 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueSetTimezone() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field").setTimeZone(DateTimeZone.UTC);
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("value_field")
+            .setTimeZone(DateTimeZone.UTC)
+            .build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -263,8 +274,11 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueSetMultiAvg() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field").setMulti(MultiValueMode.AVG);
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("value_field")
+            .setMulti(MultiValueMode.AVG)
+            .build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -283,8 +297,11 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueSetMultiMax() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field").setMulti(MultiValueMode.MAX);
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("value_field")
+            .setMulti(MultiValueMode.MAX)
+            .build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -303,8 +320,11 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueSetMultiMin() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field").setMulti(MultiValueMode.MIN);
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("value_field")
+            .setMulti(MultiValueMode.MIN)
+            .build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -323,8 +343,11 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testValueSetMultiSum() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field").setMulti(MultiValueMode.SUM);
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("value_field")
+            .setMulti(MultiValueMode.SUM)
+            .build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -343,8 +366,11 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testWeightSetMultiAvg() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field").setMulti(MultiValueMode.AVG);
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("weight_field")
+            .setMulti(MultiValueMode.AVG)
+            .build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -367,8 +393,11 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testWeightSetMultiMax() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field").setMulti(MultiValueMode.MAX);
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("weight_field")
+            .setMulti(MultiValueMode.MAX)
+            .build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -390,8 +419,11 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testWeightSetMultiMin() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field").setMulti(MultiValueMode.MIN);
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("weight_field")
+            .setMulti(MultiValueMode.MIN)
+            .build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -413,8 +445,11 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testWeightSetMultiSum() throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field").setMulti(MultiValueMode.SUM);
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder()
+            .setFieldName("weight_field")
+            .setMulti(MultiValueMode.SUM)
+            .build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);
@@ -467,8 +502,8 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     private void verifyAvgOfDoubles(double[] values, double expected, double delta) throws IOException {
-        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig("value_field");
-        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig("weight_field");
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
             .value(valueConfig)
             .weight(weightConfig);

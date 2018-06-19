@@ -35,6 +35,9 @@ import org.joda.time.MutableDateTime;
 import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -52,6 +55,7 @@ import java.util.function.UnaryOperator;
  * values form multiple documents.
  */
 public abstract class ScriptDocValues<T> extends AbstractList<T> {
+
     /**
      * Set the current doc ID.
      */
@@ -141,17 +145,30 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static final class Dates extends ScriptDocValues<ReadableDateTime> {
-        protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Dates.class));
+    public static final class Dates extends ScriptDocValues<Object> {
 
-        private static final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
+        private static final boolean USE_JAVA_TIME = org.elasticsearch.common.Booleans.parseBoolean(
+            System.getProperty("es.scripting.use_java_time"), false);
+
+        private static final ZoneId JAVA_TIME_UTC = ZoneId.of("UTC");
+
+        private static final Object EPOCH;
+        static {
+            if (USE_JAVA_TIME) {
+                EPOCH = ZonedDateTime.ofInstant(Instant.EPOCH, JAVA_TIME_UTC);
+            } else {
+                EPOCH = new DateTime(0, DateTimeZone.UTC);
+            }
+        }
 
         private final SortedNumericDocValues in;
+
         /**
-         * Values wrapped in {@link MutableDateTime}. Null by default an allocated on first usage so we allocate a reasonably size. We keep
-         * this array so we don't have allocate new {@link MutableDateTime}s on every usage. Instead we reuse them for every document.
+         * Values wrapped in a date time object. The concrete type depends on the system property {@code es.scripting.use_java_time}.
+         * When that system property is {@code false}, the date time objects are of type {@link MutableDateTime}. When the system
+         * property is {@code true}, the date time objects are of type {@link java.time.ZonedDateTime}.
          */
-        private MutableDateTime[] dates;
+        private Object[] dates;
         private int count;
 
         /**
@@ -161,11 +178,20 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             this.in = in;
         }
 
+        /** Logs a deprecation warning if the joda time api is being used. */
+        public static void maybeLogJodaTimeDeprecation() {
+            if (USE_JAVA_TIME == false) {
+                DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Dates.class));
+                deprecationLogger.deprecated("The joda time api for doc values is deprecated. Use -Des.scripting.use_java_time=true" +
+                    "to use the java time api for date field doc values");
+            }
+        }
+
         /**
          * Fetch the first field value or 0 millis after epoch if there are no
          * in.
          */
-        public ReadableDateTime getValue() {
+        public Object getValue() {
             if (count == 0) {
                 return EPOCH;
             }
@@ -173,7 +199,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Override
-        public ReadableDateTime get(int index) {
+        public Object get(int index) {
             if (index >= count) {
                 throw new IndexOutOfBoundsException(
                         "attempted to fetch the [" + index + "] date when there are only ["
@@ -204,29 +230,22 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (count == 0) {
                 return;
             }
-            if (dates == null) {
-                // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
-                dates = new MutableDateTime[count];
-                for (int i = 0; i < dates.length; i++) {
+            if (USE_JAVA_TIME) {
+                if (dates == null || count > dates.length) {
+                    // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
+                    dates = new ZonedDateTime[count];
+                }
+                for (int i = 0; i < count; ++i) {
+                    dates[i] = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.nextValue()), JAVA_TIME_UTC);
+                }
+            } else {
+                if (dates == null || count > dates.length) {
+                    // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
+                    dates = new MutableDateTime[count];
+                }
+                for (int i = 0; i < count; i++) {
                     dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
                 }
-                return;
-            }
-            if (count > dates.length) {
-                // Happens when we move to a new document and it has more dates than any documents before it.
-                MutableDateTime[] backup = dates;
-                dates = new MutableDateTime[count];
-                System.arraycopy(backup, 0, dates, 0, backup.length);
-                for (int i = 0; i < backup.length; i++) {
-                    dates[i].setMillis(in.nextValue());
-                }
-                for (int i = backup.length; i < dates.length; i++) {
-                    dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
-                }
-                return;
-            }
-            for (int i = 0; i < count; i++) {
-                dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
             }
         }
     }

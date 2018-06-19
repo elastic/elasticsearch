@@ -29,6 +29,7 @@ import java.util.stream.Stream;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
 
@@ -81,6 +82,8 @@ public class ScriptModule {
             }
         }
         scriptService = new ScriptService(settings, Collections.unmodifiableMap(engines), Collections.unmodifiableMap(contexts));
+
+        ScriptDocValues.Dates.maybeLogJodaTimeDeprecation();
     }
 
     /**

@@ -51,7 +51,7 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
                 String id = (String) a[0];
                 boolean found = (Boolean)a[1];
                 StoredScriptSource scriptSource = (StoredScriptSource)a[2];
-                return found ? new GetStoredScriptResponse(id, scriptSource) : new GetStoredScriptResponse();
+                return found ? new GetStoredScriptResponse(id, scriptSource) : new GetStoredScriptResponse(id, null);
             });
 
     static {
@@ -124,7 +124,7 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
         }
 
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            id = in.readOptionalString();
+            id = in.readString();
         }
     }
 
@@ -144,7 +144,7 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
             }
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeOptionalString(id);
+            out.writeString(id);
         }
     }
 

@@ -134,7 +134,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     public void testField() throws IOException {
         expectValueException(() -> BytesReference.bytes(builder().field("foo")));
-        expectNonNullFieldException(() -> BytesReference.bytes(builder().field((String)null)));
+        expectNonNullFieldException(() -> BytesReference.bytes(builder().field(null)));
         expectUnclosedException(() -> BytesReference.bytes(builder().startObject().field("foo")));
 
         assertResult("{'foo':'bar'}", () -> builder().startObject().field("foo").value("bar").endObject());

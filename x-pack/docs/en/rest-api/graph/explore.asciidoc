@@ -343,7 +343,8 @@ POST clicklogs/_xpack/graph/_explore
    }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
+// TEST[setup:clicklogs_index]
 <1> Disable `use_significance` to include all associated terms, not just the
 ones that are significantly associated with the query.
 <2> Increase the sample size to consider a larger set of documents on

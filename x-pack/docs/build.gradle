@@ -749,4 +749,6 @@ setups['clicklogs_index'] = '''
               properties:
                 product:
                   type: keyword
+                query_time:
+                  type: date
 '''

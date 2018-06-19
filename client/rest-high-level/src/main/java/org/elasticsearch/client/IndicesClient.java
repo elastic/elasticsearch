@@ -701,9 +701,9 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public PutStoredScriptResponse putStoredScript(PutStoredScriptRequest putStoredScriptRequest,
-                                                   RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(putStoredScriptRequest, RequestConverters::putStoredScript, options,
+    public PutStoredScriptResponse putScript(PutStoredScriptRequest putStoredScriptRequest,
+                                             RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
             PutStoredScriptResponse::fromXContent, emptySet());
     }
 
@@ -715,9 +715,9 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void putStoredScriptAsync(PutStoredScriptRequest putStoredScriptRequest, RequestOptions options,
-                                     ActionListener<PutStoredScriptResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(putStoredScriptRequest, RequestConverters::putStoredScript, options,
+    public void putScriptAsync(PutStoredScriptRequest putStoredScriptRequest, RequestOptions options,
+                               ActionListener<PutStoredScriptResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
             PutStoredScriptResponse::fromXContent, listener, emptySet());
     }
 }

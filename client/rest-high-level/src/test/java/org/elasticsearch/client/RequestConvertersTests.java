@@ -1935,7 +1935,14 @@ public class RequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         setRandomMasterTimeout(putStoredScriptRequest, expectedParams);
         setRandomTimeout(putStoredScriptRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        Request request = RequestConverters.putStoredScript(putStoredScriptRequest);
+
+        if(randomBoolean()) {
+            String context = randomAlphaOfLengthBetween(5, 10);
+            putStoredScriptRequest.context(context);
+            expectedParams.put("context", context);
+        }
+
+        Request request = RequestConverters.putScript(putStoredScriptRequest);
 
         assertThat(request.getEndpoint(), equalTo("/_scripts/" + id));
         assertThat(request.getParameters(), equalTo(expectedParams));

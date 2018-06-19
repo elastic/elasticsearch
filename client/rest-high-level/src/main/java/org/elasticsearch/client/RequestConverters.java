@@ -878,12 +878,15 @@ final class RequestConverters {
         return request;
     }
 
-    static Request putStoredScript(PutStoredScriptRequest putStoredScriptRequest) throws IOException {
+    static Request putScript(PutStoredScriptRequest putStoredScriptRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(putStoredScriptRequest.id()).build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params(request);
         params.withTimeout(putStoredScriptRequest.timeout());
         params.withMasterTimeout(putStoredScriptRequest.masterNodeTimeout());
+        if(Strings.hasText(putStoredScriptRequest.context())){
+            params.putParam("context", putStoredScriptRequest.context());
+        }
         request.setEntity(createEntity(putStoredScriptRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }

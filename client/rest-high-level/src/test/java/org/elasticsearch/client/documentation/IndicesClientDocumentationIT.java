@@ -2134,7 +2134,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
-    public void testPutStoredScript() throws Exception {
+    public void testPutScript() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
@@ -2154,6 +2154,20 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "}\n"
             ), XContentType.JSON); // <2>
             // end::put-stored-script-request
+
+            // tag::put-stored-script-context
+            request.context("context"); // <1>
+            // end::put-stored-script-context
+
+            // tag::put-stored-script-timeout
+            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+            request.timeout("2m"); // <2>
+            // end::put-stored-script-timeout
+
+            // tag::put-stored-script-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::put-stored-script-masterTimeout
         }
 
         {
@@ -2177,7 +2191,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
 
             // tag::put-stored-script-execute
-            PutStoredScriptResponse putStoredScriptResponse = client.indices().putStoredScript(request, RequestOptions.DEFAULT);
+            PutStoredScriptResponse putStoredScriptResponse = client.indices().putScript(request, RequestOptions.DEFAULT);
             // end::put-stored-script-execute
 
             // tag::put-stored-script-response
@@ -2206,7 +2220,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::put-stored-script-execute-async
-            client.indices().putStoredScriptAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.indices().putScriptAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-stored-script-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -2231,12 +2245,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.content(BytesReference.bytes(builder), XContentType.JSON); // <1>
             // end::put-stored-script-content-mustache
 
-            client.indices().putStoredScript(request, RequestOptions.DEFAULT);
+            client.indices().putScript(request, RequestOptions.DEFAULT);
 
             Map<String, Object> script = getAsMap("/_scripts/id");
             assertThat(extractValue("script.lang", script), equalTo("mustache"));
             assertThat(extractValue("script.source", script), equalTo("{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}"));
         }
-
     }
 }

@@ -171,10 +171,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (source == null) {
-            source = StoredScriptSource.parse(content, xContentType);
-        }
-
         builder.field("script");
         source.toXContent(builder, params);
 

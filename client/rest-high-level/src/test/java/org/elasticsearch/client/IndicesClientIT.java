@@ -1206,7 +1206,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(notFound.status(), equalTo(RestStatus.NOT_FOUND));
     }
 
-    public void testPutStoredScript() throws Exception {
+    public void testPutScript() throws Exception {
         RestHighLevelClient client = highLevelClient();
         XContentType xContentType = randomFrom(XContentType.values());
         PutStoredScriptRequest request = new PutStoredScriptRequest()
@@ -1223,7 +1223,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
 
         PutStoredScriptResponse response = execute(request,
-            client.indices()::putStoredScript, client.indices()::putStoredScriptAsync);
+            client.indices()::putScript, client.indices()::putScriptAsync);
         assertThat(response.isAcknowledged(), equalTo(true));
 
         Map<String, Object> script = getAsMap("/_scripts/script1");

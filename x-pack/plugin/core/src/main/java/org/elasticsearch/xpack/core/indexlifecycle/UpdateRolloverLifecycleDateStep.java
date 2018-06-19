@@ -5,40 +5,39 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 
-public class UpdateRolloverLifecycleDateStep extends AsyncActionStep {
+public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
     public static final String NAME = "update-rollover-lifecycle-date";
 
-    public UpdateRolloverLifecycleDateStep(StepKey key, StepKey nextStepKey, Client client) {
-        super(key, nextStepKey, client);
+    public UpdateRolloverLifecycleDateStep(StepKey key, StepKey nextStepKey) {
+        super(key, nextStepKey);
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
+    public ClusterState performAction(Index index, ClusterState currentState) {
+        IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
         // find the newly created index from the rollover and fetch its index.creation_date
         String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetaData.getSettings());
         if (Strings.isNullOrEmpty(rolloverAlias)) {
-            listener.onFailure(new IllegalStateException("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
-                + "] is not set on index [" + indexMetaData.getIndex().getName() + "]"));
-            return;
+            throw new IllegalStateException("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
+                + "] is not set on index [" + indexMetaData.getIndex().getName() + "]");
         }
         RolloverInfo rolloverInfo = indexMetaData.getRolloverInfos().get(rolloverAlias);
         if (rolloverInfo == null) {
-            listener.onFailure(new IllegalStateException("index [" + indexMetaData.getIndex().getName() + "] has not rolled over yet"));
-            return;
+            throw new IllegalStateException("index [" + indexMetaData.getIndex().getName() + "] has not rolled over yet");
         }
         Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, rolloverInfo.getTime()).build();
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexMetaData.getIndex().getName()).settings(settings);
-        getClient().admin().indices().updateSettings(updateSettingsRequest,
-                ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+        return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
+                .updateSettings(settings, indexMetaData.getIndex().getName())).build();
     }
 
     @Override

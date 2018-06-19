@@ -37,6 +37,8 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -1944,6 +1946,32 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomLocal(getTemplatesRequest, expectedParams);
         Request request = RequestConverters.getTemplates(getTemplatesRequest);
         assertThat(request.getEndpoint(), equalTo("/_template/" + names.stream().map(encodes::get).collect(Collectors.joining(","))));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testGetScriptRequest() {
+        GetStoredScriptRequest getStoredScriptRequest = new GetStoredScriptRequest("x-script");
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(getStoredScriptRequest, expectedParams);
+
+        Request request = RequestConverters.getScript(getStoredScriptRequest);
+        assertThat(request.getEndpoint(), equalTo("/_scripts/" + getStoredScriptRequest.id()));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testDeleteScriptRequest() {
+        DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest("x-script");
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomTimeout(deleteStoredScriptRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(deleteStoredScriptRequest, expectedParams);
+
+        Request request = RequestConverters.deleteScript(deleteStoredScriptRequest);
+        assertThat(request.getEndpoint(), equalTo("/_scripts/" + deleteStoredScriptRequest.id()));
+        assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), nullValue());
     }

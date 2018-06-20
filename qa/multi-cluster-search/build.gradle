@@ -17,6 +17,7 @@
  * under the License.
  */
 
+
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.standalone-test'
@@ -49,10 +50,4 @@ mixedClusterTestRunner {
   finalizedBy 'remoteClusterTestCluster#node0.stop','remoteClusterTestCluster#node1.stop'
 }
 
-task integTest {
-  dependsOn = [mixedClusterTest]
-}
-
-test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
-
-check.dependsOn(integTest)
+check.dependsOn(mixedClusterTest)

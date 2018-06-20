@@ -1,6 +1,6 @@
 /*
  * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
+ * license agreements. See the NOTICE file delasticsearch.standalone-testistributed with
  * this work for additional information regarding copyright
  * ownership. Elasticsearch licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
@@ -36,26 +36,25 @@ public class StandaloneTestPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.pluginManager.apply(StandaloneRestTestPlugin)
 
-        Map testOptions = [
-            name: 'test',
-            type: RandomizedTestingTask,
-            dependsOn: 'testClasses',
-            group: JavaBasePlugin.VERIFICATION_GROUP,
-            description: 'Runs unit tests that are separate'
-        ]
-        RandomizedTestingTask test = project.tasks.create(testOptions)
-        test.configure(BuildPlugin.commonTestConfig(project))
         BuildPlugin.configureCompile(project)
-        test.classpath = project.sourceSets.test.runtimeClasspath
-        test.testClassesDir project.sourceSets.test.output.classesDir
-        test.mustRunAfter(project.precommit)
-        project.check.dependsOn(test)
-
         project.tasks.withType(JavaCompile) {
             // This will be the default in Gradle 5.0
             if (options.compilerArgs.contains("-processor") == false) {
                 options.compilerArgs << '-proc:none'
             }
         }
+
+        RandomizedTestingTask test = project.tasks.create([
+            name: 'integTest',
+            type: RandomizedTestingTask,
+            dependsOn: 'testClasses',
+            group: JavaBasePlugin.VERIFICATION_GROUP,
+            description: 'Runs unit tests that are separate'
+        ])
+        test.configure(BuildPlugin.commonTestConfig(project))
+        test.classpath = project.sourceSets.test.runtimeClasspath
+        test.testClassesDir project.sourceSets.test.output.classesDir
+        test.mustRunAfter(project.precommit)
+        project.check.dependsOn(test)
     }
 }

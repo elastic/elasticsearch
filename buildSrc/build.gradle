@@ -146,7 +146,7 @@ if (project != rootProject) {
   thirdPartyAudit.enabled = false
 
   // test for elasticsearch.build tries to run with ES...
-  test.enabled = false
+  utest.enabled = false
 
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false

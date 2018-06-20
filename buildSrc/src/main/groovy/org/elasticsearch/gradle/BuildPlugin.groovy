@@ -742,7 +742,7 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Configures the test task */
     static Task configureTest(Project project) {
-        RandomizedTestingTask test = project.tasks.getByName('test')
+        RandomizedTestingTask test = project.tasks.getByName('utest')
         test.configure(commonTestConfig(project))
         test.configure {
             include '**/*Tests.class'
@@ -765,7 +765,7 @@ class BuildPlugin implements Plugin<Project> {
     private static configurePrecommit(Project project) {
         Task precommit = PrecommitTasks.create(project, true)
         project.check.dependsOn(precommit)
-        project.test.mustRunAfter(precommit)
+        project.utest.mustRunAfter(precommit)
         // only require dependency licenses for non-elasticsearch deps
         project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
             it.group.startsWith('org.elasticsearch') == false

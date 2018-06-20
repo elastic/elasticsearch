@@ -35,6 +35,3 @@ publishing {
 dependencies {
   compile "org.elasticsearch:elasticsearch:${version}"
 }
-
-// no tests...yet?
-test.enabled = false

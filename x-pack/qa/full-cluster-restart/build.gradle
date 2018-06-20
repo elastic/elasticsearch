@@ -8,7 +8,6 @@ import java.util.regex.Matcher
 
 // Apply the java plugin to this project so the sources can be edited in an IDE
 apply plugin: 'elasticsearch.build'
-test.enabled = false
 
 dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'runtime')
@@ -233,18 +232,9 @@ subprojects {
     }
   }
 
-  test.enabled = false // no unit tests for full cluster restarts, only the rest integration test
-
-  // basic integ tests includes testing bwc against the most recent version
-  task integTest {
-    if (project.bwc_tests_enabled) {
-      for (final def version : bwcVersions.snapshotsIndexCompatible) {
-        dependsOn "v${version}#bwcTest"
-      }
-    }
+  if (project.bwc_tests_enabled) {
+    check.dependsOn(bwcTest)
   }
-
-  check.dependsOn(integTest)
 
   dependencies {
       testCompile project(path: xpackModule('core'), configuration: 'runtime')

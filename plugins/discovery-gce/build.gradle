@@ -56,7 +56,7 @@ dependencyLicenses {
   mapping from: /google-.*/, to: 'google'
 }
 
-test {
+utest {
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name 
 }

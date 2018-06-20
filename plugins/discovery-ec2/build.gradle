@@ -48,7 +48,7 @@ bundlePlugin {
   }
 }
 
-test {
+utest {
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
 }

@@ -17,8 +17,6 @@
  * under the License.
  */
 
-test.enabled = false
-
 // test depend on ES core...
 forbiddenApisMain.enabled = false
 jarHell.enabled = false

@@ -25,9 +25,6 @@ esplugin {
   classname 'org.elasticsearch.example.resthandler.ExampleRestHandlerPlugin'
 }
 
-// No unit tests in this example
-test.enabled = false
-
 task exampleFixture(type: org.elasticsearch.gradle.test.AntFixture) {
   dependsOn testClasses
   env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"

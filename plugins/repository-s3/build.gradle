@@ -59,7 +59,7 @@ additionalTest('testRepositoryCreds'){
   systemProperty 'es.allow_insecure_settings', 'true'
 }
 
-test {
+utest {
   // these are tested explicitly in separate test tasks
   exclude '**/*CredentialsTests.class'
 }

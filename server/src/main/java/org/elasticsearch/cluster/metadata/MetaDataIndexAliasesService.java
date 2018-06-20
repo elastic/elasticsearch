@@ -127,7 +127,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                 if (index == null) {
                     throw new IndexNotFoundException(action.getIndex());
                 }
-                NewAliasValidator newAliasValidator = (alias, indexRouting, filter) -> {
+                NewAliasValidator newAliasValidator = (alias, indexRouting, filter, writeIndex) -> {
                     /* It is important that we look up the index using the metadata builder we are modifying so we can remove an
                      * index and replace it with an alias. */
                     Function<String, IndexMetaData> indexLookup = name -> metadata.get(name);

@@ -35,6 +35,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Similar to {@link ValuesSourceAggregationBuilder}, except it references multiple ValuesSources (e.g. so that an aggregation
+ * can pull values from multiple fields).
+ *
+ * A limitation of this class is that all the ValuesSource's being refereenced must be of the same type.
+ */
 public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends MultiValuesSourceAggregationBuilder<VS, AB>>
         extends AbstractAggregationBuilder<AB> {
 
@@ -61,15 +67,6 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
             super(in, targetValueType);
         }
 
-        /**
-         * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
-         * {@link #serializeTargetValueType()} to return true.
-         */
-        /*
-        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
-            super(in, valuesSourceType);
-        }
-        */
         @Override
         public AB subAggregations(Builder subFactories) {
             throw new AggregationInitializationException("Aggregator [" + name + "] of type [" +

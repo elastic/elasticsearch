@@ -42,13 +42,13 @@ import static org.elasticsearch.search.aggregations.metrics.weighted_avg.Weighte
 
 public class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
 
-    final MultiValuesSource.NumericMultiValuesSource valuesSources;
+    private final MultiValuesSource.NumericMultiValuesSource valuesSources;
 
-    DoubleArray weights;
-    DoubleArray sums;
-    DoubleArray sumCompensations;
-    DoubleArray weightCompensations;
-    DocValueFormat format;
+    private DoubleArray weights;
+    private DoubleArray sums;
+    private DoubleArray sumCompensations;
+    private DoubleArray weightCompensations;
+    private DocValueFormat format;
 
     public WeightedAvgAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, DocValueFormat format,
                                  SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,

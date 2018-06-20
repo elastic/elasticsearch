@@ -38,8 +38,8 @@ The `value` and `weight` objects have per-field specific configuration:
 |Parameter Name |Description |Required |Default Value
 |`field` | The field that weights should be extracted from |Required |
 |`missing` | A weight to use if the field is missing entirely |Optional |
-|`multi` | If a document has multiple values for the field, how should the values be combined |Optional | `avg`
-|`script` | A script which provides the values for the document.  This is mutually exclusive with `field` |Optional
+|`multi` | If a document has multiple weights for the field, how should the weights be combined |Optional | `avg`
+|`script` | A script which provides the weights for the document.  This is mutually exclusive with `field` |Optional
 |===
 
 

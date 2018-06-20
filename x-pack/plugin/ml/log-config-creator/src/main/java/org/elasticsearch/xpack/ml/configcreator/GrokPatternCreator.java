@@ -5,14 +5,18 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.grok.Grok;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -27,6 +31,7 @@ public final class GrokPatternCreator {
     private static final Pattern NEEDS_ESCAPING = Pattern.compile("[\\\\|()\\[\\]{}^$*?]");
 
     private static final String PREFACE = "preface";
+    private static final String VALUE = "value";
     private static final String EPILOGUE = "epilogue";
 
     /**
@@ -34,36 +39,36 @@ public final class GrokPatternCreator {
      * such that more generic patterns come after more specific patterns.
      */
     private static final List<GrokPatternCandidate> ORDERED_CANDIDATE_GROK_PATTERNS = Arrays.asList(
-        new GrokPatternCandidate("TIMESTAMP_ISO8601", "date", "extra_timestamp"),
-        new GrokPatternCandidate("DATESTAMP_RFC822", "date", "extra_timestamp"),
-        new GrokPatternCandidate("DATESTAMP_RFC2822", "date", "extra_timestamp"),
-        new GrokPatternCandidate("DATESTAMP_OTHER", "date", "extra_timestamp"),
-        new GrokPatternCandidate("DATESTAMP_EVENTLOG", "date", "extra_timestamp"),
-        new GrokPatternCandidate("SYSLOGTIMESTAMP", "date", "extra_timestamp"),
-        new GrokPatternCandidate("HTTPDATE", "date", "extra_timestamp"),
-        new GrokPatternCandidate("CATALINA_DATESTAMP", "date", "extra_timestamp"),
-        new GrokPatternCandidate("TOMCAT_DATESTAMP", "date", "extra_timestamp"),
-        new GrokPatternCandidate("CISCOTIMESTAMP", "date", "extra_timestamp"),
-        new GrokPatternCandidate("LOGLEVEL", "keyword", "loglevel"),
-        new GrokPatternCandidate("URI", "keyword", "uri"),
-        new GrokPatternCandidate("UUID", "keyword", "uuid"),
-        new GrokPatternCandidate("MAC", "keyword", "macaddress"),
+        new ValueOnlyGrokPatternCandidate("TIMESTAMP_ISO8601", "date", "extra_timestamp"),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP_RFC822", "date", "extra_timestamp"),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP_RFC2822", "date", "extra_timestamp"),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP_OTHER", "date", "extra_timestamp"),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP_EVENTLOG", "date", "extra_timestamp"),
+        new ValueOnlyGrokPatternCandidate("SYSLOGTIMESTAMP", "date", "extra_timestamp"),
+        new ValueOnlyGrokPatternCandidate("HTTPDATE", "date", "extra_timestamp"),
+        new ValueOnlyGrokPatternCandidate("CATALINA_DATESTAMP", "date", "extra_timestamp"),
+        new ValueOnlyGrokPatternCandidate("TOMCAT_DATESTAMP", "date", "extra_timestamp"),
+        new ValueOnlyGrokPatternCandidate("CISCOTIMESTAMP", "date", "extra_timestamp"),
+        new ValueOnlyGrokPatternCandidate("LOGLEVEL", "keyword", "loglevel"),
+        new ValueOnlyGrokPatternCandidate("URI", "keyword", "uri"),
+        new ValueOnlyGrokPatternCandidate("UUID", "keyword", "uuid"),
+        new ValueOnlyGrokPatternCandidate("MAC", "keyword", "macaddress"),
         // Can't use \b as the breaks, because slashes are not "word" characters
-        new GrokPatternCandidate("PATH", "keyword", "path", "(?<!\\w)", "(?!\\w)"),
-        new GrokPatternCandidate("EMAILADDRESS", "keyword", "email"),
+        new ValueOnlyGrokPatternCandidate("PATH", "keyword", "path", "(?<!\\w)", "(?!\\w)"),
+        new ValueOnlyGrokPatternCandidate("EMAILADDRESS", "keyword", "email"),
         // TODO: would be nice to have IPORHOST here, but HOST matches almost all words
-        new GrokPatternCandidate("IP", "ip", "ipaddress"),
-        new GrokPatternCandidate("DATE", "date", "date"),
-        new GrokPatternCandidate("TIME", "date", "time"),
+        new ValueOnlyGrokPatternCandidate("IP", "ip", "ipaddress"),
+        new ValueOnlyGrokPatternCandidate("DATE", "date", "date"),
+        new ValueOnlyGrokPatternCandidate("TIME", "date", "time"),
         // This already includes pre/post break conditions
-        new GrokPatternCandidate("QUOTEDSTRING", "keyword", "field", "", ""),
+        new ValueOnlyGrokPatternCandidate("QUOTEDSTRING", "keyword", "field", "", ""),
         // Can't use \b as the break before, because it doesn't work for negative numbers (the
         // minus sign is not a "word" character)
-        new GrokPatternCandidate("INT", "long", "field", "(?<![\\w.+-])", "(?![\\w.])"),
-        new GrokPatternCandidate("NUMBER", "double", "field", "(?<![\\w.+-])"),
+        new ValueOnlyGrokPatternCandidate("INT", "long", "field", "(?<![\\w.+-])", "(?![\\w.])"),
+        new ValueOnlyGrokPatternCandidate("NUMBER", "double", "field", "(?<![\\w.+-])"),
         // Disallow +, - and . before numbers, as well as "word" characters, otherwise we'll pick
         // up numeric suffices too eagerly
-        new GrokPatternCandidate("BASE16NUM", "keyword", "field", "(?<![\\w.+-])")
+        new ValueOnlyGrokPatternCandidate("BASE16NUM", "keyword", "field", "(?<![\\w.+-])")
         // TODO: also unfortunately can't have USERNAME in the list as it matches too broadly
         // Fixing these problems with overly broad matches would require some extra intelligence
         // to be added to remove inappropriate matches.  One idea would be to use a dictionary,
@@ -77,16 +82,15 @@ public final class GrokPatternCreator {
     private GrokPatternCreator() {
     }
 
-    public static String createGrokPatternFromExamples(Collection<String> sampleMessages, String seedPatternName, String seedFieldName,
-                                                       Map<String, String> mappings) {
+    public static String createGrokPatternFromExamples(Terminal terminal, Collection<String> sampleMessages, String seedPatternName,
+                                                       String seedFieldName, Map<String, String> mappings) {
 
-        GrokPatternCandidate seedCandidate = new GrokPatternCandidate(seedPatternName, null, seedFieldName);
+        GrokPatternCandidate seedCandidate = new NoMappingGrokPatternCandidate(seedPatternName, seedFieldName);
 
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
 
-        processCandidateAndSplit(fieldNameCountStore, overallGrokPatternBuilder, seedCandidate, seedFieldName, true, sampleMessages,
-            mappings);
+        processCandidateAndSplit(terminal, fieldNameCountStore, overallGrokPatternBuilder, seedCandidate, true, sampleMessages, mappings);
 
         return overallGrokPatternBuilder.toString().replace("\t", "\\t").replace("\n", "\\n");
     }
@@ -96,16 +100,16 @@ public final class GrokPatternCreator {
      * matched section and the pieces before and after it.  Recurse to find more matches in the pieces
      * before and after and update the supplied string builder.
      */
-    private static void processCandidateAndSplit(Map<String, Integer> fieldNameCountStore, StringBuilder overallGrokPatternBuilder,
-                                                 GrokPatternCandidate chosenPattern, String outputFieldName, boolean isLast,
-                                                 Collection<String> snippets, Map<String, String> mappings) {
+    private static void processCandidateAndSplit(Terminal terminal, Map<String, Integer> fieldNameCountStore,
+                                                 StringBuilder overallGrokPatternBuilder, GrokPatternCandidate chosenPattern,
+                                                 boolean isLast, Collection<String> snippets, Map<String, String> mappings) {
 
         Collection<String> prefaces = new ArrayList<>();
         Collection<String> epilogues = new ArrayList<>();
-        populatePrefacesAndEpilogues(snippets, chosenPattern.grokPatternName, chosenPattern.grok, prefaces, epilogues);
-        appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, prefaces, mappings);
-        overallGrokPatternBuilder.append("%{").append(chosenPattern.grokPatternName).append(':').append(outputFieldName).append('}');
-        appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, isLast, epilogues, mappings);
+        String patternBuilderContent = chosenPattern.processCaptures(fieldNameCountStore, snippets, prefaces, epilogues, mappings);
+        appendBestGrokMatchForStrings(terminal, fieldNameCountStore, overallGrokPatternBuilder, false, prefaces, mappings);
+        overallGrokPatternBuilder.append(patternBuilderContent);
+        appendBestGrokMatchForStrings(terminal, fieldNameCountStore, overallGrokPatternBuilder, isLast, epilogues, mappings);
     }
 
     /**
@@ -113,15 +117,21 @@ public final class GrokPatternCreator {
      * to use matches it best.  Then append the appropriate Grok language to represent that finding onto
      * the supplied string builder.
      */
-    static void appendBestGrokMatchForStrings(Map<String, Integer> fieldNameCountStore, StringBuilder overallGrokPatternBuilder,
-                                              boolean isLast, Collection<String> snippets, Map<String, String> mappings) {
+    static void appendBestGrokMatchForStrings(Terminal terminal, Map<String, Integer> fieldNameCountStore,
+                                              StringBuilder overallGrokPatternBuilder, boolean isLast, Collection<String> snippets,
+                                              Map<String, String> mappings) {
 
         GrokPatternCandidate bestCandidate = null;
         if (snippets.isEmpty() == false) {
-            for (GrokPatternCandidate candidate : ORDERED_CANDIDATE_GROK_PATTERNS) {
-                if (snippets.stream().allMatch(candidate.grok::match)) {
-                    bestCandidate = candidate;
-                    break;
+            GrokPatternCandidate kvCandidate = new KeyValueGrokPatternCandidate(terminal);
+            if (kvCandidate.matchesAll(snippets)) {
+                bestCandidate = kvCandidate;
+            } else {
+                for (GrokPatternCandidate candidate : ORDERED_CANDIDATE_GROK_PATTERNS) {
+                    if (candidate.matchesAll(snippets)) {
+                        bestCandidate = candidate;
+                        break;
+                    }
                 }
             }
         }
@@ -133,28 +143,7 @@ public final class GrokPatternCreator {
                 addIntermediateRegex(overallGrokPatternBuilder, snippets);
             }
         } else {
-            String outputFieldName = buildFieldName(fieldNameCountStore, bestCandidate.fieldName);
-            mappings.put(outputFieldName, bestCandidate.mappingType);
-            processCandidateAndSplit(fieldNameCountStore, overallGrokPatternBuilder, bestCandidate, outputFieldName, isLast, snippets,
-                mappings);
-        }
-    }
-
-    /**
-     * Given a collection of strings, and a Grok pattern that matches some part of them all,
-     * return collections of the bits that come before (prefaces) and after (epilogues) the
-     * bit that matches.
-     */
-    static void populatePrefacesAndEpilogues(Collection<String> snippets, String grokPatternName, Grok grok, Collection<String> prefaces,
-                                             Collection<String> epilogues) {
-        for (String snippet : snippets) {
-            Map<String, Object> captures = grok.captures(snippet);
-            // If the pattern doesn't match then captures will be null
-            if (captures == null) {
-                throw new IllegalStateException("[" + grokPatternName + "] does not match snippet [" + snippet + "]");
-            }
-            prefaces.add(captures.getOrDefault(PREFACE, "").toString());
-            epilogues.add(captures.getOrDefault(EPILOGUE, "").toString());
+            processCandidateAndSplit(terminal, fieldNameCountStore, overallGrokPatternBuilder, bestCandidate, isLast, snippets, mappings);
         }
     }
 
@@ -231,29 +220,50 @@ public final class GrokPatternCreator {
         overallPatternBuilder.append(".*");
     }
 
-    static class GrokPatternCandidate {
+    interface GrokPatternCandidate {
 
-        final String grokPatternName;
-        final String mappingType;
-        final String fieldName;
-        final Grok grok;
+        /**
+         * @return Does this Grok pattern candidate match all the snippets?
+         */
+        boolean matchesAll(Collection<String> snippets);
+
+        /**
+         * After it has been determined that this Grok pattern candidate matches a collection of strings,
+         * return collections of the bits that come before (prefaces) and after (epilogues) the bit
+         * that matches.  Also update mappings with the most appropriate field name and type.
+         * @return The string that needs to be incorporated into the overall Grok pattern for the line.
+         */
+        String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
+                               Collection<String> epilogues, Map<String, String> mappings);
+    }
+
+    /**
+     * A Grok pattern candidate that will match a single named Grok pattern.
+     */
+    static class ValueOnlyGrokPatternCandidate implements GrokPatternCandidate {
+
+        private final String grokPatternName;
+        private final String mappingType;
+        private final String fieldName;
+        private final Grok grok;
 
         /**
          * Pre/post breaks default to \b, but this may not be appropriate for Grok patterns that start or
          * end with a non "word" character (i.e. letter, number or underscore).  For such patterns use one
          * of the other constructors.
-         *
+         * <p>
          * In cases where the Grok pattern defined by Logstash already includes conditions on what must
          * come before and after the match, use one of the other constructors and specify an empty string
          * for the pre and/or post breaks.
+         *
          * @param grokPatternName Name of the Grok pattern to try to match - must match one defined in Logstash.
          * @param fieldName       Name of the field to extract from the match.
          */
-        GrokPatternCandidate(String grokPatternName, String mappingType, String fieldName) {
+        ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName) {
             this(grokPatternName, mappingType, fieldName, "\\b", "\\b");
         }
 
-        GrokPatternCandidate(String grokPatternName, String mappingType, String fieldName, String preBreak) {
+        ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName, String preBreak) {
             this(grokPatternName, mappingType, fieldName, preBreak, "\\b");
         }
 
@@ -264,13 +274,123 @@ public final class GrokPatternCreator {
          * @param preBreak        Only consider the match if it's broken from the previous text by this.
          * @param postBreak       Only consider the match if it's broken from the following text by this.
          */
-        GrokPatternCandidate(String grokPatternName, String mappingType, String fieldName, String preBreak, String postBreak) {
+        ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName, String preBreak, String postBreak) {
             this.grokPatternName = grokPatternName;
             this.mappingType = mappingType;
             this.fieldName = fieldName;
             // The (?m) here has the Ruby meaning, which is equivalent to (?s) in Java
-            this.grok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}" + preBreak + "%{" + grokPatternName + ":this}" +
-                postBreak + "%{GREEDYDATA:" + EPILOGUE + "}");
+            this.grok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}" + preBreak +
+                "%{" + grokPatternName + ":" + VALUE + "}" + postBreak + "%{GREEDYDATA:" + EPILOGUE + "}");
+        }
+
+        @Override
+        public boolean matchesAll(Collection<String> snippets) {
+            return snippets.stream().allMatch(grok::match);
+        }
+
+        /**
+         * Given a collection of strings, and a Grok pattern that matches some part of them all,
+         * return collections of the bits that come before (prefaces) and after (epilogues) the
+         * bit that matches.
+         */
+        @Override
+        public String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
+                                      Collection<String> epilogues, Map<String, String> mappings) {
+            for (String snippet : snippets) {
+                Map<String, Object> captures = grok.captures(snippet);
+                // If the pattern doesn't match then captures will be null
+                if (captures == null) {
+                    throw new IllegalStateException("[%{" + grokPatternName + "}] does not match snippet [" + snippet + "]");
+                }
+                prefaces.add(captures.getOrDefault(PREFACE, "").toString());
+                epilogues.add(captures.getOrDefault(EPILOGUE, "").toString());
+            }
+            String adjustedFieldName = buildFieldName(fieldNameCountStore, fieldName);
+            if (mappings != null) {
+                mappings.put(adjustedFieldName, mappingType);
+            }
+            return "%{" + grokPatternName + ":" + adjustedFieldName + "}";
+        }
+    }
+
+    /**
+     * Unlike the @link{ValueOnlyGrokPatternCandidate} an object of this class is not immutable and not thread safe.
+     * When a given object matches a set of strings it chooses a field name.  Then that same field name is used when
+     * processing captures from the pattern.  Hence only a single thread may use any particular instance of this
+     * class.
+     */
+    static class KeyValueGrokPatternCandidate implements GrokPatternCandidate {
+
+        private static final Pattern kvFinder = Pattern.compile("\\b(\\w+)=[\\w.-]+");
+        private final Terminal terminal;
+        private String fieldName;
+
+        KeyValueGrokPatternCandidate(Terminal terminal) {
+            this.terminal = terminal;
+        }
+
+        @Override
+        public boolean matchesAll(Collection<String> snippets) {
+            Set<String> candidateNames = new LinkedHashSet<>();
+            boolean isFirst = true;
+            for (String snippet : snippets) {
+                if (isFirst) {
+                    Matcher matcher = kvFinder.matcher(snippet);
+                    while (matcher.find()) {
+                        candidateNames.add(matcher.group(1));
+                    }
+                    isFirst = false;
+                } else {
+                    candidateNames.removeIf(candidateName ->
+                        Pattern.compile("\\b" + candidateName + "=[\\w.-]+").matcher(snippet).find() == false);
+                }
+                if (candidateNames.isEmpty()) {
+                    break;
+                }
+            }
+            return (fieldName = candidateNames.stream().findFirst().orElse(null)) != null;
+        }
+
+        @Override
+        public String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
+                                      Collection<String> epilogues, Map<String, String> mappings) {
+            if (fieldName == null) {
+                throw new IllegalStateException("Cannot process KV matches until a field name has been determined");
+            }
+            Grok grok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}\\b" +
+                fieldName + "=%{USER:" + VALUE + "}%{GREEDYDATA:" + EPILOGUE + "}");
+            Collection<String> values = new ArrayList<>();
+            for (String snippet : snippets) {
+                Map<String, Object> captures = grok.captures(snippet);
+                // If the pattern doesn't match then captures will be null
+                if (captures == null) {
+                    throw new IllegalStateException("[\\b" + fieldName + "=%{USER}] does not match snippet [" + snippet + "]");
+                }
+                prefaces.add(captures.getOrDefault(PREFACE, "").toString());
+                values.add(captures.getOrDefault(VALUE, "").toString());
+                epilogues.add(captures.getOrDefault(EPILOGUE, "").toString());
+            }
+            String adjustedFieldName = buildFieldName(fieldNameCountStore, fieldName);
+            if (mappings != null) {
+                mappings.put(adjustedFieldName, AbstractLogFileStructure.guessScalarMapping(terminal, adjustedFieldName, values));
+            }
+            return "\\b" + fieldName + "=%{USER:" + adjustedFieldName + "}";
+        }
+    }
+
+    /**
+     * A Grok pattern candidate that matches a single named Grok pattern but will not update mappings.
+     */
+    static class NoMappingGrokPatternCandidate extends ValueOnlyGrokPatternCandidate {
+
+        NoMappingGrokPatternCandidate(String grokPatternName, String fieldName) {
+            super(grokPatternName, null, fieldName);
+        }
+
+        @Override
+        public String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
+                                      Collection<String> epilogues, Map<String, String> mappings) {
+            return super.processCaptures(fieldNameCountStore, snippets, prefaces, epilogues, null);
         }
     }
 }

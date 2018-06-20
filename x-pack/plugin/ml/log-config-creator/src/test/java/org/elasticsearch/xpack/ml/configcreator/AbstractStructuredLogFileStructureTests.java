@@ -166,17 +166,6 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
         assertEquals("CISCOTIMESTAMP", match.v2().grokPatternName);
     }
 
-    public void testMoreLikelyGivenText() {
-        assertTrue(testStructure.isMoreLikelyTextThanKeyword("the quick brown fox jumped over the lazy dog"));
-        assertTrue(testStructure.isMoreLikelyTextThanKeyword(randomAlphaOfLengthBetween(257, 10000)));
-    }
-
-    public void testMoreLikelyGivenKeyword() {
-        assertFalse(testStructure.isMoreLikelyTextThanKeyword("1"));
-        assertFalse(testStructure.isMoreLikelyTextThanKeyword("DEBUG"));
-        assertFalse(testStructure.isMoreLikelyTextThanKeyword(randomAlphaOfLengthBetween(1, 256)));
-    }
-
     public void testGuessMappingGivenKeyword() {
         assertEquals("keyword", testStructure.guessMapping("foo", Arrays.asList("ERROR", "INFO", "DEBUG")));
     }

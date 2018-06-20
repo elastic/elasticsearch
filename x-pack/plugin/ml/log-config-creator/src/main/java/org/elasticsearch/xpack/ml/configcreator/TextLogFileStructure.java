@@ -184,7 +184,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         mappings.put(DEFAULT_TIMESTAMP_FIELD, "date");
 
         // We can't parse directly into @timestamp using Grok, so parse to _timestamp, which the date filter will remove
-        String grokPattern = GrokPatternCreator.createGrokPatternFromExamples(sampleMessages, bestTimestamp.v1().grokPatternName,
+        String grokPattern = GrokPatternCreator.createGrokPatternFromExamples(terminal, sampleMessages, bestTimestamp.v1().grokPatternName,
             INTERIM_TIMESTAMP_FIELD, mappings);
         String grokQuote = bestLogstashQuoteFor(grokPattern);
         String dateFormatsStr = bestTimestamp.v1().dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\""));

@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.test.ESTestCase;
-
-public class AbstractLogFileStructureTests extends ESTestCase {
+public class AbstractLogFileStructureTests extends LogConfigCreatorTestCase {
 
     public void testBestLogstashQuoteFor() {
         assertEquals("\"", AbstractLogFileStructure.bestLogstashQuoteFor("normal"));
@@ -15,5 +13,16 @@ public class AbstractLogFileStructureTests extends ESTestCase {
         assertEquals("\"", AbstractLogFileStructure.bestLogstashQuoteFor("field with spaces"));
         assertEquals("\"", AbstractLogFileStructure.bestLogstashQuoteFor("field_with_'_in_it"));
         assertEquals("'", AbstractLogFileStructure.bestLogstashQuoteFor("field_with_\"_in_it"));
+    }
+
+    public void testMoreLikelyGivenText() {
+        assertTrue(AbstractStructuredLogFileStructure.isMoreLikelyTextThanKeyword("the quick brown fox jumped over the lazy dog"));
+        assertTrue(AbstractStructuredLogFileStructure.isMoreLikelyTextThanKeyword(randomAlphaOfLengthBetween(257, 10000)));
+    }
+
+    public void testMoreLikelyGivenKeyword() {
+        assertFalse(AbstractStructuredLogFileStructure.isMoreLikelyTextThanKeyword("1"));
+        assertFalse(AbstractStructuredLogFileStructure.isMoreLikelyTextThanKeyword("DEBUG"));
+        assertFalse(AbstractStructuredLogFileStructure.isMoreLikelyTextThanKeyword(randomAlphaOfLengthBetween(1, 256)));
     }
 }

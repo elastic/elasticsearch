@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.configcreator;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.grok.Grok;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 
 import java.util.ArrayList;
@@ -16,7 +15,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -34,12 +32,6 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
         "    match => [ %s%s%s, %s ]\n" +
         "  }\n" +
         "%s";
-
-    // NUMBER Grok pattern doesn't support scientific notation, so we extend it
-    private static final Grok NUMBER_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{NUMBER}(?:[eE][+-]?[0-3]?[0-9]{1,2})?$");
-    private static final Grok IP_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{IP}$");
-    private static final int KEYWORD_MAX_LEN = 256;
-    private static final int KEYWORD_MAX_SPACES = 5;
 
     protected AbstractStructuredLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName,
                                                  String charsetName) {
@@ -150,47 +142,7 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
                 fieldValues.stream().flatMap(AbstractStructuredLogFileStructure::flatten).collect(Collectors.toList()));
         }
 
-        if (fieldValues.stream().allMatch(value -> "true".equals(value.toString()) || "false".equals(value.toString()))) {
-            return "boolean";
-        }
-
-        Set<TimestampMatch> timestampMatches =
-            fieldValues.stream().map(value -> TimestampFormatFinder.findFirstMatch(value.toString())).collect(Collectors.toSet());
-        if (timestampMatches.size() == 1 && timestampMatches.iterator().next() != null) {
-            return "date";
-        }
-
-        if (fieldValues.stream().allMatch(value -> NUMBER_GROK.match(value.toString()))) {
-            try {
-                fieldValues.forEach(value -> Long.parseLong(value.toString()));
-                return "long";
-            } catch (NumberFormatException e) {
-                terminal.println(Verbosity.VERBOSE,
-                    "Rejecting type 'long' for field [" + fieldName + "] due to parse failure: [" + e.getMessage() + "]");
-            }
-            try {
-                fieldValues.forEach(value -> Double.parseDouble(value.toString()));
-                return "double";
-            } catch (NumberFormatException e) {
-                terminal.println(Verbosity.VERBOSE,
-                    "Rejecting type 'double' for field [" + fieldName + "] due to parse failure: [" + e.getMessage() + "]");
-            }
-        }
-
-        else if (fieldValues.stream().allMatch(value -> IP_GROK.match(value.toString()))) {
-            return "ip";
-        }
-
-        if (fieldValues.stream().anyMatch(value -> isMoreLikelyTextThanKeyword(value.toString()))) {
-            return "text";
-        }
-
-        return "keyword";
-    }
-
-    boolean isMoreLikelyTextThanKeyword(String str) {
-        int length = str.length();
-        return length > KEYWORD_MAX_LEN || length - str.replaceAll("\\s", "").length() > KEYWORD_MAX_SPACES;
+        return guessScalarMapping(terminal, fieldName, fieldValues.stream().map(Object::toString).collect(Collectors.toList()));
     }
 
     private static Stream<Object> flatten(Object value) {

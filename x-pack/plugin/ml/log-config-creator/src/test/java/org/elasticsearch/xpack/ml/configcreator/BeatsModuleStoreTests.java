@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.configcreator.BeatsModuleStore.BeatsModule;
 import org.junit.Before;
 
@@ -21,7 +20,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
-public class BeatsModuleStoreTests extends ESTestCase {
+public class BeatsModuleStoreTests extends LogConfigCreatorTestCase {
 
     private static final String APACHE2_ACCESS_LOG_SAMPLE = "123.4.51.181 - - [24/Apr/2010:09:56:26 -0700] " +
         "\"GET http://proxyjudge1.proxyfire.net/fastenv HTTP/1.1\" 404 1466 \"-\" " +

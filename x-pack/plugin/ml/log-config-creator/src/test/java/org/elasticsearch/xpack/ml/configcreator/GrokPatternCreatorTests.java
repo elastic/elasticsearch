@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.configcreator.GrokPatternCreator.GrokPatternCandidate;
+import org.elasticsearch.xpack.ml.configcreator.GrokPatternCreator.ValueOnlyGrokPatternCandidate;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,7 +15,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class GrokPatternCreatorTests extends ESTestCase {
+public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
 
     public void testBuildFieldName() {
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
@@ -36,11 +35,13 @@ public class GrokPatternCreatorTests extends ESTestCase {
             "[2018-01-24T12:33:23] ERROR ",
             "junk [2018-01-22T07:33:23] INFO ",
             "[2018-01-21T03:33:23] DEBUG ");
-        GrokPatternCandidate candidate = new GrokPatternCandidate("TIMESTAMP_ISO8601", "date", "extra_timestamp");
+        ValueOnlyGrokPatternCandidate candidate = new ValueOnlyGrokPatternCandidate("TIMESTAMP_ISO8601", "date", "extra_timestamp");
+
+        Map<String, Integer> fieldNameCountStore = new HashMap<>();
         Collection<String> prefaces = new ArrayList<>();
         Collection<String> epilogues = new ArrayList<>();
 
-        GrokPatternCreator.populatePrefacesAndEpilogues(matchingStrings, candidate.grokPatternName, candidate.grok, prefaces, epilogues);
+        candidate.processCaptures(fieldNameCountStore, matchingStrings, prefaces, epilogues, null);
 
         assertThat(prefaces, containsInAnyOrder("[", "[", "junk [", "["));
         assertThat(epilogues, containsInAnyOrder("] DEBUG ", "] ERROR ", "] INFO ", "] DEBUG "));
@@ -51,11 +52,13 @@ public class GrokPatternCreatorTests extends ESTestCase {
         Collection<String> matchingStrings = Arrays.asList("before alice@acme.com after",
             "abc bob@acme.com xyz",
             "carol@acme.com");
-        GrokPatternCandidate candidate = new GrokPatternCandidate("EMAILADDRESS", "keyword", "email");
+        ValueOnlyGrokPatternCandidate candidate = new ValueOnlyGrokPatternCandidate("EMAILADDRESS", "keyword", "email");
+
+        Map<String, Integer> fieldNameCountStore = new HashMap<>();
         Collection<String> prefaces = new ArrayList<>();
         Collection<String> epilogues = new ArrayList<>();
 
-        GrokPatternCreator.populatePrefacesAndEpilogues(matchingStrings, candidate.grokPatternName, candidate.grok, prefaces, epilogues);
+        candidate.processCaptures(fieldNameCountStore, matchingStrings, prefaces, epilogues, null);
 
         assertThat(prefaces, containsInAnyOrder("before ", "abc ", ""));
         assertThat(epilogues, containsInAnyOrder(" after", " xyz", ""));
@@ -72,7 +75,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, String> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, snippets, mappings);
+        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+            mappings);
 
         assertEquals(".*?\\[%{TIMESTAMP_ISO8601:extra_timestamp}\\] %{LOGLEVEL:loglevel} ", overallGrokPatternBuilder.toString());
     }
@@ -88,7 +92,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, String> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, snippets, mappings);
+        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+            mappings);
 
         assertEquals(".*?\\(%{INT:field}\\).*?", overallGrokPatternBuilder.toString());
     }
@@ -103,7 +108,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, String> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, snippets, mappings);
+        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+            mappings);
 
         // It seems sensible that we don't detect these suffices as either base 10 or base 16 numbers
         assertEquals(".*?", overallGrokPatternBuilder.toString());
@@ -120,7 +126,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, String> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, snippets, mappings);
+        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+            mappings);
 
         assertEquals(".*?%{BASE16NUM:field}.*?", overallGrokPatternBuilder.toString());
     }
@@ -134,7 +141,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, String> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, snippets, mappings);
+        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+            mappings);
 
         // We don't want the .1. in the middle to get detected as a hex number
         assertEquals("<.*?:", overallGrokPatternBuilder.toString());
@@ -150,7 +158,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, String> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, snippets, mappings);
+        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+            mappings);
 
         assertEquals(".*?%{EMAILADDRESS:email}.*?", overallGrokPatternBuilder.toString());
     }
@@ -165,7 +174,8 @@ public class GrokPatternCreatorTests extends ESTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, String> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, snippets, mappings);
+        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+            mappings);
 
         assertEquals(".*?%{URI:uri}.*?", overallGrokPatternBuilder.toString());
     }
@@ -180,9 +190,27 @@ public class GrokPatternCreatorTests extends ESTestCase {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         Map<String, String> mappings = new HashMap<>();
 
-        GrokPatternCreator.appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, snippets, mappings);
+        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+            mappings);
 
         assertEquals(".*? .*? %{PATH:path}", overallGrokPatternBuilder.toString());
+    }
+
+    public void testAppendBestGrokMatchForStringsGivenKvPairs() {
+
+        Collection<String> snippets = Arrays.asList("foo=1 and bar=a",
+            "something foo=2 bar=b something else",
+            "foo=3 bar=c",
+            " foo=1 bar=a ");
+
+        Map<String, Integer> fieldNameCountStore = new HashMap<>();
+        StringBuilder overallGrokPatternBuilder = new StringBuilder();
+        Map<String, String> mappings = new HashMap<>();
+
+        GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
+            mappings);
+
+        assertEquals(".*?\\bfoo=%{USER:foo} .*?\\bbar=%{USER:bar}.*?", overallGrokPatternBuilder.toString());
     }
 
     public void testCreateGrokPatternFromExamplesGivenNamedLogs() {
@@ -196,7 +224,7 @@ public class GrokPatternCreatorTests extends ESTestCase {
 
         assertEquals("%{SYSLOGTIMESTAMP:_timestamp} .*? .*?\\[%{INT:field}\\]: %{LOGLEVEL:loglevel} \\(.*? .*? .*?\\) .*? " +
                 "%{QUOTEDSTRING:field2}: %{IP:ipaddress}#%{INT:field3}",
-            GrokPatternCreator.createGrokPatternFromExamples(sampleMessages, "SYSLOGTIMESTAMP", "_timestamp", mappings));
+            GrokPatternCreator.createGrokPatternFromExamples(TEST_TERMINAL, sampleMessages, "SYSLOGTIMESTAMP", "_timestamp", mappings));
         assertEquals(5, mappings.size());
         assertEquals("long", mappings.get("field"));
         assertEquals("keyword", mappings.get("loglevel"));
@@ -219,7 +247,7 @@ public class GrokPatternCreatorTests extends ESTestCase {
         Map<String, String> mappings = new HashMap<>();
 
         assertEquals("%{CATALINA_DATESTAMP:_timestamp} .*? .*?\\n%{LOGLEVEL:loglevel}: .*",
-            GrokPatternCreator.createGrokPatternFromExamples(sampleMessages, "CATALINA_DATESTAMP", "_timestamp", mappings));
+            GrokPatternCreator.createGrokPatternFromExamples(TEST_TERMINAL, sampleMessages, "CATALINA_DATESTAMP", "_timestamp", mappings));
         assertEquals(1, mappings.size());
         assertEquals("keyword", mappings.get("loglevel"));
     }
@@ -240,7 +268,7 @@ public class GrokPatternCreatorTests extends ESTestCase {
 
         assertEquals("%{INT:field}\\t%{TIMESTAMP_ISO8601:_timestamp}\\t%{TIMESTAMP_ISO8601:extra_timestamp}\\t%{INT:field2}\\t.*?\\t" +
                 "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
-            GrokPatternCreator.createGrokPatternFromExamples(sampleMessages, "TIMESTAMP_ISO8601", "_timestamp", mappings));
+            GrokPatternCreator.createGrokPatternFromExamples(TEST_TERMINAL, sampleMessages, "TIMESTAMP_ISO8601", "_timestamp", mappings));
         assertEquals(5, mappings.size());
         assertEquals("long", mappings.get("field"));
         assertEquals("date", mappings.get("extra_timestamp"));

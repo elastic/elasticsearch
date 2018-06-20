@@ -54,7 +54,7 @@ public class MultiGetRequestTests extends ESTestCase {
             builder.endArray();
         }
         builder.endObject();
-        try (final XContentParser parser = createParser(builder)) {
+        try (XContentParser parser = createParser(builder)) {
             final MultiGetRequest mgr = new MultiGetRequest();
             final ParsingException e = expectThrows(
                 ParsingException.class,

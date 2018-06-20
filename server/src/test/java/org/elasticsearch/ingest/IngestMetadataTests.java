@@ -57,7 +57,7 @@ public class IngestMetadataTests extends ESTestCase {
         ingestMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentBuilder shuffled = shuffleXContent(builder);
-        try (final XContentParser parser = createParser(shuffled)) {
+        try (XContentParser parser = createParser(shuffled)) {
             MetaData.Custom custom = IngestMetadata.fromXContent(parser);
             assertTrue(custom instanceof IngestMetadata);
             IngestMetadata m = (IngestMetadata) custom;

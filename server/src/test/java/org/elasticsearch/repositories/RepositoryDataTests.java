@@ -239,7 +239,8 @@ public class RepositoryDataTests extends ESTestCase {
         try (XContentParser xParser = createParser(builder)) {
             ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
                 RepositoryData.snapshotsFromXContent(xParser, randomNonNegativeLong()));
-            assertThat(e.getMessage(), equalTo("Detected a corrupted repository, index [docs/_id] references an unknown snapshot uuid [null]"));
+            assertThat(e.getMessage(), equalTo("Detected a corrupted repository, " +
+                "index [docs/_id] references an unknown snapshot uuid [null]"));
         }
     }
 

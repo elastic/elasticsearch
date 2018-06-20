@@ -32,7 +32,9 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -70,6 +72,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private static final String repositoryName = "test_repository";
+
+    private static final String snapshotName = "test_snapshot";
 
     public void testSnapshotCreateRepository() throws IOException {
         RestHighLevelClient client = highLevelClient();
@@ -366,12 +370,11 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         RestHighLevelClient client = highLevelClient();
 
         createTestRepositories();
-        //TODO: createTestSnapshots();
+        createTestSnapshots();
 
         // tag::delete-snapshot-request
         DeleteSnapshotRequest request = new DeleteSnapshotRequest(repositoryName);
-        //TODO: Set snapshot name
-        request.snapshot("snapshotName");
+        request.snapshot(snapshotName);
         // end::delete-snapshot-request
 
         // tag::delete-snapshot-request-masterTimeout
@@ -426,5 +429,13 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         request.type(FsRepository.TYPE);
         request.settings("{\"location\": \".\"}", XContentType.JSON);
         assertTrue(highLevelClient().snapshot().createRepository(request, RequestOptions.DEFAULT).isAcknowledged());
+    }
+
+    private void createTestSnapshots() throws IOException {
+        Request createSnapshot = new Request("put", String.format("_snapshot/%s/%s", repositoryName, snapshotName));
+        createSnapshot.addParameter("wait_for_completion", "true");
+        Response response = highLevelClient().getLowLevelClient().performRequest(createSnapshot);
+        // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
+        assertEquals(200, response.getStatusLine().getStatusCode());
     }
 }

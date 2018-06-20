@@ -47,7 +47,7 @@ setup:
 
   - do:
       xpack.index_lifecycle.get_status: {}
-  - match: { operation_mode: "STOPPED" }
+  - match: { operation_mode: "STOPPING" }
 
   - do:
       acknowledge: true

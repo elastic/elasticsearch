@@ -11,12 +11,12 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetOperationModeStatusAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
 
-public class RestGetOperationModeStatusAction extends BaseRestHandler {
+public class RestGetStatusAction extends BaseRestHandler {
 
-    public RestGetOperationModeStatusAction(Settings settings, RestController controller) {
+    public RestGetStatusAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET,
             IndexLifecycle.BASE_PATH + "_status", this);
@@ -29,9 +29,9 @@ public class RestGetOperationModeStatusAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        GetOperationModeStatusAction.Request request = new GetOperationModeStatusAction.Request();
+        GetStatusAction.Request request = new GetStatusAction.Request();
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
-        return channel -> client.execute(GetOperationModeStatusAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetStatusAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

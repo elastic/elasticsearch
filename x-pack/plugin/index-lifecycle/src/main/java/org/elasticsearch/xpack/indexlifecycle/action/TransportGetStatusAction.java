@@ -20,17 +20,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetOperationModeStatusAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetOperationModeStatusAction.Request;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetOperationModeStatusAction.Response;
+import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction.Request;
+import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction.Response;
 
-public class TransportGetOperationModeStatusAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportGetStatusAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
-    public TransportGetOperationModeStatusAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                                 ThreadPool threadPool, ActionFilters actionFilters,
-                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetOperationModeStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
+    public TransportGetStatusAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                    ThreadPool threadPool, ActionFilters actionFilters,
+                                    IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, GetStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver, Request::new);
     }
 

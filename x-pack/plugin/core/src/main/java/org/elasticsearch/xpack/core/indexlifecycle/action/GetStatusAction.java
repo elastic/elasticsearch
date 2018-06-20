@@ -7,21 +7,23 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class SetOperationModeAction extends Action<SetOperationModeAction.Response> {
-    public static final SetOperationModeAction INSTANCE = new SetOperationModeAction();
-    public static final String NAME = "cluster:admin/xpack/index_lifecycle/operation_mode/set";
+public class GetStatusAction extends Action<GetStatusAction.Response> {
+    public static final GetStatusAction INSTANCE = new GetStatusAction();
+    public static final String NAME = "cluster:admin/xpack/index_lifecycle/operation_mode/get";
 
-    protected SetOperationModeAction() {
+    protected GetStatusAction() {
         super(NAME);
     }
 
@@ -30,25 +32,15 @@ public class SetOperationModeAction extends Action<SetOperationModeAction.Respon
         return new Response();
     }
 
-    public static class Response extends AcknowledgedResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
+
+        private OperationMode mode;
 
         public Response() {
         }
 
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-    }
-
-    public static class Request extends AcknowledgedRequest<Request> {
-
-        private OperationMode mode;
-
-        public Request(OperationMode mode) {
+        public Response(OperationMode mode) {
             this.mode = mode;
-        }
-
-        public Request() {
         }
 
         public OperationMode getMode() {
@@ -56,24 +48,20 @@ public class SetOperationModeAction extends Action<SetOperationModeAction.Respon
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            if (mode == OperationMode.STOPPED) {
-                ActionRequestValidationException exception = new ActionRequestValidationException();
-                exception.addValidationError("cannot directly stop index-lifecycle");
-                return exception;
-            }
-            return null;
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("operation_mode", mode);
+            builder.endObject();
+            return builder;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
             mode = in.readEnum(OperationMode.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeEnum(mode);
         }
 
@@ -90,9 +78,35 @@ public class SetOperationModeAction extends Action<SetOperationModeAction.Respon
             if (obj.getClass() != getClass()) {
                 return false;
             }
-            Request other = (Request) obj;
+            Response other = (Response) obj;
             return Objects.equals(mode, other.mode);
         }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
+        }
+
     }
 
+    public static class Request extends AcknowledgedRequest<Request> {
+
+        public Request() {
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+        }
+    }
 }

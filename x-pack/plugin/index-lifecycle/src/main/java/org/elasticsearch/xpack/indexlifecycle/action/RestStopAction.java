@@ -12,7 +12,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
-import org.elasticsearch.xpack.core.indexlifecycle.action.SetOperationModeAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.PutOperationModeAction;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
 
 public class RestStopAction extends BaseRestHandler {
@@ -30,9 +30,9 @@ public class RestStopAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        SetOperationModeAction.Request request = new SetOperationModeAction.Request(OperationMode.STOPPING);
+        PutOperationModeAction.Request request = new PutOperationModeAction.Request(OperationMode.STOPPING);
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
-        return channel -> client.execute(SetOperationModeAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(PutOperationModeAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

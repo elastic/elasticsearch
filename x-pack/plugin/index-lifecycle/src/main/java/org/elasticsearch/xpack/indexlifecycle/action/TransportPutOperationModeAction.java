@@ -19,18 +19,18 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.indexlifecycle.action.SetOperationModeAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.SetOperationModeAction.Request;
-import org.elasticsearch.xpack.core.indexlifecycle.action.SetOperationModeAction.Response;
+import org.elasticsearch.xpack.core.indexlifecycle.action.PutOperationModeAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.PutOperationModeAction.Request;
+import org.elasticsearch.xpack.core.indexlifecycle.action.PutOperationModeAction.Response;
 import org.elasticsearch.xpack.indexlifecycle.OperationModeUpdateTask;
 
-public class TransportSetOperationModeAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportPutOperationModeAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
-    public TransportSetOperationModeAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportPutOperationModeAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            ThreadPool threadPool, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, SetOperationModeAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(settings, PutOperationModeAction.NAME, transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver, Request::new);
     }
 

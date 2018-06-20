@@ -181,12 +181,13 @@ public class MetaDataTests extends ESTestCase {
                     .field("random", "value")
                 .endObject()
             .endObject());
-        XContentParser parser = createParser(JsonXContent.jsonXContent, metadata);
-        try {
-            MetaData.Builder.fromXContent(parser);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertEquals("Unexpected field [random]", e.getMessage());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, metadata)) {
+            try {
+                MetaData.Builder.fromXContent(parser);
+                fail();
+            } catch (IllegalArgumentException e) {
+                assertEquals("Unexpected field [random]", e.getMessage());
+            }
         }
     }
 
@@ -197,12 +198,13 @@ public class MetaDataTests extends ESTestCase {
                     .field("random", "value")
                 .endObject()
             .endObject());
-        XContentParser parser = createParser(JsonXContent.jsonXContent, metadata);
-        try {
-            IndexMetaData.Builder.fromXContent(parser);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertEquals("Unexpected field [random]", e.getMessage());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, metadata)) {
+            try {
+                IndexMetaData.Builder.fromXContent(parser);
+                fail();
+            } catch (IllegalArgumentException e) {
+                assertEquals("Unexpected field [random]", e.getMessage());
+            }
         }
     }
 
@@ -225,9 +227,10 @@ public class MetaDataTests extends ESTestCase {
         builder.startObject();
         originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        final MetaData fromXContentMeta = MetaData.fromXContent(parser);
-        assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final MetaData fromXContentMeta = MetaData.fromXContent(parser);
+            assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
+        }
     }
 
     public void testSerializationWithIndexGraveyard() throws IOException {

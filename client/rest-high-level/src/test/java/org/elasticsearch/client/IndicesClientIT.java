@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -63,6 +64,8 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -80,6 +83,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -1153,6 +1158,40 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ElasticsearchStatusException unknownSettingError = expectThrows(ElasticsearchStatusException.class,
             () -> execute(unknownSettingTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
         assertThat(unknownSettingError.getDetailedMessage(), containsString("unknown setting [index.this-setting-does-not-exist]"));
+    }
+
+    public void testValidateQuery() throws IOException{
+        String index = "some_index";
+        createIndex(index, Settings.EMPTY);
+        QueryBuilder builder = QueryBuilders
+            .boolQuery()
+            .must(QueryBuilders.queryStringQuery("*:*"))
+            .filter(QueryBuilders.termQuery("user", "kimchy"));
+        ValidateQueryRequest request = new ValidateQueryRequest(index).query(builder);
+        request.explain(randomBoolean());
+        ValidateQueryResponse response = execute(request, highLevelClient().indices()::validateQuery,
+            highLevelClient().indices()::validateQueryAsync);
+        assertTrue(response.isValid());
+    }
+
+    public void testInvalidValidateQuery() throws IOException{
+        String index = "shakespeare";
+
+        createIndex(index, Settings.EMPTY);
+        Request postDoc = new Request(HttpPost.METHOD_NAME, "/" + index + "/1");
+        postDoc.setJsonEntity(
+            "{\"type\":\"act\",\"line_id\":1,\"play_name\":\"Henry IV\", \"speech_number\":\"\"," +
+                "\"line_number\":\"\",\"speaker\":\"\",\"text_entry\":\"ACT I\"}");
+        assertOK(client().performRequest(postDoc));
+
+        QueryBuilder builder = QueryBuilders
+            .queryStringQuery("line_id:foo")
+            .lenient(false);
+        ValidateQueryRequest request = new ValidateQueryRequest(index).query(builder);
+        request.explain(true);
+        ValidateQueryResponse response = execute(request, highLevelClient().indices()::validateQuery,
+            highLevelClient().indices()::validateQueryAsync);
+        assertFalse(response.isValid());
     }
 
     public void testGetIndexTemplate() throws Exception {

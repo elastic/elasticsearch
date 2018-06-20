@@ -73,6 +73,7 @@ Index Management::
 * <<java-rest-high-rollover-index>>
 * <<java-rest-high-indices-put-settings>>
 * <<java-rest-high-get-settings>>
+* <<java-rest-high-indices-validate-query>>
 
 Mapping Management::
 * <<java-rest-high-put-mapping>>
@@ -103,6 +104,7 @@ include::indices/get_alias.asciidoc[]
 include::indices/put_settings.asciidoc[]
 include::indices/get_settings.asciidoc[]
 include::indices/put_template.asciidoc[]
+include::indices/validate_query.asciidoc[]
 include::indices/get_templates.asciidoc[]
 
 == Cluster APIs
@@ -149,3 +151,14 @@ The Java High Level REST Client supports the following Tasks APIs:
 
 include::tasks/list_tasks.asciidoc[]
 include::tasks/cancel_tasks.asciidoc[]
+
+== Script APIs
+
+The Java High Level REST Client supports the following Scripts APIs:
+
+* <<java-rest-high-get-stored-script>>
+* <<java-rest-high-delete-stored-script>>
+
+include::script/get_script.asciidoc[]
+include::script/delete_script.asciidoc[]
+

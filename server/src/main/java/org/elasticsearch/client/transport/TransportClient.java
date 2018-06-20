@@ -26,7 +26,6 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -46,6 +45,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
@@ -150,9 +150,11 @@ public abstract class TransportClient extends AbstractClient {
             SettingsModule settingsModule = new SettingsModule(settings, additionalSettings, additionalSettingsFilter);
 
             SearchModule searchModule = new SearchModule(settings, true, pluginsService.filterPlugins(SearchPlugin.class));
+            IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(NetworkModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
+            entries.addAll(indicesModule.getNamedWriteables());
             entries.addAll(ClusterModule.getNamedWriteables());
             entries.addAll(pluginsService.filterPlugins(Plugin.class).stream()
                                          .flatMap(p -> p.getNamedWriteables().stream())
@@ -206,10 +208,10 @@ public abstract class TransportClient extends AbstractClient {
 
             // construct the list of client actions
             final List<ActionPlugin> actionPlugins = pluginsService.filterPlugins(ActionPlugin.class);
-            final List<GenericAction> clientActions =
+            final List<Action> clientActions =
                     actionPlugins.stream().flatMap(p -> p.getClientActions().stream()).collect(Collectors.toList());
             // add all the base actions
-            final List<? extends GenericAction<?, ?>> baseActions =
+            final List<? extends Action<?>> baseActions =
                     actionModule.getActions().values().stream().map(ActionPlugin.ActionHandler::getAction).collect(Collectors.toList());
             clientActions.addAll(baseActions);
             final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService, clientActions);
@@ -375,7 +377,7 @@ public abstract class TransportClient extends AbstractClient {
     }
 
     @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> void doExecute(Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+    protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response>> void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
         proxy.execute(action, request, listener);
     }
 

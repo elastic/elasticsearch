@@ -1,5 +1,6 @@
+[role="xpack"]
 [[ml-functions]]
-== Function Reference
+== Function reference
 
 The {xpackml} features include analysis functions that provide a wide variety of
 flexible ways to analyze data for anomalies.

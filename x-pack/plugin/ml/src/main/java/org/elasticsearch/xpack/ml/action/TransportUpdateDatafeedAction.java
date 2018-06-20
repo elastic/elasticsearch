@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 
+import java.util.Map;
+
 public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
 
     @Inject
@@ -50,6 +52,8 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
     @Override
     protected void masterOperation(UpdateDatafeedAction.Request request, ClusterState state,
                                    ActionListener<PutDatafeedAction.Response> listener) {
+        final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
+
         clusterService.submitStateUpdateTask("update-datafeed-" + request.getUpdate().getId(),
                 new AckedClusterStateUpdateTask<PutDatafeedAction.Response>(request, listener) {
                     private volatile DatafeedConfig updatedDatafeed;
@@ -69,7 +73,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
                         PersistentTasksCustomMetaData persistentTasks =
                                 currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                         MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
-                                .updateDatafeed(update, persistentTasks, threadPool.getThreadContext()).build();
+                                .updateDatafeed(update, persistentTasks, headers).build();
                         updatedDatafeed = newMetadata.getDatafeed(update.getId());
                         return ClusterState.builder(currentState).metaData(
                                 MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, newMetadata).build()).build();

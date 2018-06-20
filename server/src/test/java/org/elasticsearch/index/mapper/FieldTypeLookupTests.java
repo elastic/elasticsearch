@@ -32,8 +32,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
-
 public class FieldTypeLookupTests extends ESTestCase {
 
     public void testEmpty() {
@@ -78,29 +76,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(1, size(lookup2.iterator()));
         assertSame(f.fieldType(), lookup2.get("foo"));
         assertEquals(f2.fieldType(), lookup2.get("foo"));
-    }
-
-    public void testAddExistingIndexName() {
-        MockFieldMapper f = new MockFieldMapper("foo");
-        MockFieldMapper f2 = new MockFieldMapper("bar");
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type1", newList(f));
-        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type2", newList(f2));
-
-        assertSame(f.fieldType(), lookup2.get("foo"));
-        assertSame(f2.fieldType(), lookup2.get("bar"));
-        assertEquals(2, size(lookup2.iterator()));
-    }
-
-    public void testAddExistingFullName() {
-        MockFieldMapper f = new MockFieldMapper("foo");
-        MockFieldMapper f2 = new MockFieldMapper("foo");
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        try {
-            lookup.copyAndAddAll("type2", newList(f2));
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [foo] has different [index_name]"));
-        }
     }
 
     public void testCheckCompatibilityMismatchedTypes() {

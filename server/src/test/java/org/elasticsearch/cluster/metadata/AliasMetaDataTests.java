@@ -41,6 +41,7 @@ public class AliasMetaDataTests extends AbstractXContentTestCase<AliasMetaData> 
                         .indexRouting("indexRouting")
                         .routing("routing")
                         .searchRouting("trim,tw , ltw , lw")
+                        .writeIndex(randomBoolean() ? null : randomBoolean())
                         .build();
 
         assertThat(before.searchRoutingValues(), equalTo(Sets.newHashSet("trim", "tw ", " ltw ", " lw")));
@@ -52,6 +53,21 @@ public class AliasMetaDataTests extends AbstractXContentTestCase<AliasMetaData> 
         final AliasMetaData after = new AliasMetaData(in);
 
         assertThat(after, equalTo(before));
+    }
+
+    @Override
+    protected void assertEqualInstances(AliasMetaData expectedInstance, AliasMetaData newInstance) {
+        assertNotSame(newInstance, expectedInstance);
+        if (expectedInstance.writeIndex() == null) {
+            expectedInstance = AliasMetaData.builder(expectedInstance.alias())
+                .filter(expectedInstance.filter())
+                .indexRouting(expectedInstance.indexRouting())
+                .searchRouting(expectedInstance.searchRouting())
+                .writeIndex(randomBoolean() ? null : randomBoolean())
+                .build();
+        }
+        assertEquals(expectedInstance, newInstance);
+        assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
     }
 
     @Override
@@ -95,6 +111,7 @@ public class AliasMetaDataTests extends AbstractXContentTestCase<AliasMetaData> 
         if (randomBoolean()) {
             builder.filter("{\"term\":{\"year\":2016}}");
         }
+        builder.writeIndex(randomBoolean());
         return builder.build();
     }
 

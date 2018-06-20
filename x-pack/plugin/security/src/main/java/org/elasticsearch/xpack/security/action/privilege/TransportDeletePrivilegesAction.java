@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.action.privilege;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -31,10 +30,9 @@ public class TransportDeletePrivilegesAction extends HandledTransportAction<Dele
 
     @Inject
     public TransportDeletePrivilegesAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                           IndexNameExpressionResolver indexNameExpressionResolver, NativePrivilegeStore privilegeStore,
+                                           NativePrivilegeStore privilegeStore,
                                            TransportService transportService) {
-        super(settings, DeletePrivilegesAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                DeletePrivilegesRequest::new);
+        super(settings, DeletePrivilegesAction.NAME, threadPool, transportService, actionFilters, DeletePrivilegesRequest::new);
         this.privilegeStore = privilegeStore;
     }
 

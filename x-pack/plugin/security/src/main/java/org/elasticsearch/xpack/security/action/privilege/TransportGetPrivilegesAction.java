@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.action.privilege;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,10 +34,8 @@ public class TransportGetPrivilegesAction extends HandledTransportAction<GetPriv
 
     @Inject
     public TransportGetPrivilegesAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver, NativePrivilegeStore privilegeStore,
-                                        TransportService transportService) {
-        super(settings, GetPrivilegesAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GetPrivilegesRequest::new);
+                                        NativePrivilegeStore privilegeStore, TransportService transportService) {
+        super(settings, GetPrivilegesAction.NAME, threadPool, transportService, actionFilters, GetPrivilegesRequest::new);
         this.privilegeStore = privilegeStore;
     }
 

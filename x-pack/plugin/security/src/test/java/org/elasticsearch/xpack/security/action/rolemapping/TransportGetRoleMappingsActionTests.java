@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -47,9 +46,8 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
         store = mock(NativeRoleMappingStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        action = new TransportGetRoleMappingsAction(Settings.EMPTY, mock(ThreadPool.class),
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
-                transportService, store);
+        action = new TransportGetRoleMappingsAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
+            transportService, store);
 
         namesRef = new AtomicReference<>(null);
         result = Collections.emptyList();

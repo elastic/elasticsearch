@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,11 +40,9 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
 
     @Inject
     public TransportMonitoringBulkAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                         TransportService transportService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, Exporters exportService,
+                                         TransportService transportService, ActionFilters actionFilters, Exporters exportService,
                                          MonitoringService monitoringService) {
-        super(settings, MonitoringBulkAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                MonitoringBulkRequest::new);
+        super(settings, MonitoringBulkAction.NAME, threadPool, transportService, actionFilters, MonitoringBulkRequest::new);
         this.clusterService = clusterService;
         this.exportService = exportService;
         this.monitoringService = monitoringService;

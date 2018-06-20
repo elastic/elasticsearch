@@ -29,6 +29,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -1239,5 +1241,16 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ElasticsearchException notFound = expectThrows(ElasticsearchException.class, () -> execute(
             new GetIndexTemplatesRequest().names("the-template-*"), client.indices()::getTemplate, client.indices()::getTemplateAsync));
         assertThat(notFound.status(), equalTo(RestStatus.NOT_FOUND));
+    }
+
+    public void testAnalyze() throws Exception {
+
+        RestHighLevelClient client = highLevelClient();
+
+        AnalyzeRequest noindexRequest = new AnalyzeRequest().text("One two three").analyzer("english");
+        AnalyzeResponse noindexResponse = client.indices().analyze(noindexRequest, RequestOptions.DEFAULT);
+
+        assertThat(noindexResponse.getTokens(), hasSize(3));
+
     }
 }

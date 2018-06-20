@@ -25,12 +25,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, ToXContentObject {
 
@@ -44,6 +49,25 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         private String type;
 
         AnalyzeToken() {
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AnalyzeToken that = (AnalyzeToken) o;
+            return startOffset == that.startOffset &&
+                endOffset == that.endOffset &&
+                position == that.position &&
+                positionLength == that.positionLength &&
+                Objects.equals(term, that.term) &&
+                Objects.equals(attributes, that.attributes) &&
+                Objects.equals(type, that.type);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(term, startOffset, endOffset, position, positionLength, attributes, type);
         }
 
         public AnalyzeToken(String term, int position, int startOffset, int endOffset, int positionLength,
@@ -109,6 +133,46 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             AnalyzeToken analyzeToken = new AnalyzeToken();
             analyzeToken.readFrom(in);
             return analyzeToken;
+        }
+
+        public static AnalyzeToken readAnalyzeToken(XContentParser parser) throws IOException {
+            //ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            String field = null;
+            String term = "";
+            int position = -1;
+            int startOffset = -1;
+            int endOffset = -1;
+            int positionLength = 1;
+            String type = "";
+            Map<String, Object> attributes = new HashMap<>();
+            for (XContentParser.Token t = parser.nextToken(); t != XContentParser.Token.END_OBJECT; t = parser.nextToken()) {
+                if (t == XContentParser.Token.FIELD_NAME) {
+                    field = parser.currentName();
+                    continue;
+                }
+                if (Fields.TOKEN.equals(field)) {
+                    term = parser.text();
+                }
+                else if (Fields.POSITION.equals(field)) {
+                    position = parser.intValue();
+                }
+                else if (Fields.START_OFFSET.equals(field)) {
+                    startOffset = parser.intValue();
+                }
+                else if (Fields.END_OFFSET.equals(field)) {
+                    endOffset = parser.intValue();
+                }
+                else if (Fields.POSITION_LENGTH.equals(field)) {
+                    positionLength = parser.intValue();
+                }
+                else if (Fields.TYPE.equals(field)) {
+                    type = parser.text();
+                }
+                else {
+                    attributes.put(field, parser.text());
+                }
+            }
+            return new AnalyzeToken(term, position, startOffset, endOffset, positionLength, type, attributes);
         }
 
         @Override
@@ -188,6 +252,29 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         return builder;
     }
 
+    public static AnalyzeResponse fromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        String fieldName = parser.currentName();
+        List<AnalyzeToken> tokens = null;
+        if (Fields.TOKENS.equals(fieldName)) {
+            tokens = readTokenList(parser);
+        }
+        return new AnalyzeResponse(tokens, null);
+    }
+
+    private static List<AnalyzeToken> readTokenList(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+        List<AnalyzeToken> tokens = new ArrayList<>();
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            tokens.add(AnalyzeToken.readAnalyzeToken(parser));
+        }
+        return tokens;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -211,6 +298,20 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             out.writeVInt(0);
         }
         out.writeOptionalStreamable(detail);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AnalyzeResponse that = (AnalyzeResponse) o;
+        return Objects.equals(detail, that.detail) &&
+            Objects.equals(tokens, that.tokens);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(detail, tokens);
     }
 
     static final class Fields {

@@ -289,6 +289,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         return attachmentData;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31305")
     public void testIndexedChars() throws Exception {
         processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
             "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, null);

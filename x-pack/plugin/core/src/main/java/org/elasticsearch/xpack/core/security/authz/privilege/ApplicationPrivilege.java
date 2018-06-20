@@ -36,7 +36,7 @@ public final class ApplicationPrivilege extends Privilege {
 
     /**
      * A name or action must be composed of printable, visible ASCII characters.
-     * That is: letters, numbers & symbols, but no whitespace.
+     * That is: letters, numbers &amp; symbols, but no whitespace.
      */
     private static final Pattern VALID_NAME_OR_ACTION = Pattern.compile("^\\p{Graph}*$");
 

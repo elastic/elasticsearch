@@ -24,46 +24,35 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResp
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RepositoriesServiceTests extends ESIntegTestCase {
 
-    private final static String FAKE_FS_TYPE = "fakeFS";
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(TestFSRepositoryPlugin.class);
-    }
-
-    public static class TestFSRepositoryPlugin extends Plugin implements RepositoryPlugin {
-
-        @Override
-        public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry) {
-            return Collections.singletonMap(FAKE_FS_TYPE,
-                (metadata) -> new FsRepository(metadata, env, registry));
-        }
+        return Collections.singletonList(MockRepository.Plugin.class);
     }
 
     public void testUpdateRepositoryWithDiffType() {
         String repositoryName = "test-repo";
 
         Client client = client();
-        Settings settings = ((InternalTestCluster) cluster()).getDefaultSettings();
-        Path location = randomRepoPath(settings);
+        InternalTestCluster cluster = (InternalTestCluster) cluster();
+        RepositoriesService repositoriesService = cluster.getInstance(RepositoriesService.class);
+        Settings settings = cluster.getDefaultSettings();
+        Path location = randomRepoPath();
 
         Settings.Builder repoSettings = Settings.builder().put(settings).put("location", location);
 
@@ -82,11 +71,14 @@ public class RepositoriesServiceTests extends ESIntegTestCase {
 
         assertThat(repositoryMetaData1.type(), equalTo(FsRepository.TYPE));
 
+        Repository repository1 = repositoriesService.repository(repositoryName);
+        assertThat(repository1, instanceOf(FsRepository.class));
+
         // update repository with different type
 
         PutRepositoryResponse putRepositoryResponse2 =
             client.admin().cluster().preparePutRepository(repositoryName)
-                .setType(FAKE_FS_TYPE)
+                .setType("mock")
                 .setSettings(repoSettings)
                 .get();
         assertThat(putRepositoryResponse2.isAcknowledged(), equalTo(true));
@@ -97,6 +89,9 @@ public class RepositoriesServiceTests extends ESIntegTestCase {
         assertThat(getRepositoriesResponse2.repositories(), hasSize(1));
         RepositoryMetaData repositoryMetaData2 = getRepositoriesResponse2.repositories().get(0);
 
-        assertThat(repositoryMetaData2.type(), equalTo(FAKE_FS_TYPE));
+        assertThat(repositoryMetaData2.type(), equalTo("mock"));
+
+        Repository repository2 = repositoriesService.repository(repositoryName);
+        assertThat(repository2, instanceOf(MockRepository.class));
     }
 }

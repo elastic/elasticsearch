@@ -74,7 +74,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
     }
 
     public static CollapseBuilder randomCollapseBuilder(boolean multiInnerHits) {
-        CollapseBuilder builder = new CollapseBuilder(randomAlphaOfLength(10));
+        CollapseBuilder builder = new CollapseBuilder(new String[] {randomAlphaOfLength(10)});
         builder.setMaxConcurrentGroupRequests(randomIntBetween(1, 48));
         int numInnerHits = randomIntBetween(0, multiInnerHits ? 5 : 1);
         if (numInnerHits == 1) {
@@ -107,7 +107,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
         CollapseBuilder newBuilder;
         switch (between(0, 2)) {
         case 0:
-            newBuilder = new CollapseBuilder(instance.getField() + randomAlphaOfLength(10));
+            newBuilder = new CollapseBuilder(new String[] {instance.getFields()[0] + randomAlphaOfLength(10)});
             newBuilder.setMaxConcurrentGroupRequests(instance.getMaxConcurrentGroupRequests());
             newBuilder.setInnerHits(instance.getInnerHits());
             break;
@@ -164,13 +164,13 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 fieldType.setName("field");
                 fieldType.setHasDocValues(true);
                 when(searchContext.getQueryShardContext().fieldMapper("field")).thenReturn(fieldType);
-                CollapseBuilder builder = new CollapseBuilder("field");
+                CollapseBuilder builder = new CollapseBuilder(new String[] {"field"});
                 CollapseContext collapseContext = builder.build(searchContext);
-                assertEquals(collapseContext.getFieldType(), fieldType);
+                assertEquals(collapseContext.getFieldTypes()[0], fieldType);
 
                 fieldType.setIndexOptions(IndexOptions.NONE);
                 collapseContext = builder.build(searchContext);
-                assertEquals(collapseContext.getFieldType(), fieldType);
+                assertEquals(collapseContext.getFieldTypes()[0], fieldType);
 
                 fieldType.setHasDocValues(false);
                 SearchContextException exc = expectThrows(SearchContextException.class, () -> builder.build(searchContext));
@@ -189,7 +189,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
     public void testBuildWithSearchContextExceptions() {
         SearchContext context = mockSearchContext();
         {
-            CollapseBuilder builder = new CollapseBuilder("unknown_field");
+            CollapseBuilder builder = new CollapseBuilder(new String[] {"unknown_field"});
             SearchContextException exc = expectThrows(SearchContextException.class, () -> builder.build(context));
             assertEquals(exc.getMessage(), "no mapping found for `unknown_field` in order to collapse on");
         }
@@ -218,7 +218,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             fieldType.setName("field");
             fieldType.setHasDocValues(true);
             when(context.getQueryShardContext().fieldMapper("field")).thenReturn(fieldType);
-            CollapseBuilder builder = new CollapseBuilder("field");
+            CollapseBuilder builder = new CollapseBuilder(new String[] {"field"});
             SearchContextException exc = expectThrows(SearchContextException.class, () -> builder.build(context));
             assertEquals(exc.getMessage(), "unknown type for collapse field `field`, only keywords and numbers are accepted");
         }

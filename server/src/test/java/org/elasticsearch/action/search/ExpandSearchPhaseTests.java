@@ -65,7 +65,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             String collapseValue = randomBoolean() ? null : "boom";
 
             mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
-                .collapse(new CollapseBuilder("someField")
+                .collapse(new CollapseBuilder(new String[] {"someField"})
                     .setInnerHits(IntStream.range(0, numInnerHits).mapToObj(hitNum -> new InnerHitBuilder().setName("innerHit" + hitNum))
                         .collect(Collectors.toList()))));
             mockSearchPhaseContext.getRequest().source().query(originalQuery);
@@ -143,7 +143,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         String collapseValue = randomBoolean() ? null : "boom";
         mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
-            .collapse(new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("foobarbaz"))));
+            .collapse(new CollapseBuilder(new String[] {"someField"}).setInnerHits(new InnerHitBuilder().setName("foobarbaz"))));
         mockSearchPhaseContext.searchTransport = new SearchTransportService(
             Settings.builder().put("search.remote.connect", false).build(), null, null) {
 
@@ -226,7 +226,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             }
         };
         mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
-            .collapse(new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("foobarbaz"))));
+            .collapse(new CollapseBuilder(new String[] {"someField"}).setInnerHits(new InnerHitBuilder().setName("foobarbaz"))));
 
         SearchHits hits = new SearchHits(new SearchHit[0], 1, 1.0f);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
@@ -263,7 +263,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         };
         mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
             .collapse(
-                new CollapseBuilder("someField")
+                new CollapseBuilder(new String[] {"someField"})
                     .setInnerHits(new InnerHitBuilder().setName("foobarbaz").setVersion(version))
             )
             .postFilter(QueryBuilders.existsQuery("foo")))

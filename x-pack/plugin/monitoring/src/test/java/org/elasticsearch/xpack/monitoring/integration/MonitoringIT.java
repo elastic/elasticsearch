@@ -206,7 +206,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             assertBusy(() -> {
                 final SearchResponse response =
                         client().prepareSearch(".monitoring-es-*")
-                                .setCollapse(new CollapseBuilder("type"))
+                                .setCollapse(new CollapseBuilder(new String[]{"type"}))
                                 .addSort("timestamp", SortOrder.DESC)
                                 .get();
 

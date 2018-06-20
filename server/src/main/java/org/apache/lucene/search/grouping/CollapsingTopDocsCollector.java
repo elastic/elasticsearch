@@ -36,7 +36,7 @@ import static org.apache.lucene.search.SortField.Type.SCORE;
  * The value used for the collapse key of each group can be found in {@link CollapseTopFieldDocs#collapseValues}.
  */
 public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollector<T> {
-    protected final String collapseField;
+    protected final String[] collapseFields;
 
     protected final Sort sort;
     protected Scorer scorer;
@@ -45,10 +45,10 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     private float maxScore;
     private final boolean trackMaxScore;
 
-    CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort,
+    CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String[] collapseFields, Sort sort,
                                        int topN, boolean trackMaxScore) {
         super(groupSelector, sort, topN);
-        this.collapseField = collapseField;
+        this.collapseFields = collapseFields;
         this.trackMaxScore = trackMaxScore;
         if (trackMaxScore) {
             maxScore = Float.NEGATIVE_INFINITY;
@@ -66,7 +66,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     public CollapseTopFieldDocs getTopDocs() throws IOException {
         Collection<SearchGroup<T>> groups = super.getTopGroups(0, true);
         if (groups == null) {
-            return new CollapseTopFieldDocs(collapseField, totalHitCount, new ScoreDoc[0],
+            return new CollapseTopFieldDocs(collapseFields, totalHitCount, new ScoreDoc[0],
                 sort.getSort(), new Object[0], Float.NaN);
         }
         FieldDoc[] docs = new FieldDoc[groups.size()];
@@ -92,7 +92,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
             collapseValues[pos] = group.groupValue;
             pos++;
         }
-        return new CollapseTopFieldDocs(collapseField, totalHitCount, docs, sort.getSort(),
+        return new CollapseTopFieldDocs(collapseFields, totalHitCount, docs, sort.getSort(),
             collapseValues, maxScore);
     }
 
@@ -120,12 +120,12 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     }
 
     /**
-     * Create a collapsing top docs collector on a {@link org.apache.lucene.index.NumericDocValues} field.
-     * It accepts also {@link org.apache.lucene.index.SortedNumericDocValues} field but
+     * Create a collapsing top docs collector on {@link org.apache.lucene.index.NumericDocValues} fields.
+     * It accepts also {@link org.apache.lucene.index.SortedNumericDocValues} fields but
      * the collect will fail with an {@link IllegalStateException} if a document contains more than one value for the
      * field.
      *
-     * @param collapseField The sort field used to group
+     * @param collapseFields The sort field used to group
      *                      documents.
      * @param sort          The {@link Sort} used to sort the collapsed hits.
      *                      The collapsing keeps only the top sorted document per collapsed key.
@@ -133,28 +133,30 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      *                      use Sort.RELEVANCE.
      * @param topN          How many top groups to keep.
      */
-    public static CollapsingTopDocsCollector<?> createNumeric(String collapseField, Sort sort,
-                                                              int topN, boolean trackMaxScore)  {
-        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseField),
-                collapseField, sort, topN, trackMaxScore);
+    public static CollapsingTopDocsCollector<?> createMultipleNumeric(String[] collapseFields, Sort sort,
+                                                                     int topN, boolean trackMaxScore)  {
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.MultipleNumeric(collapseFields),
+            collapseFields, sort, topN, trackMaxScore);
     }
 
     /**
-     * Create a collapsing top docs collector on a {@link org.apache.lucene.index.SortedDocValues} field.
-     * It accepts also {@link org.apache.lucene.index.SortedSetDocValues} field but
+     * Create a collapsing top docs collector on {@link org.apache.lucene.index.SortedDocValues} fields.
+     * It accepts also {@link org.apache.lucene.index.SortedSetDocValues} fields but
      * the collect will fail with an {@link IllegalStateException} if a document contains more than one value for the
      * field.
      *
-     * @param collapseField The sort field used to group
+     * @param collapseFields The sort field used to group
      *                      documents.
      * @param sort          The {@link Sort} used to sort the collapsed hits. The collapsing keeps only the top sorted
      *                      document per collapsed key.
      *                      This must be non-null, ie, if you want to groupSort by relevance use Sort.RELEVANCE.
      * @param topN          How many top groups to keep.
      */
-    public static CollapsingTopDocsCollector<?> createKeyword(String collapseField, Sort sort,
+    public static CollapsingTopDocsCollector<?> createMultipleKeyword(String[] collapseFields, Sort sort,
                                                               int topN, boolean trackMaxScore)  {
-        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseField),
-                collapseField, sort, topN, trackMaxScore);
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.MultipleKeyword(collapseFields),
+            collapseFields, sort, topN, trackMaxScore);
     }
+
+
 }

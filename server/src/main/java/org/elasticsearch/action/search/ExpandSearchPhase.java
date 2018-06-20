@@ -76,11 +76,14 @@ final class ExpandSearchPhase extends SearchPhase {
             }
             for (SearchHit hit : searchResponse.hits().getHits()) {
                 BoolQueryBuilder groupQuery = new BoolQueryBuilder();
-                Object collapseValue = hit.field(collapseBuilder.getField()).getValue();
-                if (collapseValue != null) {
-                    groupQuery.filter(QueryBuilders.matchQuery(collapseBuilder.getField(), collapseValue));
-                } else {
-                    groupQuery.mustNot(QueryBuilders.existsQuery(collapseBuilder.getField()));
+                String[] collapseFields = collapseBuilder.getFields();
+                for (int i = 0; i<collapseFields.length; i++) {
+                    Object collapseValue = hit.field(collapseFields[i]).getValue();
+                    if (collapseValue != null) {
+                        groupQuery.filter(QueryBuilders.matchQuery(collapseFields[i], collapseValue));
+                    } else {
+                        groupQuery.mustNot(QueryBuilders.existsQuery(collapseFields[i]));
+                    }
                 }
                 QueryBuilder origQuery = searchRequest.source().query();
                 if (origQuery != null) {

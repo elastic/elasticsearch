@@ -69,15 +69,11 @@ public class TaskResultsService extends AbstractComponent {
 
     private final ClusterService clusterService;
 
-    private final TransportCreateIndexAction createIndexAction;
-
     @Inject
-    public TaskResultsService(Settings settings, Client client, ClusterService clusterService,
-                              TransportCreateIndexAction createIndexAction) {
+    public TaskResultsService(Settings settings, Client client, ClusterService clusterService) {
         super(settings);
         this.client = client;
         this.clusterService = clusterService;
-        this.createIndexAction = createIndexAction;
     }
 
     public void storeResult(TaskResult taskResult, ActionListener<Void> listener) {
@@ -91,7 +87,7 @@ public class TaskResultsService extends AbstractComponent {
             createIndexRequest.mapping(TASK_TYPE, taskResultIndexMapping(), XContentType.JSON);
             createIndexRequest.cause("auto(task api)");
 
-            createIndexAction.execute(null, createIndexRequest, new ActionListener<CreateIndexResponse>() {
+            client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     doStoreResult(taskResult, listener);

@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
@@ -26,9 +25,8 @@ public abstract class WatcherTransportAction<Request extends ActionRequest, Resp
     protected final XPackLicenseState licenseState;
 
     public WatcherTransportAction(Settings settings, String actionName, TransportService transportService, ThreadPool threadPool,
-                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                  XPackLicenseState licenseState, Writeable.Reader<Request> request) {
-        super(settings, actionName, threadPool, transportService, actionFilters, request, indexNameExpressionResolver);
+                                  ActionFilters actionFilters, XPackLicenseState licenseState, Writeable.Reader<Request> request) {
+        super(settings, actionName, threadPool, transportService, actionFilters, request);
         this.licenseState = licenseState;
     }
 

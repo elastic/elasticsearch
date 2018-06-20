@@ -32,11 +32,11 @@ import java.nio.channels.ServerSocketChannel;
  * This is an implementation of {@link NioServerSocketChannel} that adheres to the {@link TcpChannel}
  * interface. As it is a server socket, setting SO_LINGER and sending messages is not supported.
  */
-public class TcpNioServerSocketChannel extends NioServerSocketChannel implements TcpChannel {
+public class NioTcpServerChannel extends NioServerSocketChannel implements TcpChannel {
 
     private final String profile;
 
-    public TcpNioServerSocketChannel(String profile, ServerSocketChannel socketChannel) throws IOException {
+    public NioTcpServerChannel(String profile, ServerSocketChannel socketChannel) throws IOException {
         super(socketChannel);
         this.profile = profile;
     }

@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -58,6 +57,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  * Performs a series of elasticsearch queries and aggregations to explore
@@ -83,10 +83,10 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
     @Inject
     public TransportGraphExploreAction(Settings settings, ThreadPool threadPool, TransportSearchAction transportSearchAction,
-            TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+            TransportService transportService, ActionFilters actionFilters,
             XPackLicenseState licenseState) {
-        super(settings, GraphExploreAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GraphExploreRequest::new);
+        super(settings, GraphExploreAction.NAME, threadPool, transportService, actionFilters,
+              (Supplier<GraphExploreRequest>)GraphExploreRequest::new);
         this.searchAction = transportSearchAction;
         this.licenseState = licenseState;
     }

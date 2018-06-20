@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsP
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -62,10 +62,10 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
 
     @Inject
     public TransportGetOverallBucketsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                            ClusterService clusterService, JobManager jobManager, Client client) {
-        super(settings, GetOverallBucketsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GetOverallBucketsAction.Request::new);
+                                            ActionFilters actionFilters, ClusterService clusterService,
+                                            JobManager jobManager, Client client) {
+        super(settings, GetOverallBucketsAction.NAME, threadPool, transportService, actionFilters,
+            (Supplier<GetOverallBucketsAction.Request>) GetOverallBucketsAction.Request::new);
         this.clusterService = clusterService;
         this.client = client;
         this.jobManager = jobManager;

@@ -14,8 +14,8 @@ The JDBC driver can be obtained either by downloading it from the https://www.el
 ["source","xml",subs="attributes"]
 ----
 <dependency>
-  <groupId>org.elasticsearch.plugin.jdbc</groupId>
-  <artifactId>jdbc</artifactId>
+  <groupId>org.elasticsearch.plugin</groupId>
+  <artifactId>x-pack-sql-jdbc</artifactId>
   <version>{version}</version>
 </dependency>
 ----

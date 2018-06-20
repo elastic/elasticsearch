@@ -16,6 +16,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+
 public class KerberosRealmSettingsTests extends ESTestCase {
 
     public void testKerberosRealmSettings() throws IOException {
@@ -30,11 +33,11 @@ public class KerberosRealmSettingsTests extends ESTestCase {
         final String cacheTTL = randomLongBetween(10L, 100L) + "m";
         final Settings settings = KerberosTestCase.buildKerberosRealmSettings(keyTabPathConfig, maxUsers, cacheTTL, true);
 
-        assertEquals(keyTabPathConfig, KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
-        assertEquals(TimeValue.parseTimeValue(cacheTTL, KerberosRealmSettings.CACHE_TTL_SETTING.getKey()),
-                KerberosRealmSettings.CACHE_TTL_SETTING.get(settings));
-        assertEquals(maxUsers, KerberosRealmSettings.CACHE_MAX_USERS_SETTING.get(settings));
-        assertEquals(Boolean.TRUE, KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(settings));
+        assertThat(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings), equalTo(keyTabPathConfig));
+        assertThat(KerberosRealmSettings.CACHE_TTL_SETTING.get(settings),
+                equalTo(TimeValue.parseTimeValue(cacheTTL, KerberosRealmSettings.CACHE_TTL_SETTING.getKey())));
+        assertThat(KerberosRealmSettings.CACHE_MAX_USERS_SETTING.get(settings), equalTo(maxUsers));
+        assertThat(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(settings), is(true));
     }
 
 }

@@ -240,7 +240,7 @@ class SpnegoClient implements AutoCloseable {
 
                 @Override
                 @SuppressForbidden(
-                        reason = "For tests where we provide credentials, need to set reset javax.security.auth.useSubjectCredsOnly")
+                        reason = "For tests where we provide credentials, need to set and reset javax.security.auth.useSubjectCredsOnly")
                 public String run() throws Exception {
                     String oldValue = System.getProperty("javax.security.auth.useSubjectCredsOnly");
                     if (value != null) {

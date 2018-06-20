@@ -20,6 +20,11 @@ import java.util.Base64;
 
 import javax.security.auth.login.LoginException;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
 public class KerberosTicketValidatorTests extends KerberosTestCase {
 
     private KerberosTicketValidator kerberosTicketValidator = new KerberosTicketValidator();
@@ -32,13 +37,13 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         try (SpnegoClient spnegoClient =
                 new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()), principalName("differentServer"));) {
             final String base64KerbToken = spnegoClient.getBase64TicketForSpnegoHeader();
-            assertNotNull(base64KerbToken);
+            assertThat(base64KerbToken, is(notNullValue()));
 
             final Environment env = TestEnvironment.newEnvironment(globalSettings);
             final Path keytabPath = env.configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
             final GSSException gssException = expectThrows(GSSException.class,
                     () -> kerberosTicketValidator.validateTicket(Base64.getDecoder().decode(base64KerbToken), keytabPath, true));
-            assertEquals(GSSException.FAILURE, gssException.getMajor());
+            assertThat(gssException.getMajor(), equalTo(GSSException.FAILURE));
         }
     }
 
@@ -49,7 +54,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         final Path keytabPath = env.configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
         final GSSException gssException = expectThrows(GSSException.class,
                 () -> kerberosTicketValidator.validateTicket(Base64.getDecoder().decode(base64KerbToken), keytabPath, true));
-        assertEquals(GSSException.DEFECTIVE_TOKEN, gssException.getMajor());
+        assertThat(gssException.getMajor(), equalTo(GSSException.DEFECTIVE_TOKEN));
     }
 
     public void testWhenKeyTabWithInvalidContentFailsValidation()
@@ -59,7 +64,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         try (SpnegoClient spnegoClient = new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()),
                 principalName(randomFrom(serviceUserNames)));) {
             final String base64KerbToken = spnegoClient.getBase64TicketForSpnegoHeader();
-            assertNotNull(base64KerbToken);
+            assertThat(base64KerbToken, is(notNullValue()));
 
             final Path ktabPath = writeKeyTab(workDir.resolve("invalid.keytab"), "not - a - valid - key - tab");
             settings = buildKerberosRealmSettings(ktabPath.toString());
@@ -67,7 +72,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
             final Path keytabPath = env.configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
             final GSSException gssException = expectThrows(GSSException.class,
                     () -> kerberosTicketValidator.validateTicket(Base64.getDecoder().decode(base64KerbToken), keytabPath, true));
-            assertEquals(GSSException.FAILURE, gssException.getMajor());
+            assertThat(gssException.getMajor(), equalTo(GSSException.FAILURE));
         }
     }
 
@@ -77,18 +82,19 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         try (SpnegoClient spnegoClient = new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()),
                 principalName(randomFrom(serviceUserNames)));) {
             final String base64KerbToken = spnegoClient.getBase64TicketForSpnegoHeader();
-            assertNotNull(base64KerbToken);
+            assertThat(base64KerbToken, is(notNullValue()));
 
             final Environment env = TestEnvironment.newEnvironment(globalSettings);
             final Path keytabPath = env.configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
             final Tuple<String, String> userNameOutToken =
                     kerberosTicketValidator.validateTicket(Base64.getDecoder().decode(base64KerbToken), keytabPath, true);
-            assertNotNull(userNameOutToken);
-            assertEquals(principalName(clientUserName), userNameOutToken.v1());
-            assertNotNull(userNameOutToken.v2());
+            assertThat(userNameOutToken, is(notNullValue()));
+            assertThat(userNameOutToken.v1(), equalTo(principalName(clientUserName)));
+            assertThat(userNameOutToken.v2(), is(notNullValue()));
 
-            spnegoClient.handleResponse(userNameOutToken.v2());
-            assertTrue(spnegoClient.isEstablished());
+            final String outToken = spnegoClient.handleResponse(userNameOutToken.v2());
+            assertThat(outToken, is(nullValue()));
+            assertThat(spnegoClient.isEstablished(), is(true));
         }
     }
 

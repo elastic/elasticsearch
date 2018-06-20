@@ -31,7 +31,7 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
     public static final String WWW_AUTHENTICATE = "WWW-Authenticate";
     public static final String AUTH_HEADER = "Authorization";
     public static final String NEGOTIATE_SCHEME_NAME = "Negotiate";
-    public static final String NEGOTIATE_AUTH_HEADER = NEGOTIATE_SCHEME_NAME + " ";
+    public static final String NEGOTIATE_AUTH_HEADER_PREFIX = NEGOTIATE_SCHEME_NAME + " ";
 
     // authorization scheme check is case-insensitive
     private static final boolean IGNORE_CASE_AUTH_HEADER_MATCH = true;
@@ -44,12 +44,12 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
 
     /**
      * Extract token from authorization header and if it is valid
-     * {@link #NEGOTIATE_AUTH_HEADER} then returns
+     * {@value #NEGOTIATE_AUTH_HEADER_PREFIX} then returns
      * {@link KerberosAuthenticationToken}
      *
      * @param authorizationHeader Authorization header from request
-     * @return returns {@code null} if {@link #AUTH_HEADER} is empty or not an
-     *         {@link #NEGOTIATE_AUTH_HEADER} else returns valid
+     * @return returns {@code null} if {@link #AUTH_HEADER} is empty or does not
+     *         start with {@value #NEGOTIATE_AUTH_HEADER_PREFIX} else returns valid
      *         {@link KerberosAuthenticationToken}
      * @throws ElasticsearchSecurityException when negotiate header is invalid.
      */
@@ -57,12 +57,12 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
         if (Strings.isNullOrEmpty(authorizationHeader)) {
             return null;
         }
-        if (authorizationHeader.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, NEGOTIATE_AUTH_HEADER, 0,
-                NEGOTIATE_AUTH_HEADER.length()) == false) {
+        if (authorizationHeader.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, NEGOTIATE_AUTH_HEADER_PREFIX, 0,
+                NEGOTIATE_AUTH_HEADER_PREFIX.length()) == false) {
             return null;
         }
 
-        final String base64EncodedToken = authorizationHeader.substring(NEGOTIATE_AUTH_HEADER.length()).trim();
+        final String base64EncodedToken = authorizationHeader.substring(NEGOTIATE_AUTH_HEADER_PREFIX.length()).trim();
         if (Strings.isEmpty(base64EncodedToken)) {
             throw unauthorized("invalid negotiate authentication header value, expected base64 encoded token but value is empty", null);
         }

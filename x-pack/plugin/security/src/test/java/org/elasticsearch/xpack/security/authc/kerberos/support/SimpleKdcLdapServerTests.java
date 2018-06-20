@@ -27,6 +27,12 @@ import java.util.Base64;
 
 import javax.security.auth.login.LoginException;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.notNullValue;
+
 public class SimpleKdcLdapServerTests extends KerberosTestCase {
 
     public void testPrincipalCreationAndSearchOnLdap() throws Exception {
@@ -34,10 +40,10 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
         assertTrue(Files.exists(workDir.resolve("p1p2.keytab")));
         try (LDAPConnection ldapConn =
                 LdapUtils.privilegedConnect(() -> new LDAPConnection("localhost", simpleKdcLdapServer.getLdapListenPort()));) {
-            assertTrue(ldapConn.isConnected());
+            assertThat(ldapConn.isConnected(), is(true));
             SearchResult sr = ldapConn.search("dc=example,dc=com", SearchScope.SUB, "(krb5PrincipalName=p1@EXAMPLE.COM)");
-            assertEquals(1, sr.getEntryCount());
-            assertEquals("uid=p1,dc=example,dc=com", sr.getSearchEntries().get(0).getDN());
+            assertThat(sr.getSearchEntries(), hasSize(1));
+            assertThat(sr.getSearchEntries().get(0).getDN(), equalTo("uid=p1,dc=example,dc=com"));
         }
     }
 
@@ -48,7 +54,7 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
         try (SpnegoClient spnegoClient =
                 new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()), principalName(serviceUserName));) {
             final String base64KerbToken = spnegoClient.getBase64TicketForSpnegoHeader();
-            assertNotNull(base64KerbToken);
+            assertThat(base64KerbToken, is(notNullValue()));
             final KerberosAuthenticationToken kerbAuthnToken = new KerberosAuthenticationToken(Base64.getDecoder().decode(base64KerbToken));
 
             // Service Login
@@ -57,13 +63,13 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
             // Handle Authz header which contains base64 token
             final Tuple<String, String> userNameOutToken =
                     new KerberosTicketValidator().validateTicket((byte[]) kerbAuthnToken.credentials(), keytabPath, true);
-            assertNotNull(userNameOutToken);
-            assertEquals(principalName(clientUserName), userNameOutToken.v1());
+            assertThat(userNameOutToken, is(notNullValue()));
+            assertThat(userNameOutToken.v1(), equalTo(principalName(clientUserName)));
 
             // Authenticate service on client side.
             final String outToken = spnegoClient.handleResponse(userNameOutToken.v2());
-            assertNull(outToken);
-            assertTrue(spnegoClient.isEstablished());
+            assertThat(outToken, is(nullValue()));
+            assertThat(spnegoClient.isEstablished(), is(true));
         }
     }
 }

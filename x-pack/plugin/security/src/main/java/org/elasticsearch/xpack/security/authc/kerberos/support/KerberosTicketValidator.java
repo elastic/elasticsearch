@@ -173,7 +173,7 @@ public class KerberosTicketValidator {
 
     /**
      * Privileged wrapper for closing GSSContext, does not throw exceptions but logs
-     * them as debug message.
+     * them as a debug message.
      *
      * @param gssContext GSSContext to be disposed.
      */
@@ -192,7 +192,7 @@ public class KerberosTicketValidator {
 
     /**
      * Privileged wrapper for closing LoginContext, does not throw exceptions but
-     * logs them as debug message.
+     * logs them as a debug message.
      *
      * @param loginContext LoginContext to be closed
      */

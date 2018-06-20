@@ -1,4 +1,4 @@
-package org.elasticsearch.repositories;/*
+/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -16,6 +16,8 @@ package org.elasticsearch.repositories;/*
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
@@ -80,7 +82,7 @@ public class RepositoriesServiceTests extends ESIntegTestCase {
 
         assertThat(repositoryMetaData1.type(), equalTo(FsRepository.TYPE));
 
-        // update repository with different
+        // update repository with different type
 
         PutRepositoryResponse putRepositoryResponse2 =
             client.admin().cluster().preparePutRepository(repositoryName)

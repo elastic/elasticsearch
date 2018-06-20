@@ -37,8 +37,10 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
-public class RepositoriesServiceTests extends ESIntegTestCase {
+public class RepositoriesServiceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -74,11 +76,13 @@ public class RepositoriesServiceTests extends ESIntegTestCase {
         Repository repository1 = repositoriesService.repository(repositoryName);
         assertThat(repository1, instanceOf(FsRepository.class));
 
-        // update repository with different type
+        // update repository
+
+        boolean diffType = randomBoolean();
 
         PutRepositoryResponse putRepositoryResponse2 =
             client.admin().cluster().preparePutRepository(repositoryName)
-                .setType("mock")
+                .setType(diffType ? "mock" : FsRepository.TYPE)
                 .setSettings(repoSettings)
                 .get();
         assertThat(putRepositoryResponse2.isAcknowledged(), equalTo(true));
@@ -89,9 +93,10 @@ public class RepositoriesServiceTests extends ESIntegTestCase {
         assertThat(getRepositoriesResponse2.repositories(), hasSize(1));
         RepositoryMetaData repositoryMetaData2 = getRepositoriesResponse2.repositories().get(0);
 
-        assertThat(repositoryMetaData2.type(), equalTo("mock"));
+        assertThat(repositoryMetaData2.type(), equalTo(diffType ? "mock" : FsRepository.TYPE));
 
         Repository repository2 = repositoriesService.repository(repositoryName);
-        assertThat(repository2, instanceOf(MockRepository.class));
+        assertThat(repository2, instanceOf(diffType ? MockRepository.class : FsRepository.class));
+        assertThat(repository2, diffType ? not(sameInstance(repository1)) : sameInstance(repository1));
     }
 }

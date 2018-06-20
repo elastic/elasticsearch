@@ -34,10 +34,7 @@ PUT _snapshot/my_s3_repository
 [[repository-s3-client]]
 ==== Client Settings
 
-The client used to connect to S3 has a number of settings available. Client setting names are of
-the form `s3.client.CLIENT_NAME.SETTING_NAME` and specified inside `elasticsearch.yml`.  The
-default client name looked up by a `s3` repository is called `default`, but can be customized
-with the repository setting `client`. For example:
+The client used to connect to S3 has a number of settings available. Settings are either "public" or "secure", Public client settings may  be specified in the `elasticsearch.yml` file and are of the form `s3.client.CLIENT_NAME.SETTING_NAME`. The default client name looked up by a `s3` repository is called `default`, but can be customized with the repository setting `client`. For example:
 
 [source,js]
 ----
@@ -53,8 +50,7 @@ PUT _snapshot/my_s3_repository
 // CONSOLE
 // TEST[skip:we don't have s3 setup while testing this]
 
-Some settings are sensitive and must be stored in the {ref}/secure-settings.html[elasticsearch keystore].
-For example, to use explicit AWS access keys:
+`Secure` settings are sensitive and must be stored in the {ref}/secure-settings.html[elasticsearch keystore].For example, to use explicit AWS access keys:
 
 [source,sh]
 ----
@@ -63,7 +59,7 @@ bin/elasticsearch-keystore add s3.client.default.secret_key
 ----
 
 The following are the available client settings. Those that must be stored in the keystore
-are marked as `Secure`.
+are marked as `Secure`; all other settings are public and may be included in the `elasticsearch.yml` file.
 
 `access_key`::
 

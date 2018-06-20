@@ -1479,7 +1479,8 @@ public class InternalEngine extends Engine {
             ensureOpen();
             ensureCanFlush();
             String syncId = lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID);
-            if (syncId != null && translog.uncommittedOperations() == 0 && indexWriter.hasUncommittedChanges()) {
+            long translogGenOfLastCommit = Long.parseLong(lastCommittedSegmentInfos.userData.get(Translog.TRANSLOG_GENERATION_KEY));
+            if (syncId != null && indexWriter.hasUncommittedChanges() && translog.totalOperationsByMinGen(translogGenOfLastCommit) == 0) {
                 logger.trace("start renewing sync commit [{}]", syncId);
                 commitIndexWriter(indexWriter, translog, syncId);
                 logger.debug("successfully sync committed. sync id [{}].", syncId);
@@ -1501,26 +1502,30 @@ public class InternalEngine extends Engine {
     @Override
     public boolean shouldPeriodicallyFlush() {
         ensureOpen();
+        final long translogGenerationOfLastCommit = Long.parseLong(lastCommittedSegmentInfos.userData.get(Translog.TRANSLOG_GENERATION_KEY));
         final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
-        final long uncommittedSizeOfCurrentCommit = translog.uncommittedSizeInBytes();
-        if (uncommittedSizeOfCurrentCommit < flushThreshold) {
+        if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThreshold) {
             return false;
         }
         /*
-         * We should only flush ony if the shouldFlush condition can become false after flushing.
-         * This condition will change if the `uncommittedSize` of the new commit is smaller than
-         * the `uncommittedSize` of the current commit. This method is to maintain translog only,
-         * thus the IndexWriter#hasUncommittedChanges condition is not considered.
+         * We flush to reduce the size of uncommitted translog but strictly speaking the uncommitted size won't always be
+         * below the flush-threshold after a flush. To avoid getting into an endless loop of flushing, we only enable the
+         * periodically flush condition if this condition is disabled after a flush. The condition will change if the new
+         * commit points to the later generation the last commit's(eg. gen-of-last-commit < gen-of-new-commit)[1].
+         *
+         * When the local checkpoint equals to max_seqno, and translog-gen of the last commit equals to translog-gen of
+         * the new commit, we know that the last generation must contain operations because its size is above the flush
+         * threshold and the flush-threshold is guaranteed to be higher than an empty translog by the setting validation.
+         * This guarantees that the new commit will point to the newly rolled generation. In fact, this scenario only
+         * happens when the generation-threshold is close to or above the flush-threshold; otherwise we have rolled
+         * generations as the generation-threshold was reached, then the first condition (eg. [1]) is already satisfied.
+         *
+         * This method is to maintain translog only, thus IndexWriter#hasUncommittedChanges condition is not considered.
          */
-        final long uncommittedSizeOfNewCommit = translog.sizeOfGensAboveSeqNoInBytes(localCheckpointTracker.getCheckpoint() + 1);
-        /*
-         * If flushThreshold is too small, we may repeatedly flush even there is no uncommitted operation
-         * as #sizeOfGensAboveSeqNoInByte and #uncommittedSizeInBytes can return different values.
-         * An empty translog file has non-zero `uncommittedSize` (the translog header), and method #sizeOfGensAboveSeqNoInBytes can
-         * return 0 now(no translog gen contains ops above local checkpoint) but method #uncommittedSizeInBytes will return an actual
-         * non-zero value after rolling a new translog generation. This can be avoided by checking the actual uncommitted operations.
-         */
-        return uncommittedSizeOfNewCommit < uncommittedSizeOfCurrentCommit && translog.uncommittedOperations() > 0;
+        final long translogGenerationOfNewCommit =
+            translog.getMinGenerationForSeqNo(localCheckpointTracker.getCheckpoint() + 1).translogFileGeneration;
+        return translogGenerationOfLastCommit < translogGenerationOfNewCommit
+            || localCheckpointTracker.getCheckpoint() == localCheckpointTracker.getMaxSeqNo();
     }
 
     @Override
@@ -1769,8 +1774,13 @@ public class InternalEngine extends Engine {
         // we need to fail the engine. it might have already been failed before
         // but we are double-checking it's failed and closed
         if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
-            maybeDie("tragic event in index writer", indexWriter.getTragicException());
-            failEngine("already closed by tragic event on the index writer", (Exception) indexWriter.getTragicException());
+            final Exception tragicException;
+            if (indexWriter.getTragicException() instanceof Exception) {
+                tragicException = (Exception) indexWriter.getTragicException();
+            } else {
+                tragicException = new RuntimeException(indexWriter.getTragicException());
+            }
+            failEngine("already closed by tragic event on the index writer", tragicException);
             engineFailed = true;
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
@@ -2098,31 +2108,9 @@ public class InternalEngine extends Engine {
                      * confidence that the call stack does not contain catch statements that would cause the error that might be thrown
                      * here from being caught and never reaching the uncaught exception handler.
                      */
-                    maybeDie("fatal error while merging", exc);
-                    logger.error("failed to merge", exc);
                     failEngine("merge failed", new MergePolicy.MergeException(exc, dir));
                 }
             });
-        }
-    }
-
-    /**
-     * If the specified throwable is a fatal error, this throwable will be thrown. Callers should ensure that there are no catch statements
-     * that would catch an error in the stack as the fatal error here should go uncaught and be handled by the uncaught exception handler
-     * that we install during bootstrap. If the specified throwable is indeed a fatal error, the specified message will attempt to be logged
-     * before throwing the fatal error. If the specified throwable is not a fatal error, this method is a no-op.
-     *
-     * @param maybeMessage the message to maybe log
-     * @param maybeFatal the throwable that is maybe fatal
-     */
-    @SuppressWarnings("finally")
-    private void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
-        if (maybeFatal instanceof Error) {
-            try {
-                logger.error(maybeMessage, maybeFatal);
-            } finally {
-                throw (Error) maybeFatal;
-            }
         }
     }
 

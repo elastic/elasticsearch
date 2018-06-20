@@ -167,6 +167,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     public HasChildQueryBuilder innerHit(InnerHitBuilder innerHit) {
         this.innerHitBuilder = innerHit;
+        innerHitBuilder.setIgnoreUnmapped(ignoreUnmapped);
         return this;
     }
 
@@ -212,6 +213,9 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      */
     public HasChildQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
         this.ignoreUnmapped = ignoreUnmapped;
+        if (innerHitBuilder!= null ){
+            innerHitBuilder.setIgnoreUnmapped(ignoreUnmapped);
+        }
         return this;
     }
 
@@ -291,7 +295,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
         if (innerHitBuilder != null) {
             hasChildQueryBuilder.innerHit(innerHitBuilder);
-            hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
         }
         return hasChildQueryBuilder;
     }

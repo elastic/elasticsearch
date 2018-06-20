@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -89,6 +90,32 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         }
         verify(failureHandler, never()).accept(any(Exception.class));
         verify(completionHandler, never()).accept(anyBoolean());
+    }
+
+    public void testExecuteIndexPipelineExistsButFailedParsing() {
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "stub", null,
+                new CompoundProcessor(new AbstractProcessor("mock") {
+            @Override
+            public void execute(IngestDocument ingestDocument) {
+                throw new IllegalStateException("error");
+            }
+
+            @Override
+            public String getType() {
+                return null;
+            }
+        })));
+        SetOnce<Boolean> failed = new SetOnce<>();
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
+        Consumer<Exception> failureHandler = (e) -> {
+            assertThat(e.getCause().getClass(), equalTo(IllegalArgumentException.class));
+            assertThat(e.getCause().getCause().getClass(), equalTo(IllegalStateException.class));
+            assertThat(e.getCause().getCause().getMessage(), equalTo("error"));
+            failed.set(true);
+        };
+        Consumer<Boolean> completionHandler = (e) -> failed.set(false);
+        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
+        assertTrue(failed.get());
     }
 
     public void testExecuteBulkPipelineDoesNotExist() {

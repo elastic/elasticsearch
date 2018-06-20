@@ -38,7 +38,7 @@ command line or via your shell profile.
 For the package distributions, the config directory location defaults to
 `/etc/elasticsearch`. The location of the config directory can also be changed
 via the `ES_PATH_CONF` environment variable, but note that setting this in your
-shell is not sufficient. Instead, this variabled is sourced from
+shell is not sufficient. Instead, this variable is sourced from
 `/etc/default/elasticsearch` (for the Debian package) and
 `/etc/sysconfig/elasticsearch` (for the RPM package). You will need to edit the
 `ES_PATH_CONF=/etc/elasticsearch` entry in one of these files accordingly to

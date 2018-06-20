@@ -201,10 +201,13 @@ def provision(config,
   raise ArgumentError.new('update_command is required') if update_command == 'required'
   raise ArgumentError.new('update_tracking_file is required') if update_tracking_file == 'required'
   raise ArgumentError.new('install_command is required') if install_command == 'required'
-  config.vm.provider "virtualbox" do |v|
+  config.vm.provider "virtualbox" do |vbox|
     # Give the box more memory and cpu because our tests are beasts!
-    v.memory = Integer(ENV['VAGRANT_MEMORY'] || 8192)
-    v.cpus = Integer(ENV['VAGRANT_CPUS'] || 4)
+    vbox.memory = Integer(ENV['VAGRANT_MEMORY'] || 8192)
+    vbox.cpus = Integer(ENV['VAGRANT_CPUS'] || 4)
+
+    # see https://github.com/hashicorp/vagrant/issues/9524
+    vbox.customize ["modifyvm", :id, "--audio", "none"]  
   end
   config.vm.provision "dependencies", type: "shell", inline: <<-SHELL
     set -e

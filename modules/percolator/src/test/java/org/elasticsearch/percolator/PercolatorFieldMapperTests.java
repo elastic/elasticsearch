@@ -873,7 +873,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(values.get(1), equalTo("field\0value2"));
         assertThat(values.get(2), equalTo("field\0value3"));
         int msm = doc.rootDoc().getFields(fieldType.minimumShouldMatchField.name())[0].numericValue().intValue();
-        assertThat(msm, equalTo(3));
+        assertThat(msm, equalTo(2));
 
         qb = boolQuery()
                 .must(boolQuery().must(termQuery("field", "value1")).must(termQuery("field", "value2")))
@@ -897,7 +897,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(values.get(3), equalTo("field\0value4"));
         assertThat(values.get(4), equalTo("field\0value5"));
         msm = doc.rootDoc().getFields(fieldType.minimumShouldMatchField.name())[0].numericValue().intValue();
-        assertThat(msm, equalTo(4));
+        assertThat(msm, equalTo(2));
 
         qb = boolQuery()
                 .minimumShouldMatch(3)
@@ -922,7 +922,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(values.get(3), equalTo("field\0value4"));
         assertThat(values.get(4), equalTo("field\0value5"));
         msm = doc.rootDoc().getFields(fieldType.minimumShouldMatchField.name())[0].numericValue().intValue();
-        assertThat(msm, equalTo(3));
+        assertThat(msm, equalTo(1));
     }
 
     private static byte[] subByteArray(byte[] source, int offset, int length) {

@@ -55,7 +55,7 @@ name space have been removed. This includes `repositories.azure.account`, `repos
 `repositories.azure.compress`.
 You must set those settings per repository instead. Respectively `account`, `container`, `base_path`,
 `location_mode`, `chunk_size` and `compress`.
-See {plugins}/repository-azure-usage.html#repository-azure-repository-settings[Azure Repository settings].
+See {plugins}/repository-azure-repository-settings.html#repository-azure-repository-settings[Azure Repository settings].
 
 ==== GCS Repository plugin
 

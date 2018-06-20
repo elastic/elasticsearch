@@ -30,7 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * A request to delete an index. Best created with {@link org.elasticsearch.client.Requests#deleteIndexRequest(String)}.
+ * A request to retrieve information about an index.
  */
 public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 

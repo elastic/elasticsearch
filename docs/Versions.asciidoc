@@ -1,4 +1,4 @@
-:version:               6.2.2
+:version:               6.2.4
 :major-version:         6.x
 :lucene_version:        7.2.1
 :lucene_version_path:   7_2_0
@@ -57,4 +57,4 @@ endif::[]
 Shared attribute values are pulled from elastic/docs
 ///////
 
-include::{asciidoc-dir}/../../shared/attributes.asciidoc[]
+include::{asciidoc-dir}/../../shared/attributes62.asciidoc[]

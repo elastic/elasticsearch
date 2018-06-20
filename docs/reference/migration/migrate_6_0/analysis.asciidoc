@@ -17,7 +17,7 @@ Highlighting a text that was indexed without offsets or term vectors,
 requires analysis of this text in memory real time during the search request.
 For large texts this analysis may take substantial amount of time and memory.
 To protect against this, the maximum number of characters that to be analyzed will be
-limited to 10000 in the next major Elastic version. For this version, by default the limit
-is not set. A deprecation warning will be issued when an analyzed text exceeds 10000.
+limited to 1000000 in the next major Elastic version. For this version, by default the limit
+is not set. A deprecation warning will be issued when an analyzed text exceeds 1000000.
  The limit can be set for a particular index with the index setting
 `index.highlight.max_analyzed_offset`.

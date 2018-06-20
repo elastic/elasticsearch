@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
 
+import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
@@ -111,8 +112,48 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
+    public void testSetHostsWrongArguments() throws IOException {
+        try (RestClient restClient = createRestClient()) {
+            restClient.setHosts((HttpHost[]) null);
+            fail("setHosts should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("hosts must not be null nor empty", e.getMessage());
+        }
+        try (RestClient restClient = createRestClient()) {
+            restClient.setHosts();
+            fail("setHosts should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("hosts must not be null nor empty", e.getMessage());
+        }
+        try (RestClient restClient = createRestClient()) {
+            restClient.setHosts((HttpHost) null);
+            fail("setHosts should have failed");
+        } catch (NullPointerException e) {
+            assertEquals("host cannot be null", e.getMessage());
+        }
+        try (RestClient restClient = createRestClient()) {
+            restClient.setHosts(new HttpHost("localhost", 9200), null, new HttpHost("localhost", 9201));
+            fail("setHosts should have failed");
+        } catch (NullPointerException e) {
+            assertEquals("host cannot be null", e.getMessage());
+        }
+    }
+
+    public void testNullPath() throws IOException {
+        try (RestClient restClient = createRestClient()) {
+            for (String method : getHttpMethods()) {
+                try {
+                    restClient.performRequest(method, null);
+                    fail("path set to null should fail!");
+                } catch (NullPointerException e) {
+                    assertEquals("path must not be null", e.getMessage());
+                }
+            }
+        }
+    }
+
     private static RestClient createRestClient() {
         HttpHost[] hosts = new HttpHost[]{new HttpHost("localhost", 9200)};
-        return new RestClient(mock(CloseableHttpAsyncClient.class), randomLongBetween(1_000, 30_000), new Header[]{}, hosts, null, null);
+        return new RestClient(mock(CloseableHttpAsyncClient.class), randomIntBetween(1_000, 30_000), new Header[]{}, hosts, null, null);
     }
 }

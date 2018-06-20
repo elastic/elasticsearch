@@ -36,16 +36,12 @@ import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
-import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -55,6 +51,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -130,6 +127,10 @@ public class IngestClientIT extends ESIntegTestCase {
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, source);
         assertThat(simulateDocumentBaseResult.getIngestDocument().getSourceAndMetadata(), equalTo(ingestDocument.getSourceAndMetadata()));
         assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
+
+        // cleanup
+        WritePipelineResponse deletePipelineResponse = client().admin().cluster().prepareDeletePipeline("_id").get();
+        assertTrue(deletePipelineResponse.isAcknowledged());
     }
 
     public void testBulkWithIngestFailures() throws Exception {
@@ -172,6 +173,10 @@ public class IngestClientIT extends ESIntegTestCase {
                 assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
             }
         }
+
+        // cleanup
+        WritePipelineResponse deletePipelineResponse = client().admin().cluster().prepareDeletePipeline("_id").get();
+        assertTrue(deletePipelineResponse.isAcknowledged());
     }
 
     public void testBulkWithUpsert() throws Exception {
@@ -263,13 +268,12 @@ public class IngestClientIT extends ESIntegTestCase {
                 .endObject()
                 .endArray()
                 .endObject().bytes();
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
-        try {
-            client().admin().cluster().putPipeline(putPipelineRequest).get();
-        } catch (ExecutionException e) {
-            ElasticsearchParseException ex = (ElasticsearchParseException) ExceptionsHelper.unwrap(e, ElasticsearchParseException.class);
-            assertNotNull(ex);
-            assertThat(ex.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
-        }
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id2", source, XContentType.JSON);
+        Exception e = expectThrows(ElasticsearchParseException.class,
+            () -> client().admin().cluster().putPipeline(putPipelineRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
+
+        GetPipelineResponse response = client().admin().cluster().prepareGetPipeline("_id2").get();
+        assertFalse(response.isFound());
     }
 }

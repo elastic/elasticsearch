@@ -84,7 +84,7 @@ When `proxy.type` is set to `http` or `socks`, `proxy.host` and `proxy.port` mus
 
 
 [[repository-azure-repository-settings]]
-===== Repository settings
+==== Repository settings
 
 The Azure repository supports following settings:
 
@@ -178,7 +178,7 @@ client.admin().cluster().preparePutRepository("my_backup_java1")
 ----
 
 [[repository-azure-validation]]
-===== Repository validation rules
+==== Repository validation rules
 
 According to the http://msdn.microsoft.com/en-us/library/dd135715.aspx[containers naming guide], a container name must
 be a valid DNS name, conforming to the following naming rules:

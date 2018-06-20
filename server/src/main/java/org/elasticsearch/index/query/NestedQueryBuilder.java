@@ -132,6 +132,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     public NestedQueryBuilder innerHit(InnerHitBuilder innerHitBuilder) {
         this.innerHitBuilder = innerHitBuilder;
+        innerHitBuilder.setIgnoreUnmapped(ignoreUnmapped);
         return this;
     }
 
@@ -149,6 +150,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
      */
     public NestedQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
         this.ignoreUnmapped = ignoreUnmapped;
+        if (innerHitBuilder != null) {
+            innerHitBuilder.setIgnoreUnmapped(ignoreUnmapped);
+        }
         return this;
     }
 

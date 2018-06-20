@@ -673,7 +673,7 @@ You can download the sample dataset (accounts.json) from https://github.com/elas
 
 [source,sh]
 --------------------------------------------------
-curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/account/_bulk?pretty&refresh" --data-binary "@accounts.json"
+curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_doc/_bulk?pretty&refresh" --data-binary "@accounts.json"
 curl "localhost:9200/_cat/indices?v"
 --------------------------------------------------
 // NOTCONSOLE
@@ -781,7 +781,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-The difference here is that instead of passing `q=*` in the URI, we POST a JSON-style query request body to the `_search` API. We'll discuss this JSON query in the next section.
+The difference here is that instead of passing `q=*` in the URI, we provide a JSON-style query request body to the `_search` API. We'll discuss this JSON query in the next section.
 
 ////
 Hidden response just so we can assert that it is indeed the same but don't have

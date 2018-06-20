@@ -64,7 +64,7 @@ It is also possible to retrieve information for a particular task:
 
 [source,js]
 --------------------------------------------------
-GET _tasks/task_id:1 <1>
+GET _tasks/node_id:1 <1>
 --------------------------------------------------
 // CONSOLE
 // TEST[catch:missing]

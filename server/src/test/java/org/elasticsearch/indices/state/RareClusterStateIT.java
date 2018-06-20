@@ -93,24 +93,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         return 0;
     }
 
-    public void testUnassignedShardAndEmptyNodesInRoutingTable() throws Exception {
-        internalCluster().startNode();
-        createIndex("a");
-        ensureSearchable("a");
-        ClusterState current = clusterService().state();
-        GatewayAllocator allocator = internalCluster().getInstance(GatewayAllocator.class);
-
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, Collections.emptyList());
-        RoutingNodes routingNodes = new RoutingNodes(
-                ClusterState.builder(current)
-                        .routingTable(RoutingTable.builder(current.routingTable()).remove("a").addAsRecovery(current.metaData().index("a")).build())
-                        .nodes(DiscoveryNodes.EMPTY_NODES)
-                        .build(), false
-        );
-        RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current, ClusterInfo.EMPTY, System.nanoTime());
-        allocator.allocateUnassigned(routingAllocation);
-    }
-
     public void testAssignmentWithJustAddedNodes() throws Exception {
         internalCluster().startNode();
         final String index = "index";

@@ -1,5 +1,6 @@
+[role="xpack"]
 [[ml-time-functions]]
-=== Time Functions
+=== Time functions
 
 The time functions detect events that happen at unusual times, either of the day
 or of the week. These functions can be used to find unusual patterns of behavior,
@@ -60,6 +61,7 @@ For more information about those properties, see
   "by_field_name" : "process"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `time_of_day` function in a detector in your job, it
 models when events occur throughout a day for each process. It detects when an
@@ -91,6 +93,7 @@ For more information about those properties, see
   "over_field_name" : "workstation"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `time_of_week` function in a detector in your job, it
 models when events occur throughout the week for each `eventcode`. It detects

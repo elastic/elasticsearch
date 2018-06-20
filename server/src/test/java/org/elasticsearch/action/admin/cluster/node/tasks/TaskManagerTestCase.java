@@ -32,7 +32,6 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -148,8 +147,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                                 ClusterService clusterService, TransportService transportService, Supplier<NodesRequest> request,
                                 Supplier<NodeRequest> nodeRequest) {
             super(settings, actionName, threadPool, clusterService, transportService,
-                    new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                    request, nodeRequest, ThreadPool.Names.GENERIC, NodeResponse.class);
+                    new ActionFilters(new HashSet<>()),
+                request, nodeRequest, ThreadPool.Names.GENERIC, NodeResponse.class);
         }
 
         @Override
@@ -192,12 +191,10 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             transportService.start();
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());
-            IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
             ActionFilters actionFilters = new ActionFilters(emptySet());
-            transportListTasksAction = new TransportListTasksAction(settings, threadPool, clusterService, transportService,
-                    actionFilters, indexNameExpressionResolver);
+            transportListTasksAction = new TransportListTasksAction(settings, threadPool, clusterService, transportService, actionFilters);
             transportCancelTasksAction = new TransportCancelTasksAction(settings, threadPool, clusterService,
-                    transportService, actionFilters, indexNameExpressionResolver);
+                transportService, actionFilters);
             transportService.acceptIncomingRequests();
         }
 

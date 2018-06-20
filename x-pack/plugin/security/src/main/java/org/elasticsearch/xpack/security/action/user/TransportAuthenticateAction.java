@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
+import java.util.function.Supplier;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,10 +29,9 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
 
     @Inject
     public TransportAuthenticateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       SecurityContext securityContext) {
-        super(settings, AuthenticateAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                AuthenticateRequest::new);
+                                       ActionFilters actionFilters, SecurityContext securityContext) {
+        super(settings, AuthenticateAction.NAME, threadPool, transportService, actionFilters,
+            (Supplier<AuthenticateRequest>) AuthenticateRequest::new);
         this.securityContext = securityContext;
     }
 

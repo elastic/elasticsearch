@@ -9,13 +9,6 @@ apply plugin: 'elasticsearch.docs-test'
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
 buildRestTests.expectedUnconvertedCandidates = [
-        'en/ml/functions/count.asciidoc',
-        'en/ml/functions/geo.asciidoc',
-        'en/ml/functions/info.asciidoc',
-        'en/ml/functions/metric.asciidoc',
-        'en/ml/functions/rare.asciidoc',
-        'en/ml/functions/sum.asciidoc',
-        'en/ml/functions/time.asciidoc',
         'en/rest-api/watcher/put-watch.asciidoc',
         'en/security/authentication/user-cache.asciidoc',
         'en/security/authorization/field-and-document-access-control.asciidoc',
@@ -56,7 +49,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/watcher/troubleshooting.asciidoc',
         'en/rest-api/license/delete-license.asciidoc',
         'en/rest-api/license/update-license.asciidoc',
-        'en/ml/api-quickref.asciidoc',
         'en/rest-api/ml/delete-snapshot.asciidoc',
         'en/rest-api/ml/forecast.asciidoc',
         'en/rest-api/ml/get-bucket.asciidoc',

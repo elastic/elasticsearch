@@ -746,7 +746,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public Engine newReadWriteEngine(final EngineConfig config) {
+        public Engine newReadWriteEngine(final EngineConfig config, boolean closed) {
             return InternalEngineTests.createInternalEngine(
                     (directory, writerConfig) ->
                             new IndexWriter(directory, writerConfig) {

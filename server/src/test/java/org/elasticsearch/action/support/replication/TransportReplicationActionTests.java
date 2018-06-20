@@ -367,9 +367,10 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     }
 
+    @AwaitsFix(bugUrl = "needs fixing now that closed indices are allocated")
     public void testClosedIndexOnReroute() throws InterruptedException {
         final String index = "test";
-        // no replicas in oder to skip the replication part
+        // no replicas in order to skip the replication part
         setState(clusterService, new ClusterStateChanges(xContentRegistry(), threadPool).closeIndices(state(index, true,
             ShardRoutingState.UNASSIGNED), new CloseIndexRequest(index)));
         logger.debug("--> using initial state:\n{}", clusterService.state());

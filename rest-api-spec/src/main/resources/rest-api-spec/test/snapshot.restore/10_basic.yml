@@ -23,6 +23,9 @@ setup:
 
 ---
 "Create a snapshot and then restore it":
+  - skip:
+      reason: "recovered/reused bytes differ for 6.x and 7.x"
+      version: " - 6.99.99"
 
   - do:
       snapshot.create:
@@ -53,7 +56,7 @@ setup:
 
   - match: { test_index.shards.0.type: SNAPSHOT }
   - match: { test_index.shards.0.stage: DONE }
-  - match: { test_index.shards.0.index.files.recovered: 0}
-  - match: { test_index.shards.0.index.size.recovered_in_bytes: 0}
-  - match: { test_index.shards.0.index.files.reused: 1}
-  - gt: { test_index.shards.0.index.size.reused_in_bytes: 0}
+  - match: { test_index.shards.0.index.files.recovered: 1}
+  - match: { test_index.shards.0.index.size.recovered_in_bytes: 230}
+  - match: { test_index.shards.0.index.files.reused: 0}
+  - match: { test_index.shards.0.index.size.reused_in_bytes: 0}

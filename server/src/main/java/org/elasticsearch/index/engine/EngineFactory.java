@@ -23,6 +23,6 @@ package org.elasticsearch.index.engine;
  */
 public interface EngineFactory {
 
-    Engine newReadWriteEngine(EngineConfig config);
+    Engine newReadWriteEngine(EngineConfig config, boolean closed);
 
 }

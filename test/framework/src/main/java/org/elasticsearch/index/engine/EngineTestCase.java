@@ -35,6 +35,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -515,8 +516,11 @@ public abstract class EngineTestCase extends ESTestCase {
      * Exposes a translog associated with the given engine for testing purpose.
      */
     public static Translog getTranslog(Engine engine) {
-        assert engine instanceof InternalEngine : "only InternalEngines have translogs, got: " + engine.getClass();
-        InternalEngine internalEngine = (InternalEngine) engine;
-        return internalEngine.getTranslog();
+        if (engine instanceof InternalEngine) {
+            InternalEngine internalEngine = (InternalEngine) engine;
+            return internalEngine.getTranslog();
+        } else {
+            throw new AlreadyClosedException("only InternalEngines have translogs, got: " + engine.getClass());
+        }
     }
 }

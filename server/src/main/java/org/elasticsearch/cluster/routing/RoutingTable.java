@@ -497,32 +497,27 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
 
         public Builder addAsNew(IndexMetaData indexMetaData) {
-            if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
-                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
-                        .initializeAsNew(indexMetaData);
-                add(indexRoutingBuilder);
-            }
+            IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
+                .initializeAsNew(indexMetaData);
+            add(indexRoutingBuilder);
             return this;
         }
 
         public Builder addAsRecovery(IndexMetaData indexMetaData) {
-            if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
-                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
-                        .initializeAsRecovery(indexMetaData);
-                add(indexRoutingBuilder);
-            }
+            IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
+                .initializeAsRecovery(indexMetaData);
+            add(indexRoutingBuilder);
             return this;
         }
 
         public Builder addAsFromDangling(IndexMetaData indexMetaData) {
-            if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
-                IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
-                        .initializeAsFromDangling(indexMetaData);
-                add(indexRoutingBuilder);
-            }
+            IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
+                .initializeAsFromDangling(indexMetaData);
+            add(indexRoutingBuilder);
             return this;
         }
 
+        // TODO: I think we may not need this method any more, check about removing it
         public Builder addAsFromCloseToOpen(IndexMetaData indexMetaData) {
             if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
                 IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())

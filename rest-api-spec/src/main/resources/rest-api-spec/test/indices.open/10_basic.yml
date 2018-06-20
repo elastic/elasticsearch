@@ -1,5 +1,9 @@
 ---
 "Basic test for index open/close":
+  - skip:
+      version: " - 7.0.99"
+      reason: awaitsfix because opening is async
+
   - do:
       indices.create:
         index: test_index

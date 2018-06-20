@@ -52,7 +52,7 @@ import java.util.stream.Stream;
  * Directory so that the last commit's user data can be read for the historyUUID
  * and last committed segment info.
  */
-final class NoOpEngine extends Engine {
+public final class NoOpEngine extends Engine {
 
     private static final Translog.Snapshot EMPTY_TRANSLOG_SNAPSHOT = new Translog.Snapshot() {
         @Override
@@ -79,7 +79,7 @@ final class NoOpEngine extends Engine {
     private final String historyUUID;
     private final SegmentInfos lastCommittedSegmentInfos;
 
-    NoOpEngine(EngineConfig engineConfig) {
+    public NoOpEngine(EngineConfig engineConfig) {
         super(engineConfig);
 
         store.incRef();

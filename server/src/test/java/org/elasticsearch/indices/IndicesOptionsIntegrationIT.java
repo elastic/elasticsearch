@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.indices;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
@@ -154,8 +155,9 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareClose("test1"));
 
-        IndicesOptions options = IndicesOptions.strictExpandOpenAndForbidClosed();
-        verify(search("test1").setIndicesOptions(options), true);
+        final IndicesOptions options = IndicesOptions.strictExpandOpenAndForbidClosed();
+        // Engine closing is asynchronous, so wait until it fails
+        assertBusy(() -> verify(search("test1").setIndicesOptions(options), true));
         verify(msearch(options, "test1"), true);
         verify(clearCache("test1").setIndicesOptions(options), true);
         verify(_flush("test1").setIndicesOptions(options),true);
@@ -171,42 +173,53 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getMapping("test1").setIndicesOptions(options), true);
         verify(getSettings("test1").setIndicesOptions(options), true);
 
-        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(), options.expandWildcardsClosed(), options);
-        verify(search("test1").setIndicesOptions(options), false);
-        verify(msearch(options, "test1"), false);
-        verify(clearCache("test1").setIndicesOptions(options), false);
-        verify(_flush("test1").setIndicesOptions(options),false);
-        verify(segments("test1").setIndicesOptions(options), false);
-        verify(stats("test1").setIndicesOptions(options), false);
-        verify(forceMerge("test1").setIndicesOptions(options), false);
-        verify(refreshBuilder("test1").setIndicesOptions(options), false);
-        verify(validateQuery("test1").setIndicesOptions(options), false);
-        verify(aliasExists("test1").setIndicesOptions(options), false);
-        verify(typesExists("test1").setIndicesOptions(options), false);
-        verify(getAliases("test1").setIndicesOptions(options), false);
-        verify(getFieldMapping("test1").setIndicesOptions(options), false);
-        verify(getMapping("test1").setIndicesOptions(options), false);
-        verify(getSettings("test1").setIndicesOptions(options), false);
+        final IndicesOptions options2 = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(), options.expandWildcardsClosed(), options);
+        verify(search("test1").setIndicesOptions(options2), false);
+        verify(msearch(options2, "test1"), false);
+        verify(clearCache("test1").setIndicesOptions(options2), false);
+        verify(_flush("test1").setIndicesOptions(options2),false);
+        verify(segments("test1").setIndicesOptions(options2), false);
+        verify(stats("test1").setIndicesOptions(options2), false);
+        verify(forceMerge("test1").setIndicesOptions(options2), false);
+        verify(refreshBuilder("test1").setIndicesOptions(options2), false);
+        verify(validateQuery("test1").setIndicesOptions(options2), false);
+        verify(aliasExists("test1").setIndicesOptions(options2), false);
+        verify(typesExists("test1").setIndicesOptions(options2), false);
+        verify(getAliases("test1").setIndicesOptions(options2), false);
+        verify(getFieldMapping("test1").setIndicesOptions(options2), false);
+        verify(getMapping("test1").setIndicesOptions(options2), false);
+        verify(getSettings("test1").setIndicesOptions(options2), false);
 
         assertAcked(client().admin().indices().prepareOpen("test1"));
         ensureYellow();
 
-        options = IndicesOptions.strictExpandOpenAndForbidClosed();
-        verify(search("test1").setIndicesOptions(options), false);
-        verify(msearch(options, "test1"), false);
-        verify(clearCache("test1").setIndicesOptions(options), false);
-        verify(_flush("test1").setIndicesOptions(options),false);
-        verify(segments("test1").setIndicesOptions(options), false);
-        verify(stats("test1").setIndicesOptions(options), false);
-        verify(forceMerge("test1").setIndicesOptions(options), false);
-        verify(refreshBuilder("test1").setIndicesOptions(options), false);
-        verify(validateQuery("test1").setIndicesOptions(options), false);
-        verify(aliasExists("test1").setIndicesOptions(options), false);
-        verify(typesExists("test1").setIndicesOptions(options), false);
-        verify(getAliases("test1").setIndicesOptions(options), false);
-        verify(getFieldMapping("test1").setIndicesOptions(options), false);
-        verify(getMapping("test1").setIndicesOptions(options), false);
-        verify(getSettings("test1").setIndicesOptions(options), false);
+        final IndicesOptions options3 = IndicesOptions.strictExpandOpenAndForbidClosed();
+        // Engine opening is asynchronous, so wait until it succeeds
+        assertBusy(() -> {
+            try {
+                verify(search("test1").setIndicesOptions(options3), false);
+            } catch (Exception e) {
+                if (ExceptionsHelper.detailedMessage(e).contains("searching is not supported on a noOp engine")) {
+                    fail("not yet open, retrying");
+                } else {
+                    throw e;
+                }
+            }
+        });
+        verify(msearch(options3, "test1"), false);
+        verify(clearCache("test1").setIndicesOptions(options3), false);
+        verify(_flush("test1").setIndicesOptions(options3),false);
+        verify(segments("test1").setIndicesOptions(options3), false);
+        verify(stats("test1").setIndicesOptions(options3), false);
+        verify(forceMerge("test1").setIndicesOptions(options3), false);
+        verify(refreshBuilder("test1").setIndicesOptions(options3), false);
+        verify(validateQuery("test1").setIndicesOptions(options3), false);
+        verify(aliasExists("test1").setIndicesOptions(options3), false);
+        verify(typesExists("test1").setIndicesOptions(options3), false);
+        verify(getAliases("test1").setIndicesOptions(options3), false);
+        verify(getFieldMapping("test1").setIndicesOptions(options3), false);
+        verify(getMapping("test1").setIndicesOptions(options3), false);
+        verify(getSettings("test1").setIndicesOptions(options3), false);
     }
 
     public void testSpecifiedIndexUnavailableSingleIndex() throws Exception {

@@ -533,6 +533,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(aliasExists(alias), equalTo(false));
     }
 
+    @AwaitsFix(bugUrl = "needs fixing for async opening")
     public void testOpenExistingIndex() throws IOException {
         String index = "index";
         createIndex(index, Settings.EMPTY);

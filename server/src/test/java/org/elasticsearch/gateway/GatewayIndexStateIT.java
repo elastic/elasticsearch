@@ -58,7 +58,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class GatewayIndexStateIT extends ESIntegTestCase {
@@ -117,7 +117,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> verifying that the state is green");
         ensureGreen();
@@ -140,6 +140,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verifying that the state is green");
         ensureGreen();
+        waitForOpen("test");
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.OPEN));
@@ -155,7 +156,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         client().admin().indices().prepareClose("test").execute().actionGet();
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> restarting nodes...");
         internalCluster().fullRestart();
@@ -164,7 +165,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> trying to index into a closed index ...");
         try {
@@ -179,6 +180,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> waiting for green status");
         ensureGreen();
+        waitForOpen("test");
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.OPEN));
@@ -256,7 +258,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
+        waitForClose("test");
 
         logger.info("--> opening the index...");
         client().admin().indices().prepareOpen("test").execute().actionGet();
@@ -265,6 +268,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2")
             .execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
+        waitForOpen("test");
 
         logger.info("--> verify 1 doc in the index");
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
@@ -407,9 +411,12 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
         }
         internalCluster().fullRestart();
-        // ensureGreen(closedIndex) waits for the index to show up in the metadata
+        // this assertBusy waits for the index to show up in the metadata
         // this is crucial otherwise the state call below might not contain the index yet
-        ensureGreen(metaData.getIndex().getName());
+        assertBusy(() -> {
+            ClusterState newState = client().admin().cluster().prepareState().get().getState();
+            assertThat(newState.getMetaData().index(metaData.getIndex()), notNullValue());
+        });
         state = client().admin().cluster().prepareState().get().getState();
         assertEquals(IndexMetaData.State.CLOSE, state.getMetaData().index(metaData.getIndex()).getState());
         assertEquals("classic", state.getMetaData().index(metaData.getIndex()).getSettings().get("archived.index.similarity.BM25.type"));
@@ -464,9 +471,12 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
         }
         internalCluster().fullRestart();
-        // ensureGreen(closedIndex) waits for the index to show up in the metadata
+        // this assertBusy waits for the index to show up in the metadata
         // this is crucial otherwise the state call below might not contain the index yet
-        ensureGreen(metaData.getIndex().getName());
+        assertBusy(() -> {
+            ClusterState newState = client().admin().cluster().prepareState().get().getState();
+            assertThat(newState.getMetaData().index(metaData.getIndex()), notNullValue());
+        });
         state = client().admin().cluster().prepareState().get().getState();
         assertEquals(IndexMetaData.State.CLOSE, state.getMetaData().index(metaData.getIndex()).getState());
 

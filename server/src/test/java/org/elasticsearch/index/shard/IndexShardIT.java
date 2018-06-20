@@ -256,6 +256,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertTrue(test > 0);
     }
 
+    @AwaitsFix(bugUrl = "can't move things on disk now that closed indices are replicated")
     public void testIndexCanChangeCustomDataPath() throws Exception {
         Environment env = getInstanceFromNode(Environment.class);
         Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));

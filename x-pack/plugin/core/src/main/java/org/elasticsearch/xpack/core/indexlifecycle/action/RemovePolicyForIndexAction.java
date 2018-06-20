@@ -24,7 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class RemovePolicyForIndexAction extends Action<RemovePolicyForIndexAction.Request, RemovePolicyForIndexAction.Response> {
+public class RemovePolicyForIndexAction extends Action<RemovePolicyForIndexAction.Response> {
     public static final RemovePolicyForIndexAction INSTANCE = new RemovePolicyForIndexAction();
     public static final String NAME = "indices:admin/xpack/index_lifecycle/remove_policy";
 

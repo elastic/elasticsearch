@@ -108,7 +108,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         final ExecutorService rarelyExecutor = threadPool.executor(threadPoolNames.get(1));
         final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
         TransportAction<SearchRequest, SearchResponse> searchAction = new TransportAction<SearchRequest, SearchResponse>
-                (Settings.EMPTY, "action", threadPool, actionFilters, resolver, taskManager) {
+                (Settings.EMPTY, "action", threadPool, actionFilters, taskManager) {
             @Override
             protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
                 requests.add(request);
@@ -126,7 +126,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         };
 
         TransportMultiSearchAction action =
-                new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, resolver, 10,
+                new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, 10,
                 System::nanoTime);
 
         // Execute the multi search api and fail if we find an error after executing:

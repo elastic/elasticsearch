@@ -1,5 +1,6 @@
+[role="xpack"]
 [[ml-metric-functions]]
-=== Metric Functions
+=== Metric functions
 
 The metric functions include functions such as mean, min and max. These values
 are calculated for each bucket. Field values that cannot be converted to
@@ -42,6 +43,7 @@ For more information about those properties, see
   "by_field_name" : "product"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `min` function in a detector in your job, it detects where the
 smallest transaction is lower than previously observed. You can use this
@@ -76,6 +78,7 @@ For more information about those properties, see
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `max` function in a detector in your job, it detects where the
 longest `responsetime` is longer than previously observed. You can use this
@@ -98,6 +101,7 @@ to previous applications.
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 The analysis in the previous example can be performed alongside `high_mean`
 functions by application. By combining detectors and using the same influencer
@@ -106,7 +110,7 @@ response times for each bucket.
 
 [float]
 [[ml-metric-median]]
-==== Median, High_median, Low_median
+==== Median, high_median, low_median
 
 The `median` function detects anomalies in the statistical median of a value.
 The median value is calculated for each bucket.
@@ -136,6 +140,7 @@ For more information about those properties, see
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `median` function in a detector in your job, it models the
 median `responsetime` for each application over time. It detects when the median
@@ -143,7 +148,7 @@ median `responsetime` for each application over time. It detects when the median
 
 [float]
 [[ml-metric-mean]]
-==== Mean, High_mean, Low_mean
+==== Mean, high_mean, low_mean
 
 The `mean` function detects anomalies in the arithmetic mean of a value.
 The mean value is calculated for each bucket.
@@ -173,6 +178,7 @@ For more information about those properties, see
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `mean` function in a detector in your job, it models the mean
 `responsetime` for each application over time. It detects when the mean
@@ -187,6 +193,7 @@ If you use this `mean` function in a detector in your job, it models the mean
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `high_mean` function in a detector in your job, it models the
 mean `responsetime` for each application over time. It detects when the mean
@@ -201,6 +208,7 @@ mean `responsetime` for each application over time. It detects when the mean
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `low_mean` function in a detector in your job, it models the
 mean `responsetime` for each application over time. It detects when the mean
@@ -237,6 +245,7 @@ For more information about those properties, see
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `metric` function in a detector in your job, it models the
 mean, min, and max `responsetime` for each application over time. It detects
@@ -245,7 +254,7 @@ when the mean, min, or max `responsetime` is unusual compared to previous
 
 [float]
 [[ml-metric-varp]]
-==== Varp, High_varp, Low_varp
+==== Varp, high_varp, low_varp
 
 The `varp` function detects anomalies in the variance of a value which is a
 measure of the variability and spread in the data.
@@ -273,6 +282,7 @@ For more information about those properties, see
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `varp` function in a detector in your job, it models the
 variance in values of `responsetime` for each application over time. It detects
@@ -288,6 +298,7 @@ behavior.
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `high_varp` function in a detector in your job, it models the
 variance in values of `responsetime` for each application over time. It detects
@@ -303,6 +314,7 @@ behavior.
   "by_field_name" : "application"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `low_varp` function in a detector in your job, it models the
 variance in values of `responsetime` for each application over time. It detects

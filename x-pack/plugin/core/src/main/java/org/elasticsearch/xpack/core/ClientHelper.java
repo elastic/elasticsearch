@@ -175,8 +175,8 @@ public final class ClientHelper {
         }
 
         @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-            Action<Response> action, Request request, ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse>
+        void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
             final Supplier<ThreadContext.StoredContext> supplier = in().threadPool().getThreadContext().newRestorableContext(false);
             try (ThreadContext.StoredContext ignore = in().threadPool().getThreadContext().stashContext()) {
                 in().threadPool().getThreadContext().putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);

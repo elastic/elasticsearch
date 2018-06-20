@@ -37,10 +37,8 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
         // This mock will do nothing but verify that parentTaskId is set on all requests sent to it.
         NoOpClient mock = new NoOpClient(getTestName()) {
             @Override
-            protected <     Request extends ActionRequest,
-                            Response extends ActionResponse
-                        > void doExecute(Action<Response> action, Request request,
-                                         ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
                 assertEquals(parentTaskId[0], request.getParentTask());
                 super.doExecute(action, request, listener);
             }

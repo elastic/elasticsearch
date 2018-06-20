@@ -400,7 +400,8 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         doExecute(action, request, listener);
     }
 
-    protected abstract <Request extends ActionRequest, Response extends ActionResponse> void doExecute(Action<Response> action, Request request, ActionListener<Response> listener);
+    protected abstract <Request extends ActionRequest, Response extends ActionResponse>
+    void doExecute(Action<Response> action, Request request, ActionListener<Response> listener);
 
     @Override
     public ActionFuture<IndexResponse> index(final IndexRequest request) {
@@ -1763,7 +1764,8 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     public Client filterWithHeader(Map<String, String> headers) {
         return new FilterClient(this) {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
                 ThreadContext threadContext = threadPool().getThreadContext();
                 try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(headers)) {
                     super.doExecute(action, request, listener);

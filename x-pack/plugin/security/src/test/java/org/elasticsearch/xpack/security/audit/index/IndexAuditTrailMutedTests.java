@@ -69,8 +69,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
             }
 
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                Action<Response> action, Request request, ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
                 clientCalled.set(true);
             }
         }

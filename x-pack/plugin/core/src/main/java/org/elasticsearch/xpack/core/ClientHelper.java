@@ -81,8 +81,8 @@ public final class ClientHelper {
      */
     public static <Request extends ActionRequest, Response extends ActionResponse,
             RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeAsyncWithOrigin(
-            Client client, String origin, Action<Request, Response> action, Request request,
-            ActionListener<Response> listener) {
+        Client client, String origin, Action<Response> action, Request request,
+        ActionListener<Response> listener) {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = stashWithOrigin(threadContext, origin)) {
@@ -140,8 +140,8 @@ public final class ClientHelper {
      */
     public static <Request extends ActionRequest, Response extends ActionResponse, 
             RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeWithHeadersAsync(
-            Map<String, String> headers, String origin, Client client, Action<Request, Response> action, Request request,
-            ActionListener<Response> listener) {
+        Map<String, String> headers, String origin, Client client, Action<Response> action, Request request,
+        ActionListener<Response> listener) {
 
         Map<String, String> filteredHeaders = headers.entrySet().stream().filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -178,7 +178,7 @@ public final class ClientHelper {
         @Override
         protected <Request extends ActionRequest, Response extends ActionResponse,
                 RequestBuilder extends ActionRequestBuilder<Request, Response>> void doExecute(
-                Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+            Action<Response> action, Request request, ActionListener<Response> listener) {
             final Supplier<ThreadContext.StoredContext> supplier = in().threadPool().getThreadContext().newRestorableContext(false);
             try (ThreadContext.StoredContext ignore = in().threadPool().getThreadContext().stashContext()) {
                 in().threadPool().getThreadContext().putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);

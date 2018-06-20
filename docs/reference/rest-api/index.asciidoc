@@ -18,7 +18,7 @@ directly to configure and access {xpack} features.
 --
 
 
-include::{xes-repo-dir}/rest-api/info.asciidoc[]
+include::info.asciidoc[]
 include::{xes-repo-dir}/rest-api/graph/explore.asciidoc[]
 include::{xes-repo-dir}/rest-api/licensing.asciidoc[]
 include::{xes-repo-dir}/rest-api/migration.asciidoc[]

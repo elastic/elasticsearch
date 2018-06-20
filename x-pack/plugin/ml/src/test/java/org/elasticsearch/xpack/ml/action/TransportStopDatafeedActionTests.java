@@ -42,7 +42,7 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
 
         DatafeedConfig datafeedConfig = createDatafeedConfig("foo", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder().putJob(job, false)
-                .putDatafeed(datafeedConfig, null)
+                .putDatafeed(datafeedConfig, Collections.emptyMap())
                 .build();
         TransportStopDatafeedAction.validateDatafeedTask("foo", mlMetadata2);
     }
@@ -54,12 +54,12 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
         addTask("datafeed_1", 0L, "node-1", DatafeedState.STARTED, tasksBuilder);
         Job job = BaseMlIntegTestCase.createScheduledJob("job_id_1").build(new Date());
         DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed_1", "job_id_1").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, Collections.emptyMap());
 
         addTask("datafeed_2", 0L, "node-1", DatafeedState.STOPPED, tasksBuilder);
         job = BaseMlIntegTestCase.createScheduledJob("job_id_2").build(new Date());
         datafeedConfig = createDatafeedConfig("datafeed_2", "job_id_2").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, Collections.emptyMap());
 
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
         MlMetadata mlMetadata = mlMetadataBuilder.build();
@@ -86,17 +86,17 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
         addTask("datafeed_1", 0L, "node-1", DatafeedState.STARTED, tasksBuilder);
         Job job = BaseMlIntegTestCase.createScheduledJob("job_id_1").build(new Date());
         DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed_1", "job_id_1").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, Collections.emptyMap());
 
         addTask("datafeed_2", 0L, "node-1", DatafeedState.STOPPED, tasksBuilder);
         job = BaseMlIntegTestCase.createScheduledJob("job_id_2").build(new Date());
         datafeedConfig = createDatafeedConfig("datafeed_2", "job_id_2").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, Collections.emptyMap());
 
         addTask("datafeed_3", 0L, "node-1", DatafeedState.STOPPING, tasksBuilder);
         job = BaseMlIntegTestCase.createScheduledJob("job_id_3").build(new Date());
         datafeedConfig = createDatafeedConfig("datafeed_3", "job_id_3").build();
-        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, null);
+        mlMetadataBuilder.putJob(job, false).putDatafeed(datafeedConfig, Collections.emptyMap());
 
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
         MlMetadata mlMetadata = mlMetadataBuilder.build();

@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -49,10 +48,8 @@ public final class TransportSamlInvalidateSessionAction
 
     @Inject
     public TransportSamlInvalidateSessionAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                TokenService tokenService, Realms realms) {
-        super(settings, SamlInvalidateSessionAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                SamlInvalidateSessionRequest::new);
+                                                ActionFilters actionFilters, TokenService tokenService, Realms realms) {
+        super(settings, SamlInvalidateSessionAction.NAME, threadPool, transportService, actionFilters, SamlInvalidateSessionRequest::new);
         this.tokenService = tokenService;
         this.realms = realms;
     }

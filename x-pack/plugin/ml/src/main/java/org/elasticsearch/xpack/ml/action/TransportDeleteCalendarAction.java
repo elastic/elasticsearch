@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import java.util.function.Supplier;
+
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -37,12 +38,10 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
     private final JobProvider jobProvider;
 
     @Inject
-    public TransportDeleteCalendarAction(Settings settings, ThreadPool threadPool,
-                                         TransportService transportService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver,
-                                         Client client, JobManager jobManager, JobProvider jobProvider) {
+    public TransportDeleteCalendarAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                         ActionFilters actionFilters, Client client, JobManager jobManager, JobProvider jobProvider) {
         super(settings, DeleteCalendarAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, DeleteCalendarAction.Request::new);
+            (Supplier<DeleteCalendarAction.Request>) DeleteCalendarAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
         this.jobProvider = jobProvider;

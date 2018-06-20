@@ -27,6 +27,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -37,6 +40,9 @@ import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript
  * Manages building {@link ScriptService}.
  */
 public class ScriptModule {
+
+    /** Whether scripts should expose dates as java time objects instead of joda time. */
+    public static final boolean USE_JAVA_TIME = Booleans.parseBoolean(System.getProperty("es.script.use_java_time"), false);
 
     public static final Map<String, ScriptContext<?>> CORE_CONTEXTS;
     static {
@@ -83,7 +89,11 @@ public class ScriptModule {
         }
         scriptService = new ScriptService(settings, Collections.unmodifiableMap(engines), Collections.unmodifiableMap(contexts));
 
-        ScriptDocValues.Dates.maybeLogJodaTimeDeprecation();
+        if (USE_JAVA_TIME == false) {
+            DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(ScriptModule.class));
+            deprecationLogger.deprecated("The joda time api for doc values is deprecated. Use -Des.script.use_java_time=true" +
+                "to use the java time api for date field doc values");
+        }
     }
 
     /**

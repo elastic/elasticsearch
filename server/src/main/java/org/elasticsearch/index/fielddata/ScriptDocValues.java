@@ -28,6 +28,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.script.ScriptModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
@@ -145,14 +146,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static final class Dates extends ScriptDocValues<Object> {
 
-        private static final boolean USE_JAVA_TIME = org.elasticsearch.common.Booleans.parseBoolean(
-            System.getProperty("es.scripting.use_java_time"), false);
-
         private static final ZoneId JAVA_TIME_UTC = ZoneId.of("UTC");
 
         private static final Object EPOCH;
         static {
-            if (USE_JAVA_TIME) {
+            if (ScriptModule.USE_JAVA_TIME) {
                 EPOCH = ZonedDateTime.ofInstant(Instant.EPOCH, JAVA_TIME_UTC);
             } else {
                 EPOCH = new DateTime(0, DateTimeZone.UTC);
@@ -174,15 +172,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          */
         public Dates(SortedNumericDocValues in) {
             this.in = in;
-        }
-
-        /** Logs a deprecation warning if the joda time api is being used. */
-        public static void maybeLogJodaTimeDeprecation() {
-            if (USE_JAVA_TIME == false) {
-                DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Dates.class));
-                deprecationLogger.deprecated("The joda time api for doc values is deprecated. Use -Des.scripting.use_java_time=true" +
-                    "to use the java time api for date field doc values");
-            }
         }
 
         /**
@@ -228,7 +217,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (count == 0) {
                 return;
             }
-            if (USE_JAVA_TIME) {
+            if (ScriptModule.USE_JAVA_TIME) {
                 if (dates == null || count > dates.length) {
                     // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
                     dates = new ZonedDateTime[count];

@@ -37,7 +37,6 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -269,8 +268,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         public TransportTestTaskAction(Settings settings, ThreadPool threadPool,
                                        ClusterService clusterService, TransportService transportService) {
             super(settings, TestTaskAction.NAME, threadPool, clusterService, transportService,
-                  new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                  NodesRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeResponse.class);
+                  new ActionFilters(new HashSet<>()),
+                NodesRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeResponse.class);
         }
 
         @Override
@@ -429,7 +428,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
             clusterService,
                                                TransportService transportService) {
             super(settings, UnblockTestTasksAction.NAME, threadPool, clusterService, transportService, new ActionFilters(new
-                HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
+                HashSet<>()),
                 UnblockTestTasksRequest::new, UnblockTestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         }
 

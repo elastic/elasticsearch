@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.Request, MlInfoAction.Response> {
 
@@ -31,10 +31,9 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
 
     @Inject
     public TransportMlInfoAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                 ClusterService clusterService) {
-        super(settings, MlInfoAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                MlInfoAction.Request::new);
+                                 ActionFilters actionFilters, ClusterService clusterService) {
+        super(settings, MlInfoAction.NAME, threadPool, transportService, actionFilters,
+            (Supplier<MlInfoAction.Request>) MlInfoAction.Request::new);
         this.clusterService = clusterService;
     }
 

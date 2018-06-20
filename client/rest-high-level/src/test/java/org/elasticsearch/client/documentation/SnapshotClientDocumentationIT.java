@@ -380,7 +380,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::delete-snapshot-request-masterTimeout
 
         // tag::delete-snapshot-execute
-        DeleteSnapshotResponse response = client.snapshot().deleteSnapshot(request, RequestOptions.DEFAULT);
+        DeleteSnapshotResponse response = client.snapshot().delete(request, RequestOptions.DEFAULT);
         // end::delete-snapshot-execute
 
         // tag::delete-snapshot-response
@@ -414,7 +414,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::delete-snapshot-execute-async
-            client.snapshot().deleteSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.snapshot().deleteAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::delete-snapshot-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

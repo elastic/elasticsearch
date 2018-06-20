@@ -174,7 +174,7 @@ public final class SnapshotClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public DeleteSnapshotResponse deleteSnapshot(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options) throws IOException {
+    public DeleteSnapshotResponse delete(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(deleteSnapshotRequest, RequestConverters::deleteSnapshot, options,
             DeleteSnapshotResponse::fromXContent, emptySet());
     }
@@ -188,8 +188,8 @@ public final class SnapshotClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void deleteSnapshotAsync(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options,
-                                    ActionListener<DeleteSnapshotResponse> listener) {
+    public void deleteAsync(DeleteSnapshotRequest deleteSnapshotRequest, RequestOptions options,
+                            ActionListener<DeleteSnapshotResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(deleteSnapshotRequest, RequestConverters::deleteSnapshot, options,
             DeleteSnapshotResponse::fromXContent, listener, emptySet());
     }

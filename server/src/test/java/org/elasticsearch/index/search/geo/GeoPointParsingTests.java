@@ -198,37 +198,33 @@ public class GeoPointParsingTests  extends ESTestCase {
         content.startObject();
         content.field("lat", lat).field("lon", lon);
         content.endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
-            parser.nextToken();
-            return parser;
-        }
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
+        parser.nextToken();
+        return parser;
     }
 
     private XContentParser arrayLatLon(double lat, double lon) throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startArray().value(lon).value(lat).endArray();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
-            parser.nextToken();
-            return parser;
-        }
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
+        parser.nextToken();
+        return parser;
     }
 
     private XContentParser stringLatLon(double lat, double lon) throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.value(Double.toString(lat) + ", " + Double.toString(lon));
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
-            parser.nextToken();
-            return parser;
-        }
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
+        parser.nextToken();
+        return parser;
     }
 
     private XContentParser geohash(double lat, double lon) throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.value(stringEncode(lon, lat));
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
-            parser.nextToken();
-            return parser;
-        }
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
+        parser.nextToken();
+        return parser;
     }
 
     public static void assertPointsEqual(final GeoPoint point1, final GeoPoint point2) {

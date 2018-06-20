@@ -276,11 +276,10 @@ public class QueryRescorerBuilderTests extends ESTestCase {
      * create a new parser from the rescorer string representation and reset context with it
      */
     private XContentParser createParser(String rescoreElement) throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, rescoreElement)) {
-            // move to first token, this is where the internal fromXContent
-            assertTrue(parser.nextToken() == XContentParser.Token.START_OBJECT);
-            return parser;
-        }
+        XContentParser parser = createParser(JsonXContent.jsonXContent, rescoreElement);
+        // move to first token, this is where the internal fromXContent
+        assertTrue(parser.nextToken() == XContentParser.Token.START_OBJECT);
+        return parser;
     }
 
     @Override

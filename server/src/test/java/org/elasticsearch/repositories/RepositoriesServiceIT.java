@@ -20,7 +20,6 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +33,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -47,7 +47,7 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
         return Collections.singletonList(MockRepository.Plugin.class);
     }
 
-    public void testUpdateRepositoryWithDiffType() {
+    public void testUpdateRepository() {
         String repositoryName = "test-repo";
 
         Client client = client();
@@ -58,45 +58,41 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
 
         Settings.Builder repoSettings = Settings.builder().put(settings).put("location", location);
 
-        PutRepositoryResponse putRepositoryResponse1 =
-            client.admin().cluster().preparePutRepository(repositoryName)
+        assertAcked(client.admin().cluster().preparePutRepository(repositoryName)
                 .setType(FsRepository.TYPE)
                 .setSettings(repoSettings)
-                .get();
-        assertThat(putRepositoryResponse1.isAcknowledged(), equalTo(true));
+                .get());
 
-        GetRepositoriesResponse getRepositoriesResponse1 =
+        GetRepositoriesResponse originalRetRepositoriesResponse =
             client.admin().cluster().prepareGetRepositories(repositoryName).get();
 
-        assertThat(getRepositoriesResponse1.repositories(), hasSize(1));
-        RepositoryMetaData repositoryMetaData1 = getRepositoriesResponse1.repositories().get(0);
+        assertThat(originalRetRepositoriesResponse.repositories(), hasSize(1));
+        RepositoryMetaData originalRepositoryMetaData = originalRetRepositoriesResponse.repositories().get(0);
 
-        assertThat(repositoryMetaData1.type(), equalTo(FsRepository.TYPE));
+        assertThat(originalRepositoryMetaData.type(), equalTo(FsRepository.TYPE));
 
-        Repository repository1 = repositoriesService.repository(repositoryName);
-        assertThat(repository1, instanceOf(FsRepository.class));
+        Repository originalRepository = repositoriesService.repository(repositoryName);
+        assertThat(originalRepository, instanceOf(FsRepository.class));
 
         // update repository
 
-        boolean diffType = randomBoolean();
+        boolean updated = randomBoolean();
+        String updatedRepositoryType = updated ? "mock" : FsRepository.TYPE;
 
-        PutRepositoryResponse putRepositoryResponse2 =
-            client.admin().cluster().preparePutRepository(repositoryName)
-                .setType(diffType ? "mock" : FsRepository.TYPE)
+        assertAcked(client.admin().cluster().preparePutRepository(repositoryName)
+                .setType(updatedRepositoryType)
                 .setSettings(repoSettings)
-                .get();
-        assertThat(putRepositoryResponse2.isAcknowledged(), equalTo(true));
+                .get());
 
-        GetRepositoriesResponse getRepositoriesResponse2 =
+        GetRepositoriesResponse updatedGetRepositoriesResponse =
             client.admin().cluster().prepareGetRepositories(repositoryName).get();
 
-        assertThat(getRepositoriesResponse2.repositories(), hasSize(1));
-        RepositoryMetaData repositoryMetaData2 = getRepositoriesResponse2.repositories().get(0);
+        assertThat(updatedGetRepositoriesResponse.repositories(), hasSize(1));
+        RepositoryMetaData updatedRepositoryMetaData = updatedGetRepositoriesResponse.repositories().get(0);
 
-        assertThat(repositoryMetaData2.type(), equalTo(diffType ? "mock" : FsRepository.TYPE));
+        assertThat(updatedRepositoryMetaData.type(), equalTo(updatedRepositoryType));
 
-        Repository repository2 = repositoriesService.repository(repositoryName);
-        assertThat(repository2, instanceOf(diffType ? MockRepository.class : FsRepository.class));
-        assertThat(repository2, diffType ? not(sameInstance(repository1)) : sameInstance(repository1));
+        Repository updatedRepository = repositoriesService.repository(repositoryName);
+        assertThat(updatedRepository, updated ? not(sameInstance(originalRepository)) : sameInstance(originalRepository));
     }
 }

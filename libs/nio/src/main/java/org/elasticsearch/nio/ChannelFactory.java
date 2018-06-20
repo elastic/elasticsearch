@@ -21,6 +21,7 @@ package org.elasticsearch.nio;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
@@ -99,6 +100,10 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
             Socket channel = createChannel(selector, rawChannel);
             assert channel.getContext() != null : "channel context should have been set on channel";
             return channel;
+        } catch (UncheckedIOException e) {
+            // This can happen if getRemoteAddress throws IOException.
+            closeRawChannel(rawChannel, e);
+            throw e.getCause();
         } catch (Exception e) {
             closeRawChannel(rawChannel, e);
             throw e;

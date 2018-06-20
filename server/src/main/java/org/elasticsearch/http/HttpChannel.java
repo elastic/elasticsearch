@@ -20,11 +20,11 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.network.CloseableChannel;
 
 import java.net.InetSocketAddress;
 
-public interface HttpChannel extends Releasable {
+public interface HttpChannel extends CloseableChannel {
 
     /**
      * Sends a http response to the channel. The listener will be executed once the send process has been
@@ -48,11 +48,5 @@ public interface HttpChannel extends Releasable {
      * @return the remote address of this channel.
      */
     InetSocketAddress getRemoteAddress();
-
-    /**
-     * Closes the channel. This might be an asynchronous process. There is no guarantee that the channel
-     * will be closed when this method returns.
-     */
-    void close();
 
 }

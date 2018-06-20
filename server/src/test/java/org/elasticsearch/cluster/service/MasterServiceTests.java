@@ -54,6 +54,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -177,6 +178,8 @@ public class MasterServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
             final Map<String, String> expectedHeaders = Collections.singletonMap("test", "test");
+            final Map<String, List<String>> expectedResponseHeaders = Collections.singletonMap("testResponse",
+                Arrays.asList("testResponse"));
             threadPool.getThreadContext().putHeader(expectedHeaders);
 
             final TimeValue ackTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
@@ -187,6 +190,8 @@ public class MasterServiceTests extends ESTestCase {
                 public ClusterState execute(ClusterState currentState) {
                     assertTrue(threadPool.getThreadContext().isSystemContext());
                     assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getHeaders());
+                    threadPool.getThreadContext().addResponseHeader("testResponse", "testResponse");
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
 
                     if (randomBoolean()) {
                         return ClusterState.builder(currentState).build();
@@ -201,6 +206,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(String source, Exception e) {
                     assertFalse(threadPool.getThreadContext().isSystemContext());
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
                     latch.countDown();
                 }
 
@@ -208,6 +214,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     assertFalse(threadPool.getThreadContext().isSystemContext());
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
                     latch.countDown();
                 }
 
@@ -229,6 +236,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onAllNodesAcked(@Nullable Exception e) {
                     assertFalse(threadPool.getThreadContext().isSystemContext());
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
                     latch.countDown();
                 }
 
@@ -236,6 +244,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onAckTimeout() {
                     assertFalse(threadPool.getThreadContext().isSystemContext());
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
                     latch.countDown();
                 }
 
@@ -243,6 +252,7 @@ public class MasterServiceTests extends ESTestCase {
 
             assertFalse(threadPool.getThreadContext().isSystemContext());
             assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+            assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getResponseHeaders());
         }
 
         latch.await();

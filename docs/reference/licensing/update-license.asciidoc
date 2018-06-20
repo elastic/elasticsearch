@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="basic"]
 [[update-license]]
 === Update License API
 
@@ -123,6 +124,7 @@ receive the following response:
     }
 }
 ------------------------------------------------------------
+// NOTCONSOLE
 
 To complete the update, you must re-submit the API request and set the
 `acknowledge` parameter to `true`. For example:

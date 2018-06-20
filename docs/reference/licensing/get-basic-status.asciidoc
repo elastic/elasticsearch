@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="basic"]
 [[get-basic-status]]
 === Get Basic Status API
 

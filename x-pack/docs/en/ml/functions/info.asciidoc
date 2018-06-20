@@ -40,6 +40,7 @@ For more information about those properties, see
   "over_field_name" : "highest_registered_domain"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `info_content` function in a detector in your job, it models
 information that is present in the `subdomain` string. It detects anomalies
@@ -60,6 +61,7 @@ choice.
   "over_field_name" : "src_ip"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `high_info_content` function in a detector in your job, it
 models information content that is held in the DNS query string. It detects
@@ -77,6 +79,7 @@ information content is higher than expected.
   "by_field_name" : "logfilename"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `low_info_content` function in a detector in your job, it models
 information content that is present in the message string for each

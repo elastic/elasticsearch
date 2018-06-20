@@ -41,6 +41,7 @@ import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.TcpServerChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transports;
 
@@ -191,7 +192,7 @@ public class MockNioTransport extends TcpTransport {
         }
     }
 
-    private static class MockServerChannel extends NioServerSocketChannel implements TcpChannel {
+    private static class MockServerChannel extends NioServerSocketChannel implements TcpServerChannel {
 
         private final String profile;
 
@@ -214,21 +215,6 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public void addCloseListener(ActionListener<Void> listener) {
             addCloseListener(ActionListener.toBiConsumer(listener));
-        }
-
-        @Override
-        public void setSoLinger(int value) throws IOException {
-            throw new UnsupportedOperationException("Cannot set SO_LINGER on a server channel.");
-        }
-
-        @Override
-        public InetSocketAddress getRemoteAddress() {
-            return null;
-        }
-
-        @Override
-        public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-            throw new UnsupportedOperationException("Cannot send a message to a server channel.");
         }
     }
 

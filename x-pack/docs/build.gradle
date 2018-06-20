@@ -47,8 +47,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/watcher/trigger/schedule/weekly.asciidoc',
         'en/watcher/trigger/schedule/yearly.asciidoc',
         'en/watcher/troubleshooting.asciidoc',
-        'en/rest-api/license/delete-license.asciidoc',
-        'en/rest-api/license/update-license.asciidoc',
         'en/rest-api/ml/delete-snapshot.asciidoc',
         'en/rest-api/ml/forecast.asciidoc',
         'en/rest-api/ml/get-bucket.asciidoc',

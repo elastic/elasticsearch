@@ -21,12 +21,11 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -42,10 +41,7 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
 /** Response object for {@link GetFieldMappingsRequest} API */
 public class GetFieldMappingsResponse extends ActionResponse implements ToXContentFragment {
@@ -105,47 +101,53 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     }
 
     public static GetFieldMappingsResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = new HashMap<>();
-        if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-            while (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                String index = parser.currentName();
+        final Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = new HashMap<>();
+        final Map<String, Object> map = parser.map();
 
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-                ensureFieldName(parser, parser.nextToken(), MAPPINGS.getPreferredName());
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            final Object value = entry.getValue();
 
-                Map<String, Map<String, FieldMappingMetaData>> mapping = new HashMap<>();
-                parser.nextToken();
-                while (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                    final String typeName = parser.currentName();
-                    Map<String, FieldMappingMetaData> typeMapping = new HashMap<>();
-                    if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
-                        if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                            while (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                                final String fieldName = parser.currentName();
-                                FieldMappingMetaData fieldMappingMetaData = FieldMappingMetaData.fromXContent(parser);
-                                typeMapping.put(fieldName, fieldMappingMetaData);
-                                parser.nextToken();
-                            }
+            Map<String, Map<String, FieldMappingMetaData>> typeMappings = new HashMap<>();
+            mappings.put(entry.getKey(), typeMappings);
+
+            if (value instanceof Map) {
+                final Object o = ((Map) value).get(MAPPINGS.getPreferredName());
+                if (!(o instanceof Map)) {
+                    throw new ParsingException(parser.getTokenLocation(), "Nested " + MAPPINGS.getPreferredName() + " is not found");
+                }
+                Map<String, Object> map1 = (Map) o;
+                for (Map.Entry<String, Object> typeObjectEntry : map1.entrySet()) {
+                    Map<String, FieldMappingMetaData> fieldsMapping = new HashMap<>();
+                    typeMappings.put(typeObjectEntry.getKey(), fieldsMapping);
+
+                    final Object o1 = typeObjectEntry.getValue();
+                    if (!(o1 instanceof Map)) {
+                        throw new ParsingException(parser.getTokenLocation(), "Nested type mapping is not found");
+                    }
+                    Map<String, Object> map2 = (Map) o1;
+                    for (Map.Entry<String, Object> e : map2.entrySet()) {
+                        final Object o2 = e.getValue();
+                        if (!(o2 instanceof Map)) {
+                            throw new ParsingException(parser.getTokenLocation(), "Nested field mapping is not found");
                         }
+                        Map<String, Object> map3 = (Map) o2;
+
+                        String fullName = (String) map3.get(FieldMappingMetaData.FULL_NAME.getPreferredName());
+                        XContentBuilder builder = jsonBuilder();
+                        final Map<String, ?> values = (Map<String, ?>) map3.get(FieldMappingMetaData.MAPPING.getPreferredName());
+                        builder.map(values);
+                        final BytesReference source = BytesReference.bytes(builder);
+
+                        FieldMappingMetaData metaData = new FieldMappingMetaData(fullName, source);
+                        fieldsMapping.put(e.getKey(), metaData);
                     }
 
-                    mapping.put(typeName, typeMapping);
-                    parser.nextToken();
                 }
-
-                mappings.put(index, mapping);
-                parser.nextToken();
-                parser.nextToken();
             }
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
-
-            parser.nextToken();
         }
+
         return new GetFieldMappingsResponse(mappings);
     }
-
 
     public static class FieldMappingMetaData implements ToXContentFragment {
         public static final FieldMappingMetaData NULL = new FieldMappingMetaData("", BytesArray.EMPTY);
@@ -153,34 +155,12 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         private static final ParseField FULL_NAME = new ParseField("full_name");
         private static final ParseField MAPPING = new ParseField("mapping");
 
-        private static final ConstructingObjectParser<FieldMappingMetaData, String> PARSER =
-            new ConstructingObjectParser<>("field_mapping_meta_data", true,
-                a -> new FieldMappingMetaData((String)a[0], (BytesReference)a[1])
-                );
-
-        static {
-            PARSER.declareField(optionalConstructorArg(),
-                (p, c) -> p.text(), FULL_NAME, ObjectParser.ValueType.STRING);
-            PARSER.declareField(optionalConstructorArg(),
-                (p, c) -> {
-                    Map<String, Object> source = p.map();
-                    XContentBuilder builder = jsonBuilder();
-                    builder.map(source);
-                    final BytesReference bytes = BytesReference.bytes(builder);
-                    return bytes;
-                }, MAPPING, ObjectParser.ValueType.OBJECT);
-        }
-
         private String fullName;
         private BytesReference source;
 
         public FieldMappingMetaData(String fullName, BytesReference source) {
             this.fullName = fullName;
             this.source = source;
-        }
-
-        public static FieldMappingMetaData fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
         }
 
         public String fullName() {

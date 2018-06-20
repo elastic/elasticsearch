@@ -102,8 +102,9 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
             return channel;
         } catch (UncheckedIOException e) {
             // This can happen if getRemoteAddress throws IOException.
-            closeRawChannel(rawChannel, e);
-            throw e.getCause();
+            IOException cause = e.getCause();
+            closeRawChannel(rawChannel, cause);
+            throw cause;
         } catch (Exception e) {
             closeRawChannel(rawChannel, e);
             throw e;

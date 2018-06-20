@@ -39,6 +39,9 @@ integTestCluster {
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
+// remove when https://github.com/elastic/elasticsearch/issues/31305 is fixed
+// !!! Do not merge to master
+integTest.enabled = false
 // Build the cluster with all plugins
 
 project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->

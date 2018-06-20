@@ -693,7 +693,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 });
             inSyncAllocationIds = DiffableUtils.readImmutableOpenIntMapDiff(in, DiffableUtils.getVIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance());
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
                 rolloverInfos = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), RolloverInfo::new,
                     RolloverInfo::readDiffFrom);
             } else {
@@ -714,7 +714,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             aliases.writeTo(out);
             customs.writeTo(out);
             inSyncAllocationIds.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
                 rolloverInfos.writeTo(out);
             }
         }
@@ -765,7 +765,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             Set<String> allocationIds = DiffableUtils.StringSetValueSerializer.getInstance().read(in, key);
             builder.putInSyncAllocationIds(key, allocationIds);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             int rolloverAliasesSize = in.readVInt();
             for (int i = 0; i < rolloverAliasesSize; i++) {
                 builder.putRolloverInfo(new RolloverInfo(in));
@@ -800,7 +800,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             out.writeVInt(cursor.key);
             DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.value, out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeVInt(rolloverInfos.size());
             for (ObjectCursor<RolloverInfo> cursor : rolloverInfos.values()) {
                 cursor.value.writeTo(out);

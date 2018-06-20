@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -89,10 +88,9 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Response> {
         private final PersistentTasksService persistentTasksService;
 
         @Inject
-        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver, Client client,
-                               PersistentTasksService persistentTasksService) {
-            super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
+        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                               ActionFilters actionFilters, Client client, PersistentTasksService persistentTasksService) {
+            super(settings, NAME, threadPool, transportService, actionFilters, Request::new);
             this.client = client;
             this.persistentTasksService = persistentTasksService;
         }

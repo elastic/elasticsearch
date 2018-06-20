@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
@@ -61,8 +60,8 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
                     parser = new WordnetSynonymParser(true, expand, analyzerForParseSynonym);
                     ((WordnetSynonymParser) parser).parse(rulesReader);
                 } else {
-                    parser = new SolrSynonymParser(true, expand, analyzerForParseSynonym);
-                    ((SolrSynonymParser) parser).parse(rulesReader);
+                    parser = new ElasticSynonymParser(true, expand, lenient, analyzerForParseSynonym);
+                    ((ElasticSynonymParser) parser).parse(rulesReader);
                 }
                 synonymMap = parser.build();
             } catch (Exception e) {

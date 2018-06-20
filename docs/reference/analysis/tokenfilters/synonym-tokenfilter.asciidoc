@@ -33,8 +33,12 @@ PUT /test_index
 
 The above configures a `synonym` filter, with a path of
 `analysis/synonym.txt` (relative to the `config` location). The
-`synonym` analyzer is then configured with the filter. Additional
-settings is: `expand` (defaults to `true`).
+`synonym` analyzer is then configured with the filter.
+
+Additional settings are:
+
+* `expand` (defaults to `true`).
+* `lenient` (defaults to `false`). If `true` ignores exceptions while parsing the synonym configuration.
 
 This filter tokenize synonyms with whatever tokenizer and token filters
 appear before it in the chain.

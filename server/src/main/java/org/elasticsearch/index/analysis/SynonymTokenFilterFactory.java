@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
@@ -38,6 +37,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     protected final String format;
     protected final boolean expand;
+    protected final boolean lenient;
     protected final Settings settings;
 
     public SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env, AnalysisRegistry analysisRegistry,
@@ -52,6 +52,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
 
         this.expand = settings.getAsBoolean("expand", true);
+        this.lenient = settings.getAsBoolean("lenient", false);
         this.format = settings.get("format", "");
     }
 
@@ -96,8 +97,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                     parser = new WordnetSynonymParser(true, expand, analyzerForParseSynonym);
                     ((WordnetSynonymParser) parser).parse(rulesReader);
                 } else {
-                    parser = new SolrSynonymParser(true, expand, analyzerForParseSynonym);
-                    ((SolrSynonymParser) parser).parse(rulesReader);
+                    parser = new ElasticSynonymParser(true, expand, lenient, analyzerForParseSynonym);
+                    ((ElasticSynonymParser) parser).parse(rulesReader);
                 }
                 synonymMap = parser.build();
             } catch (Exception e) {

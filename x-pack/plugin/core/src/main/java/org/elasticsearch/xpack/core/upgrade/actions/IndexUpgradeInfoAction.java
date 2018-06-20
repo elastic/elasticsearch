@@ -26,7 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Request, IndexUpgradeInfoAction.Response> {
+public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Response> {
 
     public static final IndexUpgradeInfoAction INSTANCE = new IndexUpgradeInfoAction();
     public static final String NAME = "cluster:admin/xpack/upgrade/info";

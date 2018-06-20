@@ -84,7 +84,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse,
                 RequestBuilder extends ActionRequestBuilder<Request, Response>>
-            void doExecute(Action<Request, Response> action, Request request, ActionListener<Response> listener) {
+            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
                 NativePrivilegeStoreTests.this.requests.add(request);
                 NativePrivilegeStoreTests.this.listener.set(listener);
             }

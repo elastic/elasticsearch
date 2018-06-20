@@ -20,7 +20,7 @@
 package org.elasticsearch.client.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -76,7 +76,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
     }
 
     @Override
-    protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
+    protected Client buildClient(Settings headersSettings, Action[] testedActions) {
         transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
         transportService.start();
         transportService.acceptIncomingRequests();

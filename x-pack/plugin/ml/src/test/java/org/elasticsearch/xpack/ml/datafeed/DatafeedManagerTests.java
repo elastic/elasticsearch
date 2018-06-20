@@ -84,7 +84,7 @@ public class DatafeedManagerTests extends ESTestCase {
         Job job = createDatafeedJob().build(new Date());
         mlMetadata.putJob(job, false);
         DatafeedConfig datafeed = createDatafeedConfig("datafeed_id", job.getId()).build();
-        mlMetadata.putDatafeed(datafeed, null);
+        mlMetadata.putDatafeed(datafeed, Collections.emptyMap());
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();

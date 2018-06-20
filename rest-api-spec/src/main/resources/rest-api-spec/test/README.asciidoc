@@ -198,9 +198,7 @@ header. The warnings must match exactly. Using it looks like this:
 ....
 
 If the arguments to `do` include `node_selector` then the request is only
-sent to nodes that match the `node_selector`. Currently only the `version`
-selector is supported and it has the same logic as the `version` field in
-`skip`. It looks like this:
+sent to nodes that match the `node_selector`. It looks like this:
 
 ....
 "test id":
@@ -214,6 +212,19 @@ selector is supported and it has the same logic as the `version` field in
           type:   weird.type
           id:     1
           body:   { foo: bar }
+....
+
+If you list multiple selectors then the request will only go to nodes that
+match all of those selectors. The following selectors are supported:
+* `version`: Only nodes who's version is within the range will receive the
+request. The syntax for the pattern is the same as when `version` is within
+`skip`.
+* `attribute`: Only nodes that have an attribute matching the name and value
+of the provided attribute match. Looks like:
+....
+      node_selector:
+          attribute:
+              name: value
 ....
 
 === `set`

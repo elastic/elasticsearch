@@ -24,14 +24,12 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.junit.AfterClass;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -73,19 +71,19 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
         }
 
         @Override
-        protected GoogleCloudStorageService createStorageService(Environment environment) {
-            return new MockGoogleCloudStorageService(environment, getClientsSettings());
+        protected GoogleCloudStorageService createStorageService(Settings settings) {
+            return new MockGoogleCloudStorageService(settings);
         }
     }
 
     public static class MockGoogleCloudStorageService extends GoogleCloudStorageService {
 
-        MockGoogleCloudStorageService(Environment environment, Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
-            super(environment, clientsSettings);
+        MockGoogleCloudStorageService(Settings settings) {
+            super(settings);
         }
 
         @Override
-        public Storage createClient(String clientName) {
+        public Storage client(String clientName) {
             return new MockStorage(BUCKET, blobs);
         }
     }
@@ -97,7 +95,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
         assertEquals(GoogleCloudStorageRepository.MAX_CHUNK_SIZE, chunkSize);
 
         // chunk size in settings
-        int size = randomIntBetween(1, 100);
+        final int size = randomIntBetween(1, 100);
         repositoryMetaData = new RepositoryMetaData("repo", GoogleCloudStorageRepository.TYPE,
                                                        Settings.builder().put("chunk_size", size + "mb").build());
         chunkSize = GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repositoryMetaData);
@@ -105,7 +103,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
 
         // zero bytes is not allowed
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            RepositoryMetaData repoMetaData = new RepositoryMetaData("repo", GoogleCloudStorageRepository.TYPE,
+            final RepositoryMetaData repoMetaData = new RepositoryMetaData("repo", GoogleCloudStorageRepository.TYPE,
                                                                         Settings.builder().put("chunk_size", "0").build());
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetaData);
         });
@@ -113,7 +111,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
 
         // negative bytes not allowed
         e = expectThrows(IllegalArgumentException.class, () -> {
-            RepositoryMetaData repoMetaData = new RepositoryMetaData("repo", GoogleCloudStorageRepository.TYPE,
+            final RepositoryMetaData repoMetaData = new RepositoryMetaData("repo", GoogleCloudStorageRepository.TYPE,
                                                                         Settings.builder().put("chunk_size", "-1").build());
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetaData);
         });
@@ -121,7 +119,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
 
         // greater than max chunk size not allowed
         e = expectThrows(IllegalArgumentException.class, () -> {
-            RepositoryMetaData repoMetaData = new RepositoryMetaData("repo", GoogleCloudStorageRepository.TYPE,
+            final RepositoryMetaData repoMetaData = new RepositoryMetaData("repo", GoogleCloudStorageRepository.TYPE,
                                                                         Settings.builder().put("chunk_size", "101mb").build());
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetaData);
         });

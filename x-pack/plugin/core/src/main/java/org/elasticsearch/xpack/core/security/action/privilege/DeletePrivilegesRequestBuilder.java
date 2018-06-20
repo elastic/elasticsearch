@@ -9,12 +9,10 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-import java.util.Collection;
-
 /**
  * Builder for {@link DeletePrivilegesRequest}
  */
-public final class DeletePrivilegesRequestBuilder     extends ActionRequestBuilder<DeletePrivilegesRequest, DeletePrivilegesResponse>
+public final class DeletePrivilegesRequestBuilder extends ActionRequestBuilder<DeletePrivilegesRequest, DeletePrivilegesResponse>
         implements WriteRequestBuilder<DeletePrivilegesRequestBuilder> {
 
     public DeletePrivilegesRequestBuilder(ElasticsearchClient client, DeletePrivilegesAction action) {

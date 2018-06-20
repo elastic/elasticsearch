@@ -6,12 +6,11 @@
 package org.elasticsearch.xpack.core.security.action.privilege;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for putting (adding/updating) one or more application privileges.
  */
-public final class PutPrivilegesAction extends Action<PutPrivilegesRequest, PutPrivilegesResponse> {
+public final class PutPrivilegesAction extends Action<PutPrivilegesResponse> {
 
     public static final PutPrivilegesAction INSTANCE = new PutPrivilegesAction();
     public static final String NAME = "cluster:admin/xpack/security/privilege/put";

@@ -514,8 +514,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         public TransportTestTaskAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                        TransportService transportService, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver, String nodeExecutor) {
-            super(settings, TestTaskAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                    TestTasksRequest::new, TestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+            super(settings, TestTaskAction.NAME, threadPool, clusterService, transportService, actionFilters,
+                TestTasksRequest::new, TestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         }
 
         @Override

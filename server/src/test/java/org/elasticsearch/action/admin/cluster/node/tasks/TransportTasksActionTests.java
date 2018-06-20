@@ -36,7 +36,6 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -258,7 +257,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         protected TestTasksAction(Settings settings, String actionName, ThreadPool threadPool,
                 ClusterService clusterService, TransportService transportService) {
             super(settings, actionName, threadPool, clusterService, transportService, new ActionFilters(new HashSet<>()),
-                    new IndexNameExpressionResolver(Settings.EMPTY), TestTasksRequest::new, TestTasksResponse::new,
+                TestTasksRequest::new, TestTasksResponse::new,
                     ThreadPool.Names.MANAGEMENT);
         }
 

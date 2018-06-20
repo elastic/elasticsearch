@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,11 +30,9 @@ public class TransportPersistJobAction extends TransportJobTaskAction<PersistJob
 
     @Inject
     public TransportPersistJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                   ClusterService clusterService, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                   AutodetectProcessManager processManager) {
-        super(settings, PersistJobAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                PersistJobAction.Request::new, PersistJobAction.Response::new, ThreadPool.Names.SAME, processManager);
+                                   ClusterService clusterService, ActionFilters actionFilters, AutodetectProcessManager processManager) {
+        super(settings, PersistJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
+            PersistJobAction.Request::new, PersistJobAction.Response::new, ThreadPool.Names.SAME, processManager);
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
     }
 

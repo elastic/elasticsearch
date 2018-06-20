@@ -59,7 +59,7 @@ include::ingest.asciidoc[]
 
 include::{xes-repo-dir}/sql/index.asciidoc[]
 
-include::{xes-repo-dir}/monitoring/index.asciidoc[]
+include::monitoring/index.asciidoc[]
 
 include::{xes-repo-dir}/rollup/index.asciidoc[]
 

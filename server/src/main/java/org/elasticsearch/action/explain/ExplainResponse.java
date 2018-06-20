@@ -22,23 +22,17 @@ package org.elasticsearch.action.explain;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.rest.action.search.RestExplainAction;
-import org.omg.CORBA.MARSHAL;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.lucene.Lucene.readExplanation;
@@ -47,7 +41,7 @@ import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 /**
  * Response containing the score explanation.
  */
-public class ExplainResponse extends ActionResponse implements ToXContentObject {
+public class ExplainResponse extends ActionResponse implements StatusToXContentObject {
 
     private static final ParseField _INDEX = new ParseField("_index");
     private static final ParseField _TYPE = new ParseField("_type");
@@ -110,16 +104,17 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
         return explanation != null;
     }
 
-    public void setExists(boolean exists) {
-        this.exists = exists;
-    }
-
     public boolean isExists() {
         return exists;
     }
 
     public GetResult getGetResult() {
         return getResult;
+    }
+
+    @Override
+    public RestStatus status() {
+        return exists ? RestStatus.OK : RestStatus.NOT_FOUND;
     }
 
     @Override
@@ -158,16 +153,15 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
         }
     }
 
-    private static final ConstructingObjectParser<ExplainResponse, Void> PARSER = new ConstructingObjectParser<>("explain", true,
-        arg -> new ExplainResponse((String) arg[0], (String) arg[1], (String) arg[2], (boolean) arg[3], (Explanation) arg[4],
-            (GetResult) arg[5]));
+    private static final ConstructingObjectParser<ExplainResponse, Boolean> PARSER = new ConstructingObjectParser<>("explain", true,
+        (arg, exists) -> new ExplainResponse((String) arg[0], (String) arg[1], (String) arg[2], exists, (Explanation) arg[3],
+            (GetResult) arg[4]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), _INDEX);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), _TYPE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), _ID);
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), MATCHED);
-        final ConstructingObjectParser<Explanation, Void> explanationParser = new ConstructingObjectParser<>("explanation", true,
+        final ConstructingObjectParser<Explanation, Boolean> explanationParser = new ConstructingObjectParser<>("explanation", true,
             arg -> {
                 if ((float) arg[0] > 0) {
                     return Explanation.match((float) arg[0], (String) arg[1], (Collection<Explanation>) arg[2]);
@@ -182,8 +176,8 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> GetResult.fromXContentEmbedded(p), GET);
     }
 
-    public static ExplainResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static ExplainResponse fromXContent(XContentParser parser, boolean exists) {
+        return PARSER.apply(parser, exists);
     }
 
     @Override
@@ -234,7 +228,6 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
         return index.equals(other.index)
             && type.equals(other.type)
             && id.equals(other.id)
-            && exists == other.exists
             && Objects.equals(explanation, other.explanation)
             && getResult.isExists() == other.getResult.isExists()
             && Objects.equals(getResult.sourceAsMap(), other.getResult.sourceAsMap())
@@ -243,6 +236,6 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, type, id, exists, explanation, getResult.isExists(), getResult.sourceAsMap(), getResult.getFields());
+        return Objects.hash(index, type, id, explanation, getResult.isExists(), getResult.sourceAsMap(), getResult.getFields());
     }
 }

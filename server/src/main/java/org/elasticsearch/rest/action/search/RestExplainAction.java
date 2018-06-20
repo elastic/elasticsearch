@@ -35,6 +35,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -89,45 +90,7 @@ public class RestExplainAction extends BaseRestHandler {
 
         explainRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
-        return channel -> client.explain(explainRequest, new RestBuilderListener<ExplainResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(ExplainResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                builder.field(Fields._INDEX, response.getIndex())
-                        .field(Fields._TYPE, response.getType())
-                        .field(Fields._ID, response.getId())
-                        .field(Fields.MATCHED, response.isMatch());
-
-                if (response.hasExplanation()) {
-                    builder.startObject(Fields.EXPLANATION);
-                    buildExplanation(builder, response.getExplanation());
-                    builder.endObject();
-                }
-                GetResult getResult = response.getGetResult();
-                if (getResult != null) {
-                    builder.startObject(Fields.GET);
-                    response.getGetResult().toXContentEmbedded(builder, request);
-                    builder.endObject();
-                }
-                builder.endObject();
-                return new BytesRestResponse(response.isExists() ? OK : NOT_FOUND, builder);
-            }
-
-            private void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {
-                builder.field(Fields.VALUE, explanation.getValue());
-                builder.field(Fields.DESCRIPTION, explanation.getDescription());
-                Explanation[] innerExps = explanation.getDetails();
-                if (innerExps != null) {
-                    builder.startArray(Fields.DETAILS);
-                    for (Explanation exp : innerExps) {
-                        builder.startObject();
-                        buildExplanation(builder, exp);
-                        builder.endObject();
-                    }
-                    builder.endArray();
-                }
-            }
-        });
+        return channel -> client.explain(explainRequest, new RestStatusToXContentListener<>(channel));
     }
 
     static class Fields {

@@ -29,11 +29,14 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.get.GetResultTests;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.function.Predicate;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -42,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExplainResponseTests extends AbstractStreamableXContentTestCase<ExplainResponse> {
     @Override
     protected ExplainResponse doParseInstance(XContentParser parser) throws IOException {
-        return ExplainResponse.fromXContent(parser);
+        return ExplainResponse.fromXContent(parser, randomBoolean());
     }
 
     @Override
@@ -57,8 +60,21 @@ public class ExplainResponseTests extends AbstractStreamableXContentTestCase<Exp
         String id = String.valueOf(randomIntBetween(1,100));
         boolean exist = randomBoolean();
         Explanation explanation = randomExplanation(randomExplanation(randomExplanation()), randomExplanation());
-        GetResult getResult = GetResultTests.randomGetResult(randomFrom(XContentType.values())).v1();
+        String fieldName = randomAlphaOfLength(10);
+        List<Object> values = Arrays.asList(randomAlphaOfLengthBetween(3, 10), randomInt(), randomLong(), randomDouble(), randomBoolean());
+        GetResult getResult = new GetResult(randomAlphaOfLengthBetween(3, 10),
+            randomAlphaOfLengthBetween(3, 10),
+            randomAlphaOfLengthBetween(3, 10),
+            randomNonNegativeLong(),
+            true,
+            RandomObjects.randomSource(random()),
+            singletonMap(fieldName, new DocumentField(fieldName, values)));
         return new ExplainResponse(index, type, id, exist, explanation, getResult);
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.startsWith("fields") || field.startsWith("get");
     }
 
     public void testToXContent() throws IOException {

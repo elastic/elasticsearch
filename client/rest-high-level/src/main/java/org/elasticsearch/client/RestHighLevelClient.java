@@ -621,8 +621,13 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final ExplainResponse explain(ExplainRequest explainRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(explainRequest, RequestConverters::explain, options, ExplainResponse::fromXContent,
-                singleton(404));
+        return performRequest(explainRequest, RequestConverters::explain, options,
+            response -> {
+                CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser =
+                    parser -> ExplainResponse.fromXContent(parser, convertExistsResponse(response));
+                return parseEntity(response.getEntity(), entityParser);
+            },
+            singleton(404));
     }
 
     /**
@@ -634,8 +639,13 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void explainAsync(ExplainRequest explainRequest, RequestOptions options, ActionListener<ExplainResponse> listener) {
-        performRequestAsyncAndParseEntity(explainRequest, RequestConverters::explain, options, ExplainResponse::fromXContent,listener,
-                singleton(404));
+        performRequestAsync(explainRequest, RequestConverters::explain, options,
+            response -> {
+                CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser =
+                    parser -> ExplainResponse.fromXContent(parser, convertExistsResponse(response));
+                return parseEntity(response.getEntity(), entityParser);
+            },
+            listener, singleton(404));
     }
 
     /**
@@ -720,7 +730,7 @@ public class RestHighLevelClient implements Closeable {
         } catch (ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
                 try {
-                    return processResponse(responseConverter.apply(e.getResponse()), e.getResponse().getStatusLine().getStatusCode());
+                    return responseConverter.apply(e.getResponse());
                 } catch (Exception innerException) {
                     // the exception is ignored as we now try to parse the response as an error.
                     // this covers cases like get where 404 can either be a valid document not found response,
@@ -733,7 +743,7 @@ public class RestHighLevelClient implements Closeable {
         }
 
         try {
-            return processResponse(responseConverter.apply(response), response.getStatusLine().getStatusCode());
+            return responseConverter.apply(response);
         } catch(Exception e) {
             throw new IOException("Unable to parse response body for " + response, e);
         }
@@ -777,7 +787,7 @@ public class RestHighLevelClient implements Closeable {
             @Override
             public void onSuccess(Response response) {
                 try {
-                    actionListener.onResponse(processResponse(responseConverter.apply(response), response.getStatusLine().getStatusCode()));
+                    actionListener.onResponse(responseConverter.apply(response));
                 } catch(Exception e) {
                     IOException ioe = new IOException("Unable to parse response body for " + response, e);
                     onFailure(ioe);
@@ -791,8 +801,7 @@ public class RestHighLevelClient implements Closeable {
                     Response response = responseException.getResponse();
                     if (ignores.contains(response.getStatusLine().getStatusCode())) {
                         try {
-                            actionListener.onResponse(
-                                processResponse(responseConverter.apply(response), response.getStatusLine().getStatusCode()));
+                            actionListener.onResponse(responseConverter.apply(response));
                         } catch (Exception innerException) {
                             // the exception is ignored as we now try to parse the response as an error.
                             // this covers cases like get where 404 can either be a valid document not found response,
@@ -854,14 +863,6 @@ public class RestHighLevelClient implements Closeable {
             return entityParser.apply(parser);
         }
     }
-
-    private <Resp> Resp processResponse(Resp resp, int statusCode) {
-        if (resp instanceof ExplainResponse) {
-            ((ExplainResponse) resp).setExists(statusCode == RestStatus.OK.getStatus() ? true : false);
-        }
-        return resp;
-    }
-
 
     private static RequestOptions optionsForHeaders(Header[] headers) {
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();

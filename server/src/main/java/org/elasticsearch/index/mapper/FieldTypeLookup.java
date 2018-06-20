@@ -75,7 +75,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
                 fullName = fullName.copyAndPut(fieldType.name(), fieldMapper.fieldType());
             } else {
                 // modification of an existing field
-                checkCompatibility(fullNameFieldType, fieldType);
+                validateFieldType(fullNameFieldType, fieldType);
                 if (fieldType.equals(fullNameFieldType) == false) {
                     fullName = fullName.copyAndPut(fieldType.name(), fieldMapper.fieldType());
                 }
@@ -84,8 +84,10 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
             String aliasName = fieldAliasMapper.name();
-            String fieldName = fieldAliasMapper.path();
-            aliases = aliases.copyAndPut(aliasName, fieldName);
+            String path = fieldAliasMapper.path();
+
+            validateAlias(aliasName, path, aliases, fullName);
+            aliases = aliases.copyAndPut(aliasName, path);
         }
 
         return new FieldTypeLookup(fullName, aliases);
@@ -95,7 +97,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
      * Checks if the given field type is compatible with an existing field type.
      * An IllegalArgumentException is thrown in case of incompatibility.
      */
-    private void checkCompatibility(MappedFieldType existingFieldType, MappedFieldType newFieldType) {
+    private void validateFieldType(MappedFieldType existingFieldType, MappedFieldType newFieldType) {
         List<String> conflicts = new ArrayList<>();
         existingFieldType.checkCompatibility(newFieldType, conflicts);
         if (conflicts.isEmpty() == false) {
@@ -103,10 +105,30 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         }
     }
 
+    private void validateAlias(String aliasName,
+                               String path,
+                               CopyOnWriteHashMap<String, String> aliasToConcreteName,
+                               CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType) {
+        if (path.equals(aliasName)) {
+            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
+                aliasName + "]: an alias cannot refer to itself.");
+        }
+
+        if (aliasToConcreteName.containsKey(path)) {
+            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
+                aliasName + "]: an alias cannot refer to another alias.");
+        }
+
+        if (!fullNameToFieldType.containsKey(path)) {
+            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
+                aliasName + "]: an alias must refer to an existing field in the mappings.");
+        }
+    }
+
     /** Returns the field for the given field */
     public MappedFieldType get(String field) {
-        String resolvedField = aliasToConcreteName.getOrDefault(field, field);
-        return fullNameToFieldType.get(resolvedField);
+        String concreteField = aliasToConcreteName.getOrDefault(field, field);
+        return fullNameToFieldType.get(concreteField);
     }
 
     /**

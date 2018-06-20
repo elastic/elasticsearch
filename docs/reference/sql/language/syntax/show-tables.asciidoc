@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[sql-syntax-show-tables]]
 === SHOW TABLES
 

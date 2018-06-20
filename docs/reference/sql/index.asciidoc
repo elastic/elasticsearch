@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="basic"]
 [[xpack-sql]]
 = SQL Access
 

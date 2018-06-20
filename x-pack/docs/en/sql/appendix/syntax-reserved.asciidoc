@@ -1,5 +1,6 @@
-[[sql-spec-reserved]]
-=== Reserved Keywords
+[appendix]
+[[sql-syntax-reserved]]
+= Reserved Keywords
 
 Table with reserved keywords that need to be quoted. Also provide an example to make it more obvious.
 

@@ -45,8 +45,7 @@ public class UsernamePasswordTokenTests extends ESTestCase {
 
     public void testExtractToken() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        String header =
-                randomFrom("Basic ", "basic ") + Base64.getEncoder().encodeToString("user1:test123".getBytes(StandardCharsets.UTF_8));
+        String header = randomFrom("Basic ") + Base64.getEncoder().encodeToString("user1:test123".getBytes(StandardCharsets.UTF_8));
         threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
         UsernamePasswordToken token = UsernamePasswordToken.extractToken(threadContext);
         assertThat(token, notNullValue());

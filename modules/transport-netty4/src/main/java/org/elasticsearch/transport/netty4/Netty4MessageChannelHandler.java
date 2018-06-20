@@ -78,5 +78,4 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             transport.onException(tcpChannel, (Exception) newCause);
         }
     }
-
 }

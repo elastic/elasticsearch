@@ -56,6 +56,7 @@ import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpServerChannel;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
@@ -197,7 +198,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             serverBootstrap.channel(NioServerSocketChannel.class);
 
             serverBootstrap.childHandler(configureServerChannelHandler());
-            serverBootstrap.handler(new ServerChannelExceptionHandler());
+            serverBootstrap.handler(new ServerChannelExceptionHandler(this));
 
             serverBootstrap.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings));
             serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
@@ -285,7 +286,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 logger.trace("Http read timeout {}", channel);
             }
             CloseableChannel.closeChannel(channel);
-            ;
         } else {
             super.onException(channel, cause);
         }
@@ -345,16 +345,22 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @ChannelHandler.Sharable
-    private class ServerChannelExceptionHandler extends ChannelHandlerAdapter {
+    private static class ServerChannelExceptionHandler extends ChannelHandlerAdapter {
+
+        private final Netty4HttpServerTransport transport;
+
+        private ServerChannelExceptionHandler(Netty4HttpServerTransport transport) {
+            this.transport = transport;
+        }
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             Netty4Utils.maybeDie(cause);
             Netty4HttpServerChannel httpServerChannel = ctx.channel().attr(HTTP_SERVER_CHANNEL_KEY).get();
             if (cause instanceof Error) {
-                onServerException(httpServerChannel, new Exception(cause));
+                transport.onServerException(httpServerChannel, new Exception(cause));
             } else {
-                onServerException(httpServerChannel, (Exception) cause);
+                transport.onServerException(httpServerChannel, (Exception) cause);
             }
         }
     }

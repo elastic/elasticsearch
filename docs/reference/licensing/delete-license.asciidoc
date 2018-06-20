@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="basic"]
 [[delete-license]]
 === Delete License API
 
@@ -41,3 +42,4 @@ When the license is successfully deleted, the API returns the following response
   "acknowledged": true
 }
 ------------------------------------------------------------
+// NOTCONSOLE

@@ -166,7 +166,18 @@ public final class AnalysisRegistry implements Closeable {
          */
         tokenFilters.put("synonym", requiresAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings)));
         tokenFilters.put("synonym_graph", requiresAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings)));
-        return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.preConfiguredTokenFilters);
+
+        Map<String, TokenFilterFactory> mappings
+            = buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.preConfiguredTokenFilters);
+
+        // ReferringTokenFilters require references to other tokenfilters, so we pass these in
+        // after all factories have been registered
+        for (TokenFilterFactory tff : mappings.values()) {
+            if (tff instanceof ReferringFilterFactory) {
+                ((ReferringFilterFactory)tff).setReferences(mappings);
+            }
+        }
+        return mappings;
     }
 
     public Map<String, TokenizerFactory> buildTokenizerFactories(IndexSettings indexSettings) throws IOException {

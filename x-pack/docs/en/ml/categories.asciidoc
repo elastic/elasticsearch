@@ -1,3 +1,4 @@
+[role="xpack"]
 [[ml-configuring-categories]]
 === Categorizing log messages
 
@@ -77,7 +78,7 @@ NOTE: To add the `categorization_examples_limit` property, you must use the
 
 [float]
 [[ml-configuring-analyzer]]
-==== Customizing the Categorization Analyzer
+==== Customizing the categorization analyzer
 
 Categorization uses English dictionary words to identify log message categories.
 By default, it also uses English tokenization rules. For this reason, if you use
@@ -213,7 +214,7 @@ API examples above.
 
 [float]
 [[ml-viewing-categories]]
-==== Viewing Categorization Results
+==== Viewing categorization results
 
 After you open the job and start the {dfeed} or supply data to the job, you can
 view the categorization results in {kib}. For example:

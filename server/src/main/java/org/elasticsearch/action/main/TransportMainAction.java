@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -40,9 +39,8 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
 
     @Inject
     public TransportMainAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService) {
-        super(settings, MainAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MainRequest::new);
+                               ActionFilters actionFilters, ClusterService clusterService) {
+        super(settings, MainAction.NAME, threadPool, transportService, actionFilters, MainRequest::new);
         this.clusterService = clusterService;
     }
 

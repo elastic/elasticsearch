@@ -1,9 +1,9 @@
-[[java-rest-high-snapshot-delete-repository]]
+[[java-rest-high-snapshot-delete-snapshot]]
 === Delete Snapshot API
 
 The Delete Snapshot API allows to delete a snapshot.
 
-[[java-rest-high-snapshot-delete-repository-request]]
+[[java-rest-high-snapshot-delete-snapshot-request]]
 ==== Delete Snapshot Request
 
 A `DeleteSnapshotRequest`:

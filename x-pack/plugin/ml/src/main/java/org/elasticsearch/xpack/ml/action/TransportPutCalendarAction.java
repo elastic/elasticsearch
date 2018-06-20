@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -30,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -39,12 +39,10 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
     private final Client client;
 
     @Inject
-    public TransportPutCalendarAction(Settings settings, ThreadPool threadPool,
-                           TransportService transportService, ActionFilters actionFilters,
-                           IndexNameExpressionResolver indexNameExpressionResolver,
-                           Client client) {
+    public TransportPutCalendarAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                      ActionFilters actionFilters, Client client) {
         super(settings, PutCalendarAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, PutCalendarAction.Request::new);
+            (Supplier<PutCalendarAction.Request>) PutCalendarAction.Request::new);
         this.client = client;
     }
 

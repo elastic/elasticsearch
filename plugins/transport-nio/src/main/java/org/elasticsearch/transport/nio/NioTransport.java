@@ -40,7 +40,6 @@ import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transports;
 
@@ -78,14 +77,14 @@ public class NioTransport extends TcpTransport {
     }
 
     @Override
-    protected TcpNioServerSocketChannel bind(String name, InetSocketAddress address) throws IOException {
+    protected NioTcpServerChannel bind(String name, InetSocketAddress address) throws IOException {
         TcpChannelFactory channelFactory = this.profileToChannelFactory.get(name);
         return nioGroup.bindServerChannel(address, channelFactory);
     }
 
     @Override
-    protected TcpNioSocketChannel initiateChannel(InetSocketAddress address, ActionListener<Void> connectListener) throws IOException {
-        TcpNioSocketChannel channel = nioGroup.openChannel(address, clientChannelFactory);
+    protected NioTcpChannel initiateChannel(InetSocketAddress address, ActionListener<Void> connectListener) throws IOException {
+        NioTcpChannel channel = nioGroup.openChannel(address, clientChannelFactory);
         channel.addConnectListener(ActionListener.toBiConsumer(connectListener));
         return channel;
     }
@@ -131,19 +130,15 @@ public class NioTransport extends TcpTransport {
         profileToChannelFactory.clear();
     }
 
-    protected void exceptionCaught(NioSocketChannel channel, Exception exception) {
-        onException((TcpChannel) channel, exception);
-    }
-
     protected void acceptChannel(NioSocketChannel channel) {
-        serverAcceptedChannel((TcpNioSocketChannel) channel);
+        serverAcceptedChannel((NioTcpChannel) channel);
     }
 
     protected TcpChannelFactory channelFactory(ProfileSettings settings, boolean isClient) {
         return new TcpChannelFactoryImpl(settings);
     }
 
-    protected abstract class TcpChannelFactory extends ChannelFactory<TcpNioServerSocketChannel, TcpNioSocketChannel> {
+    protected abstract class TcpChannelFactory extends ChannelFactory<NioTcpServerChannel, NioTcpChannel> {
 
         protected TcpChannelFactory(RawChannelFactory rawChannelFactory) {
             super(rawChannelFactory);
@@ -164,14 +159,14 @@ public class NioTransport extends TcpTransport {
         }
 
         @Override
-        public TcpNioSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
-            TcpNioSocketChannel nioChannel = new TcpNioSocketChannel(profileName, channel);
+        public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
+            NioTcpChannel nioChannel = new NioTcpChannel(profileName, channel);
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
             TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, NioTransport.this);
-            Consumer<Exception> exceptionHandler = (e) -> exceptionCaught(nioChannel, e);
+            Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, exceptionHandler, readWriteHandler,
                 new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
@@ -179,8 +174,8 @@ public class NioTransport extends TcpTransport {
         }
 
         @Override
-        public TcpNioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
-            TcpNioServerSocketChannel nioChannel = new TcpNioServerSocketChannel(profileName, channel);
+        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
+            NioTcpServerChannel nioChannel = new NioTcpServerChannel(profileName, channel);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
             Consumer<NioSocketChannel> acceptor = NioTransport.this::acceptChannel;

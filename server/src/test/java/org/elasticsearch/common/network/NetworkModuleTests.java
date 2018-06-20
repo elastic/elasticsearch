@@ -159,8 +159,8 @@ public class NetworkModuleTests extends ModuleTestCase {
             @Override
             public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool,
                                                                                 BigArrays bigArrays,
+                                                                                PageCacheRecycler pageCacheRecycler,
                                                                                 CircuitBreakerService circuitBreakerService,
-                                                                                NamedWriteableRegistry namedWriteableRegistry,
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
                                                                                 HttpServerTransport.Dispatcher requestDispatcher) {
@@ -198,8 +198,8 @@ public class NetworkModuleTests extends ModuleTestCase {
             @Override
             public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool,
                                                                                 BigArrays bigArrays,
+                                                                                PageCacheRecycler pageCacheRecycler,
                                                                                 CircuitBreakerService circuitBreakerService,
-                                                                                NamedWriteableRegistry namedWriteableRegistry,
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
                                                                                 HttpServerTransport.Dispatcher requestDispatcher) {
@@ -233,8 +233,8 @@ public class NetworkModuleTests extends ModuleTestCase {
             @Override
             public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool,
                                                                                 BigArrays bigArrays,
+                                                                                PageCacheRecycler pageCacheRecycler,
                                                                                 CircuitBreakerService circuitBreakerService,
-                                                                                NamedWriteableRegistry namedWriteableRegistry,
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
                                                                                 HttpServerTransport.Dispatcher requestDispatcher) {

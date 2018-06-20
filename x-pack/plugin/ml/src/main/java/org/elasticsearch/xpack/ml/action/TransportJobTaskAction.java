@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -42,10 +41,10 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
 
     TransportJobTaskAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
                            TransportService transportService, ActionFilters actionFilters,
-                           IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> requestSupplier,
+                           Supplier<Request> requestSupplier,
                            Supplier<Response> responseSupplier, String nodeExecutor, AutodetectProcessManager processManager) {
-        super(settings, actionName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                requestSupplier, responseSupplier, nodeExecutor);
+        super(settings, actionName, threadPool, clusterService, transportService, actionFilters,
+            requestSupplier, responseSupplier, nodeExecutor);
         this.processManager = processManager;
     }
 

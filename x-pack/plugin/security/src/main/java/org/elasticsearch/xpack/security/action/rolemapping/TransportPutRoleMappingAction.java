@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.action.rolemapping;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,13 +23,10 @@ public class TransportPutRoleMappingAction
     private final NativeRoleMappingStore roleMappingStore;
 
     @Inject
-    public TransportPutRoleMappingAction(Settings settings, ThreadPool threadPool,
-                                         ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver,
-                                         TransportService transportService,
-                                         NativeRoleMappingStore roleMappingStore) {
+    public TransportPutRoleMappingAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+                                         TransportService transportService, NativeRoleMappingStore roleMappingStore) {
         super(settings, PutRoleMappingAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, PutRoleMappingRequest::new);
+            PutRoleMappingRequest::new);
         this.roleMappingStore = roleMappingStore;
     }
 

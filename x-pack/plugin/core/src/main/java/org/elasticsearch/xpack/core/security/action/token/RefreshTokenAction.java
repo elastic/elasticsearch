@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.security.action.token;
 
 import org.elasticsearch.action.Action;
 
-public final class RefreshTokenAction extends Action<CreateTokenRequest, CreateTokenResponse> {
+public final class RefreshTokenAction extends Action<CreateTokenResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/token/refresh";
     public static final RefreshTokenAction INSTANCE = new RefreshTokenAction();

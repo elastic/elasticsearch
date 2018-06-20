@@ -19,24 +19,54 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 
 public class IndexMetaDataTests extends ESTestCase {
+
+    private IndicesModule INDICES_MODULE = new IndicesModule(Collections.emptyList());
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+    }
+
+    @Override
+    protected NamedWriteableRegistry writableRegistry() {
+        return new NamedWriteableRegistry(INDICES_MODULE.getNamedWriteables());
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(INDICES_MODULE.getNamedXContents());
+    }
 
     public void testIndexMetaDataSerialization() throws IOException {
         Integer numShard = randomFrom(1, 2, 4, 8, 16);
@@ -50,7 +80,12 @@ public class IndexMetaDataTests extends ESTestCase {
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
-            .build();
+            .putRolloverInfo(
+                new RolloverInfo(randomAlphaOfLength(5),
+                    Arrays.asList(new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
+                        new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+                        new MaxDocsCondition(randomNonNegativeLong())),
+                    randomNonNegativeLong())).build();
 
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -71,17 +106,20 @@ public class IndexMetaDataTests extends ESTestCase {
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metaData.writeTo(out);
-        IndexMetaData deserialized = IndexMetaData.readFrom(out.bytes().streamInput());
-        assertEquals(metaData, deserialized);
-        assertEquals(metaData.hashCode(), deserialized.hashCode());
+        try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
+            IndexMetaData deserialized = IndexMetaData.readFrom(in);
+            assertEquals(metaData, deserialized);
+            assertEquals(metaData.hashCode(), deserialized.hashCode());
 
-        assertEquals(metaData.getNumberOfReplicas(), deserialized.getNumberOfReplicas());
-        assertEquals(metaData.getNumberOfShards(), deserialized.getNumberOfShards());
-        assertEquals(metaData.getCreationVersion(), deserialized.getCreationVersion());
-        assertEquals(metaData.getRoutingNumShards(), deserialized.getRoutingNumShards());
-        assertEquals(metaData.getCreationDate(), deserialized.getCreationDate());
-        assertEquals(metaData.getRoutingFactor(), deserialized.getRoutingFactor());
-        assertEquals(metaData.primaryTerm(0), deserialized.primaryTerm(0));
+            assertEquals(metaData.getNumberOfReplicas(), deserialized.getNumberOfReplicas());
+            assertEquals(metaData.getNumberOfShards(), deserialized.getNumberOfShards());
+            assertEquals(metaData.getCreationVersion(), deserialized.getCreationVersion());
+            assertEquals(metaData.getRoutingNumShards(), deserialized.getRoutingNumShards());
+            assertEquals(metaData.getCreationDate(), deserialized.getCreationDate());
+            assertEquals(metaData.getRoutingFactor(), deserialized.getRoutingFactor());
+            assertEquals(metaData.primaryTerm(0), deserialized.primaryTerm(0));
+            assertEquals(metaData.getRolloverInfos(), deserialized.getRolloverInfos());
+        }
     }
 
     public void testGetRoutingFactor() {

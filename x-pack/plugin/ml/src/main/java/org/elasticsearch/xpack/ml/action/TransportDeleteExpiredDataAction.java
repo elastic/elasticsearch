@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -38,10 +37,8 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
 
     @Inject
     public TransportDeleteExpiredDataAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                            Client client, ClusterService clusterService) {
-        super(settings, DeleteExpiredDataAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                DeleteExpiredDataAction.Request::new);
+                                            ActionFilters actionFilters, Client client, ClusterService clusterService) {
+        super(settings, DeleteExpiredDataAction.NAME, threadPool, transportService, actionFilters, DeleteExpiredDataAction.Request::new);
         this.client = ClientHelper.clientWithOrigin(client, ClientHelper.ML_ORIGIN);
         this.clusterService = clusterService;
     }

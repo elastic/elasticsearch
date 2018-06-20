@@ -30,7 +30,6 @@ import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -58,13 +57,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
 
     @Inject
-    public TransportClusterStatsAction(Settings settings, ThreadPool threadPool,
-                                       ClusterService clusterService, TransportService transportService,
-                                       NodeService nodeService, IndicesService indicesService,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportClusterStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                       TransportService transportService, NodeService nodeService, IndicesService indicesService,
+                                       ActionFilters actionFilters) {
         super(settings, ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-              indexNameExpressionResolver, ClusterStatsRequest::new, ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT,
-              ClusterStatsNodeResponse.class);
+            ClusterStatsRequest::new, ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT, ClusterStatsNodeResponse.class);
         this.nodeService = nodeService;
         this.indicesService = indicesService;
     }

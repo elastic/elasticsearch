@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.delete;
 
+import java.util.function.Supplier;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -13,7 +15,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,10 +37,9 @@ public class TransportDeleteWatchAction extends HandledTransportAction<DeleteWat
 
     @Inject
     public TransportDeleteWatchAction(Settings settings, TransportService transportService,ThreadPool threadPool,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                      Client client) {
-        super(settings, DeleteWatchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                DeleteWatchRequest::new);
+                                      ActionFilters actionFilters, Client client) {
+        super(settings, DeleteWatchAction.NAME, threadPool, transportService, actionFilters,
+            (Supplier<DeleteWatchRequest>) DeleteWatchRequest::new);
         this.client = client;
     }
 

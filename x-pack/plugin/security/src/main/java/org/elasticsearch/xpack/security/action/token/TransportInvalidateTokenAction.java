@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.action.token;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,10 +26,9 @@ public final class TransportInvalidateTokenAction extends HandledTransportAction
 
     @Inject
     public TransportInvalidateTokenAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          TokenService tokenService) {
+                                          ActionFilters actionFilters, TokenService tokenService) {
         super(settings, InvalidateTokenAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, InvalidateTokenRequest::new);
+            InvalidateTokenRequest::new);
         this.tokenService = tokenService;
     }
 

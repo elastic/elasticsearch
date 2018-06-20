@@ -26,7 +26,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -64,11 +63,9 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
     @Inject
     public TransportCancelTasksAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                      TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver
-                                          indexNameExpressionResolver) {
+                                      TransportService transportService, ActionFilters actionFilters) {
         super(settings, CancelTasksAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            indexNameExpressionResolver, CancelTasksRequest::new, CancelTasksResponse::new,
-            ThreadPool.Names.MANAGEMENT);
+            CancelTasksRequest::new, CancelTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, BanParentTaskRequest::new, ThreadPool.Names.SAME, new
             BanParentRequestHandler());
     }

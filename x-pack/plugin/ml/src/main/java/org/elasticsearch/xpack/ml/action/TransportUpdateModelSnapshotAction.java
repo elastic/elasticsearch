@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -44,10 +43,9 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<U
 
     @Inject
     public TransportUpdateModelSnapshotAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                              JobProvider jobProvider, Client client) {
-        super(settings, UpdateModelSnapshotAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                UpdateModelSnapshotAction.Request::new);
+                                              ActionFilters actionFilters, JobProvider jobProvider, Client client) {
+        super(settings, UpdateModelSnapshotAction.NAME, threadPool, transportService, actionFilters,
+            UpdateModelSnapshotAction.Request::new);
         this.jobProvider = jobProvider;
         this.client = client;
     }

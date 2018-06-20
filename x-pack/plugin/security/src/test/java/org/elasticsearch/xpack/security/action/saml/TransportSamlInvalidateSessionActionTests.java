@@ -27,7 +27,6 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -173,7 +172,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final Realms realms = mock(Realms.class);
         action = new TransportSamlInvalidateSessionAction(settings, threadPool, transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), tokenService, realms);
+                mock(ActionFilters.class),tokenService, realms);
 
         final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         final Environment env = TestEnvironment.newEnvironment(settings);

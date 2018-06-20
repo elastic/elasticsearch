@@ -22,7 +22,16 @@ The following arguments can also optionally be provided:
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-field-mapping-request-indicesOptions]
 --------------------------------------------------
-<1> Options for expanding indices names
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-field-mapping-request-local]
+--------------------------------------------------
+<1> The `local` flag (defaults to `false`) controls whether the aliases need
+to be looked up in the local cluster state or in the cluster state held by
+the elected master node
 
 [[java-rest-high-get-field-mappings-sync]]
 ==== Synchronous Execution

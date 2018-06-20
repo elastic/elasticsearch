@@ -737,6 +737,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
         // end::get-field-mapping-request-indicesOptions
 
+        // tag::get-field-mapping-request-local
+        request.local(true); // <1>
+        // end::get-field-mapping-request-local
+
         {
 
             // tag::get-field-mapping-execute

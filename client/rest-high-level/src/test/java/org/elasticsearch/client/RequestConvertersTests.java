@@ -487,6 +487,14 @@ public class RequestConvertersTests extends ESTestCase {
 
         setRandomIndicesOptions(getFieldMappingsRequest::indicesOptions, getFieldMappingsRequest::indicesOptions, expectedParams);
 
+        if (randomBoolean()) {
+            boolean local = randomBoolean();
+            getFieldMappingsRequest.local(local);
+            if (local) {
+                expectedParams.put("local", String.valueOf(local));
+            }
+        }
+
         Request request = RequestConverters.getFieldMapping(getFieldMappingsRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);

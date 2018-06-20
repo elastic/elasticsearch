@@ -20,6 +20,7 @@
 package org.elasticsearch.nio;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -29,17 +30,16 @@ public class NioSocketChannel extends NioChannel {
 
     private final AtomicBoolean contextSet = new AtomicBoolean(false);
     private final SocketChannel socketChannel;
-    private volatile InetSocketAddress remoteAddress;
+    private final InetSocketAddress remoteAddress;
     private volatile InetSocketAddress localAddress;
     private SocketChannelContext context;
 
     public NioSocketChannel(SocketChannel socketChannel) {
         this.socketChannel = socketChannel;
         try {
-            remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
+            this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
         } catch (IOException e) {
-            // This exception will be thrown if the channel is closed. But we do not really care when
-            // we are just attempting to read the remote address.
+            throw new UncheckedIOException(e);
         }
     }
 

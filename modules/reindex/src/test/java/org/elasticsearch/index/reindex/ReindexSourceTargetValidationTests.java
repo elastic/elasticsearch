@@ -80,10 +80,7 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
 
     public void testTargetIsAlias() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> succeeds("target_multi", "foo"));
-        assertThat(e.getMessage(), containsString("Alias [target_multi] has more than one indices associated with it [["));
-        // The index names can come in either order
-        assertThat(e.getMessage(), containsString("target"));
-        assertThat(e.getMessage(), containsString("target2"));
+        assertThat(e.getMessage(), containsString("Alias [target_multi] points to multiple indices"));
     }
 
     public void testRemoteInfoSkipsValidation() {

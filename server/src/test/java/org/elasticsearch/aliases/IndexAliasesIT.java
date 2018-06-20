@@ -86,6 +86,15 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> aliasing index [test] with [alias1]");
+        assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1", false));
+
+        logger.info("--> indexing against [alias1], should fail now");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> client().index(indexRequest("alias1").type("type1").id("1").source(source("2", "test"),
+                XContentType.JSON)).actionGet());
+        assertThat(exception.getMessage(), equalTo("Alias [alias1] points to an index [test] with [is_write_index=false]"));
+
+        logger.info("--> aliasing index [test] with [alias1]");
         assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1"));
 
         logger.info("--> indexing against [alias1], should work now");
@@ -97,6 +106,24 @@ public class IndexAliasesIT extends ESIntegTestCase {
         createIndex("test_x");
 
         ensureGreen();
+
+        logger.info("--> add index [test_x] with [alias1]");
+        assertAcked(admin().indices().prepareAliases().addAlias("test_x", "alias1"));
+
+        logger.info("--> indexing against [alias1], should fail now");
+        exception = expectThrows(IllegalArgumentException.class,
+            () -> client().index(indexRequest("alias1").type("type1").id("1").source(source("2", "test"),
+                XContentType.JSON)).actionGet());
+        assertThat(exception.getMessage(),
+            equalTo("Alias [alias1] points to multiple indices with none set as a write-index [is_write_index=true]"));
+
+        logger.info("--> add index [test_x] with [alias1] as write-index");
+        assertAcked(admin().indices().prepareAliases().addAlias("test_x", "alias1", true));
+
+        logger.info("--> indexing against [alias1], should work now");
+        indexResponse = client().index(indexRequest("alias1").type("type1").id("1")
+            .source(source("1", "test"), XContentType.JSON)).actionGet();
+        assertThat(indexResponse.getIndex(), equalTo("test_x"));
 
         logger.info("--> remove [alias1], Aliasing index [test_x] with [alias1]");
         assertAcked(admin().indices().prepareAliases().removeAlias("test", "alias1").addAlias("test_x", "alias1"));

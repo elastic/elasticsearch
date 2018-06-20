@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,6 +57,11 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
     @Override
     public RefreshPolicy getRefreshPolicy() {
         return refreshPolicy;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictAliasToWriteIndexNoExpandForbidClosed();
     }
 
     @Override

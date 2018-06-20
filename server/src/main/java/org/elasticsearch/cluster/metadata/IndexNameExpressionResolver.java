@@ -194,29 +194,43 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             }
 
             Collection<IndexMetaData> resolvedIndices = aliasOrIndex.getIndices();
-            if (resolvedIndices.size() > 1 && !options.allowAliasesToMultipleIndices()) {
+
+            if (aliasOrIndex.isAlias() && options.requireAliasesToWriteIndex()) {
+                AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
+                IndexMetaData writeIndex = alias.getWriteIndex();
+                if (writeIndex == null) {
+                    if (alias.getIndices().size() > 1) {
+                        throw new IllegalArgumentException("Alias [" + alias.getAliasName() +
+                            "] points to multiple indices with none set as a write-index [is_write_index=true]");
+                    } else {
+                        throw new IllegalArgumentException("Alias [" + alias.getAliasName() + "] points to an index ["
+                            + alias.getIndices().get(0).getIndex().getName() + "] with [is_write_index=false]");
+                    }
+                }
+                concreteIndices.add(writeIndex.getIndex());
+            } else if (resolvedIndices.size() > 1 && options.allowAliasesToMultipleIndices() == false) {
                 String[] indexNames = new String[resolvedIndices.size()];
                 int i = 0;
                 for (IndexMetaData indexMetaData : resolvedIndices) {
                     indexNames[i++] = indexMetaData.getIndex().getName();
                 }
                 throw new IllegalArgumentException("Alias [" + expression + "] has more than one indices associated with it [" +
-                        Arrays.toString(indexNames) + "], can't execute a single index op");
-            }
-
-            for (IndexMetaData index : resolvedIndices) {
-                if (index.getState() == IndexMetaData.State.CLOSE) {
-                    if (failClosed) {
-                        throw new IndexClosedException(index.getIndex());
-                    } else {
-                        if (options.forbidClosedIndices() == false) {
-                            concreteIndices.add(index.getIndex());
+                    Arrays.toString(indexNames) + "], can't execute a single index op");
+            } else {
+                for (IndexMetaData index : resolvedIndices) {
+                    if (index.getState() == IndexMetaData.State.CLOSE) {
+                        if (failClosed) {
+                            throw new IndexClosedException(index.getIndex());
+                        } else {
+                            if (options.forbidClosedIndices() == false) {
+                                concreteIndices.add(index.getIndex());
+                            }
                         }
+                    } else if (index.getState() == IndexMetaData.State.OPEN) {
+                        concreteIndices.add(index.getIndex());
+                    } else {
+                        throw new IllegalStateException("index state [" + index.getState() + "] not supported");
                     }
-                } else if (index.getState() == IndexMetaData.State.OPEN) {
-                    concreteIndices.add(index.getIndex());
-                } else {
-                    throw new IllegalStateException("index state [" + index.getState() + "] not supported");
                 }
             }
         }

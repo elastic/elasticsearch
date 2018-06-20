@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
@@ -167,6 +168,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             validationException = addValidationError("doc must be specified if doc_as_upsert is enabled", validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictAliasToWriteIndexNoExpandForbidClosed();
     }
 
     /**

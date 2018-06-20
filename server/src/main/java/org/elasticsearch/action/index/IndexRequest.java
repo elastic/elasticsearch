@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
@@ -186,6 +187,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
 
         return validationException;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictAliasToWriteIndexNoExpandForbidClosed();
     }
 
     /**
@@ -496,7 +502,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /* resolve the routing if needed */
     public void resolveRouting(MetaData metaData) {
-        routing(metaData.resolveIndexRouting(routing, index));
+        routing(metaData.resolveIndexRouting(routing, index, true));
     }
 
     @Override
@@ -603,5 +609,4 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public IndexRequest setShardId(ShardId shardId) {
         throw new UnsupportedOperationException("shard id should never be set on IndexRequest");
     }
-
 }

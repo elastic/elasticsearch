@@ -70,7 +70,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "field1", "type=keyword,store=true", "field2", "type=keyword,store=true")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
-                .addAlias(new Alias("alias")));
+                .addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null))));
         ensureGreen();
 
         GetResponse response = client().prepareGet(indexOrAlias(), "type1", "1").get();
@@ -197,7 +197,7 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public void testSimpleMultiGet() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias").writeIndex(randomFrom(true, false, null)))
                 .addMapping("type1", "field", "type=keyword,store=true")
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();

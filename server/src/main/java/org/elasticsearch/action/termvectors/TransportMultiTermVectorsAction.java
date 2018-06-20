@@ -41,16 +41,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TransportMultiTermVectorsAction extends HandledTransportAction<MultiTermVectorsRequest, MultiTermVectorsResponse> {
 
     private final ClusterService clusterService;
-
     private final TransportShardMultiTermsVectorAction shardAction;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportMultiTermVectorsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                            ClusterService clusterService, TransportShardMultiTermsVectorAction shardAction,
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiTermVectorsRequest::new);
+        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters, MultiTermVectorsRequest::new);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

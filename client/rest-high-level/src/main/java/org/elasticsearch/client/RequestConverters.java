@@ -226,7 +226,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getFieldMappings(GetFieldMappingsRequest getFieldMappingsRequest) throws IOException {
+    static Request getFieldMapping(GetFieldMappingsRequest getFieldMappingsRequest) throws IOException {
         String[] indices = getFieldMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.indices();
         String[] types = getFieldMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.types();
         String[] fields = getFieldMappingsRequest.fields() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.fields();

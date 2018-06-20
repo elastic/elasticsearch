@@ -487,7 +487,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         setRandomIndicesOptions(getFieldMappingsRequest::indicesOptions, getFieldMappingsRequest::indicesOptions, expectedParams);
 
-        Request request = RequestConverters.getFieldMappings(getFieldMappingsRequest);
+        Request request = RequestConverters.getFieldMapping(getFieldMappingsRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
         if (Strings.hasLength(index)) {

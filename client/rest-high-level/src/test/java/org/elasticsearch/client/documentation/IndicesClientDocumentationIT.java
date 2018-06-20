@@ -741,7 +741,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::get-field-mapping-execute
             GetFieldMappingsResponse response =
-                client.indices().getFieldMappings(request, RequestOptions.DEFAULT);
+                client.indices().getFieldMapping(request, RequestOptions.DEFAULT);
             // end::get-field-mapping-execute
 
             // tag::get-field-mapping-response
@@ -799,7 +799,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             });
 
             // tag::get-field-mapping-execute-async
-            client.indices().getFieldMappingsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.indices().getFieldMappingAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::get-field-mapping-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

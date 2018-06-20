@@ -197,9 +197,9 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetFieldMappingsResponse getFieldMappings(GetFieldMappingsRequest getFieldMappingsRequest,
-                                                     RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getFieldMappingsRequest, RequestConverters::getFieldMappings, options,
+    public GetFieldMappingsResponse getFieldMapping(GetFieldMappingsRequest getFieldMappingsRequest,
+                                                    RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getFieldMappingsRequest, RequestConverters::getFieldMapping, options,
             GetFieldMappingsResponse::fromXContent, emptySet());
     }
 
@@ -211,9 +211,9 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void getFieldMappingsAsync(GetFieldMappingsRequest getFieldMappingsRequest, RequestOptions options,
-                                 ActionListener<GetFieldMappingsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(getFieldMappingsRequest, RequestConverters::getFieldMappings, options,
+    public void getFieldMappingAsync(GetFieldMappingsRequest getFieldMappingsRequest, RequestOptions options,
+                                     ActionListener<GetFieldMappingsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getFieldMappingsRequest, RequestConverters::getFieldMapping, options,
             GetFieldMappingsResponse::fromXContent, listener, emptySet());
     }
 

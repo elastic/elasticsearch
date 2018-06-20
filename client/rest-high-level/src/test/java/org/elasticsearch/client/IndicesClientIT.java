@@ -399,8 +399,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         GetFieldMappingsResponse getFieldMappingsResponse =
             execute(getFieldMappingsRequest,
-                highLevelClient().indices()::getFieldMappings,
-                highLevelClient().indices()::getFieldMappingsAsync);
+                highLevelClient().indices()::getFieldMapping,
+                highLevelClient().indices()::getFieldMappingAsync);
 
         final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldMappingMap =
             getFieldMappingsResponse.mappings().get(indexName).get("_doc");

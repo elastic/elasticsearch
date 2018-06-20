@@ -62,11 +62,6 @@ public enum DataType {
     public final JDBCType jdbcType;
 
     /**
-     * Name of corresponding java class
-     */
-    public final String javaName;
-
-    /**
      * Size of the type in bytes
      * <p>
      * -1 if the size can vary
@@ -110,7 +105,6 @@ public enum DataType {
     DataType(JDBCType jdbcType, Class<?> javaClass, int size, int defaultPrecision, int displaySize, boolean isInteger, boolean isRational,
              boolean defaultDocValues) {
         this.esType = name().toLowerCase(Locale.ROOT);
-        this.javaName = javaClass == null ? null : javaClass.getName();
         this.javaClass = javaClass;
         this.jdbcType = jdbcType;
         this.size = size;

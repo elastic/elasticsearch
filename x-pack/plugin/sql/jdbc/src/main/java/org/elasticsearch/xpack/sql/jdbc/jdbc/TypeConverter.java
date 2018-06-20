@@ -214,10 +214,10 @@ final class TypeConverter {
             // Convert unsupported exception to JdbcSQLException
             throw new JdbcSQLException(ex, ex.getMessage());
         }
-        if (dataType.javaName == null) {
+        if (dataType.javaClass() == null) {
             throw new JdbcSQLException("Unsupported JDBC type [" + jdbcType + "]");
         }
-        return dataType.javaName;
+        return dataType.javaClass().getName();
     }
 
     /**

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.action.role;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +46,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, transportService);
+                rolesStore, transportService);
 
         PutRoleRequest request = new PutRoleRequest();
         request.name(roleName);
@@ -78,7 +77,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, transportService);
+                rolesStore, transportService);
 
         final boolean created = randomBoolean();
         PutRoleRequest request = new PutRoleRequest();
@@ -122,7 +121,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
         TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, transportService);
+                rolesStore, transportService);
 
         PutRoleRequest request = new PutRoleRequest();
         request.name(roleName);

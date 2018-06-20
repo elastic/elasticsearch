@@ -14,7 +14,6 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -53,11 +52,10 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
 
     @Inject
     public TransportStopDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       ClusterService clusterService, PersistentTasksService persistentTasksService) {
+                                       ActionFilters actionFilters, ClusterService clusterService,
+                                       PersistentTasksService persistentTasksService) {
         super(settings, StopDatafeedAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, StopDatafeedAction.Request::new, StopDatafeedAction.Response::new,
-                MachineLearning.UTILITY_THREAD_POOL_NAME);
+            StopDatafeedAction.Request::new, StopDatafeedAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
         this.persistentTasksService = persistentTasksService;
     }
 

@@ -149,7 +149,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
         final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
 
         TransportAction<SearchRequest, SearchResponse> searchAction = new TransportAction<SearchRequest, SearchResponse>(Settings.EMPTY,
-                "action", threadPool, actionFilters, resolver, taskManager) {
+                "action", threadPool, actionFilters, taskManager) {
             @Override
             protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
                 requests.add(request);
@@ -161,7 +161,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
         };
 
         if (controlledClock) {
-            return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, resolver,
+            return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction,
                     availableProcessors, expected::get) {
                 @Override
                 void executeSearch(final Queue<SearchRequestSlot> requests, final AtomicArray<MultiSearchResponse.Item> responses,
@@ -171,7 +171,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
                 }
             };
         } else {
-            return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, resolver,
+            return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction,
                     availableProcessors, System::nanoTime) {
 
                 @Override

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackInfoResponse;
@@ -31,10 +30,9 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
 
     @Inject
     public TransportXPackInfoAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                    LicenseService licenseService, Set<XPackFeatureSet> featureSets) {
-        super(settings, XPackInfoAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                XPackInfoRequest::new);
+                                    ActionFilters actionFilters, LicenseService licenseService, Set<XPackFeatureSet> featureSets) {
+        super(settings, XPackInfoAction.NAME, threadPool, transportService, actionFilters,
+            XPackInfoRequest::new);
         this.licenseService = licenseService;
         this.featureSets = featureSets;
     }

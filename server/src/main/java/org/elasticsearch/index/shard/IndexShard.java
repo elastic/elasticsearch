@@ -300,7 +300,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
         if (IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.get(settings)) {
-            cachingPolicy = new UsageTrackingQueryCachingPolicy() {
+            cachingPolicy = new QueryCachingPolicy() {
+                @Override
+                public void onUse(Query query) {
+
+                }
                 @Override
                 public boolean shouldCache(Query query) {
                     return true;

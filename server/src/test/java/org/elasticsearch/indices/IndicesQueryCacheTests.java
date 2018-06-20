@@ -34,7 +34,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -91,7 +90,11 @@ public class IndicesQueryCacheTests extends ESTestCase {
     }
 
     private static QueryCachingPolicy alwaysCachePolicy() {
-        return new UsageTrackingQueryCachingPolicy() {
+        return new QueryCachingPolicy() {
+            @Override
+            public void onUse(Query query) {
+
+            }
             @Override
             public boolean shouldCache(Query query) {
                 return true;

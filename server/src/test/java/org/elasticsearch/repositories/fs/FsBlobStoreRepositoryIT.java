@@ -16,22 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.snapshots;
+package org.elasticsearch.repositories.fs;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase {
     @Override
-    protected void createTestRepository(String name) {
+    protected void createTestRepository(String name, boolean verify) {
         assertAcked(client().admin().cluster().preparePutRepository(name)
+            .setVerify(verify)
             .setType("fs").setSettings(Settings.builder()
                 .put("location", randomRepoPath())
                 .put("compress", randomBoolean())
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+    }
 
+    @Override
+    protected void afterCreationCheck(Repository repository, boolean verify) {
+        assertThat(repository, instanceOf(FsRepository.class));
+
+        FsRepository fsRepository = (FsRepository) repository;
+
+        assertThat("fs blob store has to be lazy initialized",
+            fsRepository.innerBlobStore(), verify ? is(notNullValue()) : is(nullValue()));
     }
 }

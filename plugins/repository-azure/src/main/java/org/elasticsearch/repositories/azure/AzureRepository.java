@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -38,7 +37,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotCreationException;
 import org.elasticsearch.snapshots.SnapshotId;
 
-import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Locale;
@@ -58,7 +56,7 @@ import static org.elasticsearch.repositories.azure.AzureStorageService.MIN_CHUNK
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-public class AzureRepository extends BlobStoreRepository {
+public class AzureRepository extends BlobStoreRepository<AzureBlobStore> {
 
     public static final String TYPE = "azure";
 
@@ -78,25 +76,21 @@ public class AzureRepository extends BlobStoreRepository {
         public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting("readonly", false, Property.NodeScope);
     }
 
-    private final AzureBlobStore blobStore;
     private final BlobPath basePath;
     private final ByteSizeValue chunkSize;
     private final boolean compress;
-    private final boolean readonly;
+    private final Environment environment;
+    private final AzureStorageService storageService;
+    private volatile boolean readonly;
 
     public AzureRepository(RepositoryMetaData metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
-            AzureStorageService storageService) throws IOException, URISyntaxException, StorageException {
+            AzureStorageService storageService) {
         super(metadata, environment.settings(), namedXContentRegistry);
-        this.blobStore = new AzureBlobStore(metadata, environment.settings(), storageService);
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.compress = Repository.COMPRESS_SETTING.get(metadata.settings());
-        // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
-        // For secondary_only setting, the repository should be read only
-        if (Repository.READONLY_SETTING.exists(metadata.settings())) {
-            this.readonly = Repository.READONLY_SETTING.get(metadata.settings());
-        } else {
-            this.readonly = this.blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY;
-        }
+        this.environment = environment;
+        this.storageService = storageService;
+
         final String basePath = Strings.trimLeadingCharacter(Repository.BASE_PATH_SETTING.get(metadata.settings()), '/');
         if (Strings.hasLength(basePath)) {
             // Remove starting / if any
@@ -108,15 +102,40 @@ public class AzureRepository extends BlobStoreRepository {
         } else {
             this.basePath = BlobPath.cleanPath();
         }
-        logger.debug((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                "using container [{}], chunk_size [{}], compress [{}], base_path [{}]", blobStore, chunkSize, compress, basePath));
+    }
+
+    // only use for testing
+    @Override
+    protected AzureBlobStore blobStore() {
+        return super.blobStore();
+    }
+
+    // only use for testing
+    @Override
+    protected AzureBlobStore innerBlobStore() {
+        return super.innerBlobStore();
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected BlobStore blobStore() {
+    protected AzureBlobStore createBlobStore() throws URISyntaxException, StorageException {
+        final AzureBlobStore blobStore = new AzureBlobStore(metadata, environment.settings(), storageService);
+
+        // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
+        // For secondary_only setting, the repository should be read only
+
+        if (Repository.READONLY_SETTING.exists(metadata.settings())) {
+            this.readonly = Repository.READONLY_SETTING.get(metadata.settings());
+        } else {
+            this.readonly = blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY;
+        }
+
+        logger.debug((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+            "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",
+            blobStore, chunkSize, compress, basePath));
+
         return blobStore;
     }
 
@@ -144,6 +163,7 @@ public class AzureRepository extends BlobStoreRepository {
     @Override
     public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData clusterMetadata) {
         try {
+            final AzureBlobStore blobStore = blobStore();
             if (blobStore.containerExist() == false) {
                 throw new IllegalArgumentException("The bucket [" + blobStore + "] does not exist. Please create it before "
                         + " creating an azure snapshot repository backed by it.");
@@ -156,6 +176,14 @@ public class AzureRepository extends BlobStoreRepository {
 
     @Override
     public boolean isReadOnly() {
+        // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
+        // For secondary_only setting, the repository should be read only
+        if (Repository.READONLY_SETTING.exists(metadata.settings())) {
+            this.readonly = Repository.READONLY_SETTING.get(metadata.settings());
+        } else {
+            // otherwise it's possible obtain actual value only if blobStore is created
+            blobStore();
+        }
         return readonly;
     }
 }

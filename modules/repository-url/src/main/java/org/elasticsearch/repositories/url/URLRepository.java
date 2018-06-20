@@ -20,8 +20,8 @@
 package org.elasticsearch.repositories.url;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -31,7 +31,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -49,7 +48,7 @@ import java.util.function.Function;
  * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
  * </dl>
  */
-public class URLRepository extends BlobStoreRepository {
+public class URLRepository extends BlobStoreRepository<URLBlobStore> {
 
     public static final String TYPE = "url";
 
@@ -71,33 +70,46 @@ public class URLRepository extends BlobStoreRepository {
 
     private final Environment environment;
 
-    private final URLBlobStore blobStore;
-
     private final BlobPath basePath;
 
     /**
      * Constructs a read-only URL-based repository
      */
     public URLRepository(RepositoryMetaData metadata, Environment environment,
-                         NamedXContentRegistry namedXContentRegistry) throws IOException {
+                         NamedXContentRegistry namedXContentRegistry) {
         super(metadata, environment.settings(), namedXContentRegistry);
 
         if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(settings) ==  false) {
             throw new RepositoryException(metadata.name(), "missing url");
         }
+        this.environment = environment;
         supportedProtocols = SUPPORTED_PROTOCOLS_SETTING.get(settings);
         urlWhiteList = ALLOWED_URLS_SETTING.get(settings).toArray(new URIPattern[]{});
-        this.environment = environment;
-
-        URL url = URL_SETTING.exists(metadata.settings()) ? URL_SETTING.get(metadata.settings()) : REPOSITORIES_URL_SETTING.get(settings);
-        URL normalizedURL = checkURL(url);
-        blobStore = new URLBlobStore(settings, normalizedURL);
         basePath = BlobPath.cleanPath();
     }
 
+    private URL getUrl() {
+        URL url = URL_SETTING.exists(metadata.settings())
+            ? URL_SETTING.get(metadata.settings()) : REPOSITORIES_URL_SETTING.get(settings);
+        return checkURL(url);
+    }
+
     @Override
-    protected BlobStore blobStore() {
-        return blobStore;
+    protected URLBlobStore createBlobStore() {
+        URL normalizedURL = getUrl();
+        return new URLBlobStore(settings, normalizedURL);
+    }
+
+    // only use for testing
+    @Override
+    protected BlobContainer snapshotsBlobContainer() {
+        return super.snapshotsBlobContainer();
+    }
+
+    // only use for testing
+    @Override
+    protected URLBlobStore innerBlobStore() {
+        return super.innerBlobStore();
     }
 
     @Override

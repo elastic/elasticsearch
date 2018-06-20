@@ -31,7 +31,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.function.Function;
 
@@ -46,7 +45,7 @@ import java.util.function.Function;
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-public class FsRepository extends BlobStoreRepository {
+public class FsRepository extends BlobStoreRepository<BlobStore> {
 
     public static final String TYPE = "fs";
 
@@ -61,8 +60,7 @@ public class FsRepository extends BlobStoreRepository {
     public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
     public static final Setting<Boolean> REPOSITORIES_COMPRESS_SETTING =
         Setting.boolSetting("repositories.fs.compress", false, Property.NodeScope);
-
-    private final FsBlobStore blobStore;
+    private final Environment environment;
 
     private ByteSizeValue chunkSize;
 
@@ -74,37 +72,55 @@ public class FsRepository extends BlobStoreRepository {
      * Constructs a shared file system repository.
      */
     public FsRepository(RepositoryMetaData metadata, Environment environment,
-                        NamedXContentRegistry namedXContentRegistry) throws IOException {
+                        NamedXContentRegistry namedXContentRegistry) {
         super(metadata, environment.settings(), namedXContentRegistry);
-        String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
-        if (location.isEmpty()) {
-            logger.warn("the repository location is missing, it should point to a shared file system location that is available on all master and data nodes");
-            throw new RepositoryException(metadata.name(), "missing location");
-        }
-        Path locationFile = environment.resolveRepoFile(location);
-        if (locationFile == null) {
-            if (environment.repoFiles().length > 0) {
-                logger.warn("The specified location [{}] doesn't start with any repository paths specified by the path.repo setting: [{}] ", location, environment.repoFiles());
-                throw new RepositoryException(metadata.name(), "location [" + location + "] doesn't match any of the locations specified by path.repo");
-            } else {
-                logger.warn("The specified location [{}] should start with a repository path specified by the path.repo setting, but the path.repo setting was not set on this node", location);
-                throw new RepositoryException(metadata.name(), "location [" + location + "] doesn't match any of the locations specified by path.repo because this setting is empty");
-            }
-        }
+        this.environment = environment;
+        checkAndGetLocation(metadata, environment);
 
-        blobStore = new FsBlobStore(settings, locationFile);
         if (CHUNK_SIZE_SETTING.exists(metadata.settings())) {
             this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
         } else {
             this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(settings);
         }
-        this.compress = COMPRESS_SETTING.exists(metadata.settings()) ? COMPRESS_SETTING.get(metadata.settings()) : REPOSITORIES_COMPRESS_SETTING.get(settings);
+        this.compress = COMPRESS_SETTING.exists(metadata.settings())
+            ? COMPRESS_SETTING.get(metadata.settings()) : REPOSITORIES_COMPRESS_SETTING.get(settings);
         this.basePath = BlobPath.cleanPath();
     }
 
     @Override
-    protected BlobStore blobStore() {
-        return blobStore;
+    protected BlobStore createBlobStore() throws Exception {
+        final Path locationFile = checkAndGetLocation(metadata, environment);
+        return new FsBlobStore(settings, locationFile);
+    }
+
+    // only use for testing
+    @Override
+    protected BlobStore innerBlobStore() {
+        return super.innerBlobStore();
+    }
+
+    private Path checkAndGetLocation(RepositoryMetaData metadata, Environment environment) {
+        String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
+        if (location.isEmpty()) {
+            logger.warn("the repository location is missing, it should point to a shared file system location"
+                + " that is available on all master and data nodes");
+            throw new RepositoryException(metadata.name(), "missing location");
+        }
+        Path locationFile = environment.resolveRepoFile(location);
+        if (locationFile == null) {
+            if (environment.repoFiles().length > 0) {
+                logger.warn("The specified location [{}] doesn't start with any "
+                    + "repository paths specified by the path.repo setting: [{}] ", location, environment.repoFiles());
+                throw new RepositoryException(metadata.name(), "location [" + location
+                    + "] doesn't match any of the locations specified by path.repo");
+            } else {
+                logger.warn("The specified location [{}] should start with a repository path specified by"
+                    + " the path.repo setting, but the path.repo setting was not set on this node", location);
+                throw new RepositoryException(metadata.name(), "location [" + location
+                    + "] doesn't match any of the locations specified by path.repo because this setting is empty");
+            }
+        }
+        return locationFile;
     }
 
     @Override

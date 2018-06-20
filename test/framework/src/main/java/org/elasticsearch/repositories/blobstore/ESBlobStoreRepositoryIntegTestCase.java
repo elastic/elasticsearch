@@ -27,6 +27,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -47,12 +48,28 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase {
 
-    protected abstract void createTestRepository(String name);
+    protected abstract void createTestRepository(String name, boolean verify);
+
+    protected void afterCreationCheck(Repository repository, boolean verify) {
+
+    }
+
+    protected void createAndCheckTestRepository(String name) {
+        final boolean verify = randomBoolean();
+        createTestRepository(name, verify);
+
+        final RepositoriesService repositoriesService =
+            internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
+
+        final Repository repository = repositoriesService.repository(name);
+
+        afterCreationCheck(repository, verify);
+    }
 
     public void testSnapshotAndRestore() throws Exception {
         String repoName = randomAsciiName();
         logger.info("-->  creating repository {}", repoName);
-        createTestRepository(repoName);
+        createAndCheckTestRepository(repoName);
         int indexCount = randomIntBetween(1, 5);
         int[] docCounts = new int[indexCount];
         String[] indexNames = generateRandomNames(indexCount);
@@ -114,7 +131,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     public void testMultipleSnapshotAndRollback() throws Exception {
         String repoName = randomAsciiName();
         logger.info("-->  creating repository {}", repoName);
-        createTestRepository(repoName);
+        createAndCheckTestRepository(repoName);
         int iterationCount = randomIntBetween(2, 5);
         int[] docCounts = new int[iterationCount];
         String indexName = randomAsciiName();
@@ -171,7 +188,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
         logger.info("-->  creating repository");
         final String repoName = "test-repo";
-        createTestRepository(repoName);
+        createAndCheckTestRepository(repoName);
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();

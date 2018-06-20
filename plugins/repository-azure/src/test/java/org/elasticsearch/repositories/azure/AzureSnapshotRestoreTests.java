@@ -57,7 +57,11 @@ import static org.elasticsearch.repositories.azure.AzureTestUtils.generateMockSe
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Those integration tests need an Azure access and must be run with
@@ -408,12 +412,24 @@ public class AzureSnapshotRestoreTests extends ESBlobStoreRepositoryIntegTestCas
     }
 
     @Override
-    protected void createTestRepository(String name) {
+    protected void createTestRepository(String name, boolean verify) {
         assertAcked(client().admin().cluster().preparePutRepository(name)
             .setType(AzureRepository.TYPE)
+            .setVerify(verify)
             .setSettings(Settings.builder()
                 .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                 .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
                 .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+    }
+
+
+    @Override
+    protected void afterCreationCheck(org.elasticsearch.repositories.Repository repository, boolean verify) {
+        assertThat(repository, instanceOf(AzureRepository.class));
+
+        AzureRepository azureRepository = (AzureRepository) repository;
+
+        assertThat("azure blob store has to be lazy initialized",
+            azureRepository.innerBlobStore(), verify ? is(notNullValue()) : is(nullValue()));
     }
 }

@@ -74,8 +74,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     // proxy method for testing
-    protected S3Repository getS3Repository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry)
-            throws IOException {
+    protected S3Repository getS3Repository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry) {
         return new S3Repository(metadata, settings, namedXContentRegistry, awsS3Service);
     }
 

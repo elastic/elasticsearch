@@ -30,11 +30,13 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class S3RepositoryTests extends ESTestCase {
 
@@ -76,7 +78,7 @@ public class S3RepositoryTests extends ESTestCase {
         }
     }
 
-    public void testInvalidChunkBufferSizeSettings() throws IOException {
+    public void testInvalidChunkBufferSizeSettings() {
         // chunk < buffer should fail
         final Settings s1 = bufferAndChunkSettings(10, 5);
         final Exception e1 = expectThrows(RepositoryException.class,
@@ -112,7 +114,7 @@ public class S3RepositoryTests extends ESTestCase {
         return new RepositoryMetaData("dummy-repo", "mock", Settings.builder().put(settings).build());
     }
 
-    public void testBasePathSetting() throws IOException {
+    public void testBasePathSetting() {
         final RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
                 .put(S3Repository.BASE_PATH_SETTING.getKey(), "foo/bar").build());
         try (S3Repository s3repo = new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service())) {
@@ -120,10 +122,12 @@ public class S3RepositoryTests extends ESTestCase {
         }
     }
 
-    public void testDefaultBufferSize() throws IOException {
+    public void testDefaultBufferSize() {
         final RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.EMPTY);
         try (S3Repository s3repo = new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service())) {
-            final long defaultBufferSize = ((S3BlobStore) s3repo.blobStore()).bufferSizeInBytes();
+            assertThat(s3repo.innerBlobStore(), is(nullValue()));
+            final long defaultBufferSize = s3repo.blobStore().bufferSizeInBytes();
+            assertThat(s3repo.innerBlobStore(), not(nullValue()));
             assertThat(defaultBufferSize, Matchers.lessThanOrEqualTo(100L * 1024 * 1024));
             assertThat(defaultBufferSize, Matchers.greaterThanOrEqualTo(5L * 1024 * 1024));
         }

@@ -31,6 +31,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.nullValue;
+
 public class URLRepositoryTests extends ESTestCase {
 
     public void testWhiteListingRepoURL() throws IOException {
@@ -41,8 +45,12 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), repoPath)
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
-        new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
+        final URLRepository repository = new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
             new NamedXContentRegistry(Collections.emptyList()));
+
+        assertThat("blob store has to be lazy initialized", repository.innerBlobStore(), is(nullValue()));
+        repository.snapshotsBlobContainer();
+        assertThat("snapshotsBlobContainer has to initialize blob store", repository.innerBlobStore(), not(nullValue()));
     }
 
     public void testIfNotWhiteListedMustSetRepoURL() throws IOException {
@@ -52,9 +60,11 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), repoPath)
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
+        URLRepository repository = new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
+            new NamedXContentRegistry(Collections.emptyList()));
+        assertThat(repository.innerBlobStore(), is(nullValue()));
         try {
-            new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
-                new NamedXContentRegistry(Collections.emptyList()));
+            repository.snapshotsBlobContainer();
             fail("RepositoryException should have been thrown.");
         } catch (RepositoryException e) {
             String msg = "[url] file url [" + repoPath
@@ -73,9 +83,11 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.SUPPORTED_PROTOCOLS_SETTING.getKey(), "http,https")
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
+        URLRepository repository = new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
+            new NamedXContentRegistry(Collections.emptyList()));
+        assertThat(repository.innerBlobStore(), is(nullValue()));
         try {
-            new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
-                new NamedXContentRegistry(Collections.emptyList()));
+            repository.snapshotsBlobContainer();
             fail("RepositoryException should have been thrown.");
         } catch (RepositoryException e) {
             assertEquals("[url] unsupported url protocol [file] from URL [" + repoPath +"]", e.getMessage());

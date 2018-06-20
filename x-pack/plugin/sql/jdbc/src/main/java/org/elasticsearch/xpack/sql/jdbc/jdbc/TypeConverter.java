@@ -19,6 +19,8 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.OffsetTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
@@ -56,7 +58,10 @@ final class TypeConverter {
     
     static {
         javaToJDBC = Arrays.stream(DataType.values())
-                .filter(dataType -> dataType.javaClass() != null && dataType != DataType.HALF_FLOAT && dataType != DataType.SCALED_FLOAT && dataType != DataType.TEXT)
+                .filter(dataType -> dataType.javaClass() != null 
+                        && dataType != DataType.HALF_FLOAT 
+                        && dataType != DataType.SCALED_FLOAT 
+                        && dataType != DataType.TEXT)
                 .collect(Collectors.toMap(dataType -> dataType.javaClass(), dataType -> dataType.jdbcType));
         // apart from the mappings in {@code DataType} three more Java classes can be mapped to a {@code JDBCType.TIMESTAMP}
         // according to B-4 table from the jdbc4.2 spec
@@ -109,6 +114,20 @@ final class TypeConverter {
         } finally {
             c.setTimeInMillis(initial);
         }
+    }
+    
+    static long convertFromCalendarToUTC(long value, Calendar cal) {
+        if (cal == null) {
+            return value;
+        }
+        Calendar c = (Calendar) cal.clone();
+        c.setTimeInMillis(value);
+
+        ZonedDateTime convertedDateTime = ZonedDateTime
+                .ofInstant(c.toInstant(), ZoneOffset.ofTotalSeconds(c.getTimeZone().getRawOffset() / 1000))
+                .withZoneSameLocal(ZoneOffset.UTC);
+
+        return convertedDateTime.toEpochSecond() * 1000 + convertedDateTime.getNano() / 1_000_000;
     }
 
     /**
@@ -487,28 +506,28 @@ final class TypeConverter {
 
     private static byte safeToByte(long x) throws SQLException {
         if (x > Byte.MAX_VALUE || x < Byte.MIN_VALUE) {
-            throw new SQLException(format(Locale.ROOT, "Numeric %d out of range", Long.toString(x)));
+            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Long.toString(x)));
         }
         return (byte) x;
     }
 
     private static short safeToShort(long x) throws SQLException {
         if (x > Short.MAX_VALUE || x < Short.MIN_VALUE) {
-            throw new SQLException(format(Locale.ROOT, "Numeric %d out of range", Long.toString(x)));
+            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Long.toString(x)));
         }
         return (short) x;
     }
 
     private static int safeToInt(long x) throws SQLException {
         if (x > Integer.MAX_VALUE || x < Integer.MIN_VALUE) {
-            throw new SQLException(format(Locale.ROOT, "Numeric %d out of range", Long.toString(x)));
+            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Long.toString(x)));
         }
         return (int) x;
     }
 
     private static long safeToLong(double x) throws SQLException {
         if (x > Long.MAX_VALUE || x < Long.MIN_VALUE) {
-            throw new SQLException(format(Locale.ROOT, "Numeric %d out of range", Double.toString(x)));
+            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Double.toString(x)));
         }
         return Math.round(x);
     }

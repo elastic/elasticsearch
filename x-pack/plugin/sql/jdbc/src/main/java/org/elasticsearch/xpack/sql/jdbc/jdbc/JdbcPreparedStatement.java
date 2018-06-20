@@ -35,7 +35,10 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.OffsetTime;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
+import java.util.List;
 
 class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     final PreparedQuery query;
@@ -224,12 +227,28 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
-        setDate(parameterIndex, x);
+        if (cal == null) {
+            setDate(parameterIndex, x);
+            return;
+        }
+        if (checkNull(parameterIndex, x, Types.TIMESTAMP)) {
+            return;
+        }
+        
+        setDate(parameterIndex, new Date(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)));
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
-        setTime(parameterIndex, x);
+        if (cal == null) {
+            setTime(parameterIndex, x);
+            return;
+        }
+        if (checkNull(parameterIndex, x, Types.TIMESTAMP)) {
+            return;
+        }
+
+        setTime(parameterIndex, new Time(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)));
     }
 
     @Override
@@ -238,14 +257,11 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
             setTimestamp(parameterIndex, x);
             return;
         }
-        if (x == null) {
-            setParam(parameterIndex, null, Types.TIMESTAMP);
+        if (checkNull(parameterIndex, x, Types.TIMESTAMP)) {
             return;
         }
         
-        Calendar c = (Calendar) cal.clone();
-        c.setTimeInMillis(x.getTime());
-        setTimestamp(parameterIndex, new Timestamp(c.getTimeInMillis()));
+        setTimestamp(parameterIndex, new Timestamp(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)));
     }
 
     @Override
@@ -340,7 +356,9 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         } else if (x instanceof Timestamp
                 || x instanceof Calendar
                 || x instanceof java.util.Date
-                || x instanceof LocalDateTime) {
+                || x instanceof LocalDateTime
+                || x instanceof Date
+                || x instanceof Time) {
             if (targetJDBCType == JDBCType.TIMESTAMP ) {
                 // converting to {@code java.util.Date} because this is the type supported by {@code XContentBuilder} for serialization
                 java.util.Date dateToSet;
@@ -350,22 +368,32 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                     dateToSet = ((Calendar) x).getTime();
                 } else if (x instanceof java.util.Date) {
                     dateToSet = (java.util.Date) x;
-                } else {
+                } else if (x instanceof LocalDateTime){
                     LocalDateTime ldt = (LocalDateTime) x;
                     Calendar cal = Calendar.getInstance(cfg.timeZone());
                     cal.set(ldt.getYear(), ldt.getMonthValue() - 1, ldt.getDayOfMonth(), ldt.getHour(), ldt.getMinute(), ldt.getSecond());
                     
                     dateToSet = cal.getTime();
+                } else if (x instanceof Date) {
+                    dateToSet = TypeConverter.convertDate(((Date) x).getTime(), Calendar.getInstance(cfg.timeZone()));
+                } else {
+                    dateToSet = TypeConverter.convertDate(((Time) x).getTime(), Calendar.getInstance(cfg.timeZone()));
                 }
 
                 setParam(parameterIndex, dateToSet, Types.TIMESTAMP);
             } else if (targetJDBCType == JDBCType.VARCHAR) {
                 setParam(parameterIndex, String.valueOf(x), Types.VARCHAR);
             } else {
-                // anything other than VARCHAR and TIMESTAMP is not supported in this JDBC driver
+                // anything else other than VARCHAR and TIMESTAMP is not supported in this JDBC driver
                 throw new SQLFeatureNotSupportedException(
                         "Conversion from type " + x.getClass().getName() + " to " + targetJDBCType + " not supported");
             }
+        } else if (x instanceof byte[]) {
+            if (targetJDBCType != JDBCType.VARBINARY) {
+                throw new SQLFeatureNotSupportedException(
+                        "Conversion from type byte[] to " + targetJDBCType + " not supported");
+            }
+            setParam(parameterIndex, x, Types.VARBINARY);
         } else {
             throw new SQLFeatureNotSupportedException(
                     "Conversion from type " + x.getClass().getName() + " to " + targetJDBCType + " not supported");
@@ -373,33 +401,14 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     }
 
     private void checkKnownUnsupportedTypes(Object x) throws SQLFeatureNotSupportedException {
-        if (x instanceof Struct) {
-            throw new SQLFeatureNotSupportedException("Objects of type java.sql.Struct are not supported");
-        } else if (x instanceof Array) {
-            throw new SQLFeatureNotSupportedException("Objects of type java.sql.Array are not supported");
-        } else if (x instanceof SQLXML) {
-            throw new SQLFeatureNotSupportedException("Objects of type java.sql.SQLXML are not supported");
-        } else if (x instanceof RowId) {
-            throw new SQLFeatureNotSupportedException("Objects of type java.sql.RowId are not supported");
-        } else if (x instanceof Ref) {
-            throw new SQLFeatureNotSupportedException("Objects of type java.sql.Ref are not supported");
-        } else if (x instanceof Blob) {
-            throw new SQLFeatureNotSupportedException("Objects of type java.sql.Blob are not supported");
-        } else if (x instanceof NClob) {
-            throw new SQLFeatureNotSupportedException("Objects of type java.sql.NClob are not supported");
-        } else if (x instanceof Clob) {
-            throw new SQLFeatureNotSupportedException("Objects of type java.sql.Clob are not supported");
-        } else if (x instanceof LocalDate 
-                || x instanceof LocalTime
-                || x instanceof OffsetTime
-                || x instanceof OffsetDateTime
-                || x instanceof java.sql.Date
-                || x instanceof java.sql.Time
-                || x instanceof URL
-                || x instanceof BigDecimal) {
-            throw new SQLFeatureNotSupportedException("Objects of type " + x.getClass().getName() + " are not supported");
-        } else if (x instanceof byte[]) {
-            throw new UnsupportedOperationException("Bytes not implemented yet");
+        List<Class<?>> unsupportedTypes = new ArrayList<Class<?>>(Arrays.asList(Struct.class, Array.class, SQLXML.class,
+                RowId.class, Ref.class, Blob.class, NClob.class, Clob.class, LocalDate.class, LocalTime.class, 
+                OffsetTime.class, OffsetDateTime.class, URL.class, BigDecimal.class));
+        
+        for (Class<?> clazz:unsupportedTypes) {
+           if (clazz.isAssignableFrom(x.getClass())) {
+                throw new SQLFeatureNotSupportedException("Objects of type " + clazz.getName() + " are not supported");
+           }
         }
     }
 
@@ -501,5 +510,13 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     @Override
     public long executeLargeUpdate() throws SQLException {
         throw new SQLFeatureNotSupportedException("Batching not supported");
+    }
+    
+    private boolean checkNull(int parameterIndex, Object o, int type) throws SQLException {
+        if (o == null) {
+            setNull(parameterIndex, type);
+            return true;
+        }
+        return false;
     }
 }

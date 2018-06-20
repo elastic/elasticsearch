@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -26,11 +26,10 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     @Inject
     public TransportSqlTranslateAction(Settings settings, ThreadPool threadPool,
                                        TransportService transportService, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                        PlanExecutor planExecutor,
                                        SqlLicenseChecker sqlLicenseChecker) {
         super(settings, SqlTranslateAction.NAME, threadPool, transportService, actionFilters,
-                SqlTranslateRequest::new, indexNameExpressionResolver);
+            (Writeable.Reader<SqlTranslateRequest>) SqlTranslateRequest::new);
 
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;

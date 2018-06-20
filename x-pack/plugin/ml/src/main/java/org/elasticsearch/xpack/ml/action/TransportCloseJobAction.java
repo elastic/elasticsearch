@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -64,13 +63,12 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
     private final PersistentTasksService persistentTasksService;
 
     @Inject
-    public TransportCloseJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   ClusterService clusterService, Client client,
-                                   Auditor auditor, PersistentTasksService persistentTasksService) {
+    public TransportCloseJobAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
+                                   ClusterService clusterService, Client client, Auditor auditor,
+                                   PersistentTasksService persistentTasksService) {
         // We fork in innerTaskOperation(...), so we can use ThreadPool.Names.SAME here:
         super(settings, CloseJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, CloseJobAction.Request::new, CloseJobAction.Response::new, ThreadPool.Names.SAME);
+            CloseJobAction.Request::new, CloseJobAction.Response::new, ThreadPool.Names.SAME);
         this.client = client;
         this.clusterService = clusterService;
         this.auditor = auditor;

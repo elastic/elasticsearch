@@ -12,7 +12,6 @@ import java.util.Set;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -29,13 +28,10 @@ public class TransportGetRoleMappingsAction
     private final NativeRoleMappingStore roleMappingStore;
 
     @Inject
-    public TransportGetRoleMappingsAction(Settings settings, ThreadPool threadPool,
-                                          ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver,
-                                          TransportService transportService,
-                                          NativeRoleMappingStore nativeRoleMappingStore) {
+    public TransportGetRoleMappingsAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+                                          TransportService transportService, NativeRoleMappingStore nativeRoleMappingStore) {
         super(settings, GetRoleMappingsAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, GetRoleMappingsRequest::new);
+            GetRoleMappingsRequest::new);
         this.roleMappingStore = nativeRoleMappingStore;
     }
 

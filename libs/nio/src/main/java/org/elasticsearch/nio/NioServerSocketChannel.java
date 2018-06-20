@@ -32,6 +32,7 @@ public class NioServerSocketChannel extends NioChannel {
 
     public NioServerSocketChannel(ServerSocketChannel serverSocketChannel) {
         this.serverSocketChannel = serverSocketChannel;
+        attemptToSetLocalAddress();
     }
 
     /**
@@ -50,9 +51,7 @@ public class NioServerSocketChannel extends NioChannel {
 
     @Override
     public InetSocketAddress getLocalAddress() {
-        if (localAddress == null) {
-            localAddress = (InetSocketAddress) serverSocketChannel.socket().getLocalSocketAddress();
-        }
+        attemptToSetLocalAddress();
         return localAddress;
     }
 
@@ -71,5 +70,11 @@ public class NioServerSocketChannel extends NioChannel {
         return "NioServerSocketChannel{" +
             "localAddress=" + getLocalAddress() +
             '}';
+    }
+
+    private void attemptToSetLocalAddress() {
+        if (localAddress == null) {
+            localAddress = (InetSocketAddress) serverSocketChannel.socket().getLocalSocketAddress();
+        }
     }
 }

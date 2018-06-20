@@ -15,3 +15,8 @@ Requests that try to return more than the limit will fail with an exception.
 
 The `missing` option of the `composite` aggregation, deprecated in 6.x,
 has been removed. `missing_bucket` should be used instead.
+
+==== Dots in aggregation names have been deprecated
+
+Starting in 6.4.0, dots in aggregation names have been deprecated.  Aggregation names that use
+dots will start to throw exceptions in 8.0.0.

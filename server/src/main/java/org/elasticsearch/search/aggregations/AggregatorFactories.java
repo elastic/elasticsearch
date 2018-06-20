@@ -23,6 +23,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -50,6 +52,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class AggregatorFactories {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
     /**
@@ -74,6 +77,9 @@ public class AggregatorFactories {
             if (!validAggMatcher.reset(aggregationName).matches()) {
                 throw new ParsingException(parser.getTokenLocation(), "Invalid aggregation name [" + aggregationName
                         + "]. Aggregation names must be alpha-numeric and can only contain '_' and '-'");
+            }
+            if (aggregationName.contains(".")) {
+                deprecationLogger.deprecated("Dots in aggregation names are deprecated and will be removed in 8.0");
             }
 
             token = parser.nextToken();

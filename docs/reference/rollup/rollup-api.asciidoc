@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="basic"]
 [[rollup-apis]]
 == Rollup APIs
 

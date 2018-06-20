@@ -25,130 +25,6 @@ grant wider access than intended. Each user has a single set of field level and
 document level permissions per index. See <<multiple-roles-dls-fls>>.
 =====================================================================
 
-[[templating-role-query]]
-==== Templating a role query
-
-You can use Mustache templates in a role query to insert the username of the
-current authenticated user into the role. Like other places in {es} that support
-templating or scripting, you can specify inline, stored, or file-based templates
-and define custom parameters. You access the details for the current
-authenticated user through the `_user` parameter.
-
-For example, the following role query uses a template to insert the username
-of the current authenticated user:
-
-[source,js]
---------------------------------------------------
-{
-  "indices" : [
-    {
-      "names" : [ "my_index" ],
-      "privileges" : [ "read" ],
-      "query" : {
-        "template" : {
-          "source" : {
-            "term" : { "acl.username" : "{{_user.username}}" }
-          }
-        }
-      }
-    }
-  ]
-}
---------------------------------------------------
-
-You can access the following information through the `_user` variable:
-
-[options="header"]
-|======
-| Property              | Description
-| `_user.username`      | The username of the current authenticated user.
-| `_user.full_name`     | If specified, the full name of the current authenticated user.
-| `_user.email`         | If specified, the email of the current authenticated user.
-| `_user.roles`         | If associated, a list of the role names of the current authenticated user.
-| `_user.metadata`      | If specified, a hash holding custom metadata of the current authenticated user.
-|======
-
-You can also access custom user metadata. For example, if you maintain a
-`group_id` in your user metadata, you can apply document level security
-based on the `group.id` field in your documents:
-
-[source,js]
---------------------------------------------------
-{
-  "indices" : [
-    {
-      "names" : [ "my_index" ],
-      "privileges" : [ "read" ],
-      "query" : {
-        "template" : {
-          "source" : {
-            "term" : { "group.id" : "{{_user.metadata.group_id}}" }
-          }
-        }
-      }
-    }
-  ]
-}
---------------------------------------------------
-
-[[set-security-user-processor]]
-==== Set security user ingest processor
-
-If an index is shared by many small users it makes sense to put all these users
-into the same index.  Having a dedicated index or shard per user is wasteful.
-To guarantee that a user reads only their own documents, it makes sense to set up
-document level security. In this scenario, each document must have the username
-or role name associated with it, so that this information can be used by the
-role query for document level security. This is a situation where the
-`set_security_user` ingest processor can help.
-
-NOTE: Document level security doesn't apply to write APIs. You must use unique
-ids for each user that uses the same index, otherwise they might overwrite other
-users' documents. The ingest processor just adds properties for the current
-authenticated user to the documents that are being indexed.
-
-The `set_security_user` processor attaches user-related details (such as
-`username`,  `roles`, `email`, `full_name` and `metadata` ) from the current
-authenticated user to the current document by pre-processing the ingest. When
-you index data with an ingest pipeline, user details are automatically attached
-to the document. For example:
-
-[source,js]
---------------------------------------------------
-PUT shared-logs/log/1?pipeline=my_pipeline_id
-{
-  ...
-}
---------------------------------------------------
-
-Read the {ref}/ingest.html[ingest docs] for more information
-about setting up a pipeline and other processors.
-
-[[set-security-user-options]]
-.Set Security User Options
-[options="header"]
-|======
-| Name          | Required  | Default                                                   | Description
-| `field`       | yes       | -                                                         | The field to store the user information into.
-| `properties`  | no        | [`username`, `roles`, `email`, `full_name`, `metadata`]   | Controls what user related properties are added to the `field`.
-|======
-
-The following example adds all user details for the current authenticated user
-to the `user` field for all documents that are processed by this pipeline:
-
-[source,js]
---------------------------------------------------
-{
-  "processors" : [
-    {
-      "set_security_user": {
-        "field": "user"
-      }
-    }
-  ]
-}
---------------------------------------------------
-
 [[multiple-roles-dls-fls]]
 ==== Multiple roles with document and field level security
 
@@ -180,3 +56,6 @@ fields.
 
 If you need to restrict access to both documents and fields, consider splitting
 documents by index instead.
+
+include::role-templates.asciidoc[]
+include::set-security-user.asciidoc[]

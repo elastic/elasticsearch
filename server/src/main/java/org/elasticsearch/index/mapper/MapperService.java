@@ -416,7 +416,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 }
             }
 
-            MapperMergeValidator.validateCopyTo(fieldMappers, fullPathObjectMappers, fieldTypes);
+            MapperMergeValidator.validateFieldReferences(fieldMappers, fieldAliasMappers,
+                fullPathObjectMappers, fieldTypes);
 
             if (reason == MergeReason.MAPPING_UPDATE) {
                 // this check will only be performed on the master node when there is

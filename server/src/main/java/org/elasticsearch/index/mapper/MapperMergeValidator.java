@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public class MapperMergeValidator {
@@ -88,9 +89,21 @@ public class MapperMergeValidator {
         }
     }
 
-    public static void validateCopyTo(List<FieldMapper> fieldMappers,
-                                      Map<String, ObjectMapper> fullPathObjectMappers,
-                                      FieldTypeLookup fieldTypes) {
+    /**
+     * Verifies that each field reference, e.g. the value of copy_to or the target
+     * of a field alias, corresponds to a valid part of the mapping.
+     */
+    public static void validateFieldReferences(List<FieldMapper> fieldMappers,
+                                               List<FieldAliasMapper> fieldAliasMappers,
+                                               Map<String, ObjectMapper> fullPathObjectMappers,
+                                               FieldTypeLookup fieldTypes) {
+        validateCopyTo(fieldMappers, fullPathObjectMappers, fieldTypes);
+        validateFieldAliasTargets(fieldAliasMappers, fullPathObjectMappers);
+    }
+
+    private static void validateCopyTo(List<FieldMapper> fieldMappers,
+                                       Map<String, ObjectMapper> fullPathObjectMappers,
+                                       FieldTypeLookup fieldTypes) {
         for (FieldMapper mapper : fieldMappers) {
             if (mapper.copyTo() != null && mapper.copyTo().copyToFields().isEmpty() == false) {
                 String sourceParent = parentObject(mapper.name());
@@ -112,6 +125,21 @@ public class MapperMergeValidator {
                     final String targetScope = getNestedScope(copyTo, fullPathObjectMappers);
                     checkNestedScopeCompatibility(sourceScope, targetScope);
                 }
+            }
+        }
+    }
+
+    private static void validateFieldAliasTargets(List<FieldAliasMapper> fieldAliasMappers,
+                                                  Map<String, ObjectMapper> fullPathObjectMappers) {
+        for (FieldAliasMapper mapper : fieldAliasMappers) {
+            String aliasName = mapper.name();
+            String path = mapper.path();
+
+            String aliasScope = getNestedScope(aliasName, fullPathObjectMappers);
+            String pathScope = getNestedScope(path, fullPathObjectMappers);
+            if (!Objects.equals(aliasScope, pathScope)) {
+                throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
+                    aliasName + "]: an alias must have the same nested scope as its target.");
             }
         }
     }

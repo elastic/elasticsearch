@@ -19,23 +19,23 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
-/**
- * Delete snapshot response
- */
-public class DeleteSnapshotResponse extends AcknowledgedResponse {
+public class DeleteSnapshotResponseTests extends AbstractStreamableXContentTestCase<DeleteSnapshotResponse> {
 
-    DeleteSnapshotResponse() {
+    @Override
+    protected DeleteSnapshotResponse doParseInstance(XContentParser parser) {
+        return DeleteSnapshotResponse.fromXContent(parser);
     }
 
-    DeleteSnapshotResponse(boolean acknowledged) {
-        super(acknowledged);
+    @Override
+    protected DeleteSnapshotResponse createBlankInstance() {
+        return new DeleteSnapshotResponse();
     }
 
-    public static DeleteSnapshotResponse fromXContent(XContentParser parser) {
-        return new DeleteSnapshotResponse(parseAcknowledged(parser));
+    @Override
+    protected DeleteSnapshotResponse createTestInstance() {
+        return new DeleteSnapshotResponse(randomBoolean());
     }
-
 }

@@ -1863,7 +1863,7 @@ public class RequestConvertersTests extends ESTestCase {
         String repository = randomIndicesNames(1, 1)[0];
         String snapshot = "snapshot-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
 
-        String endpoint = String.format("/_snapshot/%s/%s", repository, snapshot);
+        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s", repository, snapshot);
 
         DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest();
         deleteSnapshotRequest.repository(repository);

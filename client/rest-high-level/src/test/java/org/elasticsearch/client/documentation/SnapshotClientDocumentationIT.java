@@ -45,6 +45,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -432,7 +433,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
     }
 
     private void createTestSnapshots() throws IOException {
-        Request createSnapshot = new Request("put", String.format("_snapshot/%s/%s", repositoryName, snapshotName));
+        Request createSnapshot = new Request("put", String.format(Locale.ROOT, "_snapshot/%s/%s", repositoryName, snapshotName));
         createSnapshot.addParameter("wait_for_completion", "true");
         Response response = highLevelClient().getLowLevelClient().performRequest(createSnapshot);
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.

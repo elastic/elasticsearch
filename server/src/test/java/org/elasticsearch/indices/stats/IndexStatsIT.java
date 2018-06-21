@@ -1047,8 +1047,12 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "type", "1").get().getResult());
         assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "type", "2").get().getResult());
+        // Here we are testing that a fully deleted segment should be dropped and its cached is evicted.
+        // In order to instruct the merge policy not to keep a fully deleted segment,
+        // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
-            persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
+            persistGlobalCheckpoint("index");
+            flush("index");
         }
         refresh();
         response = client().admin().indices().prepareStats("index").setQueryCache(true).get();

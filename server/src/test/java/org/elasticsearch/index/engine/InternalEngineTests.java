@@ -128,6 +128,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
@@ -254,9 +255,13 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSegments() throws Exception {
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        Settings settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
         try (Store store = createStore();
-             InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get))) {
+             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
             List<Segment> segments = engine.segments(false);
             assertThat(segments.isEmpty(), equalTo(true));
             assertThat(engine.segmentsStats(false).getCount(), equalTo(0L));
@@ -328,8 +333,6 @@ public class InternalEngineTests extends EngineTestCase {
 
 
             engine.delete(new Engine.Delete("test", "1", newUid(doc), primaryTerm.get()));
-            globalCheckpoint.set(engine.getLocalCheckpointTracker().getCheckpoint());
-            engine.getTranslog().sync();
             engine.refresh("test");
 
             segments = engine.segments(false);
@@ -1360,18 +1363,27 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.index(indexForDoc(doc));
                     liveDocs.add(doc.id());
                 }
+                if (randomBoolean()) {
+                    engine.flush(randomBoolean(), true);
+                }
             }
+            engine.flush();
+
             long localCheckpoint = engine.getLocalCheckpoint();
             globalCheckpoint.set(randomLongBetween(0, localCheckpoint));
-            engine.getTranslog().sync();
+            engine.syncTranslog();
+            final long safeCommitCheckpoint;
+            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
+                safeCommitCheckpoint = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            }
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService)
                 .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
             for (long seqno = 0; seqno <= localCheckpoint; seqno++) {
-                long keptIndex = globalCheckpoint.get() + 1 - retainedExtraOps;
+                long minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitCheckpoint + 1);
                 String msg = "seq# [" + seqno + "], global checkpoint [" + globalCheckpoint + "], retained-ops [" + retainedExtraOps + "]";
-                if (seqno < keptIndex) {
+                if (seqno < minSeqNoToRetain) {
                     Translog.Operation op = ops.get(seqno);
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
@@ -1384,8 +1396,10 @@ public class InternalEngineTests extends EngineTestCase {
             }
             settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
             indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+            engine.onSettingsChanged();
             globalCheckpoint.set(localCheckpoint);
-            engine.getTranslog().sync();
+            engine.syncTranslog();
+
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             assertThat(readAllOperationsInLucene(engine, mapperService), hasSize(liveDocs.size()));
@@ -1414,7 +1428,6 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.index(indexForDoc(doc));
                 liveDocs.add(doc.id());
             }
-            engine.flush();
             for (int i = 0; i < numDocs; i++) {
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null, randomBoolean()
                     || omitSourceAllTheTime);
@@ -1426,23 +1439,31 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.index(indexForDoc(doc));
                     liveDocs.add(doc.id());
                 }
+                if (randomBoolean()) {
+                    engine.flush(randomBoolean(), true);
+                }
             }
-            long localCheckpoint = engine.getLocalCheckpoint();
-            globalCheckpoint.set(randomLongBetween(0, localCheckpoint));
-            engine.getTranslog().sync();
-            long keptIndex = globalCheckpoint.get() + 1 - retainedExtraOps;
+            engine.flush();
+            globalCheckpoint.set(randomLongBetween(0, engine.getLocalCheckpoint()));
+            engine.syncTranslog();
+            final long minSeqNoToRetain;
+            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
+                long safeCommitLocalCheckpoint = Long.parseLong(
+                    safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitLocalCheckpoint + 1);
+            }
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService, (luceneOp, translogOp) -> {
-                if (luceneOp.seqNo() >= keptIndex) {
+                if (luceneOp.seqNo() >= minSeqNoToRetain) {
                     assertNotNull(luceneOp.getSource());
                     assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));
                 }
             });
             Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService)
                 .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
-            for (long seqno = 0; seqno <= localCheckpoint; seqno++) {
+            for (long seqno = 0; seqno <= engine.getLocalCheckpoint(); seqno++) {
                 String msg = "seq# [" + seqno + "], global checkpoint [" + globalCheckpoint + "], retained-ops [" + retainedExtraOps + "]";
-                if (seqno < keptIndex) {
+                if (seqno < minSeqNoToRetain) {
                     Translog.Operation op = ops.get(seqno);
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
@@ -1458,8 +1479,9 @@ public class InternalEngineTests extends EngineTestCase {
             }
             settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
             indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
-            globalCheckpoint.set(localCheckpoint);
-            engine.getTranslog().sync();
+            engine.onSettingsChanged();
+            globalCheckpoint.set(engine.getLocalCheckpoint());
+            engine.syncTranslog();
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService, (luceneOp, translogOp) -> {
                 assertEquals(translogOp.getSource().source, B_1);
@@ -4842,6 +4864,76 @@ public class InternalEngineTests extends EngineTestCase {
             List<Translog.Operation> actualOps = readAllOperationsInLucene(engine, mapperService);
             assertThat(actualOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
+        }
+    }
+
+    public void testKeepMinRetainedSeqNoByMergePolicy() throws IOException {
+        IOUtils.close(engine, store);
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final List<Engine.Operation> operations = generateSingleDocHistory(true,
+            randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), 2, 10, 300, "2");
+        Randomness.shuffle(operations);
+        Set<Long> existingSeqNos = new HashSet<>();
+        store = createStore();
+        engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get));
+        assertThat(engine.getMinRetainedSeqNo(), equalTo(0L));
+        long lastMinRetainedSeqNo = engine.getMinRetainedSeqNo();
+        for (Engine.Operation op : operations) {
+            final Engine.Result result;
+            if (op instanceof Engine.Index) {
+                result = engine.index((Engine.Index) op);
+            } else {
+                result = engine.delete((Engine.Delete) op);
+            }
+            existingSeqNos.add(result.getSeqNo());
+            if (randomBoolean()) {
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpointTracker().getCheckpoint()));
+            }
+            if (rarely()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
+                indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+                engine.onSettingsChanged();
+            }
+            if (rarely()) {
+                engine.refresh("test");
+            }
+            if (rarely()) {
+                engine.flush(true, true);
+                assertThat(Long.parseLong(engine.getLastCommittedSegmentInfos().userData.get(Engine.MIN_RETAINED_SEQNO)),
+                    equalTo(engine.getMinRetainedSeqNo()));
+            }
+            if (rarely()) {
+                engine.forceMerge(randomBoolean());
+            }
+            try (Closeable ignored = engine.acquireRetentionLockForPeerRecovery()) {
+                long minRetainSeqNos = engine.getMinRetainedSeqNo();
+                assertThat(minRetainSeqNos, lessThanOrEqualTo(globalCheckpoint.get() + 1));
+                Long[] expectedOps = existingSeqNos.stream().filter(seqno -> seqno >= minRetainSeqNos).toArray(Long[]::new);
+                Set<Long> actualOps = readAllOperationsInLucene(engine, createMapperService("test")).stream()
+                    .map(Translog.Operation::seqNo).collect(Collectors.toSet());
+                assertThat(actualOps, containsInAnyOrder(expectedOps));
+            }
+            try (Engine.IndexCommitRef commitRef = engine.acquireSafeIndexCommit()) {
+                IndexCommit safeCommit = commitRef.getIndexCommit();
+                if (safeCommit.getUserData().containsKey(Engine.MIN_RETAINED_SEQNO)) {
+                    lastMinRetainedSeqNo = Long.parseLong(safeCommit.getUserData().get(Engine.MIN_RETAINED_SEQNO));
+                }
+            }
+        }
+        if (randomBoolean()) {
+            engine.close();
+        } else {
+            engine.flushAndClose();
+        }
+        trimUnsafeCommits(engine.config());
+        try (InternalEngine recoveringEngine = new InternalEngine(engine.config())) {
+            assertThat(recoveringEngine.getMinRetainedSeqNo(), equalTo(lastMinRetainedSeqNo));
         }
     }
 

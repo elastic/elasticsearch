@@ -609,11 +609,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected Engine.DeleteResult deleteDoc(IndexShard shard, String type, String id) throws IOException {
+        final Engine.DeleteResult result;
         if (shard.routingEntry().primary()) {
-            return shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, type, id, VersionType.INTERNAL);
+            result = shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, type, id, VersionType.INTERNAL);
+            shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(), shard.getEngine().getLocalCheckpoint());
         } else {
-            return shard.applyDeleteOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0L, type, id, VersionType.EXTERNAL);
+            result = shard.applyDeleteOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0L, type, id, VersionType.EXTERNAL);
         }
+        return result;
     }
 
     protected void flushShard(IndexShard shard) {

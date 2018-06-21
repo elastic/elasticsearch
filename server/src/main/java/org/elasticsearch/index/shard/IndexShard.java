@@ -1597,10 +1597,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Acquires a lock on the translog files, preventing them from being trimmed.
+     * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
      */
-    public Closeable acquireTranslogRetentionLock() {
-        return getEngine().acquireTranslogRetentionLock();
+    public Closeable acquireRetentionLockForPeerRecovery() {
+        return getEngine().acquireRetentionLockForPeerRecovery();
     }
 
     /**
@@ -1608,14 +1608,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * The caller has to close the returned snapshot after finishing the reading.
      */
     public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
+        // TODO: Remove this method after primary-replica resync use soft-deletes
         return getEngine().newTranslogSnapshotBetween(minSeqNo, Long.MAX_VALUE);
     }
 
     /**
-     * Returns the estimated number of operations in translog whose seq# at least the provided seq#.
+     * Returns the estimated number of history operations whose seq# at least the provided seq# in this shard.
      */
-    public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
-        return getEngine().estimateTranslogOperationsFromMinSeq(minSeqNo);
+    public int estimateNumberOfHistoryOperations(String source, long startingSeqNo) throws IOException {
+        return getEngine().estimateNumberOfHistoryOperations(source, mapperService, startingSeqNo);
+    }
+
+    /**
+     * Creates a new history snapshot for reading operations since the provided starting seqno (inclusive).
+     * The returned snapshot can be retrieved from either Lucene index or translog files.
+     */
+    public Translog.Snapshot getHistoryOperations(String source, long startingSeqNo) throws IOException {
+        return getEngine().readHistoryOperations(source, mapperService, startingSeqNo);
+    }
+
+    /**
+     * Checks if we have a completed history of operations since the given starting seqno (inclusive).
+     * This method should be called after acquiring the retention lock; See {@link #acquireRetentionLockForPeerRecovery()}
+     */
+    public boolean hasCompleteHistoryOperations(String source, long startingSeqNo) throws IOException {
+        return getEngine().hasCompleteOperationHistory(source, mapperService, startingSeqNo);
     }
 
     /**

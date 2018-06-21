@@ -98,6 +98,7 @@ public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
+    public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
 
     protected final ShardId shardId;
     protected final String allocationId;
@@ -578,18 +579,16 @@ public abstract class Engine implements Closeable {
 
     public abstract void syncTranslog() throws IOException;
 
-    public abstract Closeable acquireTranslogRetentionLock();
+    /**
+     * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
+     */
+    public abstract Closeable acquireRetentionLockForPeerRecovery();
 
     /**
      * Creates a new translog snapshot from this engine for reading translog operations whose seq# in the provided range.
      * The caller has to close the returned snapshot after finishing the reading.
      */
     public abstract Translog.Snapshot newTranslogSnapshotBetween(long minSeqNo, long maxSeqNo) throws IOException;
-
-    /**
-     * Returns the estimated number of translog operations in this engine whose seq# at least the provided seq#.
-     */
-    public abstract int estimateTranslogOperationsFromMinSeq(long minSeqNo);
 
     public abstract TranslogStats getTranslogStats();
 
@@ -603,6 +602,19 @@ public abstract class Engine implements Closeable {
      */
     public abstract Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService,
                                                                long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException;
+
+    /**
+     * Creates a new history snapshot for reading operations since the provided seqno.
+     * The returned snapshot can be retrieved from either Lucene index or translog files.
+     */
+    public abstract Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    /**
+     * Returns the estimated number of history operations whose seq# at least the provided seq# in this engine.
+     */
+    public abstract int estimateNumberOfHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException;
+
+    public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {

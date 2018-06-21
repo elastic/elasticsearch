@@ -69,7 +69,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.addReplica();
             shards.startAll();
             final IndexShard replica = shards.getReplicas().get(0);
-            assertThat(replica.estimateTranslogOperationsFromMinSeq(0), equalTo(docs));
+            assertThat(getTranslog(replica).totalOperations(), equalTo(docs));
         }
     }
 
@@ -99,7 +99,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             releaseRecovery.countDown();
             future.get();
             // rolling/flushing is async
-            assertBusy(() -> assertThat(replica.estimateTranslogOperationsFromMinSeq(0), equalTo(0)));
+            assertBusy(() -> assertThat(getTranslog(replica).totalOperations(), equalTo(0)));
         }
     }
 
@@ -113,9 +113,10 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
          * - flush (commit point has max_seqno 3, and local checkpoint 1 -> points at gen 2, previous commit point is maintained)
          * - index #2
          * - index #5
-         * - If flush and the translog retention disabled, delete #1 will be removed while index #0 is still retained and replayed.
+         * - If flush and the translog/lucene retention disabled, delete #1 will be removed while index #0 is still retained and replayed.
          */
-        try (ReplicationGroup shards = createGroup(1)) {
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10).build();
+        try (ReplicationGroup shards = createGroup(1, settings)) {
             shards.startAll();
             // create out of order delete and index op on replica
             final IndexShard orgReplica = shards.getReplicas().get(0);
@@ -123,7 +124,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
 
             // delete #1
             orgReplica.applyDeleteOperationOnReplica(1, 2, "type", "id", VersionType.EXTERNAL);
-            getTranslog(orgReplica).rollGeneration(); // isolate the delete in it's own generation
+            orgReplica.flush(new FlushRequest().force(true)); // isolate delete#1 in its own translog generation and lucene segment
             // index #0
             orgReplica.applyIndexOperationOnReplica(0, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 SourceToParse.source(indexName, "type", "id", new BytesArray("{}"), XContentType.JSON));
@@ -143,16 +144,17 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             final int translogOps;
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    logger.info("--> flushing shard (translog will be trimmed)");
+                    logger.info("--> flushing shard (translog/soft-deletes will be trimmed)");
                     IndexMetaData.Builder builder = IndexMetaData.builder(orgReplica.indexSettings().getIndexMetaData());
                     builder.settings(Settings.builder().put(orgReplica.indexSettings().getSettings())
                         .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
-                        .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1"));
+                        .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                        .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0));
                     orgReplica.indexSettings().updateIndexMetaData(builder.build());
                     orgReplica.onSettingsChanged();
                     translogOps = 5; // 4 ops + seqno gaps (delete #1 is removed but index #0 will be replayed).
                 } else {
-                    logger.info("--> flushing shard (translog will be retained)");
+                    logger.info("--> flushing shard (translog/soft-deletes will be retained)");
                     translogOps = 6; // 5 ops + seqno gaps
                 }
                 flushShard(orgReplica);
@@ -167,7 +169,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(newReplica);
             shards.assertAllEqual(3);
 
-            assertThat(newReplica.estimateTranslogOperationsFromMinSeq(0), equalTo(translogOps));
+            assertThat(getTranslog(newReplica).totalOperations(), equalTo(translogOps));
         }
     }
 
@@ -219,7 +221,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(newReplica);
             // file based recovery should be made
             assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
-            assertThat(newReplica.estimateTranslogOperationsFromMinSeq(0), equalTo(numDocs));
+            assertThat(getTranslog(newReplica).totalOperations(), equalTo(numDocs));
 
             // history uuid was restored
             assertThat(newReplica.getHistoryUUID(), equalTo(historyUUID));
@@ -323,7 +325,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(replica);
             // Make sure the flushing will eventually be completed (eg. `shouldPeriodicallyFlush` is false)
             assertBusy(() -> assertThat(getEngine(replica).shouldPeriodicallyFlush(), equalTo(false)));
-            assertThat(replica.estimateTranslogOperationsFromMinSeq(0), equalTo(numDocs));
+            assertThat(getTranslog(replica).totalOperations(), equalTo(numDocs));
             shards.assertAllEqual(numDocs);
         }
     }

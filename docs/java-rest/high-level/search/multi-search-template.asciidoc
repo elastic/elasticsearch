@@ -19,6 +19,12 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-template-req
 would for a regular <<java-rest-high-search-template,`search template`>>.
 <3> Add the `SearchTemplateRequest` to the `MultiSearchTemplateRequest`.
 
+===== Optional arguments
+
+The multiSearchTemplate's `max_concurrent_searches` request parameter can be used to control
+the maximum number of concurrent searches the multi search api will execute.
+This default is based on the number of data nodes and the default search thread pool size.
+
 [[java-rest-high-multi-search-template-sync]]
 ==== Synchronous Execution
 

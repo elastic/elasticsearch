@@ -94,7 +94,7 @@ For example, you can add in your `src/main/resources` project dir a `log4j2.prop
 appender.console.type = Console
 appender.console.name = console
 appender.console.layout.type = PatternLayout
-appender.console.layout.pattern = [%d{ISO8601}][%-5p][%-25c] %marker%m%n
+appender.console.layout.pattern = [%d{ISO8601}][%-5p][%-25c] %marker %m%n
 
 rootLogger.level = info
 rootLogger.appenderRef.console.ref = console

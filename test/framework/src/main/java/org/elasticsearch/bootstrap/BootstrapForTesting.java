@@ -28,6 +28,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.secure_sm.SecureSM;
@@ -68,6 +69,8 @@ public class BootstrapForTesting {
     // without making things complex???
 
     static {
+        LogConfigurator.loadPlugins();
+
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
         Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"),
                                                                "please set ${java.io.tmpdir} in pom.xml"));

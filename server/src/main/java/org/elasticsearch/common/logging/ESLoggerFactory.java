@@ -46,6 +46,9 @@ public final class ESLoggerFactory {
     }
 
     public static Logger getLogger(String prefix, Logger logger) {
+        if (prefix == null || prefix.length() == 0) {
+            return logger;
+        }
         return new PrefixLogger((ExtendedLogger)logger, logger.getName(), prefix);
     }
 

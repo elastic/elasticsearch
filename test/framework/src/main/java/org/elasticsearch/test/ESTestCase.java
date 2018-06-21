@@ -285,7 +285,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @Before
     public final void before()  {
-        logger.info("[{}]: before test", getTestName());
+        logger.info("before test");
         assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
             this.threadContext = new ThreadContext(Settings.EMPTY);
@@ -314,7 +314,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
-        logger.info("[{}]: after test", getTestName());
+        logger.info("after test");
     }
 
     private void ensureNoWarnings() throws IOException {

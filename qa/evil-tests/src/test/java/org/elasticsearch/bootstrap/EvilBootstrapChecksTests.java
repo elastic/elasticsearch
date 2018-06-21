@@ -87,7 +87,7 @@ public class EvilBootstrapChecksTests extends ESTestCase {
         final boolean enforceLimits = randomBoolean();
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> BootstrapChecks.check(new BootstrapContext(Settings.EMPTY, null), enforceLimits, emptyList(), "testInvalidValue"));
+                () -> BootstrapChecks.check(new BootstrapContext(Settings.EMPTY, null), enforceLimits, emptyList()));
         final Matcher<String> matcher = containsString(
                 "[es.enforce.bootstrap.checks] must be [true] but was [" + value + "]");
         assertThat(e, hasToString(matcher));

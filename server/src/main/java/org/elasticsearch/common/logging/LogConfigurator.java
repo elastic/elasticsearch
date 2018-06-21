@@ -28,6 +28,7 @@ import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilder;
 import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory;
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.apache.logging.log4j.core.config.composite.CompositeConfiguration;
+import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationFactory;
 import org.apache.logging.log4j.status.StatusConsoleListener;
@@ -119,6 +120,13 @@ public class LogConfigurator {
         configure(environment.settings(), environment.configFile(), environment.logsFile());
     }
 
+    /**
+     * Load logging plugins so we can have {@code node_name} in the pattern.
+     */
+    public static void loadPlugins() {
+        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
+    }
+
     private static void checkErrorListener() {
         assert errorListenerIsRegistered() : "expected error listener to be registered";
         if (error.get()) {
@@ -134,6 +142,8 @@ public class LogConfigurator {
         Objects.requireNonNull(settings);
         Objects.requireNonNull(configsPath);
         Objects.requireNonNull(logsPath);
+
+        loadPlugins();
 
         setLogConfigurationSystemProperty(logsPath, settings);
         // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context

@@ -27,16 +27,9 @@ import org.elasticsearch.common.logging.Loggers;
 import java.io.IOError;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Objects;
-import java.util.function.Supplier;
 
 class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
-
-    private final Supplier<String> loggingPrefixSupplier;
-
-    ElasticsearchUncaughtExceptionHandler(final Supplier<String> loggingPrefixSupplier) {
-        this.loggingPrefixSupplier = Objects.requireNonNull(loggingPrefixSupplier);
-    }
+    private static final Logger logger = Loggers.getLogger(ElasticsearchUncaughtExceptionHandler.class);
 
     @Override
     public void uncaughtException(Thread t, Throwable e) {
@@ -70,12 +63,10 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
     }
 
     void onFatalUncaught(final String threadName, final Throwable t) {
-        final Logger logger = Loggers.getLogger(ElasticsearchUncaughtExceptionHandler.class, loggingPrefixSupplier.get());
         logger.error(() -> new ParameterizedMessage("fatal error in thread [{}], exiting", threadName), t);
     }
 
     void onNonFatalUncaught(final String threadName, final Throwable t) {
-        final Logger logger = Loggers.getLogger(ElasticsearchUncaughtExceptionHandler.class, loggingPrefixSupplier.get());
         logger.warn(() -> new ParameterizedMessage("uncaught exception in thread [{}]", threadName), t);
     }
 

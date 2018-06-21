@@ -319,9 +319,11 @@ public class EvilLoggerTests extends ESTestCase {
         assertThat(events.size(), equalTo(expectedLogLines + stackTraceLength));
         for (int i = 0; i < expectedLogLines; i++) {
             if (prefix == null) {
-                assertThat(events.get(i), startsWith("test"));
+                assertThat("Contents of [" + path + "] are wrong",
+                        events.get(i), startsWith("[" + getTestName() + "] test"));
             } else {
-                assertThat(events.get(i), startsWith("[" + prefix + "] test"));
+                assertThat("Contents of [" + path + "] are wrong",
+                        events.get(i), startsWith("[" + getTestName() + "][" + prefix + "] test"));
             }
         }
     }

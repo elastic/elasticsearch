@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -50,7 +49,8 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
                                                                        createParserFunction,
                                                                CheckedFunction<XContentParser, T, IOException> parseFunction,
                                                                BiConsumer<T, T> assertEqualsConsumer,
-                                                               boolean assertToXContentEquivalence) throws IOException {
+                                                               boolean assertToXContentEquivalence,
+                                                               ToXContent.Params toXContentParams) throws IOException {
         for (int runs = 0; runs < numberOfTestRuns; runs++) {
             T testInstance = instanceSupplier.get();
             XContentType xContentType = randomFrom(XContentType.values());
@@ -80,7 +80,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
     public final void testFromXContent() throws IOException {
         testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(), getShuffleFieldsExceptions(),
                 getRandomFieldsExcludeFilter(), this::createParser, this::parseInstance, this::assertEqualInstances,
-                assertToXContentEquivalence());
+                assertToXContentEquivalence(), getToXContentParams());
     }
 
     /**
@@ -129,5 +129,12 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
      */
     protected String[] getShuffleFieldsExceptions() {
         return Strings.EMPTY_ARRAY;
+    }
+
+    /**
+     * Params that have to be provided when calling calling {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)}
+     */
+    protected ToXContent.Params getToXContentParams() {
+        return ToXContent.EMPTY_PARAMS;
     }
 }

@@ -379,6 +379,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
                     EsExecutors.PROCESSORS_SETTING,
                     ThreadContext.DEFAULT_HEADERS_SETTING,
+                    TcpTransport.DEFAULT_FEATURES_SETTING,
                     Loggers.LOG_DEFAULT_LEVEL_SETTING,
                     Loggers.LOG_LEVEL_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,

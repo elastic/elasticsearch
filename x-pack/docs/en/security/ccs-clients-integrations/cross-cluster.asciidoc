@@ -155,5 +155,5 @@ GET two:logs-2017.04/_search <1>
 // TEST[skip:todo]
 //TBD: Is there a missing description of the <1> callout above?
 
-:edit_url: https://github.com/elastic/kibana/edit/{branch}/x-pack/docs/en/security/cross-cluster-kibana.asciidoc
-include::{xkb-repo-dir}/security/cross-cluster-kibana.asciidoc[]
+:edit_url: https://github.com/elastic/kibana/edit/{branch}/docs/security/cross-cluster-kibana.asciidoc
+include::{kib-repo-dir}/security/cross-cluster-kibana.asciidoc[]

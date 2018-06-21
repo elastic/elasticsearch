@@ -119,11 +119,11 @@ public abstract class Realm implements Comparable<Realm> {
      */
     public abstract void lookupUser(String username, ActionListener<User> listener);
 
-    public Map<String, Object> usageStats() {
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
         Map<String, Object> stats = new HashMap<>();
         stats.put("name", name());
         stats.put("order", order());
-        return stats;
+        listener.onResponse(stats);
     }
 
     @Override

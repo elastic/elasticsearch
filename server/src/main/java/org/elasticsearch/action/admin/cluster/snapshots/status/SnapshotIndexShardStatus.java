@@ -74,8 +74,8 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
                 throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.getStage());
         }
         this.stats = new SnapshotStats(indexShardStatus.getStartTime(), indexShardStatus.getTotalTime(),
-                                        indexShardStatus.getNumberOfFiles(), indexShardStatus.getProcessedFiles(),
-                                        indexShardStatus.getTotalSize(), indexShardStatus.getProcessedSize());
+            indexShardStatus.getIncrementalFileCount(), indexShardStatus.getTotalFileCount(), indexShardStatus.getProcessedFileCount(),
+            indexShardStatus.getIncrementalSize(), indexShardStatus.getTotalSize(), indexShardStatus.getProcessedSize());
         this.failure = indexShardStatus.getFailure();
         this.nodeId = nodeId;
     }

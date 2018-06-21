@@ -33,4 +33,22 @@ include::painless-casting.asciidoc[]
 
 include::painless-operators.asciidoc[]
 
-include::painless-general-syntax.asciidoc[]
+include::painless-operators-general.asciidoc[]
+
+include::painless-operators-numeric.asciidoc[]
+
+include::painless-operators-boolean.asciidoc[]
+
+include::painless-operators-reference.asciidoc[]
+
+include::painless-operators-array.asciidoc[]
+
+include::painless-statements.asciidoc[]
+
+include::painless-scripts.asciidoc[]
+
+include::painless-functions.asciidoc[]
+
+include::painless-lambdas.asciidoc[]
+
+include::painless-regexes.asciidoc[]

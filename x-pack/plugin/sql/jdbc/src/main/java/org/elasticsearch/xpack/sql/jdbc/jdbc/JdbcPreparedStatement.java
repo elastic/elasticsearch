@@ -28,7 +28,6 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.Calendar;
-import java.util.Collections;
 
 class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     final PreparedQuery query;

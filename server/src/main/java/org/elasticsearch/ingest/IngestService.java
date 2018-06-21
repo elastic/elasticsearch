@@ -24,8 +24,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ScheduledFuture;
+import java.util.function.BiFunction;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -42,8 +45,10 @@ public class IngestService {
     public IngestService(Settings settings, ThreadPool threadPool,
                          Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
                          List<IngestPlugin> ingestPlugins) {
-        Processor.Parameters parameters = new Processor.Parameters(env, scriptService,
-            analysisRegistry, threadPool.getThreadContext());
+        BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler =
+            (delay, command) -> threadPool.schedule(TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC, command);
+        Processor.Parameters parameters = new Processor.Parameters(env, scriptService, analysisRegistry,
+            threadPool.getThreadContext(), threadPool::relativeTimeInMillis, scheduler);
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
         for (IngestPlugin ingestPlugin : ingestPlugins) {
             Map<String, Processor.Factory> newProcessors = ingestPlugin.getProcessors(parameters);

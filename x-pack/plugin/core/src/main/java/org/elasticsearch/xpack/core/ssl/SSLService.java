@@ -589,9 +589,9 @@ public class SSLService extends AbstractComponent {
         private void reloadSslContext() {
             try {
                 X509ExtendedKeyManager loadedKeyManager = Optional.ofNullable(keyConfig.createKeyManager(env)).
-                        orElse(getEmptyKeyManager());
+                    orElse(getEmptyKeyManager());
                 X509ExtendedTrustManager loadedTrustManager = Optional.ofNullable(trustConfig.createTrustManager(env)).
-                        orElse(getEmptyTrustManager());
+                    orElse(getEmptyTrustManager());
                 SSLContext loadedSslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.supportedProtocols()));
                 loadedSslContext.init(new X509ExtendedKeyManager[]{loadedKeyManager},
                     new X509ExtendedTrustManager[]{loadedTrustManager}, null);
@@ -601,6 +601,7 @@ public class SSLService extends AbstractComponent {
                 throw new ElasticsearchException("failed to initialize the SSLContext", e);
             }
         }
+
         X509ExtendedKeyManager getEmptyKeyManager() throws GeneralSecurityException, IOException {
             KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
             keyStore.load(null, null);

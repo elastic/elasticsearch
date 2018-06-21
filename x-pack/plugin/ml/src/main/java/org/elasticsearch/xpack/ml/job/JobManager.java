@@ -11,7 +11,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -181,6 +180,7 @@ public class JobManager extends AbstractComponent {
         request.getJobBuilder().validateCategorizationAnalyzer(analysisRegistry, environment);
 
         Job job = request.getJobBuilder().build(new Date());
+
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
             DEPRECATION_LOGGER.deprecated("Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
         }
@@ -346,8 +346,8 @@ public class JobManager extends AbstractComponent {
                 }
 
                 @Override
-                public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-                    afterClusterStateUpdate(clusterChangedEvent.state(), request);
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    afterClusterStateUpdate(newState, request);
                     actionListener.onResponse(new PutJobAction.Response(updatedJob.get()));
                 }
             });

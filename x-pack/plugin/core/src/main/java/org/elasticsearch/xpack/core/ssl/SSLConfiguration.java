@@ -184,7 +184,7 @@ public final class SSLConfiguration {
 
     private static KeyConfig createKeyConfig(Settings settings, SSLConfiguration global) {
         final String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
-        final KeyConfig config = CertUtils.createKeyConfig(SETTINGS_PARSER.x509KeyPair, settings, trustStoreAlgorithm);
+        final KeyConfig config = CertParsingUtils.createKeyConfig(SETTINGS_PARSER.x509KeyPair, settings, trustStoreAlgorithm);
         if (config != null) {
             return config;
         }

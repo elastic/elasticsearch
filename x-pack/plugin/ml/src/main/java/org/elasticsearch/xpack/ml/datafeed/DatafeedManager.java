@@ -49,7 +49,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
+import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
 
 public class DatafeedManager extends AbstractComponent {
 
@@ -88,7 +88,7 @@ public class DatafeedManager extends AbstractComponent {
                 datafeedJob -> {
                     Holder holder = new Holder(task, datafeed, datafeedJob, new ProblemTracker(auditor, job.getId()), taskHandler);
                     runningDatafeedsOnThisNode.put(task.getAllocationId(), holder);
-                    task.updatePersistentStatus(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
+                    task.updatePersistentTaskState(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
                         @Override
                         public void onResponse(PersistentTask<?> persistentTask) {
                             taskRunner.runWhenJobIsOpened(task);
@@ -391,8 +391,8 @@ public class DatafeedManager extends AbstractComponent {
                 return;
             }
 
-            task.waitForPersistentTaskStatus(Objects::isNull, TimeValue.timeValueSeconds(20),
-                            new WaitForPersistentTaskStatusListener<StartDatafeedAction.DatafeedParams>() {
+            task.waitForPersistentTask(Objects::isNull, TimeValue.timeValueSeconds(20),
+                            new WaitForPersistentTaskListener<StartDatafeedAction.DatafeedParams>() {
                 @Override
                 public void onResponse(PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
                     CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(getJobId());

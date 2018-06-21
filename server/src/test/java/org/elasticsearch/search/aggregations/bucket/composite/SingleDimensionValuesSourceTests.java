@@ -40,10 +40,12 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType();
         keyword.setName("keyword");
         BinaryValuesSource source = new BinaryValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            null,
+            false,
             1,
             1
         );
@@ -55,10 +57,12 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             new TermQuery(new Term("keyword", "toto)"))));
 
         source = new BinaryValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            "missing_value",
+            true,
             1,
             1
         );
@@ -66,10 +70,12 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
 
         source = new BinaryValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            null,
+            false,
             0,
             -1
         );
@@ -77,7 +83,15 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
 
         MappedFieldType ip = new IpFieldMapper.IpFieldType();
         ip.setName("ip");
-        source = new BinaryValuesSource(ip, context -> null, DocValueFormat.RAW,null, 1, 1);
+        source = new BinaryValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
+            ip,
+            context -> null,
+            DocValueFormat.RAW,
+            false,
+            1,
+            1);
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
     }
 
@@ -88,7 +102,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             keyword, context -> null,
             DocValueFormat.RAW,
-            null,
+            false,
             1,
             1
         );
@@ -104,7 +118,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            "missing_value",
+            true,
             1,
             1
         );
@@ -116,7 +130,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             keyword,
             context -> null,
             DocValueFormat.RAW,
-            null,
+            false,
             1,
             -1
         );
@@ -129,7 +143,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             ip,
             context -> null,
             DocValueFormat.RAW,
-            null,
+            false,
             1,
             1
         );
@@ -152,7 +166,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     context -> null,
                     value -> value,
                     DocValueFormat.RAW,
-                    null,
+                    false,
                     1,
                     1
                 );
@@ -169,7 +183,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     context -> null,
                     value -> value,
                     DocValueFormat.RAW,
-                    0d,
+                    true,
                     1,
                     1);
                 assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
@@ -182,7 +196,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     context -> null,
                     value -> value,
                     DocValueFormat.RAW,
-                    null,
+                    false,
                     1,
                     -1
                 );
@@ -195,7 +209,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     number,
                     context -> null,
                     DocValueFormat.RAW,
-                    null,
+                    false,
                     1,
                     1
                 );

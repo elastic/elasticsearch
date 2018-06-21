@@ -88,6 +88,7 @@ compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-
 licenseHeaders {
   approvedLicenses << 'BCrypt (BSD-like)'
   additionalLicense 'BCRYP', 'BCrypt (BSD-like)', 'Copyright (c) 2006 Damien Miller <djm@mindrot.org>'
+  excludes << 'org/elasticsearch/xpack/core/ssl/DerParser.java'
 }
 
 // make LicenseSigner available for testing signed licenses

@@ -87,8 +87,9 @@ class ClusterConfiguration {
      * A closure to call which returns the unicast host to connect to for cluster formation.
      *
      * This allows multi node clusters, or a new cluster to connect to an existing cluster.
-     * The closure takes two arguments, the NodeInfo for the first node in the cluster, and
-     * an AntBuilder which may be used to wait on conditions before returning.
+     * The closure takes three arguments, the NodeInfo for the first node in the cluster,
+     * the NodeInfo for the node current being configured, an AntBuilder which may be used
+     * to wait on conditions before returning.
      */
     @Input
     Closure unicastTransportUri = { NodeInfo seedNode, NodeInfo node, AntBuilder ant ->

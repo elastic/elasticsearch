@@ -19,7 +19,6 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.Rectangle;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 
 /**

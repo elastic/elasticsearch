@@ -65,11 +65,11 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
             client().prepareIndex(OTHER_INDEX_NAME, "type").setSource("test", "init").execute().actionGet();
         }
 
-
         logger.info("--> register a repository");
+
         assertAcked(client().admin().cluster().preparePutRepository(REPOSITORY_NAME)
                 .setType("fs")
-                .setSettings(Settings.builder().put("location",  randomRepoPath())));
+                .setSettings(Settings.builder().put("location", randomRepoPath())));
 
         logger.info("--> verify the repository");
         VerifyRepositoryResponse verifyResponse = client().admin().cluster().prepareVerifyRepository(REPOSITORY_NAME).get();

@@ -75,7 +75,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
@@ -838,14 +840,15 @@ public class IndexShardTests extends IndexShardTestCase {
                 .build();
         final IndexMetaData.Builder indexMetadata = IndexMetaData.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
         final AtomicBoolean synced = new AtomicBoolean();
-        final IndexShard primaryShard = newShard(shardRouting, indexMetadata.build(), null, null, () -> { synced.set(true); });
+        final IndexShard primaryShard =
+                newShard(shardRouting, indexMetadata.build(), null, new InternalEngineFactory(), () -> synced.set(true));
         // add a replica
         recoverShardFromStore(primaryShard);
         final IndexShard replicaShard = newShard(shardId, false);
         recoverReplica(replicaShard, primaryShard);
         final int maxSeqNo = randomIntBetween(0, 128);
         for (int i = 0; i <= maxSeqNo; i++) {
-            primaryShard.getEngine().getLocalCheckpointTracker().generateSeqNo();
+            EngineTestCase.generateNewSeqNo(primaryShard.getEngine());
         }
         final long checkpoint = rarely() ? maxSeqNo - scaledRandomIntBetween(0, maxSeqNo) : maxSeqNo;
 
@@ -1861,10 +1864,11 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(shard, "_doc", "1", "{\"foobar\" : \"bar\"}");
         shard.refresh("test");
 
-        Engine.GetResult getResult = shard.get(new Engine.Get(false, false, "test", "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))));
-        assertTrue(getResult.exists());
-        assertNotNull(getResult.searcher());
-        getResult.release();
+        try (Engine.GetResult getResult = shard
+                .get(new Engine.Get(false, false, "test", "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))))) {
+            assertTrue(getResult.exists());
+            assertNotNull(getResult.searcher());
+        }
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             TopDocs search = searcher.searcher().search(new TermQuery(new Term("foo", "bar")), 10);
             assertEquals(search.totalHits, 1);
@@ -1884,8 +1888,13 @@ public class IndexShardTests extends IndexShardTestCase {
         };
         closeShards(shard);
         IndexShard newShard = newShard(
-            ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null, () -> {}, EMPTY_EVENT_LISTENER);
+                ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
+                shard.shardPath(),
+                shard.indexSettings().getIndexMetaData(),
+                wrapper,
+                new InternalEngineFactory(),
+                () -> {},
+                EMPTY_EVENT_LISTENER);
 
         recoverShardFromStore(newShard);
 
@@ -1895,11 +1904,12 @@ public class IndexShardTests extends IndexShardTestCase {
             search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
             assertEquals(search.totalHits, 1);
         }
-        getResult = newShard.get(new Engine.Get(false, false, "test", "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))));
-        assertTrue(getResult.exists());
-        assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
-        assertTrue(getResult.searcher().reader() instanceof FieldMaskingReader);
-        getResult.release();
+        try (Engine.GetResult getResult = newShard
+                .get(new Engine.Get(false, false, "test", "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))))) {
+            assertTrue(getResult.exists());
+            assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
+            assertTrue(getResult.searcher().reader() instanceof FieldMaskingReader);
+        }
 
         closeShards(newShard);
     }
@@ -2030,8 +2040,13 @@ public class IndexShardTests extends IndexShardTestCase {
 
         closeShards(shard);
         IndexShard newShard = newShard(
-            ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null, () -> {}, EMPTY_EVENT_LISTENER);
+                ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
+                shard.shardPath(),
+                shard.indexSettings().getIndexMetaData(),
+                wrapper,
+                new InternalEngineFactory(),
+                () -> {},
+                EMPTY_EVENT_LISTENER);
 
         recoverShardFromStore(newShard);
 
@@ -3014,7 +3029,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
         AtomicBoolean markedInactive = new AtomicBoolean();
         AtomicReference<IndexShard> primaryRef = new AtomicReference<>();
-        IndexShard primary = newShard(shardRouting, shardPath, metaData, null, null, () -> {
+        IndexShard primary = newShard(shardRouting, shardPath, metaData, null, new InternalEngineFactory(), () -> {
         }, new IndexEventListener() {
             @Override
             public void onShardInactive(IndexShard indexShard) {

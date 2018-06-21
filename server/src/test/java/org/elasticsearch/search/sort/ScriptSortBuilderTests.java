@@ -24,7 +24,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -225,8 +224,8 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
         parser.nextToken();
 
-        Exception e = expectThrows(IllegalArgumentException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
-        assertEquals("[_script] unknown field [bad_field], parser not found", e.getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
+        assertEquals("[1:15] [_script] unknown field [bad_field], parser not found", e.getMessage());
     }
 
     public void testParseBadFieldNameExceptionsOnStartObject() throws IOException {
@@ -237,8 +236,8 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
         parser.nextToken();
 
-        Exception e = expectThrows(IllegalArgumentException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
-        assertEquals("[_script] unknown field [bad_field], parser not found", e.getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
+        assertEquals("[1:15] [_script] unknown field [bad_field], parser not found", e.getMessage());
     }
 
     public void testParseUnexpectedToken() throws IOException {
@@ -374,7 +373,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             }
         };
         sortBuilder.setNestedPath("path").setNestedFilter(rangeQuery);
-        ScriptSortBuilder rewritten = (ScriptSortBuilder) sortBuilder
+        ScriptSortBuilder rewritten = sortBuilder
                 .rewrite(createMockShardContext());
         assertNotSame(rangeQuery, rewritten.getNestedFilter());
     }
@@ -391,7 +390,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             }
         };
         sortBuilder.setNestedSort(new NestedSortBuilder("path").setFilter(rangeQuery));
-        ScriptSortBuilder rewritten = (ScriptSortBuilder) sortBuilder
+        ScriptSortBuilder rewritten = sortBuilder
                 .rewrite(createMockShardContext());
         assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
     }

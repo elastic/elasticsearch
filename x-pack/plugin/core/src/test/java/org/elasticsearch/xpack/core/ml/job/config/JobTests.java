@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -78,9 +80,9 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     public void testFutureConfigParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_JOB);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+        XContentParseException e = expectThrows(XContentParseException.class,
                 () -> Job.CONFIG_PARSER.apply(parser, null).build());
-        assertEquals("[job_details] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
+        assertEquals("[4:5] [job_details] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
     }
 
     public void testFutureMetadataParse() throws IOException {

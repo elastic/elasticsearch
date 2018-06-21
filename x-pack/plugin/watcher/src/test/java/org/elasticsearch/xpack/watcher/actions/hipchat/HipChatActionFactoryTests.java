@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatAccount;
 import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatService;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.HashSet;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;

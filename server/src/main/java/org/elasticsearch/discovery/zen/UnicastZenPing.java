@@ -237,7 +237,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                 logger.warn("timed out after [{}] resolving host [{}]", resolveTimeout, hostname);
             }
         }
-        return transportAddresses;
+        return Collections.unmodifiableList(transportAddresses);
     }
 
     @Override
@@ -280,15 +280,15 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     protected void ping(final Consumer<PingCollection> resultsConsumer,
                         final TimeValue scheduleDuration,
                         final TimeValue requestDuration) {
-        final List<TransportAddress> seedAddresses;
+        final List<TransportAddress> seedAddresses = new ArrayList<>();
         try {
-            seedAddresses = resolveHostsLists(
+            seedAddresses.addAll(resolveHostsLists(
                 unicastZenPingExecutorService,
                 logger,
                 configuredHosts,
                 limitPortCounts,
                 transportService,
-                resolveTimeout);
+                resolveTimeout));
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

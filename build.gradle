@@ -576,9 +576,8 @@ gradle.projectsEvaluated {
   }
 }
 
-apply plugin: 'compare-gradle-builds'
-
 if (System.properties.get("build.compare") != null) {
+  apply plugin: 'compare-gradle-builds'
   compareGradleBuilds {
     ext.referenceProject = System.properties.get("build.compare")
     doFirst {

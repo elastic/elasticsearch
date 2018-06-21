@@ -29,7 +29,6 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
-import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -40,6 +39,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0, numClientNodes = 0, supportsDedicatedMasters = false)
 public class RepositoriesServiceIT extends ESIntegTestCase {
 
     @Override
@@ -48,51 +48,52 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
     }
 
     public void testUpdateRepository() {
-        String repositoryName = "test-repo";
+        final InternalTestCluster cluster = internalCluster();
+        cluster.startMasterOnlyNode();
 
-        Client client = client();
-        InternalTestCluster cluster = (InternalTestCluster) cluster();
-        RepositoriesService repositoriesService = cluster.getInstance(RepositoriesService.class);
-        Settings settings = cluster.getDefaultSettings();
-        Path location = randomRepoPath();
+        final String repositoryName = "test-repo";
 
-        Settings.Builder repoSettings = Settings.builder().put(settings).put("location", location);
+        final Client client = client();
+        final RepositoriesService repositoriesService = cluster.getInstance(RepositoriesService.class);
+        final Settings settings = cluster.getDefaultSettings();
+
+        final Settings.Builder repoSettings = Settings.builder().put(settings).put("location", randomRepoPath());
 
         assertAcked(client.admin().cluster().preparePutRepository(repositoryName)
                 .setType(FsRepository.TYPE)
                 .setSettings(repoSettings)
                 .get());
 
-        GetRepositoriesResponse originalRetRepositoriesResponse =
+        final GetRepositoriesResponse originalGetRepositoriesResponse =
             client.admin().cluster().prepareGetRepositories(repositoryName).get();
 
-        assertThat(originalRetRepositoriesResponse.repositories(), hasSize(1));
-        RepositoryMetaData originalRepositoryMetaData = originalRetRepositoriesResponse.repositories().get(0);
+        assertThat(originalGetRepositoriesResponse.repositories(), hasSize(1));
+        RepositoryMetaData originalRepositoryMetaData = originalGetRepositoriesResponse.repositories().get(0);
 
         assertThat(originalRepositoryMetaData.type(), equalTo(FsRepository.TYPE));
 
-        Repository originalRepository = repositoriesService.repository(repositoryName);
+        final Repository originalRepository = repositoriesService.repository(repositoryName);
         assertThat(originalRepository, instanceOf(FsRepository.class));
 
         // update repository
 
-        boolean updated = randomBoolean();
-        String updatedRepositoryType = updated ? "mock" : FsRepository.TYPE;
+        final boolean updated = randomBoolean();
+        final String updatedRepositoryType = updated ? "mock" : FsRepository.TYPE;
 
         assertAcked(client.admin().cluster().preparePutRepository(repositoryName)
                 .setType(updatedRepositoryType)
                 .setSettings(repoSettings)
                 .get());
 
-        GetRepositoriesResponse updatedGetRepositoriesResponse =
+        final GetRepositoriesResponse updatedGetRepositoriesResponse =
             client.admin().cluster().prepareGetRepositories(repositoryName).get();
 
         assertThat(updatedGetRepositoriesResponse.repositories(), hasSize(1));
-        RepositoryMetaData updatedRepositoryMetaData = updatedGetRepositoriesResponse.repositories().get(0);
+        final RepositoryMetaData updatedRepositoryMetaData = updatedGetRepositoriesResponse.repositories().get(0);
 
         assertThat(updatedRepositoryMetaData.type(), equalTo(updatedRepositoryType));
 
-        Repository updatedRepository = repositoriesService.repository(repositoryName);
+        final Repository updatedRepository = repositoriesService.repository(repositoryName);
         assertThat(updatedRepository, updated ? not(sameInstance(originalRepository)) : sameInstance(originalRepository));
     }
 }

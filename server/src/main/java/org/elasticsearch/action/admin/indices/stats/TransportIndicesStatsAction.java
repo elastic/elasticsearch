@@ -47,10 +47,10 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     private final IndicesService indicesService;
 
     @Inject
-    public TransportIndicesStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportIndicesStatsAction(Settings settings, ClusterService clusterService,
                                        TransportService transportService, IndicesService indicesService,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, IndicesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(settings, IndicesStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 IndicesStatsRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }

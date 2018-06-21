@@ -19,13 +19,49 @@
 
 package org.elasticsearch.action;
 
-/**
- * Base action. Supports building the <code>Request</code> through a <code>RequestBuilder</code>.
- */
-public abstract class Action<Request extends ActionRequest, Response extends ActionResponse>
-        extends GenericAction<Request, Response> {
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.TransportRequestOptions;
 
+/**
+ * A generic action. Should strive to make it a singleton.
+ */
+public abstract class Action<Response extends ActionResponse> {
+
+    private final String name;
+
+    /**
+     * @param name The name of the action, must be unique across actions.
+     */
     protected Action(String name) {
-        super(name);
+        this.name = name;
+    }
+
+    /**
+     * The name of the action. Must be unique across actions.
+     */
+    public String name() {
+        return this.name;
+    }
+
+    /**
+     * Creates a new response instance.
+     */
+    public abstract Response newResponse();
+
+    /**
+     * Optional request options for the action.
+     */
+    public TransportRequestOptions transportOptions(Settings settings) {
+        return TransportRequestOptions.EMPTY;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof Action && name.equals(((Action) o).name());
+    }
+
+    @Override
+    public int hashCode() {
+        return name.hashCode();
     }
 }

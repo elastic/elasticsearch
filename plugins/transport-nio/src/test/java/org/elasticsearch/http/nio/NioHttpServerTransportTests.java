@@ -51,7 +51,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.NioHttpTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -83,17 +83,19 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests for the {@link NioHttpServerTransport} class.
  */
-public class NioHttpServerTransportTests extends NioHttpTestCase {
+public class NioHttpServerTransportTests extends ESTestCase {
 
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
+    private MockPageCacheRecycler pageRecycler;
 
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
-        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        pageRecycler = new MockPageCacheRecycler(Settings.EMPTY);
+        bigArrays = new MockBigArrays(pageRecycler, new NoneCircuitBreakerService());
     }
 
     @After
@@ -186,7 +188,7 @@ public class NioHttpServerTransportTests extends NioHttpTestCase {
                 throw new AssertionError();
             }
         };
-        try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, threadPool,
+        try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler, threadPool,
             xContentRegistry(), dispatcher)) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
@@ -210,13 +212,13 @@ public class NioHttpServerTransportTests extends NioHttpTestCase {
     }
 
     public void testBindUnavailableAddress() {
-        try (NioHttpServerTransport transport = new NioHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool,
-            xContentRegistry(), new NullDispatcher())) {
+        try (NioHttpServerTransport transport = new NioHttpServerTransport(Settings.EMPTY, networkService, bigArrays, pageRecycler,
+            threadPool, xContentRegistry(), new NullDispatcher())) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
-            try (NioHttpServerTransport otherTransport = new NioHttpServerTransport(settings, networkService, bigArrays, threadPool,
-                xContentRegistry(), new NullDispatcher())) {
+            try (NioHttpServerTransport otherTransport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
+                threadPool, xContentRegistry(), new NullDispatcher())) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
                 assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
             }
@@ -259,8 +261,8 @@ public class NioHttpServerTransportTests extends NioHttpTestCase {
             settings = Settings.builder().put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
         }
 
-        try (NioHttpServerTransport transport =
-                 new NioHttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+        try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
+            threadPool, xContentRegistry(), dispatcher)) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
@@ -279,41 +281,7 @@ public class NioHttpServerTransportTests extends NioHttpTestCase {
         assertNotNull(causeReference.get());
         assertThat(causeReference.get(), instanceOf(TooLongFrameException.class));
     }
-
-    public void testDispatchDoesNotModifyThreadContext() throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                threadContext.putHeader("foo", "bar");
-                threadContext.putTransient("bar", "baz");
-            }
-
-            @Override
-            public void dispatchBadRequest(final RestRequest request,
-                                           final RestChannel channel,
-                                           final ThreadContext threadContext,
-                                           final Throwable cause) {
-                threadContext.putHeader("foo_bad", "bar");
-                threadContext.putTransient("bar_bad", "baz");
-            }
-
-        };
-
-        try (NioHttpServerTransport transport =
-                 new NioHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
-            transport.start();
-
-            transport.dispatchRequest(null, null);
-            assertNull(threadPool.getThreadContext().getHeader("foo"));
-            assertNull(threadPool.getThreadContext().getTransient("bar"));
-
-            transport.dispatchBadRequest(null, null, null);
-            assertNull(threadPool.getThreadContext().getHeader("foo_bad"));
-            assertNull(threadPool.getThreadContext().getTransient("bar_bad"));
-        }
-    }
-
+    
 //    public void testReadTimeout() throws Exception {
 //        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
 //

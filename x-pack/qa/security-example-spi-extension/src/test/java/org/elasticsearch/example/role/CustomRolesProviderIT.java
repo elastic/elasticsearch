@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.core.test.XPackIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -32,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Integration test for custom roles providers.
  */
-public class CustomRolesProviderIT extends XPackIntegTestCase {
+public class CustomRolesProviderIT extends ESIntegTestCase {
 
     private static final String TEST_USER = "test_user";
     private static final String TEST_PWD = "change_me";

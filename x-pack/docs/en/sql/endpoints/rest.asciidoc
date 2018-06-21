@@ -186,17 +186,3 @@ or fewer results though. `time_zone` is the time zone to use for date
 functions and date parsing. `time_zone` defaults to `utc` and can take
 any values documented
 http://www.joda.org/joda-time/apidocs/org/joda/time/DateTimeZone.html[here].
-
-[[sql-rest-permissions]]
-[NOTE]
-===============================
-If you are using Security you need to add a few permissions to
-users so they can run SQL. To run SQL a user needs `read` and
-`indices:admin/get`. The following example configures a role
-that can run SQL against the `test` and `bort` indices:
-
-["source","yaml",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{sql-tests}/security/roles.yml[rest]
---------------------------------------------------
-===============================

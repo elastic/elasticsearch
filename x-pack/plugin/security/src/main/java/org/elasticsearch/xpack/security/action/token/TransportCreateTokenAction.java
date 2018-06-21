@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.action.token;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -33,15 +32,15 @@ import java.util.Collections;
 public final class TransportCreateTokenAction extends HandledTransportAction<CreateTokenRequest, CreateTokenResponse> {
 
     private static final String DEFAULT_SCOPE = "full";
+    private final ThreadPool threadPool;
     private final TokenService tokenService;
     private final AuthenticationService authenticationService;
 
     @Inject
     public TransportCreateTokenAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                      TokenService tokenService, AuthenticationService authenticationService) {
-        super(settings, CreateTokenAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                CreateTokenRequest::new);
+                                      ActionFilters actionFilters, TokenService tokenService, AuthenticationService authenticationService) {
+        super(settings, CreateTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new);
+        this.threadPool = threadPool;
         this.tokenService = tokenService;
         this.authenticationService = authenticationService;
     }

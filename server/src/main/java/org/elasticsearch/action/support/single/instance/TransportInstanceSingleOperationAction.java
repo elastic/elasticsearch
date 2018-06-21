@@ -50,8 +50,11 @@ import java.util.function.Supplier;
 
 public abstract class TransportInstanceSingleOperationAction<Request extends InstanceShardOperationRequest<Request>, Response extends ActionResponse>
         extends HandledTransportAction<Request, Response> {
+
+    protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
+    protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
     final String executor;
     final String shardActionName;
@@ -59,9 +62,11 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     protected TransportInstanceSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool,
                                                      ClusterService clusterService, TransportService transportService,
                                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
+        super(settings, actionName, transportService, actionFilters, request);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor();
         this.shardActionName = actionName + "[s]";
         transportService.registerRequestHandler(shardActionName, request, executor, new ShardTransportHandler());

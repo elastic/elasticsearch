@@ -29,6 +29,8 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotT
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
+import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
+import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
@@ -241,6 +243,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRemoteClusterInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
@@ -254,7 +257,6 @@ import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexTemplateAction
 import org.elasticsearch.rest.action.admin.indices.RestFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestForceMergeAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetAliasesAction;
-import org.elasticsearch.rest.action.admin.indices.RestGetAllAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetFieldMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetIndicesAction;
@@ -404,8 +406,8 @@ public class ActionModule extends AbstractModule {
             }
 
             public <Request extends ActionRequest, Response extends ActionResponse> void register(
-                    GenericAction<Request, Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
-                    Class<?>... supportTransportActions) {
+                Action<Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
+                Class<?>... supportTransportActions) {
                 register(new ActionHandler<>(action, transportAction, supportTransportActions));
             }
         }
@@ -492,6 +494,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ExplainAction.INSTANCE, TransportExplainAction.class);
         actions.register(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         actions.register(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
+        actions.register(NodesReloadSecureSettingsAction.INSTANCE, TransportNodesReloadSecureSettingsAction.class);
 
         //Indexed scripts
         actions.register(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);
@@ -553,8 +556,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestRestoreSnapshotAction(settings, restController));
         registerHandler.accept(new RestDeleteSnapshotAction(settings, restController));
         registerHandler.accept(new RestSnapshotsStatusAction(settings, restController));
-
-        registerHandler.accept(new RestGetAllAliasesAction(settings, restController));
         registerHandler.accept(new RestGetIndicesAction(settings, restController, indexScopedSettings, settingsFilter));
         registerHandler.accept(new RestIndicesStatsAction(settings, restController));
         registerHandler.accept(new RestIndicesSegmentsAction(settings, restController));
@@ -612,6 +613,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestExplainAction(settings, restController));
 
         registerHandler.accept(new RestRecoveryAction(settings, restController));
+
+        registerHandler.accept(new RestReloadSecureSettingsAction(settings, restController));
 
         // Scripts API
         registerHandler.accept(new RestGetStoredScriptAction(settings, restController));
@@ -672,10 +675,10 @@ public class ActionModule extends AbstractModule {
             bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
             bind(TransportLivenessAction.class).asEagerSingleton();
 
-            // register GenericAction -> transportAction Map used by NodeClient
+            // register Action -> transportAction Map used by NodeClient
             @SuppressWarnings("rawtypes")
-            MapBinder<GenericAction, TransportAction> transportActionsBinder
-                    = MapBinder.newMapBinder(binder(), GenericAction.class, TransportAction.class);
+            MapBinder<Action, TransportAction> transportActionsBinder
+                    = MapBinder.newMapBinder(binder(), Action.class, TransportAction.class);
             for (ActionHandler<?, ?> action : actions.values()) {
                 // bind the action as eager singleton, so the map binder one will reuse it
                 bind(action.getTransportAction()).asEagerSingleton();

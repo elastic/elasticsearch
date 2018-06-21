@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -49,6 +48,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
@@ -229,8 +229,7 @@ public class JobManagerTests extends ESTestCase {
 
         MlFilter filter = MlFilter.builder("foo_filter").setItems("a", "b").build();
 
-        jobManager.notifyFilterChanged(filter, Sets.newTreeSet(Arrays.asList("item 1", "item 2")),
-                Sets.newTreeSet(Arrays.asList("item 3")));
+        jobManager.notifyFilterChanged(filter, new TreeSet<>(Arrays.asList("item 1", "item 2")), new TreeSet<>(Arrays.asList("item 3")));
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
         verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any(ActionListener.class));
@@ -275,7 +274,7 @@ public class JobManagerTests extends ESTestCase {
 
         MlFilter filter = MlFilter.builder("foo_filter").build();
 
-        jobManager.notifyFilterChanged(filter, Sets.newTreeSet(Arrays.asList("a", "b")), Collections.emptySet());
+        jobManager.notifyFilterChanged(filter, new TreeSet<>(Arrays.asList("a", "b")), Collections.emptySet());
 
         verify(auditor).info(jobReferencingFilter.getId(), "Filter [foo_filter] has been modified; added items: ['a', 'b']");
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
@@ -305,7 +304,7 @@ public class JobManagerTests extends ESTestCase {
 
         MlFilter filter = MlFilter.builder("foo_filter").build();
 
-        jobManager.notifyFilterChanged(filter, Collections.emptySet(), Sets.newTreeSet(Arrays.asList("a", "b")));
+        jobManager.notifyFilterChanged(filter, Collections.emptySet(), new TreeSet<>(Arrays.asList("a", "b")));
 
         verify(auditor).info(jobReferencingFilter.getId(), "Filter [foo_filter] has been modified; removed items: ['a', 'b']");
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);

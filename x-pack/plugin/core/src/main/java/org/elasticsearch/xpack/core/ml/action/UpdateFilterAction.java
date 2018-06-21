@@ -102,9 +102,7 @@ public class UpdateFilterAction extends Action<PutFilterAction.Response> {
         }
 
         public void setAddItems(Collection<String> addItems) {
-            ExceptionsHelper.requireNonNull(addItems, ADD_ITEMS.getPreferredName());
-            this.addItems = new TreeSet<>();
-            this.addItems.addAll(addItems);
+            this.addItems = new TreeSet<>(ExceptionsHelper.requireNonNull(addItems, ADD_ITEMS.getPreferredName()));
         }
 
         public SortedSet<String> getRemoveItems() {
@@ -112,9 +110,7 @@ public class UpdateFilterAction extends Action<PutFilterAction.Response> {
         }
 
         public void setRemoveItems(Collection<String> removeItems) {
-            ExceptionsHelper.requireNonNull(removeItems, REMOVE_ITEMS.getPreferredName());
-            this.removeItems = new TreeSet<>();
-            this.removeItems.addAll(removeItems);
+            this.removeItems = new TreeSet<>(ExceptionsHelper.requireNonNull(removeItems, REMOVE_ITEMS.getPreferredName()));
         }
 
         public boolean isNoop() {
@@ -131,10 +127,8 @@ public class UpdateFilterAction extends Action<PutFilterAction.Response> {
             super.readFrom(in);
             filterId = in.readString();
             description = in.readOptionalString();
-            addItems = new TreeSet<>();
-            addItems.addAll(Arrays.asList(in.readStringArray()));
-            removeItems = new TreeSet<>();
-            removeItems.addAll(Arrays.asList(in.readStringArray()));
+            addItems = new TreeSet<>(Arrays.asList(in.readStringArray()));
+            removeItems = new TreeSet<>(Arrays.asList(in.readStringArray()));
         }
 
         @Override

@@ -158,7 +158,6 @@ setup:
 
 ---
 "Test update filter":
-
   - do:
       xpack.ml.put_filter:
         filter_id: "test_update_filter"
@@ -197,7 +196,6 @@ setup:
 
 ---
 "Test update filter given remove item is not present":
-
   - do:
       catch: /Cannot remove item \[not present item\] as it is not present in filter \[filter-foo\]/
       xpack.ml.update_filter:

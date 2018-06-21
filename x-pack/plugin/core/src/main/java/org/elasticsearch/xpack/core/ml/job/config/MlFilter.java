@@ -69,8 +69,7 @@ public class MlFilter implements ToXContentObject, Writeable {
         } else {
             description = null;
         }
-        items = new TreeSet<>();
-        items.addAll(Arrays.asList(in.readStringArray()));
+        items = new TreeSet<>(Arrays.asList(in.readStringArray()));
     }
 
     @Override
@@ -169,8 +168,7 @@ public class MlFilter implements ToXContentObject, Writeable {
         }
 
         public Builder setItems(List<String> items) {
-            this.items = new TreeSet<>();
-            this.items.addAll(items);
+            this.items = new TreeSet<>(items);
             return this;
         }
 

@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -80,14 +81,8 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
             return;
         }
 
-        String description = filter.getDescription();
-        SortedSet<String> items = new TreeSet<>();
-        items.addAll(filter.getItems());
-
-        if (request.getDescription() != null) {
-            description = request.getDescription();
-        }
-
+        String description = request.getDescription() == null ? filter.getDescription() : request.getDescription();
+        SortedSet<String> items = new TreeSet<>(filter.getItems());
         items.addAll(request.getAddItems());
 
         // Check if removed items are present to avoid typos
@@ -147,9 +142,8 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
                     if (getDocResponse.isExists()) {
                         BytesReference docSource = getDocResponse.getSourceAsBytesRef();
                         try (InputStream stream = docSource.streamInput();
-                             XContentParser parser =
-                                     XContentFactory.xContent(getDocResponse.getSourceAsBytes())
-                                             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             MlFilter filter = MlFilter.LENIENT_PARSER.apply(parser, null).build();
                             listener.onResponse(new FilterWithVersion(filter, getDocResponse.getVersion()));
                         }

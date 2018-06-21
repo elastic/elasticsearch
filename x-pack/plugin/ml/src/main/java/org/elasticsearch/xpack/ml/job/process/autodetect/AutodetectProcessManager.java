@@ -359,7 +359,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                     updateProcessMessage.setFilter(filter);
 
                     if (updateParams.isUpdateScheduledEvents()) {
-                        jobManager.getJobOrThrowIfUnknown(jobTask.getJobId(), new ActionListener<Job>() {
+                        jobManager.getJob(jobTask.getJobId(), new ActionListener<Job>() {
                             @Override
                             public void onResponse(Job job) {
                                 DataCounts dataCounts = getStatistics(jobTask).get().v1();
@@ -405,7 +405,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         String jobId = jobTask.getJobId();
         logger.info("Opening job [{}]", jobId);
 
-        jobManager.getJobOrThrowIfUnknown(jobId, ActionListener.wrap(
+        jobManager.getJob(jobId, ActionListener.wrap(
                 job -> {
                     processByAllocation.putIfAbsent(jobTask.getAllocationId(), new ProcessContext(jobTask));
                     jobProvider.getAutodetectParams(job, params -> {

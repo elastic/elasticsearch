@@ -63,7 +63,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     @Override
     protected void taskOperation(ForecastJobAction.Request request, TransportOpenJobAction.JobTask task,
                                  ActionListener<ForecastJobAction.Response> listener) {
-        jobManager.getJobOrThrowIfUnknown(task.getJobId(), ActionListener.wrap(
+        jobManager.getJob(task.getJobId(), ActionListener.wrap(
                 job -> {
                     validate(job, request);
 

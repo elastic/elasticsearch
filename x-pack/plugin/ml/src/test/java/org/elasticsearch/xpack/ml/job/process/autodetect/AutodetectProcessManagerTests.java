@@ -67,7 +67,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -132,7 +131,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             ActionListener<Job> listener = (ActionListener<Job>) invocationOnMock.getArguments()[1];
             listener.onResponse(createJobDetails("foo"));
             return null;
-        }).when(jobManager).getJobOrThrowIfUnknown(eq("foo"), any());
+        }).when(jobManager).getJob(eq("foo"), any());
 
 
         doAnswer(invocationOnMock -> {
@@ -182,7 +181,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             ActionListener<Job> listener = (ActionListener<Job>) invocationOnMock.getArguments()[1];
             listener.onResponse(createJobDetails("foo"));
             return null;
-        }).when(jobManager).getJobOrThrowIfUnknown(eq("foo"), any());
+        }).when(jobManager).getJob(eq("foo"), any());
         AutodetectProcessManager manager = createManager(communicator, client);
 
         JobTask jobTask = mock(JobTask.class);
@@ -202,7 +201,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 ActionListener<Job> listener = (ActionListener<Job>) invocationOnMock.getArguments()[1];
                 listener.onResponse(createJobDetails(jobId));
                 return null;
-            }).when(jobManager).getJobOrThrowIfUnknown(eq(jobId), any());
+            }).when(jobManager).getJob(eq(jobId), any());
         }
 
         Client client = mock(Client.class);
@@ -578,7 +577,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             ActionListener<Job> listener = (ActionListener<Job>) invocationOnMock.getArguments()[1];
             listener.onResponse(job);
             return null;
-        }).when(jobManager).getJobOrThrowIfUnknown(eq("my_id"), any());
+        }).when(jobManager).getJob(eq("my_id"), any());
 
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         AutodetectProcessFactory autodetectProcessFactory =
@@ -657,7 +656,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             ActionListener<Job> listener = (ActionListener<Job>) invocationOnMock.getArguments()[1];
             listener.onResponse(createJobDetails(jobId));
             return null;
-        }).when(jobManager).getJobOrThrowIfUnknown(eq(jobId), any());
+        }).when(jobManager).getJob(eq(jobId), any());
 
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         AutodetectProcessFactory autodetectProcessFactory =

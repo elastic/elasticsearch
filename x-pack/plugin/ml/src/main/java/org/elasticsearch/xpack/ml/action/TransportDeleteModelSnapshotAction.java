@@ -66,7 +66,7 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
                     ModelSnapshot deleteCandidate = deleteCandidates.get(0);
 
                     // Verify the snapshot is not being used
-                    jobManager.getJobOrThrowIfUnknown(request.getJobId(), ActionListener.wrap(
+                    jobManager.getJob(request.getJobId(), ActionListener.wrap(
                             job -> {
                                 String currentModelInUse = job.getModelSnapshotId();
                                 if (currentModelInUse != null && currentModelInUse.equals(request.getSnapshotId())) {

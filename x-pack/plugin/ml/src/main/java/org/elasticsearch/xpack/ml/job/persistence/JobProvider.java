@@ -156,6 +156,7 @@ public class JobProvider {
             IndexRequest indexRequest =  client.prepareIndex(AnomalyDetectorsIndex.jobConfigIndexName(),
                     ElasticsearchMappings.DOC_TYPE, Job.documentId(job.getId()))
                     .setSource(source)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .request();
 
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
@@ -164,44 +165,6 @@ public class JobProvider {
             throw new IllegalStateException("Failed to serialise job with id [" + job.getId() + "]", e);
         }
     }
-
-    public Job.Builder getJob(String jobId) {
-        GetResponse getResponse = client.prepareGet(AnomalyDetectorsIndex.jobConfigIndexName(),
-                ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId))
-                .get();
-
-        if (getResponse.isExists() == false) {
-            throw ExceptionsHelper.missingJobException(jobId);
-        }
-
-        BytesReference source = getResponse.getSourceAsBytesRef();
-
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return Job.STRICT_PARSER.apply(parser, null);
-        } catch (IOException e) {
-            LOGGER.error(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
-            return null;
-        }
-    }
-
-    public void deleteJob(String jobId,  ActionListener<DeleteJobAction.Response> actionListener) {
-        client.prepareDelete(AnomalyDetectorsIndex.jobConfigIndexName(),
-                ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId))
-                .execute(new ActionListener<DeleteResponse>() {
-                    @Override
-                    public void onResponse(DeleteResponse deleteResponse) {
-                        actionListener.onResponse(new DeleteJobAction.Response());
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        actionListener.onFailure(e);
-                    }
-                });
-    }
-
 
     /**
      * Check that a previously deleted job with the same Id has not left any result

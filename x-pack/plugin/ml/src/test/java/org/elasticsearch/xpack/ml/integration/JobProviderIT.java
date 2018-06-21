@@ -76,36 +76,12 @@ public class JobProviderIT extends MlSingleNodeTestCase {
 
     private JobProvider jobProvider;
 
-    @Override
-    protected Settings nodeSettings()  {
-        Settings.Builder newSettings = Settings.builder();
-        newSettings.put(super.nodeSettings());
-        newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-        newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        return newSettings.build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(LocalStateMachineLearning.class);
-    }
-
     @Before
     public void createComponents() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         jobProvider = new JobProvider(client(), builder.build());
         waitForMlTemplates();
-    }
-
-    private void waitForMlTemplates() throws Exception {
-        // block until the templates are installed
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            assertTrue("Timed out waiting for the ML templates to be installed",
-                    MachineLearning.allTemplatesInstalled(state));
-        });
     }
 
     public void testGetCalandarByJobId() throws Exception {

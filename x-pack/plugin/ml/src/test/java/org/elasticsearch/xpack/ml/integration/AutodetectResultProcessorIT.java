@@ -77,22 +77,6 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     private AutoDetectResultProcessor resultProcessor;
     private Renormalizer renormalizer;
 
-    @Override
-    protected Settings nodeSettings()  {
-        Settings.Builder newSettings = Settings.builder();
-        newSettings.put(super.nodeSettings());
-        // Disable security otherwise delete-by-query action fails to get authorized
-        newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-        newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        return newSettings.build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(LocalStateMachineLearning.class, ReindexPlugin.class);
-    }
-
     @Before
     public void createComponents() throws Exception {
         Settings.Builder builder = Settings.builder()
@@ -108,7 +92,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 capturedUpdateModelSnapshotOnJobRequests.add(modelSnapshot);
             }
         };
-        putIndexTemplates();
+        waitForMlTemplates();
         putJob();
     }
 
@@ -285,15 +269,6 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         List<AnomalyRecord> allRecords = new ArrayList<>(firstSetOfRecords);
         allRecords.addAll(secondSetOfRecords);
         assertResultsAreSame(allRecords, persistedRecords);
-    }
-
-    private void putIndexTemplates() throws Exception {
-        // block until the templates are installed
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            assertTrue("Timed out waiting for the ML templates to be installed",
-                    MachineLearning.allTemplatesInstalled(state));
-        });
     }
 
     private void putJob() {

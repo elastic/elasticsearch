@@ -39,7 +39,7 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
     @Override
     protected void doExecute(Task task, GetRecordsAction.Request request, ActionListener<GetRecordsAction.Response> listener) {
 
-        jobManager.getJobOrThrowIfUnknown(request.getJobId(), ActionListener.wrap(
+        jobManager.getJob(request.getJobId(), ActionListener.wrap(
                 job -> {
                     RecordsQueryBuilder query = new RecordsQueryBuilder()
                             .includeInterim(request.isExcludeInterim() == false)

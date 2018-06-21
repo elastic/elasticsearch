@@ -152,7 +152,7 @@ public class JobManager extends AbstractComponent {
      * @param jobListener the Job listener
      * @throws ResourceNotFoundException if no job matches {@code jobId}
      */
-    public void getJobOrThrowIfUnknown(String jobId, ActionListener<Job> jobListener) {
+    public void getJob(String jobId, ActionListener<Job> jobListener) {
         GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.jobConfigIndexName(), ElasticsearchMappings.DOC_TYPE,
                 Job.documentId(jobId));
 
@@ -185,7 +185,7 @@ public class JobManager extends AbstractComponent {
         return MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
     }
 
-    public void getJobs(Collection<String> jobIds, ActionListener<QueryPage<Job>> jobsListener) {
+    private void getJobs(Collection<String> jobIds, ActionListener<QueryPage<Job>> jobsListener) {
         QueryBuilder qb = new BoolQueryBuilder()
                 .filter(new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE))
                 .filter(new TermsQueryBuilder(Job.ID.getPreferredName(), jobIds));
@@ -242,12 +242,7 @@ public class JobManager extends AbstractComponent {
             return null;
         }
     }
-
-    public JobState getJobState(String jobId) {
-        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        return MlTasks.getJobState(jobId, tasks);
-    }
-
+    
     /**
      * Validate the char filter/tokenizer/token filter names used in the categorization analyzer config (if any).
      * This validation has to be done server-side; it cannot be done in a client as that won't have loaded the
@@ -265,7 +260,7 @@ public class JobManager extends AbstractComponent {
     }
 
     /**
-     * Stores a job in the cluster state
+     * Stores the job in a document
      */
     public void putJob(PutJobAction.Request request, AnalysisRegistry analysisRegistry, ClusterState state,
                        ActionListener<PutJobAction.Response> actionListener) throws IOException {
@@ -333,7 +328,7 @@ public class JobManager extends AbstractComponent {
     }
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
-        getJobOrThrowIfUnknown(request.getJobId(), ActionListener.wrap(
+        getJob(request.getJobId(), ActionListener.wrap(
                 job -> {
                     validate(request.getJobUpdate(), job, ActionListener.wrap(
                             nullValue -> internalJobUpdate(request, actionListener),
@@ -594,7 +589,7 @@ public class JobManager extends AbstractComponent {
         };
 
         // Step 1. Get the job and delete the physical storage
-        getJobOrThrowIfUnknown(request.getJobId(), ActionListener.wrap(
+        getJob(request.getJobId(), ActionListener.wrap(
                 // This task manages the physical deletion of the job state and results
                 job -> task.delete(jobId, client, job.getResultsIndexName(), removeFromCalendarsHandler, actionListener::onFailure),
                 actionListener::onFailure
@@ -671,7 +666,6 @@ public class JobManager extends AbstractComponent {
                             Job.Builder jobBulder = Job.STRICT_PARSER.apply(parser, null);
 
                             Job updatedJob = jobUpdater.apply(jobBulder);
-
 
                             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                                 XContentBuilder updatedSource = updatedJob.toXContent(builder, ToXContent.EMPTY_PARAMS);

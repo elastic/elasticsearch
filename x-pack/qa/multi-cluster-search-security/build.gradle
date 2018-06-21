@@ -69,4 +69,9 @@ mixedClusterTestRunner {
   finalizedBy 'remoteClusterTestCluster#node0.stop','remoteClusterTestCluster#node1.stop'
 }
 
-check.dependsOn(mixedClusterTest)
+task integTest {
+  dependsOn = [mixedClusterTest]
+}
+
+test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
+check.dependsOn(integTest)

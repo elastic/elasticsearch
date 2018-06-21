@@ -2,19 +2,42 @@ package com.carrotsearch.gradle.junit4
 
 import com.carrotsearch.ant.tasks.junit4.JUnit4
 import org.gradle.api.AntBuilder
+import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.testing.Test
 
 import java.util.concurrent.atomic.AtomicBoolean
 
 class RandomizedTestingPlugin implements Plugin<Project> {
 
+    static private AtomicBoolean sanityCheckConfigured = new AtomicBoolean(false)
+
     void apply(Project project) {
         setupSeed(project)
-        createTestTask(project)
+        replaceTestTask(project.tasks)
         configureAnt(project.ant)
+        configureSanityCheck(project)
+    }
+
+    private static void configureSanityCheck(Project project) {
+        // Check the task graph to confirm tasks were indeed replaced
+        // https://github.com/elastic/elasticsearch/issues/31324
+        if (sanityCheckConfigured.getAndSet(true) == false) {
+            project.rootProject.getGradle().getTaskGraph().whenReady {
+                def nonConforming = project.getGradle().getTaskGraph().allTasks
+                        .findAll { it.name == "test" }
+                        .findAll { (it instanceof RandomizedTestingTask) == false}
+                        .collect { "${it.path} -> ${it.class}" }
+                if (nonConforming.isEmpty() == false) {
+                    throw new GradleException("Found the ${nonConforming.size()} `test` tasks:" +
+                            "\n  ${nonConforming.join("\n  ")}")
+                }
+            }
+        }
     }
 
     /**
@@ -44,40 +67,32 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         }
     }
 
-    static void createTestTask(Project project) {
-        Test oldTestTask = project.tasks.findByPath('test')
-        if (oldTestTask != null) {
-            oldTestTask.enabled = false
-            if (oldTestTask.getDependsOn().isEmpty() == false) {
-                // we used to pass dependencies along to the new task,
-                // we no longer do, so make sure nobody relies on that.
-                throw new Exception("did not expect any dependencies for test task but got: ${oldTestTask.getDependsOn()}")
-            }
-            oldTestTask.dependsOn('utest')
-        } else {
+    static void replaceTestTask(TaskContainer tasks) {
+        Test oldTestTask = tasks.findByPath('test')
+        if (oldTestTask == null) {
+            // no test task, ok, user will use testing task on their own
             return
         }
+        tasks.remove(oldTestTask)
 
-        RandomizedTestingTask newTestTask = project.tasks.create([
-            name: 'utest',
+        Map properties = [
+            name: 'test',
             type: RandomizedTestingTask,
+            dependsOn: oldTestTask.dependsOn,
             group: JavaBasePlugin.VERIFICATION_GROUP,
             description: 'Runs unit tests with the randomized testing framework'
-        ])
+        ]
+        RandomizedTestingTask newTestTask = tasks.create(properties)
         newTestTask.classpath = oldTestTask.classpath
         newTestTask.testClassesDir = oldTestTask.project.sourceSets.test.output.classesDir
+        // since gradle 4.5, tasks immutable dependencies are "hidden" (do not show up in dependsOn)
+        // so we must explicitly add a dependency on generating the test classpath
         newTestTask.dependsOn('testClasses')
 
-        project.tasks.findByPath('check').dependsOn.add(newTestTask)
-        // if there isn't actually a tests folder disable the task. Since we still have IT and Test in mixed folders
-        // need to check by file name convention
-        Set<File> testSources = project.sourceSets.test.java.getFiles().findAll { it.name.endsWith("Tests.java") }
-        if (testSources.isEmpty()) {
-            newTestTask.enabled = false
-            project.logger.info("Found ${testSources.size()} source files, utest task will be disabled")
-        } else {
-            project.logger.debug("Found ${testSources.size()} source files, utest task will be enabled")
-        }
+        // hack so check task depends on custom test
+        Task checkTask = tasks.findByPath('check')
+        checkTask.dependsOn.remove(oldTestTask)
+        checkTask.dependsOn.add(newTestTask)
     }
 
     static void configureAnt(AntBuilder ant) {

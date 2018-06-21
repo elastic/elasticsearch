@@ -71,7 +71,7 @@ task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConven
 }
 precommit.dependsOn namingConventionsMain
 
-utest {
+test.configure {
   systemProperty 'tests.gradle_index_compat_versions', bwcVersions.indexCompatible.join(',')
   systemProperty 'tests.gradle_wire_compat_versions', bwcVersions.wireCompatible.join(',')
 }

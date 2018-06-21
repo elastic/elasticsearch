@@ -33,3 +33,5 @@ dependencies {
 integTestCluster {
   distribution = 'zip'
 }
+
+test.enabled = false

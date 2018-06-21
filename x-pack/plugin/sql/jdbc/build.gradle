@@ -86,7 +86,7 @@ publishing {
 assemble.dependsOn shadowJar
 
 // Use the jar for testing so the tests are more "real"
-utest {
+test {
     classpath -= compileJava.outputs.files
     classpath -= configurations.compile
     classpath -= configurations.runtime

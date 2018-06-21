@@ -57,3 +57,4 @@ namingConventions.enabled = false
 
 //we aren't releasing this jar
 thirdPartyAudit.enabled = false
+test.enabled = false

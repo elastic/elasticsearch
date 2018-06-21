@@ -110,7 +110,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     /** Adds an integTest task which runs rest tests */
     private static void createIntegTestTask(Project project) {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
-        integTest.mustRunAfter(project.precommit, project.utest)
+        integTest.mustRunAfter(project.precommit, project.test)
         project.integTestCluster.distribution = 'integ-test-zip'
         project.check.dependsOn(integTest)
     }

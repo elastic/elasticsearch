@@ -32,4 +32,6 @@ integTestRunner {
     systemProperty 'runtime.java.home', "${project.runtimeJavaHome}"
 }
 
+test.enabled = false
+
 check.dependsOn integTest

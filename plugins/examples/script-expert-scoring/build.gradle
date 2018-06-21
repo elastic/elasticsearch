@@ -25,3 +25,4 @@ esplugin {
   classname 'org.elasticsearch.example.expertscript.ExpertScriptPlugin'
 }
 
+test.enabled = false

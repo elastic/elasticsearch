@@ -76,13 +76,17 @@ public class RolloverActionTests extends AbstractSerializingTestCase<RolloverAct
                 randomAlphaOfLengthBetween(1, 10));
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(1, steps.size());
+        assertEquals(2, steps.size());
         StepKey expectedFirstStepKey = new StepKey(phase, RolloverAction.NAME, RolloverStep.NAME);
+        StepKey expectedSecondStepKey = new StepKey(phase, RolloverAction.NAME, UpdateRolloverLifecycleDateStep.NAME);
         RolloverStep firstStep = (RolloverStep) steps.get(0);
+        UpdateRolloverLifecycleDateStep secondStep = (UpdateRolloverLifecycleDateStep) steps.get(1);
         assertEquals(expectedFirstStepKey, firstStep.getKey());
-        assertEquals(nextStepKey, firstStep.getNextStepKey());
+        assertEquals(expectedSecondStepKey, secondStep.getKey());
+        assertEquals(secondStep.getKey(), firstStep.getNextStepKey());
         assertEquals(action.getMaxSize(), firstStep.getMaxSize());
         assertEquals(action.getMaxAge(), firstStep.getMaxAge());
         assertEquals(action.getMaxDocs(), firstStep.getMaxDocs());
+        assertEquals(nextStepKey, secondStep.getNextStepKey());
     }
 }

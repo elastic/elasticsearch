@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
@@ -25,9 +24,9 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
     private final NativeUsersStore nativeUsersStore;
 
     @Inject
-    public TransportChangePasswordAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportChangePasswordAction(Settings settings, TransportService transportService,
                                          ActionFilters actionFilters, NativeUsersStore nativeUsersStore) {
-        super(settings, ChangePasswordAction.NAME, threadPool, transportService, actionFilters, ChangePasswordRequest::new);
+        super(settings, ChangePasswordAction.NAME, transportService, actionFilters, ChangePasswordRequest::new);
         this.nativeUsersStore = nativeUsersStore;
     }
 

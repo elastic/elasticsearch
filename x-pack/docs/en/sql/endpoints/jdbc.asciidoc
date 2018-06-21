@@ -1,4 +1,3 @@
-[role="xpack"]
 [[sql-jdbc]]
 == SQL JDBC
 
@@ -36,11 +35,11 @@ from `artifacts.elastic.co/maven` by adding it to the repositories list:
 [float]
 === Setup
 
-The driver main class is `org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver`. Note the driver 
-also implements the JDBC 4.0 +Service Provider+ mechanism meaning it is registerd automatically
+The driver main class is `org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver`. 
+Note the driver  implements the JDBC 4.0 +Service Provider+ mechanism meaning it is registerd automatically
 as long as its available in the classpath.
 
-Once registered, the driver expects the following syntax as an URL:
+Once registered, the driver understands the following syntax as an URL:
 
 ["source","text",subs="attributes"]
 ----
@@ -120,12 +119,12 @@ Query timeout (in seconds). That is the maximum amount of time waiting for a que
 
 To put all of it together, the following URL:
 
-["source","text",subs="attributes"]
+["source","text"]
 ----
 jdbc:es://http://server:3456/timezone=UTC&page.size=250
 ----
 
-Opens up a {es-jdbc} connection to `server` on port `3456`, setting the JDBC timezone to `UTC` and its pagesize to `250` entries.
+Opens up a {es-sql} connection to `server` on port `3456`, setting the JDBC connection timezone to `UTC` and its pagesize to `250` entries.
 
 === API usage
 
@@ -176,19 +175,3 @@ connection. For example:
 --------------------------------------------------
 include-tagged::{jdbc-tests}/SimpleExampleTestCase.java[simple_example]
 --------------------------------------------------
-
-[[sql-jdbc-permissions]]
-[NOTE]
-===============================
-If you are using Security you need to add a few permissions to
-users so they can run SQL. To run SQL a user needs `read` and
-`indices:admin/get`. Some parts of the API require
-`cluster:monitor/main`. The following example configures a
-role that can run SQL in JDBC querying the `test` and `bort`
-indices:
-
-["source","yaml",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{sql-tests}/security/roles.yml[cli_jdbc]
---------------------------------------------------
-===============================

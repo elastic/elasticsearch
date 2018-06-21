@@ -29,8 +29,6 @@ import com.amazonaws.services.ec2.model.Reservation;
 import com.amazonaws.services.ec2.model.Tag;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -46,8 +44,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.disjoint;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.TAG_PREFIX;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_DNS;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_IP;
@@ -70,7 +66,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
 
     private final String hostType;
 
-    private final DiscoNodesCache discoNodes;
+    private final TransportAddressesCache dynamicHosts;
 
     AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
         super(settings);
@@ -78,7 +74,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
         this.awsEc2Service = awsEc2Service;
 
         this.hostType = AwsEc2Service.HOST_TYPE_SETTING.get(settings);
-        this.discoNodes = new DiscoNodesCache(AwsEc2Service.NODE_CACHE_TIME_SETTING.get(settings));
+        this.dynamicHosts = new TransportAddressesCache(AwsEc2Service.NODE_CACHE_TIME_SETTING.get(settings));
 
         this.bindAnyGroup = AwsEc2Service.ANY_GROUP_SETTING.get(settings);
         this.groups = new HashSet<>();
@@ -96,13 +92,13 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
     }
 
     @Override
-    public List<DiscoveryNode> buildDynamicNodes() {
-        return discoNodes.getOrRefresh();
+    public List<TransportAddress> buildDynamicHosts() {
+        return dynamicHosts.getOrRefresh();
     }
 
-    protected List<DiscoveryNode> fetchDynamicNodes() {
+    protected List<TransportAddress> fetchDynamicNodes() {
 
-        final List<DiscoveryNode> discoNodes = new ArrayList<>();
+        final List<TransportAddress> dynamicHosts = new ArrayList<>();
 
         final DescribeInstancesResult descInstances;
         try (AmazonEc2Reference clientReference = awsEc2Service.client()) {
@@ -115,7 +111,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
         } catch (final AmazonClientException e) {
             logger.info("Exception while retrieving instance list from AWS API: {}", e.getMessage());
             logger.debug("Full exception:", e);
-            return discoNodes;
+            return dynamicHosts;
         }
 
         logger.trace("building dynamic unicast discovery nodes...");
@@ -179,8 +175,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
                         final TransportAddress[] addresses = transportService.addressesFromString(address, 1);
                         for (int i = 0; i < addresses.length; i++) {
                             logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
-                            discoNodes.add(new DiscoveryNode(instance.getInstanceId(), "#cloud-" + instance.getInstanceId() + "-" + i,
-                                addresses[i], emptyMap(), emptySet(), Version.CURRENT.minimumCompatibilityVersion()));
+                            dynamicHosts.add(addresses[i]);
                         }
                     } catch (final Exception e) {
                         final String finalAddress = address;
@@ -194,9 +189,9 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
             }
         }
 
-        logger.debug("using dynamic discovery nodes {}", discoNodes);
+        logger.debug("using dynamic transport addresses {}", dynamicHosts);
 
-        return discoNodes;
+        return dynamicHosts;
     }
 
     private DescribeInstancesRequest buildDescribeInstancesRequest() {
@@ -222,11 +217,11 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
         return describeInstancesRequest;
     }
 
-    private final class DiscoNodesCache extends SingleObjectCache<List<DiscoveryNode>> {
+    private final class TransportAddressesCache extends SingleObjectCache<List<TransportAddress>> {
 
         private boolean empty = true;
 
-        protected DiscoNodesCache(TimeValue refreshInterval) {
+        protected TransportAddressesCache(TimeValue refreshInterval) {
             super(refreshInterval,  new ArrayList<>());
         }
 
@@ -236,8 +231,8 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
         }
 
         @Override
-        protected List<DiscoveryNode> refresh() {
-            final List<DiscoveryNode> nodes = fetchDynamicNodes();
+        protected List<TransportAddress> refresh() {
+            final List<TransportAddress> nodes = fetchDynamicNodes();
             empty = nodes.isEmpty();
             return nodes;
         }

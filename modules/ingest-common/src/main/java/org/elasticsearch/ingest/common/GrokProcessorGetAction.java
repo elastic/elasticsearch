@@ -41,7 +41,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -114,9 +113,8 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Respon
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         @Inject
-        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                               ActionFilters actionFilters) {
-            super(settings, NAME, threadPool, transportService, actionFilters, Request::new);
+        public TransportAction(Settings settings, TransportService transportService, ActionFilters actionFilters) {
+            super(settings, NAME, transportService, actionFilters, Request::new);
         }
 
         @Override

@@ -60,6 +60,7 @@ import static org.elasticsearch.action.support.TransportActions.isShardNotAvaila
  */
 public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse> extends TransportAction<Request, Response> {
 
+    protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -70,7 +71,8 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected TransportSingleShardAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                          Supplier<Request> request, String executor) {
-        super(settings, actionName, threadPool, actionFilters, transportService.getTaskManager());
+        super(settings, actionName, actionFilters, transportService.getTaskManager());
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

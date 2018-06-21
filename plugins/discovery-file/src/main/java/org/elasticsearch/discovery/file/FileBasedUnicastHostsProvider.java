@@ -21,8 +21,8 @@ package org.elasticsearch.discovery.file;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.env.Environment;
@@ -58,7 +58,6 @@ import static org.elasticsearch.discovery.zen.UnicastZenPing.resolveHostsLists;
 class FileBasedUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
-    static final String UNICAST_HOST_PREFIX = "#zen_file_unicast_host_";
 
     private final TransportService transportService;
     private final ExecutorService executorService;
@@ -76,7 +75,7 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
     }
 
     @Override
-    public List<DiscoveryNode> buildDynamicNodes() {
+    public List<TransportAddress> buildDynamicHosts() {
         List<String> hostsList;
         try (Stream<String> lines = Files.lines(unicastHostsFilePath)) {
             hostsList = lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
@@ -91,23 +90,22 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
             hostsList = Collections.emptyList();
         }
 
-        final List<DiscoveryNode> discoNodes = new ArrayList<>();
+        final List<TransportAddress> dynamicHosts = new ArrayList<>();
         try {
-            discoNodes.addAll(resolveHostsLists(
+            dynamicHosts.addAll(resolveHostsLists(
                 executorService,
                 logger,
                 hostsList,
                 1,
                 transportService,
-                UNICAST_HOST_PREFIX,
                 resolveTimeout));
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
 
-        logger.debug("[discovery-file] Using dynamic discovery nodes {}", discoNodes);
+        logger.debug("[discovery-file] Using dynamic discovery nodes {}", dynamicHosts);
 
-        return discoNodes;
+        return dynamicHosts;
     }
 
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.security.authc.saml.SamlToken;
  */
 public final class TransportSamlAuthenticateAction extends HandledTransportAction<SamlAuthenticateRequest, SamlAuthenticateResponse> {
 
+    private final ThreadPool threadPool;
     private final AuthenticationService authenticationService;
     private final TokenService tokenService;
 
@@ -38,7 +39,8 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
     public TransportSamlAuthenticateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                            ActionFilters actionFilters, AuthenticationService authenticationService,
                                            TokenService tokenService) {
-        super(settings, SamlAuthenticateAction.NAME, threadPool, transportService, actionFilters, SamlAuthenticateRequest::new);
+        super(settings, SamlAuthenticateAction.NAME, transportService, actionFilters, SamlAuthenticateRequest::new);
+        this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;
     }

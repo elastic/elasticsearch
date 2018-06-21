@@ -46,6 +46,8 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkByScrollResponse> {
+
+    private final ThreadPool threadPool;
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
@@ -53,8 +55,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     @Inject
     public TransportUpdateByQueryAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, Client client,
                                         TransportService transportService, ScriptService scriptService, ClusterService clusterService) {
-        super(settings, UpdateByQueryAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, UpdateByQueryAction.NAME, transportService, actionFilters,
             (Supplier<UpdateByQueryRequest>) UpdateByQueryRequest::new);
+        this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;

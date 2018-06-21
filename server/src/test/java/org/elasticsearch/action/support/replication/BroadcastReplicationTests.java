@@ -100,7 +100,7 @@ public class BroadcastReplicationTests extends ESTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, threadPool, clusterService, transportService,
+        broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, clusterService, transportService,
                 new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), null);
     }
 
@@ -206,10 +206,10 @@ public class BroadcastReplicationTests extends ESTestCase {
     private class TestBroadcastReplicationAction extends TransportBroadcastReplicationAction<DummyBroadcastRequest, BroadcastResponse, BasicReplicationRequest, ReplicationResponse> {
         protected final Set<Tuple<ShardId, ActionListener<ReplicationResponse>>> capturedShardRequests = ConcurrentCollections.newConcurrentSet();
 
-        TestBroadcastReplicationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                              TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                              TransportReplicationAction replicatedBroadcastShardAction) {
-            super("test-broadcast-replication-action", DummyBroadcastRequest::new, settings, threadPool, clusterService, transportService,
+        TestBroadcastReplicationAction(Settings settings, ClusterService clusterService, TransportService transportService,
+                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                       TransportReplicationAction replicatedBroadcastShardAction) {
+            super("test-broadcast-replication-action", DummyBroadcastRequest::new, settings, clusterService, transportService,
                     actionFilters, indexNameExpressionResolver, replicatedBroadcastShardAction);
         }
 

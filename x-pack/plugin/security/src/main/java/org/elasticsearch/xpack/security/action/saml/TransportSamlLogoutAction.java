@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
@@ -41,9 +40,9 @@ public final class TransportSamlLogoutAction
     private final TokenService tokenService;
 
     @Inject
-    public TransportSamlLogoutAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportSamlLogoutAction(Settings settings, TransportService transportService,
                                      ActionFilters actionFilters, Realms realms, TokenService tokenService) {
-        super(settings, SamlLogoutAction.NAME, threadPool, transportService, actionFilters, SamlLogoutRequest::new);
+        super(settings, SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new);
         this.realms = realms;
         this.tokenService = tokenService;
     }

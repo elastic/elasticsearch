@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.transport.TransportAddress;
 
 import java.util.List;
 
@@ -31,5 +31,5 @@ public interface UnicastHostsProvider {
     /**
      * Builds the dynamic list of unicast hosts to be used for unicast discovery.
      */
-    List<DiscoveryNode> buildDynamicNodes();
+    List<TransportAddress> buildDynamicHosts();
 }

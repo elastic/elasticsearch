@@ -5,24 +5,22 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import java.util.function.Supplier;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
+
+import java.util.function.Supplier;
 
 public class TransportValidateJobConfigAction extends HandledTransportAction<ValidateJobConfigAction.Request,
         ValidateJobConfigAction.Response> {
 
     @Inject
-    public TransportValidateJobConfigAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                            ActionFilters actionFilters) {
-        super(settings, ValidateJobConfigAction.NAME, threadPool, transportService, actionFilters,
+    public TransportValidateJobConfigAction(Settings settings, TransportService transportService, ActionFilters actionFilters) {
+        super(settings, ValidateJobConfigAction.NAME, transportService, actionFilters,
             (Supplier< ValidateJobConfigAction.Request>) ValidateJobConfigAction.Request::new);
     }
 

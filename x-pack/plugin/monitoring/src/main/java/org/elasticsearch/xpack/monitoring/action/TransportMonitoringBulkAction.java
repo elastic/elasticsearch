@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 
 public class TransportMonitoringBulkAction extends HandledTransportAction<MonitoringBulkRequest, MonitoringBulkResponse> {
 
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final Exporters exportService;
     private final MonitoringService monitoringService;
@@ -42,7 +43,8 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
     public TransportMonitoringBulkAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters, Exporters exportService,
                                          MonitoringService monitoringService) {
-        super(settings, MonitoringBulkAction.NAME, threadPool, transportService, actionFilters, MonitoringBulkRequest::new);
+        super(settings, MonitoringBulkAction.NAME, transportService, actionFilters, MonitoringBulkRequest::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.exportService = exportService;
         this.monitoringService = monitoringService;

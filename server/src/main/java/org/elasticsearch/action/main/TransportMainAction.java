@@ -30,7 +30,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportMainAction extends HandledTransportAction<MainRequest, MainResponse> {
@@ -38,9 +37,9 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
     private final ClusterService clusterService;
 
     @Inject
-    public TransportMainAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportMainAction(Settings settings, TransportService transportService,
                                ActionFilters actionFilters, ClusterService clusterService) {
-        super(settings, MainAction.NAME, threadPool, transportService, actionFilters, MainRequest::new);
+        super(settings, MainAction.NAME, transportService, actionFilters, MainRequest::new);
         this.clusterService = clusterService;
     }
 

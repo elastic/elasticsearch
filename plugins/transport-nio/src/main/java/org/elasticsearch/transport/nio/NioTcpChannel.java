@@ -32,7 +32,7 @@ public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
 
     private final String profile;
 
-    public NioTcpChannel(String profile, SocketChannel socketChannel) throws IOException {
+    public NioTcpChannel(String profile, SocketChannel socketChannel) {
         super(socketChannel);
         this.profile = profile;
     }

@@ -32,13 +32,15 @@ import java.util.Collections;
 public final class TransportCreateTokenAction extends HandledTransportAction<CreateTokenRequest, CreateTokenResponse> {
 
     private static final String DEFAULT_SCOPE = "full";
+    private final ThreadPool threadPool;
     private final TokenService tokenService;
     private final AuthenticationService authenticationService;
 
     @Inject
     public TransportCreateTokenAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                       ActionFilters actionFilters, TokenService tokenService, AuthenticationService authenticationService) {
-        super(settings, CreateTokenAction.NAME, threadPool, transportService, actionFilters, CreateTokenRequest::new);
+        super(settings, CreateTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new);
+        this.threadPool = threadPool;
         this.tokenService = tokenService;
         this.authenticationService = authenticationService;
     }

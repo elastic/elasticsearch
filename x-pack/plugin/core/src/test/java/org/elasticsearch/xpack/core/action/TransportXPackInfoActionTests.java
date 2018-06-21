@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.core.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.XPackInfoResponse;
+import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -54,8 +53,8 @@ public class TransportXPackInfoActionTests extends ESTestCase {
 
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportXPackInfoAction action = new TransportXPackInfoAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
-                mock(ActionFilters.class), licenseService, featureSets);
+        TransportXPackInfoAction action = new TransportXPackInfoAction(Settings.EMPTY, transportService,
+            mock(ActionFilters.class), licenseService, featureSets);
 
         License license = mock(License.class);
         long expiryDate = randomLong();

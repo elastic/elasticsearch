@@ -56,6 +56,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     private static final String EARLIEST_TIME = "earliest_time";
     private static final String LATEST_TIME = "latest_time";
 
+    private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
     private final JobManager jobManager;
@@ -64,8 +65,9 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     public TransportGetOverallBucketsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                             ActionFilters actionFilters, ClusterService clusterService,
                                             JobManager jobManager, Client client) {
-        super(settings, GetOverallBucketsAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, GetOverallBucketsAction.NAME, transportService, actionFilters,
             (Supplier<GetOverallBucketsAction.Request>) GetOverallBucketsAction.Request::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
         this.jobManager = jobManager;

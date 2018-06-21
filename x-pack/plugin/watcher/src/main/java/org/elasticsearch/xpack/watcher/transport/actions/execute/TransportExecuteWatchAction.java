@@ -57,6 +57,7 @@ import static org.joda.time.DateTimeZone.UTC;
  */
 public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteWatchRequest, ExecuteWatchResponse> {
 
+    private final ThreadPool threadPool;
     private final ExecutionService executionService;
     private final Clock clock;
     private final TriggerService triggerService;
@@ -68,7 +69,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                                        ActionFilters actionFilters, ExecutionService executionService, Clock clock,
                                        XPackLicenseState licenseState, WatchParser watchParser, Client client,
                                        TriggerService triggerService) {
-        super(settings, ExecuteWatchAction.NAME, transportService, threadPool, actionFilters, licenseState, ExecuteWatchRequest::new);
+        super(settings, ExecuteWatchAction.NAME, transportService, actionFilters, licenseState, ExecuteWatchRequest::new);
+        this.threadPool = threadPool;
         this.executionService = executionService;
         this.clock = clock;
         this.triggerService = triggerService;

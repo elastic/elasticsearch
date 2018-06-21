@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
@@ -49,9 +48,9 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
     private final Client client;
 
     @Inject
-    public TransportGetFiltersAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportGetFiltersAction(Settings settings, TransportService transportService,
                                      ActionFilters actionFilters, Client client) {
-        super(settings, GetFiltersAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, GetFiltersAction.NAME, transportService, actionFilters,
             GetFiltersAction.Request::new);
         this.client = client;
     }

@@ -5,20 +5,19 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import java.util.function.Supplier;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
-import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
+
+import java.util.function.Supplier;
 
 public class TransportGetRecordsAction extends HandledTransportAction<GetRecordsAction.Request, GetRecordsAction.Response> {
 
@@ -27,9 +26,9 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
     private final Client client;
 
     @Inject
-    public TransportGetRecordsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportGetRecordsAction(Settings settings, TransportService transportService,
                                      ActionFilters actionFilters, JobProvider jobProvider, JobManager jobManager, Client client) {
-        super(settings, GetRecordsAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, GetRecordsAction.NAME, transportService, actionFilters,
             (Supplier<GetRecordsAction.Request>) GetRecordsAction.Request::new);
         this.jobProvider = jobProvider;
         this.jobManager = jobManager;

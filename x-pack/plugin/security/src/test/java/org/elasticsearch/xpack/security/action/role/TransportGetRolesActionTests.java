@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
@@ -44,7 +43,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
+        TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ActionFilters.class),
                 rolesStore, transportService, new ReservedRolesStore());
 
         final int size = randomIntBetween(1, ReservedRolesStore.names().size());
@@ -90,7 +89,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
+        TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ActionFilters.class),
                 rolesStore, transportService, new ReservedRolesStore());
 
         GetRolesRequest request = new GetRolesRequest();
@@ -142,7 +141,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
+        TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ActionFilters.class),
                 rolesStore, transportService, new ReservedRolesStore());
 
         final List<String> expectedNames = new ArrayList<>();
@@ -206,7 +205,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
+        TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ActionFilters.class),
                 rolesStore, transportService, new ReservedRolesStore());
 
         GetRolesRequest request = new GetRolesRequest();

@@ -32,13 +32,15 @@ import java.util.List;
 public class TransportDeleteExpiredDataAction extends HandledTransportAction<DeleteExpiredDataAction.Request,
         DeleteExpiredDataAction.Response> {
 
+    private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
 
     @Inject
     public TransportDeleteExpiredDataAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                             ActionFilters actionFilters, Client client, ClusterService clusterService) {
-        super(settings, DeleteExpiredDataAction.NAME, threadPool, transportService, actionFilters, DeleteExpiredDataAction.Request::new);
+        super(settings, DeleteExpiredDataAction.NAME, transportService, actionFilters, DeleteExpiredDataAction.Request::new);
+        this.threadPool = threadPool;
         this.client = ClientHelper.clientWithOrigin(client, ClientHelper.ML_ORIGIN);
         this.clusterService = clusterService;
     }

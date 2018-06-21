@@ -43,9 +43,9 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
     private final Client client;
 
     @Inject
-    public TransportRethrottleAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportRethrottleAction(Settings settings, ClusterService clusterService,
             TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(settings, RethrottleAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(settings, RethrottleAction.NAME, clusterService, transportService, actionFilters,
             RethrottleRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         this.client = client;
     }

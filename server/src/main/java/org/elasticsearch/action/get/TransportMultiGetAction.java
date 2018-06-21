@@ -30,7 +30,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
@@ -44,10 +43,10 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportMultiGetAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportMultiGetAction(Settings settings, TransportService transportService,
                                    ClusterService clusterService, TransportShardMultiGetAction shardAction,
                                    ActionFilters actionFilters, IndexNameExpressionResolver resolver) {
-        super(settings, MultiGetAction.NAME, threadPool, transportService, actionFilters, MultiGetRequest::new);
+        super(settings, MultiGetAction.NAME, transportService, actionFilters, MultiGetRequest::new);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
         this.indexNameExpressionResolver = resolver;

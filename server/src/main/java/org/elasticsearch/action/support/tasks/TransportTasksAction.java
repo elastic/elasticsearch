@@ -77,10 +77,10 @@ public abstract class TransportTasksAction<
 
     protected final String transportNodeAction;
 
-    protected TransportTasksAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
+    protected TransportTasksAction(Settings settings, String actionName, ClusterService clusterService,
                                    TransportService transportService, ActionFilters actionFilters, Supplier<TasksRequest> requestSupplier,
                                    Supplier<TasksResponse> responseSupplier, String nodeExecutor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, requestSupplier);
+        super(settings, actionName, transportService, actionFilters, requestSupplier);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";

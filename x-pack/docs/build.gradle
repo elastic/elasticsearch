@@ -11,7 +11,6 @@ apply plugin: 'elasticsearch.docs-test'
 buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/watcher/put-watch.asciidoc',
         'en/security/authentication/user-cache.asciidoc',
-        'en/security/authorization/field-and-document-access-control.asciidoc',
         'en/security/authorization/run-as-privilege.asciidoc',
         'en/security/ccs-clients-integrations/http.asciidoc',
         'en/security/authorization/custom-roles-provider.asciidoc',

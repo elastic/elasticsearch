@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,10 +36,9 @@ public class TransportKillProcessAction extends TransportJobTaskAction<KillProce
     @Inject
     public TransportKillProcessAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                       ClusterService clusterService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver,
                                       AutodetectProcessManager processManager, Auditor auditor) {
-        super(settings, KillProcessAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                KillProcessAction.Request::new, KillProcessAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME, processManager);
+        super(settings, KillProcessAction.NAME, threadPool, clusterService, transportService, actionFilters,
+            KillProcessAction.Request::new, KillProcessAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME, processManager);
         this.auditor = auditor;
     }
 

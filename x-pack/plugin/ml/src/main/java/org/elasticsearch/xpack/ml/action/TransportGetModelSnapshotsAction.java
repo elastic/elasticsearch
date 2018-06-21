@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -29,10 +28,9 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
 
     @Inject
     public TransportGetModelSnapshotsAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                            JobProvider jobProvider, JobManager jobManager) {
-        super(settings, GetModelSnapshotsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GetModelSnapshotsAction.Request::new);
+                                            ActionFilters actionFilters, JobProvider jobProvider, JobManager jobManager) {
+        super(settings, GetModelSnapshotsAction.NAME, threadPool, transportService, actionFilters,
+            GetModelSnapshotsAction.Request::new);
         this.jobProvider = jobProvider;
         this.jobManager = jobManager;
     }

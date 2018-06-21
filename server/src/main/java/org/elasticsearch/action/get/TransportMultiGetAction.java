@@ -40,16 +40,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequest, MultiGetResponse> {
 
     private final ClusterService clusterService;
-
     private final TransportShardMultiGetAction shardAction;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportMultiGetAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                    ClusterService clusterService, TransportShardMultiGetAction shardAction,
                                    ActionFilters actionFilters, IndexNameExpressionResolver resolver) {
-        super(settings, MultiGetAction.NAME, threadPool, transportService, actionFilters, resolver, MultiGetRequest::new);
+        super(settings, MultiGetAction.NAME, threadPool, transportService, actionFilters, MultiGetRequest::new);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
+        this.indexNameExpressionResolver = resolver;
     }
 
     @Override

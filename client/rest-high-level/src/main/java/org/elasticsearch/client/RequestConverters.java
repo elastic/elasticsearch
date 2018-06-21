@@ -894,11 +894,12 @@ final class RequestConverters {
     }
 
     static Request analyze(AnalyzeRequest request) throws IOException {
-        EndpointBuilder builder = new EndpointBuilder().addPathPartAsIs("_analyze");
+        EndpointBuilder builder = new EndpointBuilder();
         String index = request.index();
         if (index != null) {
             builder.addPathPart(index);
         }
+        builder.addPathPartAsIs("_analyze");
         Request req = new Request(HttpGet.METHOD_NAME, builder.build());
         req.setEntity(createEntity(request, REQUEST_BODY_CONTENT_TYPE));
         return req;

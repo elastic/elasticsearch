@@ -28,6 +28,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
 import java.io.IOException;
@@ -35,7 +36,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * Used to execute REST requests according to the docs snippets that need to be tests. Wraps a
@@ -50,7 +50,7 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
             final List<HttpHost> hosts,
             final Version esVersion,
             final Version masterVersion,
-            final Consumer<RestClientBuilder> clientBuilderConsumer) {
+            final CheckedConsumer<RestClientBuilder, IOException> clientBuilderConsumer) {
         super(restSpec, restClient, hosts, esVersion, masterVersion, clientBuilderConsumer);
     }
 

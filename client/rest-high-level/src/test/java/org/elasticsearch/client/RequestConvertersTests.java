@@ -486,14 +486,7 @@ public class RequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
 
         setRandomIndicesOptions(getFieldMappingsRequest::indicesOptions, getFieldMappingsRequest::indicesOptions, expectedParams);
-
-        if (randomBoolean()) {
-            boolean local = randomBoolean();
-            getFieldMappingsRequest.local(local);
-            if (local) {
-                expectedParams.put("local", String.valueOf(local));
-            }
-        }
+        setRandomLocal(getFieldMappingsRequest::local, expectedParams);
 
         Request request = RequestConverters.getFieldMapping(getFieldMappingsRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
@@ -2219,14 +2212,18 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
+    private static void setRandomLocal(Consumer<Boolean> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean local = randomBoolean();
-            request.local(local);
+            setter.accept(local);
             if (local) {
                 expectedParams.put("local", String.valueOf(local));
             }
         }
+    }
+
+    private static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
+        setRandomLocal(request::local, expectedParams);
     }
 
     private static void setRandomTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {

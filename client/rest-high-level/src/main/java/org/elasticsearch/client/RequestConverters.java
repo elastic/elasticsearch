@@ -847,10 +847,14 @@ final class RequestConverters {
     }
 
     static Request getSnapshots(GetSnapshotsRequest getSnapshotsRequest) {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
-            .addPathPart(getSnapshotsRequest.repository())
-            .addCommaSeparatedPathParts(getSnapshotsRequest.snapshots())
-            .build();
+        EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(getSnapshotsRequest.repository());
+        String endpoint;
+        if (getSnapshotsRequest.snapshots().length == 0) {
+            endpoint = endpointBuilder.addPathPart("_all").build();
+        } else {
+            endpoint = endpointBuilder.addCommaSeparatedPathParts(getSnapshotsRequest.snapshots()).build();
+        }
 
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 

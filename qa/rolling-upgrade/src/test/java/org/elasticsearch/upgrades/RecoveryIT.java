@@ -286,8 +286,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
-    public void testRecoverySealedIndex() throws Exception {
-        final String index = "recovery_a_sealed_index";
+    public void testRecoverSyncedFlushIndex() throws Exception {
+        final String index = "recover_synced_flush_index";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -300,6 +300,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
             createIndex(index, settings.build());
             indexDocs(index, 0, randomInt(5));
+            // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
+            // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
             assertBusy(() -> {
                 Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
                 assertOK(resp);

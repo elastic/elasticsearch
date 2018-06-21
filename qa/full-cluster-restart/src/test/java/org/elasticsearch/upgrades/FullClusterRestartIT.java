@@ -793,13 +793,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
      * Tests that a synced-flushed index is correctly recovered.
      * This might be an edge-case from 5.x to 6.x since a 5.x index commit does not have all required 6.x commit tags.
      */
-    public void testRecoverySealedIndex() throws Exception {
-        int count;
-        if (runningAgainstOldCluster) {
-            count = randomInt(10);
-        } else {
-            count = countOfIndexedRandomDocuments();
-        }
+    public void testRecoverSyncedFlushIndex() throws Exception {
+        final int count;
         if (runningAgainstOldCluster) {
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -811,14 +806,19 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
             createIndex(index, settings.build());
+            count = randomInt(10);
             indexRandomDocuments(count, randomBoolean(), randomBoolean(),
                 n -> JsonXContent.contentBuilder().startObject().field("key", "value").endObject());
+            // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
+            // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
             assertBusy(() -> {
                 Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
                 assertOK(resp);
                 Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
                 assertThat(result.get("successful"), equalTo(2));
             });
+        } else {
+            count = countOfIndexedRandomDocuments();
         }
         ensureGreen(index);
         refresh();
@@ -932,7 +932,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
                 new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
-
         } else {
             Response response = client().performRequest("GET", index + "/_stats", singletonMap("level", "shards"));
             List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");

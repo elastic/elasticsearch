@@ -67,9 +67,4 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
             }
         );
     }
-
-    @Override
-    protected void doExecute(DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-        throw new UnsupportedOperationException("task required");
-    }
 }

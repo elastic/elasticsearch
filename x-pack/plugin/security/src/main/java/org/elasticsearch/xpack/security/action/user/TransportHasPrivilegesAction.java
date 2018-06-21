@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -55,7 +56,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     }
 
     @Override
-    protected void doExecute(HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
+    protected void doExecute(Task task, HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
         final String username = request.username();
 
         final User user = Authentication.getAuthentication(threadPool.getThreadContext()).getUser();

@@ -78,11 +78,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         );
     }
 
-    @Override
-    protected void doExecute(UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-        throw new UnsupportedOperationException("task required");
-    }
-
     /**
      * Simple implementation of update-by-query using scrolling and bulk.
      */

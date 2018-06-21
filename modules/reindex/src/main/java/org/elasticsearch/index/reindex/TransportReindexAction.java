@@ -134,11 +134,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         );
     }
 
-    @Override
-    protected void doExecute(ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-        throw new UnsupportedOperationException("task required");
-    }
-
     static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo) {
         if (remoteInfo == null) {
             return;

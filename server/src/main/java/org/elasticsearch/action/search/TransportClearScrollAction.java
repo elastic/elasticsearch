@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportClearScrollAction extends HandledTransportAction<ClearScrollRequest, ClearScrollResponse> {
@@ -43,7 +44,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
     }
 
     @Override
-    protected void doExecute(ClearScrollRequest request, final ActionListener<ClearScrollResponse> listener) {
+    protected void doExecute(Task task, ClearScrollRequest request, final ActionListener<ClearScrollResponse> listener) {
         Runnable runnable = new ClearScrollController(request, listener, clusterService.state().nodes(), logger, searchTransportService);
         runnable.run();
     }

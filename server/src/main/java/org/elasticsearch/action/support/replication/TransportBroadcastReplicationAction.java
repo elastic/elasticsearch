@@ -66,12 +66,6 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
-
-    @Override
-    protected final void doExecute(final Request request, final ActionListener<Response> listener) {
-        throw new UnsupportedOperationException("the task parameter is required for this operation");
-    }
-
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();

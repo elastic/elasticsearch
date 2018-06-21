@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
@@ -43,8 +44,7 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
     }
 
     @Override
-    protected void doExecute(GetCalendarEventsAction.Request request,
-                             ActionListener<GetCalendarEventsAction.Response> listener) {
+    protected void doExecute(Task task, GetCalendarEventsAction.Request request, ActionListener<GetCalendarEventsAction.Response> listener) {
         ActionListener<Boolean> calendarExistsListener = ActionListener.wrap(
                 r -> {
                     ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder()

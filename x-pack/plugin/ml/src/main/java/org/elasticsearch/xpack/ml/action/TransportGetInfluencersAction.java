@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
@@ -36,7 +37,7 @@ public class TransportGetInfluencersAction extends HandledTransportAction<GetInf
     }
 
     @Override
-    protected void doExecute(GetInfluencersAction.Request request, ActionListener<GetInfluencersAction.Response> listener) {
+    protected void doExecute(Task task, GetInfluencersAction.Request request, ActionListener<GetInfluencersAction.Response> listener) {
         jobManager.getJobOrThrowIfUnknown(request.getJobId());
 
         InfluencersQueryBuilder.InfluencersQuery query = new InfluencersQueryBuilder()

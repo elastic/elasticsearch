@@ -15,6 +15,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.license.XPackInfoResponse.LicenseInfo;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackBuild;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -37,7 +38,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
     }
 
     @Override
-    protected void doExecute(XPackInfoRequest request, ActionListener<XPackInfoResponse> listener) {
+    protected void doExecute(Task task, XPackInfoRequest request, ActionListener<XPackInfoResponse> listener) {
 
 
         XPackInfoResponse.BuildInfo buildInfo = null;

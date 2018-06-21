@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
@@ -31,7 +32,7 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
     }
 
     @Override
-    protected void doExecute(ChangePasswordRequest request, ActionListener<ChangePasswordResponse> listener) {
+    protected void doExecute(Task task, ChangePasswordRequest request, ActionListener<ChangePasswordResponse> listener) {
         final String username = request.username();
         if (AnonymousUser.isAnonymousUsername(username, settings)) {
             listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be modified via the API"));

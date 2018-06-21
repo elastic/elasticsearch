@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 
@@ -25,7 +26,7 @@ public class TransportValidateDetectorAction extends HandledTransportAction<Vali
     }
 
     @Override
-    protected void doExecute(ValidateDetectorAction.Request request, ActionListener<ValidateDetectorAction.Response> listener) {
+    protected void doExecute(Task task, ValidateDetectorAction.Request request, ActionListener<ValidateDetectorAction.Response> listener) {
         listener.onResponse(new ValidateDetectorAction.Response(true));
     }
 

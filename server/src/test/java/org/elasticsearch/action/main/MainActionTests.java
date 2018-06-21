@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 
@@ -69,7 +70,7 @@ public class MainActionTests extends ESTestCase {
             x -> null, null, Collections.emptySet());
         TransportMainAction action = new TransportMainAction(settings, transportService, mock(ActionFilters.class), clusterService);
         AtomicReference<MainResponse> responseRef = new AtomicReference<>();
-        action.doExecute(new MainRequest(), new ActionListener<MainResponse>() {
+        action.doExecute(mock(Task.class), new MainRequest(), new ActionListener<MainResponse>() {
             @Override
             public void onResponse(MainResponse mainResponse) {
                 responseRef.set(mainResponse);

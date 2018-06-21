@@ -239,6 +239,8 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
 
         Map<TimestampMatch, Tuple<Integer, Set<String>>> timestampMatches = new LinkedHashMap<>();
 
+        int remainingLines = sampleLines.length;
+        int differenceBetweenMostCommonAndSecondMostCommonCounts = 0;
         for (String sampleLine : sampleLines) {
             TimestampMatch match = TimestampFormatFinder.findFirstMatch(sampleLine);
             if (match != null) {
@@ -252,6 +254,11 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
                         return new Tuple<>(v.v1() + 1, v.v2());
                     }
                 });
+                differenceBetweenMostCommonAndSecondMostCommonCounts =
+                    findDifferenceBetweenMostCommonAndSecondMostCommonCounts(timestampMatches.values());
+            }
+            if (differenceBetweenMostCommonAndSecondMostCommonCounts > --remainingLines) {
+                break;
             }
         }
 
@@ -265,6 +272,21 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
             }
         }
         return mostCommonMatch;
+    }
+
+    private static int findDifferenceBetweenMostCommonAndSecondMostCommonCounts(Collection<Tuple<Integer, Set<String>>> timestampMatches) {
+        int mostCommonCount = 0;
+        int secondMostCommonCount = 0;
+        for (Tuple<Integer, Set<String>> timestampMatch : timestampMatches) {
+            int count = timestampMatch.v1();
+            if (count > mostCommonCount) {
+                secondMostCommonCount = mostCommonCount;
+                mostCommonCount = count;
+            } else if (count > secondMostCommonCount) {
+                secondMostCommonCount = count;
+            }
+        }
+        return mostCommonCount - secondMostCommonCount;
     }
 
     static String createMultiLineMessageStartRegex(Collection<String> prefaces, String timestampRegex) {

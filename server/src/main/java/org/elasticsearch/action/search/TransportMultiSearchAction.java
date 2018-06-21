@@ -42,6 +42,7 @@ import java.util.function.LongSupplier;
 public class TransportMultiSearchAction extends HandledTransportAction<MultiSearchRequest, MultiSearchResponse> {
 
     private final int availableProcessors;
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportAction<SearchRequest, SearchResponse> searchAction;
     private final LongSupplier relativeTimeProvider;
@@ -49,7 +50,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     @Inject
     public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                       ClusterService clusterService, TransportSearchAction searchAction, ActionFilters actionFilters) {
-        super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters, MultiSearchRequest::new);
+        super(settings, MultiSearchAction.NAME, transportService, actionFilters, MultiSearchRequest::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.searchAction = searchAction;
         this.availableProcessors = EsExecutors.numberOfProcessors(settings);
@@ -59,7 +61,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     TransportMultiSearchAction(ThreadPool threadPool, ActionFilters actionFilters, TransportService transportService,
                                ClusterService clusterService, TransportAction<SearchRequest, SearchResponse> searchAction,
                                int availableProcessors, LongSupplier relativeTimeProvider) {
-        super(Settings.EMPTY, MultiSearchAction.NAME, threadPool, transportService, actionFilters, MultiSearchRequest::new);
+        super(Settings.EMPTY, MultiSearchAction.NAME, transportService, actionFilters, MultiSearchRequest::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.searchAction = searchAction;
         this.availableProcessors = availableProcessors;

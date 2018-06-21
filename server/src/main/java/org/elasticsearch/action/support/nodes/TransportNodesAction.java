@@ -54,6 +54,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                                            NodeResponse extends BaseNodeResponse>
     extends HandledTransportAction<NodesRequest, NodesResponse> {
 
+    protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final Class<NodeResponse> nodeResponseClass;
@@ -64,7 +65,8 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                    Supplier<NodesRequest> request, Supplier<NodeRequest> nodeRequest, String nodeExecutor,
                                    Class<NodeResponse> nodeResponseClass) {
-        super(settings, actionName, threadPool, transportService, actionFilters, request);
+        super(settings, actionName, transportService, actionFilters, request);
+        this.threadPool = threadPool;
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
         this.nodeResponseClass = Objects.requireNonNull(nodeResponseClass);

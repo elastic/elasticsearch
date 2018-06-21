@@ -149,7 +149,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
         final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
 
         TransportAction<SearchRequest, SearchResponse> searchAction = new TransportAction<SearchRequest, SearchResponse>(Settings.EMPTY,
-                "action", threadPool, actionFilters, taskManager) {
+                "action", actionFilters, taskManager) {
             @Override
             protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
                 requests.add(request);

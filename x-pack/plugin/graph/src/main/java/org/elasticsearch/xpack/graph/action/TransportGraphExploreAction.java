@@ -65,6 +65,7 @@ import java.util.function.Supplier;
  */
 public class TransportGraphExploreAction extends HandledTransportAction<GraphExploreRequest, GraphExploreResponse> {
 
+    private final ThreadPool threadPool;
     private final TransportSearchAction searchAction;
     protected final XPackLicenseState licenseState;
 
@@ -83,10 +84,9 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
     @Inject
     public TransportGraphExploreAction(Settings settings, ThreadPool threadPool, TransportSearchAction transportSearchAction,
-            TransportService transportService, ActionFilters actionFilters,
-            XPackLicenseState licenseState) {
-        super(settings, GraphExploreAction.NAME, threadPool, transportService, actionFilters,
-              (Supplier<GraphExploreRequest>)GraphExploreRequest::new);
+            TransportService transportService, ActionFilters actionFilters, XPackLicenseState licenseState) {
+        super(settings, GraphExploreAction.NAME, transportService, actionFilters, (Supplier<GraphExploreRequest>)GraphExploreRequest::new);
+        this.threadPool = threadPool;
         this.searchAction = transportSearchAction;
         this.licenseState = licenseState;
     }

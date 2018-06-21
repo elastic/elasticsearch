@@ -108,7 +108,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         final ExecutorService rarelyExecutor = threadPool.executor(threadPoolNames.get(1));
         final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
         TransportAction<SearchRequest, SearchResponse> searchAction = new TransportAction<SearchRequest, SearchResponse>
-                (Settings.EMPTY, "action", threadPool, actionFilters, taskManager) {
+                (Settings.EMPTY, "action", actionFilters, taskManager) {
             @Override
             protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
                 requests.add(request);

@@ -27,23 +27,20 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 
 public class TransportNoopSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
     @Inject
-    public TransportNoopSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                     ActionFilters actionFilters) {
-        super(settings, NoopSearchAction.NAME, threadPool, transportService, actionFilters,
-              (Writeable.Reader<SearchRequest>) SearchRequest::new);
+    public TransportNoopSearchAction(Settings settings, TransportService transportService, ActionFilters actionFilters) {
+        super(settings, NoopSearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
     }
 
     @Override

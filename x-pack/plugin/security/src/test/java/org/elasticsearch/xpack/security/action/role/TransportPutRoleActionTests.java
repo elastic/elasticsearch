@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
@@ -45,8 +44,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                rolesStore, transportService);
+        TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ActionFilters.class), rolesStore, transportService);
 
         PutRoleRequest request = new PutRoleRequest();
         request.name(roleName);
@@ -76,8 +74,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                rolesStore, transportService);
+        TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ActionFilters.class), rolesStore, transportService);
 
         final boolean created = randomBoolean();
         PutRoleRequest request = new PutRoleRequest();
@@ -120,8 +117,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                rolesStore, transportService);
+        TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ActionFilters.class), rolesStore, transportService);
 
         PutRoleRequest request = new PutRoleRequest();
         request.name(roleName);

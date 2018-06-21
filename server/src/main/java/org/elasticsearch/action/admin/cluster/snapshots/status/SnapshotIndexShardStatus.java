@@ -167,7 +167,6 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         return builder;
     }
 
-    // Todo: Standards check
     public static SnapshotIndexShardStatus fromXContent(XContentParser parser, String indexId) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
         String shardName = parser.currentName();

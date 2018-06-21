@@ -43,7 +43,6 @@ public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> 
 
     @Override
     protected SnapshotStats doParseInstance(XContentParser parser) throws IOException {
-        // TODO: standards check
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
         SnapshotStats stats = SnapshotStats.fromXContent(parser);

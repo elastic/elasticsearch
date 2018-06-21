@@ -9,7 +9,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -123,9 +122,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         searchRequests = new ArrayList<>();
         final Client client = new NoOpClient(threadPool) {
             @Override
-            protected <Request extends ActionRequest,
-                    Response extends ActionResponse,
-                    RequestBuilder extends ActionRequestBuilder<Request, Response>>
+            protected <Request extends ActionRequest, Response extends ActionResponse>
             void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
                 if (IndexAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(IndexRequest.class));

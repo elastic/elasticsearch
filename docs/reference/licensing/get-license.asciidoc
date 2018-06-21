@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="basic"]
 [[get-license]]
 === Get License API
 
@@ -52,11 +53,9 @@ GET _xpack/license
   "license" : {
     "status" : "active",
     "uid" : "cbff45e7-c553-41f7-ae4f-9205eabd80xx",
-    "type" : "trial",
+    "type" : "basic",
     "issue_date" : "2018-02-22T23:12:05.550Z",
     "issue_date_in_millis" : 1519341125550,
-    "expiry_date" : "2018-03-24T23:12:05.550Z",
-    "expiry_date_in_millis" : 1521933125550,
     "max_nodes" : 1000,
     "issued_to" : "test",
     "issuer" : "elasticsearch",
@@ -65,11 +64,9 @@ GET _xpack/license
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"cbff45e7-c553-41f7-ae4f-9205eabd80xx"/$body.license.uid/]
-// TESTRESPONSE[s/"trial"/$body.license.type/]
+// TESTRESPONSE[s/"basic"/$body.license.type/]
 // TESTRESPONSE[s/"2018-02-22T23:12:05.550Z"/$body.license.issue_date/]
 // TESTRESPONSE[s/1519341125550/$body.license.issue_date_in_millis/]
-// TESTRESPONSE[s/"2018-03-24T23:12:05.550Z"/$body.license.expiry_date/]
-// TESTRESPONSE[s/1521933125550/$body.license.expiry_date_in_millis/]
 // TESTRESPONSE[s/1000/$body.license.max_nodes/]
 // TESTRESPONSE[s/"test"/$body.license.issued_to/]
 // TESTRESPONSE[s/"elasticsearch"/$body.license.issuer/]

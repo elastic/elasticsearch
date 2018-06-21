@@ -35,11 +35,11 @@ indices and return results in tabular format.
     SQL and print tabular results.
 <<sql-jdbc,JDBC>>::
     A JDBC driver for {es}.
-<<sql-functions,Functions and Operators>>::
-    List of functions and operators supported.
 <<sql-spec,SQL Language>>::
     Overview of the {es-sql} language, such as supported data types, commands and 
     syntax.
+<<sql-functions,Functions and Operators>>::
+    List of functions and operators supported.
 --
 
 include::overview.asciidoc[]
@@ -47,8 +47,8 @@ include::getting-started.asciidoc[]
 include::concepts.asciidoc[]
 include::security.asciidoc[]
 include::endpoints/index.asciidoc[]
-include::functions/index.asciidoc[]
 include::language/index.asciidoc[]
+include::functions/index.asciidoc[]
 include::appendix/index.asciidoc[]
 
 :jdbc-tests!:

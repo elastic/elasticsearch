@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.file;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -50,7 +49,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static org.elasticsearch.discovery.file.FileBasedUnicastHostsProvider.UNICAST_HOSTS_FILE;
-import static org.elasticsearch.discovery.file.FileBasedUnicastHostsProvider.UNICAST_HOST_PREFIX;
 
 /**
  * Tests for {@link FileBasedUnicastHostsProvider}.
@@ -104,23 +102,20 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
 
     public void testBuildDynamicNodes() throws Exception {
         final List<String> hostEntries = Arrays.asList("#comment, should be ignored", "192.168.0.1", "192.168.0.2:9305", "255.255.23.15");
-        final List<DiscoveryNode> nodes = setupAndRunHostProvider(hostEntries);
+        final List<TransportAddress> nodes = setupAndRunHostProvider(hostEntries);
         assertEquals(hostEntries.size() - 1, nodes.size()); // minus 1 because we are ignoring the first line that's a comment
-        assertEquals("192.168.0.1", nodes.get(0).getAddress().getAddress());
-        assertEquals(9300, nodes.get(0).getAddress().getPort());
-        assertEquals(UNICAST_HOST_PREFIX + "192.168.0.1_0#", nodes.get(0).getId());
-        assertEquals("192.168.0.2", nodes.get(1).getAddress().getAddress());
-        assertEquals(9305, nodes.get(1).getAddress().getPort());
-        assertEquals(UNICAST_HOST_PREFIX + "192.168.0.2:9305_0#", nodes.get(1).getId());
-        assertEquals("255.255.23.15", nodes.get(2).getAddress().getAddress());
-        assertEquals(9300, nodes.get(2).getAddress().getPort());
-        assertEquals(UNICAST_HOST_PREFIX + "255.255.23.15_0#", nodes.get(2).getId());
+        assertEquals("192.168.0.1", nodes.get(0).getAddress());
+        assertEquals(9300, nodes.get(0).getPort());
+        assertEquals("192.168.0.2", nodes.get(1).getAddress());
+        assertEquals(9305, nodes.get(1).getPort());
+        assertEquals("255.255.23.15", nodes.get(2).getAddress());
+        assertEquals(9300, nodes.get(2).getPort());
     }
 
     public void testEmptyUnicastHostsFile() throws Exception {
         final List<String> hostEntries = Collections.emptyList();
-        final List<DiscoveryNode> nodes = setupAndRunHostProvider(hostEntries);
-        assertEquals(0, nodes.size());
+        final List<TransportAddress> addresses = setupAndRunHostProvider(hostEntries);
+        assertEquals(0, addresses.size());
     }
 
     public void testUnicastHostsDoesNotExist() throws Exception {
@@ -129,27 +124,27 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
                                       .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(environment, transportService, executorService);
-        final List<DiscoveryNode> nodes = provider.buildDynamicNodes();
-        assertEquals(0, nodes.size());
+        final List<TransportAddress> addresses = provider.buildDynamicHosts();
+        assertEquals(0, addresses.size());
     }
 
     public void testInvalidHostEntries() throws Exception {
         List<String> hostEntries = Arrays.asList("192.168.0.1:9300:9300");
-        List<DiscoveryNode> nodes = setupAndRunHostProvider(hostEntries);
-        assertEquals(0, nodes.size());
+        List<TransportAddress> addresses = setupAndRunHostProvider(hostEntries);
+        assertEquals(0, addresses.size());
     }
 
     public void testSomeInvalidHostEntries() throws Exception {
         List<String> hostEntries = Arrays.asList("192.168.0.1:9300:9300", "192.168.0.1:9301");
-        List<DiscoveryNode> nodes = setupAndRunHostProvider(hostEntries);
-        assertEquals(1, nodes.size()); // only one of the two is valid and will be used
-        assertEquals("192.168.0.1", nodes.get(0).getAddress().getAddress());
-        assertEquals(9301, nodes.get(0).getAddress().getPort());
+        List<TransportAddress> addresses = setupAndRunHostProvider(hostEntries);
+        assertEquals(1, addresses.size()); // only one of the two is valid and will be used
+        assertEquals("192.168.0.1", addresses.get(0).getAddress());
+        assertEquals(9301, addresses.get(0).getPort());
     }
 
     // sets up the config dir, writes to the unicast hosts file in the config dir,
     // and then runs the file-based unicast host provider to get the list of discovery nodes
-    private List<DiscoveryNode> setupAndRunHostProvider(final List<String> hostEntries) throws IOException {
+    private List<TransportAddress> setupAndRunHostProvider(final List<String> hostEntries) throws IOException {
         final Path homeDir = createTempDir();
         final Settings settings = Settings.builder()
                                       .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
@@ -168,6 +163,6 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         }
 
         return new FileBasedUnicastHostsProvider(
-                new Environment(settings, configPath), transportService, executorService).buildDynamicNodes();
+                new Environment(settings, configPath), transportService, executorService).buildDynamicHosts();
     }
 }

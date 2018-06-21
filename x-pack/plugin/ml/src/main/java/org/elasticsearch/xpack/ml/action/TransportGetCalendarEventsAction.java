@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 public class TransportGetCalendarEventsAction extends HandledTransportAction<GetCalendarEventsAction.Request,
         GetCalendarEventsAction.Response> {
@@ -35,12 +35,10 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
     private final ClusterService clusterService;
 
     @Inject
-    public TransportGetCalendarEventsAction(Settings settings, ThreadPool threadPool,
-                                            TransportService transportService, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver,
-                                            ClusterService clusterService, JobProvider jobProvider) {
+    public TransportGetCalendarEventsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                            ActionFilters actionFilters, ClusterService clusterService, JobProvider jobProvider) {
         super(settings, GetCalendarEventsAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, GetCalendarEventsAction.Request::new);
+            (Supplier<GetCalendarEventsAction.Request>) GetCalendarEventsAction.Request::new);
         this.jobProvider = jobProvider;
         this.clusterService = clusterService;
     }

@@ -460,6 +460,7 @@ public class HttpExporterTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix (bugUrl = "https://github.com/elastic/elasticsearch/issues/31433" )
     public void testHttpExporterShutdown() throws Exception {
         final Config config = createConfig(Settings.EMPTY);
         final RestClient client = mock(RestClient.class);

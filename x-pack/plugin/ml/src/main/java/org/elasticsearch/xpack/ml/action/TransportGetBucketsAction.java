@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import java.util.function.Supplier;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,10 +28,9 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
 
     @Inject
     public TransportGetBucketsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                     JobProvider jobProvider, JobManager jobManager, Client client) {
-        super(settings, GetBucketsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GetBucketsAction.Request::new);
+                                     ActionFilters actionFilters, JobProvider jobProvider, JobManager jobManager, Client client) {
+        super(settings, GetBucketsAction.NAME, threadPool, transportService, actionFilters,
+            (Supplier<GetBucketsAction.Request>) GetBucketsAction.Request::new);
         this.jobProvider = jobProvider;
         this.jobManager = jobManager;
         this.client = client;

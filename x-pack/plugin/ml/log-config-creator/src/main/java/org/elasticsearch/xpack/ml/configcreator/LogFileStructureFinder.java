@@ -171,6 +171,15 @@ public final class LogFileStructureFinder {
         int lineCount = 0;
         BufferedReader bufferedReader = new BufferedReader(reader);
 
+        // Don't include any byte-order-marker in the sample.  (The logic to skip it works for both
+        // UTF-8 and UTF-16 assuming the character set of the reader was correctly detected.)
+        bufferedReader.mark(1);
+        int maybeByteOrderMarker = reader.read();
+        if (maybeByteOrderMarker >= 0 && (char) maybeByteOrderMarker != '\uFEFF')
+        {
+            bufferedReader.reset();
+        }
+
         StringBuilder sample = new StringBuilder();
         String line;
         while ((line = bufferedReader.readLine()) != null && ++lineCount <= maxLines) {

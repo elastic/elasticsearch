@@ -104,6 +104,7 @@ public class PkiRealmTests extends ESTestCase {
         UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings),
             new ThreadContext(globalSettings)), roleMapper);
+        verify(roleMapper).refreshRealmOnChange(realm);
         Mockito.doAnswer(invocation -> {
             final UserRoleMapper.UserData userData = (UserRoleMapper.UserData) invocation.getArguments()[0];
             final ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];

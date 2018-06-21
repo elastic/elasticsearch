@@ -42,7 +42,9 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
 import static org.elasticsearch.client.RestClientTestUtil.randomOkStatusCode;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -214,7 +216,8 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
                     restClient.performRequest(request);
                     fail("expected to fail to connect");
                 } catch (ConnectException e) {
-                    assertEquals("Connection refused", e.getMessage());
+                    // This is different in windows and linux but this matches both.
+                    assertThat(e.getMessage(), startsWith("Connection refused"));
                 }
             } else {
                 Response response = restClient.performRequest(request);

@@ -10,7 +10,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -45,10 +44,8 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
 
     @Inject
     public TransportGetWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, XPackLicenseState licenseState,
-                                   WatchParser parser, Clock clock, Client client) {
-        super(settings, GetWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
-                licenseState,  GetWatchRequest::new);
+                                   XPackLicenseState licenseState, WatchParser parser, Clock clock, Client client) {
+        super(settings, GetWatchAction.NAME, transportService, threadPool, actionFilters, licenseState, GetWatchRequest::new);
         this.parser = parser;
         this.clock = clock;
         this.client = client;

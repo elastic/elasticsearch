@@ -11,7 +11,6 @@ import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -75,8 +74,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             return null;
         }).when(authorizationService).roles(eq(user), any(ActionListener.class));
 
-        action = new TransportHasPrivilegesAction(settings, threadPool, transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), authorizationService);
+        action = new TransportHasPrivilegesAction(settings, threadPool, transportService, mock(ActionFilters.class), authorizationService);
     }
 
     /**

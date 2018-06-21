@@ -1,8 +1,5 @@
 ---
 "Test get old cluster job":
-  - skip:
-      version: "all"
-      reason: "@AwaitsFix: https://github.com/elastic/elasticsearch/issues/30982"
   - do:
       xpack.ml.get_jobs:
         job_id: old-cluster-job

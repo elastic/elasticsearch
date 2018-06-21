@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -50,12 +49,10 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
     private final Client client;
 
     @Inject
-    public TransportGetFiltersAction(Settings settings, ThreadPool threadPool,
-                                     TransportService transportService, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver,
-                                     Client client) {
+    public TransportGetFiltersAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                     ActionFilters actionFilters, Client client) {
         super(settings, GetFiltersAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, GetFiltersAction.Request::new);
+            GetFiltersAction.Request::new);
         this.client = client;
     }
 

@@ -30,7 +30,7 @@ public abstract class AbstractBulkIndexByScrollRequestBuilder<
         extends AbstractBulkByScrollRequestBuilder<Request, Self> {
 
     protected AbstractBulkIndexByScrollRequestBuilder(ElasticsearchClient client,
-            Action<Request, BulkByScrollResponse> action, SearchRequestBuilder search, Request request) {
+                                                      Action<BulkByScrollResponse> action, SearchRequestBuilder search, Request request) {
         super(client, action, search, request);
     }
 

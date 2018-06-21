@@ -19,9 +19,12 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.microsoft.azure.storage.LocationMode;
+import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.blob.CloudBlobClient;
+
 import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
@@ -30,6 +33,7 @@ import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Azure Storage Service interface
@@ -37,29 +41,46 @@ import java.util.Map;
  */
 public interface AzureStorageService {
 
+    /**
+     * Creates a {@code CloudBlobClient} on each invocation using the current client
+     * settings. CloudBlobClient is not thread safe and the settings can change,
+     * therefore the instance is not cache-able and should only be reused inside a
+     * thread for logically coupled ops. The {@code OperationContext} is used to
+     * specify the proxy, but a new context is *required* for each call.
+     */
+    Tuple<CloudBlobClient, Supplier<OperationContext>> client(String clientName);
+
+    /**
+     * Updates settings for building clients. Any client cache is cleared. Future
+     * client requests will use the new refreshed settings.
+     *
+     * @param clientsSettings the settings for new clients
+     * @return the old settings
+     */
+    Map<String, AzureStorageSettings> refreshAndClearCache(Map<String, AzureStorageSettings> clientsSettings);
+
     ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
     ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
 
-    boolean doesContainerExist(String account, LocationMode mode, String container);
+    boolean doesContainerExist(String account, String container) throws URISyntaxException, StorageException;
 
-    void removeContainer(String account, LocationMode mode, String container) throws URISyntaxException, StorageException;
+    void removeContainer(String account, String container) throws URISyntaxException, StorageException;
 
-    void createContainer(String account, LocationMode mode, String container) throws URISyntaxException, StorageException;
+    void createContainer(String account, String container) throws URISyntaxException, StorageException;
 
-    void deleteFiles(String account, LocationMode mode, String container, String path) throws URISyntaxException, StorageException;
+    void deleteFiles(String account, String container, String path) throws URISyntaxException, StorageException;
 
-    boolean blobExists(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException;
+    boolean blobExists(String account, String container, String blob) throws URISyntaxException, StorageException;
 
-    void deleteBlob(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException;
+    void deleteBlob(String account, String container, String blob) throws URISyntaxException, StorageException;
 
-    InputStream getInputStream(String account, LocationMode mode, String container, String blob)
-        throws URISyntaxException, StorageException, IOException;
+    InputStream getInputStream(String account, String container, String blob) throws URISyntaxException, StorageException, IOException;
 
-    Map<String,BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix)
-        throws URISyntaxException, StorageException;
+    Map<String, BlobMetaData> listBlobsByPrefix(String account, String container, String keyPath, String prefix)
+            throws URISyntaxException, StorageException;
 
-    void writeBlob(String account, LocationMode mode, String container, String blobName, InputStream inputStream, long blobSize) throws
-        URISyntaxException, StorageException, FileAlreadyExistsException;
+    void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize)
+            throws URISyntaxException, StorageException, FileAlreadyExistsException;
 
     static InputStream giveSocketPermissionsToStream(InputStream stream) {
         return new InputStream() {

@@ -22,7 +22,7 @@ setup:
         filter_id: filter-foo
         body:  >
           {
-            "items": ["abc", "xyz"]
+            "items": ["xyz", "abc"]
           }
 
   - do:
@@ -115,10 +115,13 @@ setup:
         filter_id: filter-foo2
         body:  >
           {
+            "description": "A newly created filter",
             "items": ["abc", "xyz"]
           }
 
-  - match: { acknowledged: true }
+  - match: { filter_id: filter-foo2 }
+  - match: { description: "A newly created filter" }
+  - match: { items: ["abc", "xyz"]}
 
   - do:
       xpack.ml.get_filters:
@@ -128,6 +131,7 @@ setup:
   - match:
       filters.0:
         filter_id: "filter-foo2"
+        description: "A newly created filter"
         items: ["abc", "xyz"]
 
 ---

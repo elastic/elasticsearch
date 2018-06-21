@@ -142,6 +142,102 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
+    public void testLocalProfileIsUsedForLocalCluster() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            DiscoveryNode discoverableNode = discoverableTransport.getLocalDiscoNode();
+            knownNodes.add(seedTransport.getLocalDiscoNode());
+            knownNodes.add(discoverableTransport.getLocalDiscoNode());
+            Collections.shuffle(knownNodes, random());
+
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+                service.start();
+                service.acceptIncomingRequests();
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
+                    Arrays.asList(seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    updateSeedNodes(connection, Arrays.asList(seedNode));
+                    assertTrue(service.nodeConnected(seedNode));
+                    assertTrue(service.nodeConnected(discoverableNode));
+                    assertTrue(connection.assertNoRunningConnections());
+                    PlainTransportFuture<ClusterSearchShardsResponse> futureHandler = new PlainTransportFuture<>(
+                        new FutureTransportResponseHandler<ClusterSearchShardsResponse>() {
+                            @Override
+                            public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
+                                ClusterSearchShardsResponse inst = new ClusterSearchShardsResponse();
+                                inst.readFrom(in);
+                                return inst;
+                            }
+                        });
+                    TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK)
+                        .build();
+                    service.sendRequest(connection.getConnection(), ClusterSearchShardsAction.NAME, new ClusterSearchShardsRequest(),
+                        options, futureHandler);
+                    futureHandler.txGet();
+                }
+            }
+        }
+    }
+
+    public void testRemoteProfileIsUsedForRemoteCluster() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT, threadPool,
+            Settings.builder().put("cluster.name", "foobar").build());
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT,
+                 threadPool, Settings.builder().put("cluster.name", "foobar").build())) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            DiscoveryNode discoverableNode = discoverableTransport.getLocalDiscoNode();
+            knownNodes.add(seedTransport.getLocalDiscoNode());
+            knownNodes.add(discoverableTransport.getLocalDiscoNode());
+            Collections.shuffle(knownNodes, random());
+
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+                service.start();
+                service.acceptIncomingRequests();
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
+                    Arrays.asList(seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    updateSeedNodes(connection, Arrays.asList(seedNode));
+                    assertTrue(service.nodeConnected(seedNode));
+                    assertTrue(service.nodeConnected(discoverableNode));
+                    assertTrue(connection.assertNoRunningConnections());
+                    PlainTransportFuture<ClusterSearchShardsResponse> futureHandler = new PlainTransportFuture<>(
+                        new FutureTransportResponseHandler<ClusterSearchShardsResponse>() {
+                            @Override
+                            public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
+                                ClusterSearchShardsResponse inst = new ClusterSearchShardsResponse();
+                                inst.readFrom(in);
+                                return inst;
+                            }
+                        });
+                    TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK)
+                        .build();
+                    IllegalStateException ise = (IllegalStateException) expectThrows(SendRequestTransportException.class, () -> {
+                        service.sendRequest(discoverableNode,
+                            ClusterSearchShardsAction.NAME, new ClusterSearchShardsRequest(), options, futureHandler);
+                        futureHandler.txGet();
+                    }).getCause();
+                    assertEquals(ise.getMessage(), "can't select channel size is 0 for types: [RECOVERY, BULK, STATE]");
+
+                    PlainTransportFuture<ClusterSearchShardsResponse> handler = new PlainTransportFuture<>(
+                        new FutureTransportResponseHandler<ClusterSearchShardsResponse>() {
+                            @Override
+                            public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
+                                ClusterSearchShardsResponse inst = new ClusterSearchShardsResponse();
+                                inst.readFrom(in);
+                                return inst;
+                            }
+                        });
+                    TransportRequestOptions ops = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.REG)
+                        .build();
+                    service.sendRequest(connection.getConnection(), ClusterSearchShardsAction.NAME, new ClusterSearchShardsRequest(),
+                        ops, handler);
+                    handler.txGet();
+                }
+            }
+        }
+    }
+
     public void testDiscoverSingleNode() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);

@@ -21,9 +21,6 @@ package org.elasticsearch.transport;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.network.CloseableChannel;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
@@ -31,6 +28,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -52,6 +50,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -68,6 +67,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.rest.RestStatus;
@@ -210,7 +210,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     // node id to actual channel
     private final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
-    private final Map<String, List<TcpChannel>> serverChannels = newConcurrentMap();
+    private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
     private final Set<TcpChannel> acceptedChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final KeyedLock<String> connectionLock = new KeyedLock<>();
@@ -792,9 +792,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
         boolean success = portsRange.iterate(portNumber -> {
             try {
-                TcpChannel channel = bind(name, new InetSocketAddress(hostAddress, portNumber));
+                TcpServerChannel channel = bind(name, new InetSocketAddress(hostAddress, portNumber));
                 synchronized (serverChannels) {
-                    List<TcpChannel> list = serverChannels.get(name);
+                    List<TcpServerChannel> list = serverChannels.get(name);
                     if (list == null) {
                         list = new ArrayList<>();
                         serverChannels.put(name, list);
@@ -957,9 +957,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             closeLock.writeLock().lock();
             try {
                 // first stop to accept any incoming connections so nobody can connect to this transport
-                for (Map.Entry<String, List<TcpChannel>> entry : serverChannels.entrySet()) {
+                for (Map.Entry<String, List<TcpServerChannel>> entry : serverChannels.entrySet()) {
                     String profile = entry.getKey();
-                    List<TcpChannel> channels = entry.getValue();
+                    List<TcpServerChannel> channels = entry.getValue();
                     ActionListener<Void> closeFailLogger = ActionListener.wrap(c -> {},
                         e -> logger.warn(() -> new ParameterizedMessage("Error closing serverChannel for profile [{}]", profile), e));
                     channels.forEach(c -> c.addCloseListener(closeFailLogger));
@@ -999,7 +999,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    protected void onException(TcpChannel channel, Exception e) {
+    public void onException(TcpChannel channel, Exception e) {
         if (!lifecycle.started()) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);
@@ -1049,6 +1049,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
+    protected void onServerException(TcpServerChannel channel, Exception e) {
+        logger.error(new ParameterizedMessage("exception from server channel caught on transport layer [channel={}]", channel), e);
+    }
+
     /**
      * Exception handler for exceptions that are not associated with a specific channel.
      *
@@ -1072,7 +1076,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param name    the profile name
      * @param address the address to bind to
      */
-    protected abstract TcpChannel bind(String name, InetSocketAddress address) throws IOException;
+    protected abstract TcpServerChannel bind(String name, InetSocketAddress address) throws IOException;
 
     /**
      * Initiate a single tcp socket channel.
@@ -1087,8 +1091,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     /**
      * Called to tear down internal resources
      */
-    protected void stopInternal() {
-    }
+    protected abstract void stopInternal();
 
     public boolean canCompress(TransportRequest request) {
         return compress && (!(request instanceof BytesTransportRequest));

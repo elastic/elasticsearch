@@ -20,43 +20,24 @@
 package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.nio.NioServerSocketChannel;
-import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.TcpServerChannel;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 
 /**
- * This is an implementation of {@link NioServerSocketChannel} that adheres to the {@link TcpChannel}
+ * This is an implementation of {@link NioServerSocketChannel} that adheres to the {@link TcpServerChannel}
  * interface. As it is a server socket, setting SO_LINGER and sending messages is not supported.
  */
-public class NioTcpServerChannel extends NioServerSocketChannel implements TcpChannel {
+public class NioTcpServerChannel extends NioServerSocketChannel implements TcpServerChannel {
 
     private final String profile;
 
-    public NioTcpServerChannel(String profile, ServerSocketChannel socketChannel) throws IOException {
+    public NioTcpServerChannel(String profile, ServerSocketChannel socketChannel) {
         super(socketChannel);
         this.profile = profile;
     }
 
-    @Override
-    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        throw new UnsupportedOperationException("Cannot send a message to a server channel.");
-    }
-
-    @Override
-    public void setSoLinger(int value) throws IOException {
-        throw new UnsupportedOperationException("Cannot set SO_LINGER on a server channel.");
-    }
-
-    @Override
-    public InetSocketAddress getRemoteAddress() {
-        return null;
-    }
-
-    @Override
     public void close() {
         getContext().closeChannel();
     }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -83,8 +82,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         listener = new AtomicReference<>();
         client = new NoOpClient(getTestName()) {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse,
-                RequestBuilder extends ActionRequestBuilder<Request, Response>>
+            protected <Request extends ActionRequest, Response extends ActionResponse>
             void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
                 NativePrivilegeStoreTests.this.requests.add(request);
                 NativePrivilegeStoreTests.this.listener.set(listener);

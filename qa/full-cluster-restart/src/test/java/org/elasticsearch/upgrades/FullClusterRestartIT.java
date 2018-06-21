@@ -24,6 +24,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
@@ -789,6 +790,45 @@ public class FullClusterRestartIT extends ESRestTestCase {
     }
 
     /**
+     * Tests that a synced-flushed index is correctly recovered.
+     * This might be an edge-case from 5.x to 6.x since a 5.x index commit does not have all required 6.x commit tags.
+     */
+    public void testRecoverySealedIndex() throws Exception {
+        int count;
+        if (runningAgainstOldCluster) {
+            count = randomInt(10);
+        } else {
+            count = countOfIndexedRandomDocuments();
+        }
+        if (runningAgainstOldCluster) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                // if the node with the replica is the first to be restarted, while a replica is still recovering
+                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                // before timing out
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+            createIndex(index, settings.build());
+            indexRandomDocuments(count, randomBoolean(), randomBoolean(),
+                n -> JsonXContent.contentBuilder().startObject().field("key", "value").endObject());
+            assertBusy(() -> {
+                Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
+                assertOK(resp);
+                Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                assertThat(result.get("successful"), equalTo(2));
+            });
+        }
+        ensureGreen(index);
+        refresh();
+        Request countRequest = new Request("GET", "/" + index + "/_search");
+        countRequest.addParameter("size", "0");
+        String countResponse = toStr(client().performRequest(countRequest));
+        assertThat(countResponse, containsString("\"total\":" + count));
+    }
+
+    /**
      * Tests snapshot/restore by creating a snapshot and restoring it. It takes
      * a snapshot on the old cluster and restores it on the old cluster as a
      * sanity check and on the new cluster as an upgrade test. It also takes a
@@ -892,6 +932,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
                 new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
+
         } else {
             Response response = client().performRequest("GET", index + "/_stats", singletonMap("level", "shards"));
             List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");

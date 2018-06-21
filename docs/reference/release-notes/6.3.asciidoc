@@ -4,9 +4,12 @@
 [float]
 === Known issues
 
+Upgrades from any 5.x version will fail for indexed which are prepared using the <<indices-synced-flush, _synced flush API>>. If upgrading from those version, please wait for 6.3.1 to be released.
+
 Clusters with a Gold or Platinum license that are upgrading to 6.3 will need to explicitly set
 `xpack.security.enabled: true` in `elasticsearch.yml` to upgrade successfully.
 If this value is not set, the cluster will be unable to form after upgrade.
+
 
 Also see <<breaking-changes-6.3>>.
 

@@ -25,9 +25,9 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
+import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
-import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
@@ -70,7 +70,7 @@ public class IndexLifecycleRunner {
         } else if (currentStep instanceof ErrorStep) {
             logger.debug(
                     "policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "] on an error step, skipping execution");
-        } else if (currentStep instanceof InitializePolicyContextStep || currentStep instanceof ClusterStateWaitStep) {
+        } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
             executeClusterStateSteps(indexMetaData.getIndex(), policy, currentStep);
         } else if (currentStep instanceof AsyncWaitStep) {
             if (fromClusterStateChange == false) {
@@ -124,7 +124,7 @@ public class IndexLifecycleRunner {
     }
 
     private void executeClusterStateSteps(Index index, String policy, Step step) {
-        assert step instanceof InitializePolicyContextStep || step instanceof ClusterStateWaitStep;
+        assert step instanceof ClusterStateActionStep || step instanceof ClusterStateWaitStep;
         clusterService.submitStateUpdateTask("ILM", new ExecuteStepsUpdateTask(policy, index, step, stepRegistry, nowSupplier));
     }
 

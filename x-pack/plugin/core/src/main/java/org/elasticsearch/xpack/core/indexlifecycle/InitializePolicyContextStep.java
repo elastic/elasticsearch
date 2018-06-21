@@ -11,13 +11,14 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
-public class InitializePolicyContextStep extends Step {
+public final class InitializePolicyContextStep extends ClusterStateActionStep {
     public static final StepKey KEY = new StepKey("pre-phase", "pre-action", "init");
 
     public InitializePolicyContextStep(Step.StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }
 
+    @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
         Settings settings = clusterState.metaData().index(index).getSettings();
         if (settings.hasValue(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE)) {

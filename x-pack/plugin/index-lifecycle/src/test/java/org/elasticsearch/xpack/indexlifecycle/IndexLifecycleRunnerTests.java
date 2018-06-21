@@ -25,9 +25,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AbstractStepTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
+import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
-import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
@@ -98,10 +98,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Mockito.verifyZeroInteractions(clusterService);
     }
 
-    public void testRunPolicyInitializePolicyContextStep() {
+    public void testRunPolicyClusterStateActionStep() {
         String policyName = "cluster_state_action_policy";
         StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");
-        MockInitializePolicyContextStep step = new MockInitializePolicyContextStep(stepKey, null);
+        MockClusterStateActionStep step = new MockClusterStateActionStep(stepKey, null);
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = mock(ClusterService.class);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
@@ -805,7 +805,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLength(5))
                 .put(LifecycleSettings.LIFECYCLE_STEP, randomAlphaOfLength(5))
                 .put(LifecycleSettings.LIFECYCLE_SKIP, true));
-        Step step = mock(randomFrom(TerminalPolicyStep.class, InitializePolicyContextStep.class,
+        Step step = mock(randomFrom(TerminalPolicyStep.class, ClusterStateActionStep.class,
             ClusterStateWaitStep.class, AsyncActionStep.class, AsyncWaitStep.class));
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policy, step);
         ClusterService clusterService = mock(ClusterService.class);
@@ -1352,12 +1352,12 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     }
 
-    static class MockInitializePolicyContextStep extends InitializePolicyContextStep {
+    static class MockClusterStateActionStep extends ClusterStateActionStep {
 
         private RuntimeException exception;
         private long executeCount = 0;
 
-        MockInitializePolicyContextStep(StepKey key, StepKey nextStepKey) {
+        MockClusterStateActionStep(StepKey key, StepKey nextStepKey) {
             super(key, nextStepKey);
         }
 

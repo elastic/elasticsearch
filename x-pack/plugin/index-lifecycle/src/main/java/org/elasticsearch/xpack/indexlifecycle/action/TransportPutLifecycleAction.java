@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Response;
+import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner;
 
 import java.util.Map;
 import java.util.SortedMap;
@@ -72,7 +73,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                         if (currentMetadata == null) { // first time using index-lifecycle feature, bootstrap metadata
                             currentMetadata = IndexLifecycleMetadata.EMPTY;
                         }
-                        if (currentMetadata.getPolicyMetadatas().containsKey(request.getPolicy().getName())) {
+                        if (currentMetadata.getPolicyMetadatas().containsKey(request.getPolicy().getName()) && IndexLifecycleRunner
+                                .canUpdatePolicy(request.getPolicy().getName(), request.getPolicy(), currentState) == false) {
                             throw new ResourceAlreadyExistsException("Lifecycle policy already exists: {}",
                                     request.getPolicy().getName());
                         }

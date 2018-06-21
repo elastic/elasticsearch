@@ -8,10 +8,8 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
@@ -26,11 +24,9 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
     private final NativeUsersStore nativeUsersStore;
 
     @Inject
-    public TransportChangePasswordAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         NativeUsersStore nativeUsersStore) {
-        super(settings, ChangePasswordAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                ChangePasswordRequest::new);
+    public TransportChangePasswordAction(Settings settings, TransportService transportService,
+                                         ActionFilters actionFilters, NativeUsersStore nativeUsersStore) {
+        super(settings, ChangePasswordAction.NAME, transportService, actionFilters, ChangePasswordRequest::new);
         this.nativeUsersStore = nativeUsersStore;
     }
 

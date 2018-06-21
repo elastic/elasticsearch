@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,14 +26,14 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
  */
 public class TransportSetEnabledAction extends HandledTransportAction<SetEnabledRequest, SetEnabledResponse> {
 
+    private final ThreadPool threadPool;
     private final NativeUsersStore usersStore;
 
     @Inject
     public TransportSetEnabledAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        NativeUsersStore usersStore) {
-        super(settings, SetEnabledAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                SetEnabledRequest::new);
+                                     ActionFilters actionFilters, NativeUsersStore usersStore) {
+        super(settings, SetEnabledAction.NAME, transportService, actionFilters, SetEnabledRequest::new);
+        this.threadPool = threadPool;
         this.usersStore = usersStore;
     }
 

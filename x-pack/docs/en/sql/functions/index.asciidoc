@@ -348,6 +348,25 @@ include-tagged::{sql-specs}/datetime.csv-spec[minuteOfHour]
 include-tagged::{sql-specs}/datetime.csv-spec[secondOfMinute]
 --------------------------------------------------
 
+* Extract
+
+As an alternative, one can support `EXTRACT` to extract fields from datetimes.
+You can run any <<sql-functions-datetime,datetime function>>
+with `EXTRACT(<datetime_function> FROM <expression>)`. So
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/datetime.csv-spec[extractDayOfYear]
+--------------------------------------------------
+
+is the equivalent to
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/datetime.csv-spec[dayOfYear]
+--------------------------------------------------
+
+
 [[sql-functions-aggregate]]
 === Aggregate Functions
 

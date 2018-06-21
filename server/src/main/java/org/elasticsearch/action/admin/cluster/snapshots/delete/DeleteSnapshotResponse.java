@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
  * Delete snapshot response
@@ -32,4 +33,9 @@ public class DeleteSnapshotResponse extends AcknowledgedResponse {
     DeleteSnapshotResponse(boolean acknowledged) {
         super(acknowledged);
     }
+
+    public static DeleteSnapshotResponse fromXContent(XContentParser parser) {
+        return new DeleteSnapshotResponse(parseAcknowledged(parser));
+    }
+
 }

@@ -8,11 +8,9 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
@@ -27,12 +25,9 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
     private final JobManager jobManager;
 
     @Inject
-    public TransportUpdateCalendarJobAction(Settings settings, ThreadPool threadPool,
-                                            TransportService transportService, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver,
-                                            JobProvider jobProvider, JobManager jobManager) {
-        super(settings, UpdateCalendarJobAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, UpdateCalendarJobAction.Request::new);
+    public TransportUpdateCalendarJobAction(Settings settings, TransportService transportService,
+                                            ActionFilters actionFilters, JobProvider jobProvider, JobManager jobManager) {
+        super(settings, UpdateCalendarJobAction.NAME, transportService, actionFilters, UpdateCalendarJobAction.Request::new);
         this.jobProvider = jobProvider;
         this.jobManager = jobManager;
     }

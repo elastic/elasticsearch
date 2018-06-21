@@ -10,10 +10,8 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
@@ -26,11 +24,9 @@ public class TransportDeleteRoleAction extends HandledTransportAction<DeleteRole
     private final NativeRolesStore rolesStore;
 
     @Inject
-    public TransportDeleteRoleAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver, NativeRolesStore rolesStore,
+    public TransportDeleteRoleAction(Settings settings, ActionFilters actionFilters, NativeRolesStore rolesStore,
                                      TransportService transportService) {
-        super(settings, DeleteRoleAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                DeleteRoleRequest::new);
+        super(settings, DeleteRoleAction.NAME, transportService, actionFilters, DeleteRoleRequest::new);
         this.rolesStore = rolesStore;
     }
 

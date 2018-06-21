@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -180,9 +179,9 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver, Client client, ClusterService clusterService,
-                               PersistentTasksService persistentTasksService, IndicesService indicesService) {
-            super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
+                               Client client, ClusterService clusterService, PersistentTasksService persistentTasksService,
+                               IndicesService indicesService) {
+            super(settings, NAME, threadPool, transportService, actionFilters, Request::new);
             this.client = client;
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();

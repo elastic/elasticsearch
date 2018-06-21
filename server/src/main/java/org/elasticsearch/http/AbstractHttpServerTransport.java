@@ -21,12 +21,16 @@ package org.elasticsearch.http;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -41,9 +45,14 @@ import org.elasticsearch.transport.BindTransportException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.channels.CancelledKeyException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
@@ -60,11 +69,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final Dispatcher dispatcher;
     private final NamedXContentRegistry xContentRegistry;
 
-    protected final String[] bindHosts;
-    protected final String[] publishHosts;
     protected final PortsRange port;
     protected final ByteSizeValue maxContentLength;
+    private final String[] bindHosts;
+    private final String[] publishHosts;
 
+    protected final AtomicLong totalChannelsAccepted = new AtomicLong();
+    protected final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     protected volatile BoundTransportAddress boundAddress;
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
@@ -166,6 +177,49 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         return publishPort;
     }
 
+    protected void onException(HttpChannel channel, Exception e) {
+        if (lifecycle.started() == false) {
+            // just close and ignore - we are already stopped and just need to make sure we release all resources
+            CloseableChannel.closeChannel(channel);
+            return;
+        }
+        if (NetworkExceptionHelper.isCloseConnectionException(e)) {
+            logger.trace(() -> new ParameterizedMessage(
+                "close connection exception caught while handling client http traffic, closing connection {}", channel), e);
+            CloseableChannel.closeChannel(channel);
+        } else if (NetworkExceptionHelper.isConnectException(e)) {
+            logger.trace(() -> new ParameterizedMessage(
+                "connect exception caught while handling client http traffic, closing connection {}", channel), e);
+            CloseableChannel.closeChannel(channel);
+        } else if (e instanceof CancelledKeyException) {
+            logger.trace(() -> new ParameterizedMessage(
+                "cancelled key exception caught while handling client http traffic, closing connection {}", channel), e);
+            CloseableChannel.closeChannel(channel);
+        } else {
+            logger.warn(() -> new ParameterizedMessage(
+                    "caught exception while handling client http traffic, closing connection {}", channel), e);
+            CloseableChannel.closeChannel(channel);
+        }
+    }
+
+    /**
+     * Exception handler for exceptions that are not associated with a specific channel.
+     *
+     * @param exception the exception
+     */
+    protected void onNonChannelException(Exception exception) {
+        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", Thread.currentThread().getName()),
+            exception);
+    }
+
+    protected void serverAcceptedChannel(HttpChannel httpChannel) {
+        boolean addedOnThisCall = httpChannels.add(httpChannel);
+        assert addedOnThisCall : "Channel should only be added to http channel set once";
+        totalChannelsAccepted.incrementAndGet();
+        httpChannel.addCloseListener(ActionListener.wrap(() -> httpChannels.remove(httpChannel)));
+        logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
+    }
+
     /**
      * This method handles an incoming http request.
      *
@@ -181,7 +235,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      *
      * @param httpRequest that is incoming
      * @param httpChannel that received the http request
-     * @param exception that was encountered
+     * @param exception   that was encountered
      */
     public void incomingRequestError(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
         handleIncomingRequest(httpRequest, httpChannel, exception);
@@ -219,7 +273,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);
             } catch (final RestRequest.BadParameterException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest =  RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
+                innerRestRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
             }
             restRequest = innerRestRequest;
         }

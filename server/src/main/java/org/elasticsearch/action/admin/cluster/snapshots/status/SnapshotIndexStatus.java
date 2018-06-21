@@ -59,7 +59,8 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
         this.indexShards = unmodifiableMap(indexShards);
     }
 
-    public SnapshotIndexStatus(String index, Map<Integer, SnapshotIndexShardStatus> indexShards, SnapshotShardsStats shardsStats, SnapshotStats stats) {
+    public SnapshotIndexStatus(String index, Map<Integer, SnapshotIndexShardStatus> indexShards, SnapshotShardsStats shardsStats,
+                               SnapshotStats stats) {
         this.index = index;
         this.indexShards = indexShards;
         this.shardsStats = shardsStats;
@@ -133,13 +134,15 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
                 } else if (currentName.equals(SnapshotStats.Fields.STATS)) {
                     stats = SnapshotStats.fromXContent(parser);
                 } else if (currentName.equals(Fields.SHARDS)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(),
+                        parser::getTokenLocation);
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         SnapshotIndexShardStatus shardStatus = SnapshotIndexShardStatus.fromXContent(parser, indexName);
                         shards.put(shardStatus.getShardId().getId(), shardStatus);
                     }
                 } else {
-                    throw new ElasticsearchParseException("failed to parse snapshot index status [{}], unknown field [{}]", indexName, currentName);
+                    throw new ElasticsearchParseException("failed to parse snapshot index status [{}], unknown field [{}]", indexName,
+                        currentName);
                 }
             } else {
                 throw new ElasticsearchParseException("failed to parse snapshot index status [{}]", indexName);

@@ -66,7 +66,8 @@ public class SnapshotShardsStats implements ToXContentFragment {
         }
     }
 
-    public SnapshotShardsStats(int initializingShards, int startedShards, int finalizingShards, int doneShards, int failedShards, int totalShards) {
+    public SnapshotShardsStats(int initializingShards, int startedShards, int finalizingShards, int doneShards, int failedShards,
+                               int totalShards) {
         this.initializingShards = initializingShards;
         this.startedShards = startedShards;
         this.finalizingShards = finalizingShards;
@@ -154,32 +155,38 @@ public class SnapshotShardsStats implements ToXContentFragment {
                 String currentName = parser.currentName();
                 if (currentName.equals(Fields.INITIALIZING)) {
                     if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]", currentName);
+                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]",
+                            currentName);
                     }
                     initializingShards = parser.intValue();
                 } else if (currentName.equals(Fields.STARTED)) {
                     if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]", currentName);
+                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]",
+                            currentName);
                     }
                     startedShards = parser.intValue();
                 } else if (currentName.equals(Fields.FINALIZING)) {
                     if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]", currentName);
+                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]",
+                            currentName);
                     }
                     finalizingShards = parser.intValue();
                 } else if (currentName.equals(Fields.DONE)) {
                     if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]", currentName);
+                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]",
+                            currentName);
                     }
                     doneShards = parser.intValue();
                 } else if (currentName.equals(Fields.FAILED)) {
                     if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]", currentName);
+                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]",
+                            currentName);
                     }
                     failedShards = parser.intValue();
                 } else if (currentName.equals(Fields.TOTAL)) {
                     if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]", currentName);
+                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]",
+                            currentName);
                     }
                     totalShards = parser.intValue();
                 } else {

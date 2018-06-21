@@ -254,16 +254,20 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String currentFieldName = parser.currentName();
                 if (SNAPSHOT.equals(currentFieldName)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(),
+                        parser::getTokenLocation);
                     name = parser.text();
                 } else if (REPOSITORY.equals(currentFieldName)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(),
+                        parser::getTokenLocation);
                     repository = parser.text();
                 } else if (UUID.equals(currentFieldName)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(),
+                        parser::getTokenLocation);
                     uuid = parser.text();
                 } else if (STATE.equals(currentFieldName)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(),
+                        parser::getTokenLocation);
                     String stateRaw = parser.text();
                     try {
                         state = SnapshotsInProgress.State.valueOf(stateRaw);
@@ -271,14 +275,16 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
                         throw new ElasticsearchParseException("failed to parse snapshot status, unknown state value [{}]", iae, stateRaw);
                     }
                 } else if (INCLUDE_GLOBAL_STATE.equals(currentFieldName)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_BOOLEAN, parser.nextToken(), parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_BOOLEAN, parser.nextToken(),
+                        parser::getTokenLocation);
                     includeGlobalState = parser.booleanValue();
                 } else if (SnapshotShardsStats.Fields.SHARDS_STATS.equals(currentFieldName)) {
                     shardsStats = SnapshotShardsStats.fromXContent(parser);
                 } else if (SnapshotStats.Fields.STATS.equals(currentFieldName)) {
                     stats = SnapshotStats.fromXContent(parser);
                 } else if (INDICES.equals(currentFieldName)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(),
+                        parser::getTokenLocation);
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         SnapshotIndexStatus indexStatus = SnapshotIndexStatus.fromXContent(parser);
                         indices.put(indexStatus.getIndex(), indexStatus);

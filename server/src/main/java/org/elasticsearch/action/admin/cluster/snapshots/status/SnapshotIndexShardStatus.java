@@ -175,7 +175,8 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         try {
             shard = Integer.parseInt(shardName);
         } catch (NumberFormatException nfe) {
-            throw new ElasticsearchParseException("failed to parse snapshot index shard status [{}], expected numeric shard id but got [{}]", indexId, shardName);
+            throw new ElasticsearchParseException(
+                "failed to parse snapshot index shard status [{}], expected numeric shard id but got [{}]", indexId, shardName);
         }
         ShardId shardId = new ShardId(new Index(indexId, IndexMetaData.INDEX_UUID_NA_VALUE), shard);
         XContentParser.Token token = parser.nextToken();
@@ -188,25 +189,33 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
             if (token.equals(XContentParser.Token.FIELD_NAME)) {
                 String currentName = parser.currentName();
                 if (currentName.equals(Fields.STAGE)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(),
+                        parser::getTokenLocation);
                     try {
                         stage = SnapshotIndexShardStage.valueOf(parser.text());
                     } catch (IllegalArgumentException iae) {
-                        throw new ElasticsearchParseException("failed to parse snapshot index shard status [{}][{}], unknonwn stage [{}]", indexId, shardId.getId(), parser.text());
+                        throw new ElasticsearchParseException(
+                            "failed to parse snapshot index shard status [{}][{}], unknonwn stage [{}]", indexId, shardId.getId(),
+                            parser.text());
                     }
                 } else if (currentName.equals(Fields.NODE)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(),
+                        parser::getTokenLocation);
                     nodeId = parser.text();
                 } else if (currentName.equals(Fields.REASON)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(),
+                        parser::getTokenLocation);
                     failure = parser.text();
                 } else if (currentName.equals(SnapshotStats.Fields.STATS)) {
                     stats = SnapshotStats.fromXContent(parser);
                 } else {
-                    throw new ElasticsearchParseException("failed to parse snapshot index shard status [{}][{}], unknown field [{}]", indexId, shardId.getId(), currentName);
+                    throw new ElasticsearchParseException(
+                        "failed to parse snapshot index shard status [{}][{}], unknown field [{}]", indexId, shardId.getId(),
+                        currentName);
                 }
             } else {
-                throw new ElasticsearchParseException("failed to parse snapshot index shard status [{}][{}]", indexId, shardId.getId());
+                throw new ElasticsearchParseException(
+                    "failed to parse snapshot index shard status [{}][{}]", indexId, shardId.getId());
             }
         }
         return new SnapshotIndexShardStatus(shardId, stage, stats, nodeId, failure);

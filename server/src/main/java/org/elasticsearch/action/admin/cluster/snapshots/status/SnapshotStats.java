@@ -281,7 +281,8 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
                 throw new ElasticsearchParseException("failed to parse snapshot stats, unknown field [{}]", currentName);
             }
         }
-        return new SnapshotStats(startTime, time, incrementalFileCount, totalFileCount, processedFileCount, incrementalSize, totalSize, processedSize);
+        return new SnapshotStats(startTime, time, incrementalFileCount, totalFileCount, processedFileCount, incrementalSize, totalSize,
+            processedSize);
     }
 
     void add(SnapshotStats stats) {

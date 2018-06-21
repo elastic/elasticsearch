@@ -43,6 +43,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
         return pluginList(HdfsPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31498")
     public void testSimpleWorkflow() {
         Client client = client();
 

@@ -24,6 +24,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,16 +62,6 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
     }
     
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
-    protected boolean assertToXContentEquivalence() {
-        return false;
-    }
-    
-    @Override
     protected void assertEqualInstances(MultiSearchResponse expected, MultiSearchResponse actual) {
         assertThat(actual.getTook(), equalTo(expected.getTook()));
         assertThat(actual.getResponses().length, equalTo(expected.getResponses().length));
@@ -85,6 +76,21 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
                 assertThat(actualItem.getFailure(), nullValue());
             }
         }
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.startsWith("responses");
+    } 
+
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
     }
 
 }

@@ -48,7 +48,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/watcher/trigger/schedule/yearly.asciidoc',
         'en/watcher/troubleshooting.asciidoc',
         'en/rest-api/ml/delete-snapshot.asciidoc',
-        'en/rest-api/ml/forecast.asciidoc',
         'en/rest-api/ml/get-bucket.asciidoc',
         'en/rest-api/ml/get-job-stats.asciidoc',
         'en/rest-api/ml/get-overall-buckets.asciidoc',
@@ -428,6 +427,11 @@ setups['server_metrics_startdf'] = setups['server_metrics_openjob'] + '''
   - do:
       xpack.ml.start_datafeed:
         datafeed_id: "datafeed-total-requests"
+'''
+setups['server_metrics_flush'] = setups['server_metrics_startdf'] + '''
+  - do:
+      xpack.ml.flush_job:
+        job_id: "total-requests" 
 '''
 setups['calendar_outages'] = '''
   - do:

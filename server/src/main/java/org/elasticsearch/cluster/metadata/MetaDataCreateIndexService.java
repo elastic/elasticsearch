@@ -516,7 +516,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 }
                 for (Alias alias : request.aliases()) {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
-                        .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
+                        .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex()).build();
                     indexMetaDataBuilder.putAlias(aliasMetaData);
                 }
 

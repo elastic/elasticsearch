@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -107,7 +108,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         final ExecutorService rarelyExecutor = threadPool.executor(threadPoolNames.get(1));
         final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
         TransportAction<SearchRequest, SearchResponse> searchAction = new TransportAction<SearchRequest, SearchResponse>
-                (Settings.EMPTY, "action", threadPool, actionFilters, resolver, taskManager) {
+                (Settings.EMPTY, "action", threadPool, actionFilters, taskManager) {
             @Override
             protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
                 requests.add(request);
@@ -125,7 +126,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         };
 
         TransportMultiSearchAction action =
-                new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, resolver, 10,
+                new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, 10,
                 System::nanoTime);
 
         // Execute the multi search api and fail if we find an error after executing:
@@ -141,7 +142,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 multiSearchRequest.add(new SearchRequest());
             }
 
-            MultiSearchResponse response = action.execute(multiSearchRequest).actionGet();
+            MultiSearchResponse response = ActionTestUtils.executeBlocking(action, multiSearchRequest);
             assertThat(response.getResponses().length, equalTo(numSearchRequests));
             assertThat(requests.size(), equalTo(numSearchRequests));
             assertThat(errorHolder.get(), nullValue());

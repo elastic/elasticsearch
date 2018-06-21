@@ -2,7 +2,7 @@
 [[sql-cli]]
 == SQL CLI
 
-X-Pack ships with a script to run the SQL CLI in its bin directory:
+Elasticsearch ships with a script to run the SQL CLI in its `bin` directory:
 
 [source,bash]
 --------------------------------------------------
@@ -11,7 +11,7 @@ $ ./bin/elasticsearch-sql-cli
 
 The jar containing the SQL CLI is a stand alone Java application and
 the scripts just launch it. You can move it around to other machines
-without having to install Elasticsearch or X-Pack on them.
+without having to install Elasticsearch on them.
 
 You can pass the URL of the Elasticsearch instance to connect to as
 the first parameter:

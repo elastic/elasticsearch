@@ -72,6 +72,7 @@ POST /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 <1> The metric is called `"the_sum"`
 <2> The `buckets_path` refers to the metric via a relative path `"the_sum"`
 
@@ -136,6 +137,7 @@ POST /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 <1> By using `_count` instead of a metric name, we can calculate the moving average of document counts in the histogram
 
 The `buckets_path` can also use `"_bucket_count"` and path to a multi-bucket aggregation to use the number of buckets
@@ -231,6 +233,7 @@ include::pipeline/stats-bucket-aggregation.asciidoc[]
 include::pipeline/extended-stats-bucket-aggregation.asciidoc[]
 include::pipeline/percentiles-bucket-aggregation.asciidoc[]
 include::pipeline/movavg-aggregation.asciidoc[]
+include::pipeline/movfn-aggregation.asciidoc[]
 include::pipeline/cumulative-sum-aggregation.asciidoc[]
 include::pipeline/bucket-script-aggregation.asciidoc[]
 include::pipeline/bucket-selector-aggregation.asciidoc[]

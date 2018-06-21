@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -47,7 +46,7 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
             }
 
             @Override
-            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 markAsDeletedLatch.countDown();
             }
         });
@@ -90,7 +89,7 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
             }
 
             @Override
-            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 removeJobLatch.countDown();
             }
         });
@@ -103,7 +102,7 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
     }
 
     private ClusterState markJobAsDeleted(String jobId, ClusterState currentState) {
-        MlMetadata mlMetadata = currentState.metaData().custom(MLMetadataField.TYPE);
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(currentState);
         assertNotNull(mlMetadata);
 
         MlMetadata.Builder builder = new MlMetadata.Builder(mlMetadata);
@@ -116,7 +115,7 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
     }
 
     private ClusterState removeJobFromClusterState(String jobId, ClusterState currentState) {
-        MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metaData().custom(MLMetadataField.TYPE));
+        MlMetadata.Builder builder = new MlMetadata.Builder(MlMetadata.getMlMetadata(currentState));
         builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
 
         ClusterState.Builder newState = ClusterState.builder(currentState);

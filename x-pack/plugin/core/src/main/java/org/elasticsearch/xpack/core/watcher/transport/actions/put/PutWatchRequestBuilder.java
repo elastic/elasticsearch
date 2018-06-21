@@ -11,7 +11,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 
-public class PutWatchRequestBuilder extends ActionRequestBuilder<PutWatchRequest, PutWatchResponse, PutWatchRequestBuilder> {
+public class PutWatchRequestBuilder extends ActionRequestBuilder<PutWatchRequest, PutWatchResponse> {
 
     public PutWatchRequestBuilder(ElasticsearchClient client) {
         super(client, PutWatchAction.INSTANCE, new PutWatchRequest());

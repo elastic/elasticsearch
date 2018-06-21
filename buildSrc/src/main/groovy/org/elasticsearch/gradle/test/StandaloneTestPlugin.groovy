@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.tasks.compile.JavaCompile
 
 /**
  * Configures the build to compile against Elasticsearch's test framework and
@@ -49,5 +50,12 @@ public class StandaloneTestPlugin implements Plugin<Project> {
         test.testClassesDir project.sourceSets.test.output.classesDir
         test.mustRunAfter(project.precommit)
         project.check.dependsOn(test)
+
+        project.tasks.withType(JavaCompile) {
+            // This will be the default in Gradle 5.0
+            if (options.compilerArgs.contains("-processor") == false) {
+                options.compilerArgs << '-proc:none'
+            }
+        }
     }
 }

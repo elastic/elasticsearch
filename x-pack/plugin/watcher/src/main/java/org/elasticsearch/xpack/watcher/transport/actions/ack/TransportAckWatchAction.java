@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -56,10 +55,9 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
 
     @Inject
     public TransportAckWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, Clock clock, XPackLicenseState licenseState,
-                                   WatchParser parser, ExecutionService executionService, Client client) {
-        super(settings, AckWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
-                licenseState, AckWatchRequest::new);
+                                   Clock clock, XPackLicenseState licenseState, WatchParser parser, ExecutionService executionService,
+                                   Client client) {
+        super(settings, AckWatchAction.NAME, transportService, threadPool, actionFilters, licenseState, AckWatchRequest::new);
         this.clock = clock;
         this.parser = parser;
         this.executionService = executionService;

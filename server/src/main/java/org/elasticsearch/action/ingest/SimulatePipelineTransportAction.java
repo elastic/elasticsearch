@@ -22,8 +22,8 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.PipelineStore;
@@ -39,8 +39,10 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
     private final SimulateExecutionService executionService;
 
     @Inject
-    public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService) {
-        super(settings, SimulatePipelineAction.NAME, threadPool, transportService, actionFilters, SimulatePipelineRequest::new, indexNameExpressionResolver);
+    public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                           ActionFilters actionFilters, NodeService nodeService) {
+        super(settings, SimulatePipelineAction.NAME, threadPool, transportService, actionFilters,
+            (Writeable.Reader<SimulatePipelineRequest>) SimulatePipelineRequest::new);
         this.pipelineStore = nodeService.getIngestService().getPipelineStore();
         this.executionService = new SimulateExecutionService(threadPool);
     }

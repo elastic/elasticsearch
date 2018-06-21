@@ -28,8 +28,8 @@ The top_hits aggregation returns regular search hits, because of this many per h
 
 ==== Example
 
-In the following example we group the questions by tag and per tag we show the last active question. For each question
-only the title field is being included in the source.
+In the following example we group the sales by type and per type we show the last sale. 
+For each sale only the date and price fields are being included in the source.
 
 [source,js]
 --------------------------------------------------

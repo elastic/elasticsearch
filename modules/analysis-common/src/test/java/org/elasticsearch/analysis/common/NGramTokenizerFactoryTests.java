@@ -32,15 +32,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
 import static org.hamcrest.Matchers.instanceOf;
@@ -129,7 +125,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         for (int i = 0; i < iters; i++) {
             final Index index = new Index("test", "_na_");
             final String name = "ngr";
-            Version v = randomVersion(random());
+            Version v = VersionUtils.randomVersion(random());
             Builder builder = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3);
             boolean reverse = random().nextBoolean();
             if (reverse) {
@@ -149,7 +145,6 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
             }
         }
     }
-
 
     /*`
     * test that throws an error when trying to get a NGramTokenizer where difference between max_gram and min_gram
@@ -175,16 +170,4 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
                 + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.",
             ex.getMessage());
     }
-
-    private Version randomVersion(Random random) throws IllegalArgumentException, IllegalAccessException {
-        Field[] declaredFields = Version.class.getFields();
-        List<Field> versionFields = new ArrayList<>();
-        for (Field field : declaredFields) {
-            if ((field.getModifiers() & Modifier.STATIC) != 0 && field.getName().startsWith("V_") && field.getType() == Version.class) {
-                versionFields.add(field);
-            }
-        }
-        return (Version) versionFields.get(random.nextInt(versionFields.size())).get(Version.class);
-    }
-
 }

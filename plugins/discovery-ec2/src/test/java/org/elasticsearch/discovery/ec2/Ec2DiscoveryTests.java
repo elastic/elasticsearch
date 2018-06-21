@@ -39,6 +39,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -91,11 +92,15 @@ public class Ec2DiscoveryTests extends ESTestCase {
     }
 
     protected List<DiscoveryNode> buildDynamicNodes(Settings nodeSettings, int nodes, List<List<Tag>> tagsList) {
-        AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(nodeSettings, nodes, tagsList);
-        AwsEc2UnicastHostsProvider provider = new AwsEc2UnicastHostsProvider(nodeSettings, transportService, awsEc2Service);
-        List<DiscoveryNode> discoveryNodes = provider.buildDynamicNodes();
-        logger.debug("--> nodes found: {}", discoveryNodes);
-        return discoveryNodes;
+        try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(Settings.EMPTY, nodes, tagsList)) {
+            AwsEc2UnicastHostsProvider provider = new AwsEc2UnicastHostsProvider(nodeSettings, transportService, plugin.ec2Service);
+            List<DiscoveryNode> discoveryNodes = provider.buildDynamicNodes();
+            logger.debug("--> nodes found: {}", discoveryNodes);
+            return discoveryNodes;
+        } catch (IOException e) {
+            fail("Unexpected IOException");
+            return null;
+        }
     }
 
     public void testDefaultSettings() throws InterruptedException {
@@ -315,22 +320,23 @@ public class Ec2DiscoveryTests extends ESTestCase {
     public void testGetNodeListCached() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put(AwsEc2Service.NODE_CACHE_TIME_SETTING.getKey(), "500ms");
-        AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(Settings.EMPTY, 1, null);
-        DummyEc2HostProvider provider = new DummyEc2HostProvider(builder.build(), transportService, awsEc2Service) {
-            @Override
-            protected List<DiscoveryNode> fetchDynamicNodes() {
-                fetchCount++;
-                return Ec2DiscoveryTests.this.buildDynamicNodes(Settings.EMPTY, 1);
+        try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(Settings.EMPTY)) {
+            DummyEc2HostProvider provider = new DummyEc2HostProvider(builder.build(), transportService, plugin.ec2Service) {
+                @Override
+                protected List<DiscoveryNode> fetchDynamicNodes() {
+                    fetchCount++;
+                    return Ec2DiscoveryTests.this.buildDynamicNodes(Settings.EMPTY, 1);
+                }
+            };
+            for (int i=0; i<3; i++) {
+                provider.buildDynamicNodes();
             }
-        };
-        for (int i=0; i<3; i++) {
-            provider.buildDynamicNodes();
+            assertThat(provider.fetchCount, is(1));
+            Thread.sleep(1_000L); // wait for cache to expire
+            for (int i=0; i<3; i++) {
+                provider.buildDynamicNodes();
+            }
+            assertThat(provider.fetchCount, is(2));
         }
-        assertThat(provider.fetchCount, is(1));
-        Thread.sleep(1_000L); // wait for cache to expire
-        for (int i=0; i<3; i++) {
-            provider.buildDynamicNodes();
-        }
-        assertThat(provider.fetchCount, is(2));
     }
 }

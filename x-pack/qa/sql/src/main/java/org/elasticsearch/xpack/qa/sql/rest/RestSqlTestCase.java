@@ -6,17 +6,14 @@
 package org.elasticsearch.xpack.qa.sql.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -33,12 +30,11 @@ import java.nio.charset.StandardCharsets;
 import java.sql.JDBCType;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
@@ -323,10 +319,12 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         if (false == mode.isEmpty()) {
             request.addParameter("mode", mode);        // JDBC or PLAIN mode
         }
-        request.setHeaders(randomFrom(
-            new Header[] {},
-            new Header[] {new BasicHeader("Accept", "*/*")},
-            new Header[] {new BasicHeader("Accpet", "application/json")}));
+        if (randomBoolean()) {
+            // JSON is the default but randomly set it sometime for extra coverage
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Accept", randomFrom("*/*", "application/json"));
+            request.setOptions(options);
+        }
         request.setEntity(sql);
         Response response = client().performRequest(request);
         try (InputStream content = response.getEntity().getContent()) {
@@ -396,19 +394,23 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         assertNotNull(query);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> constantScore = (Map<String, Object>) query.get("constant_score");
-        assertNotNull(constantScore);
+        Map<String, Object> bool = (Map<String, Object>) query.get("bool");
+        assertNotNull(bool);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> filter = (Map<String, Object>) constantScore.get("filter");
+        List<Object> filter = (List<Object>) bool.get("filter");
         assertNotNull(filter);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> match = (Map<String, Object>) filter.get("match");
-        assertNotNull(match);
+        Map<String, Object> map = (Map<String, Object>) filter.get(0);
+        assertNotNull(map);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> matchQuery = (Map<String, Object>) match.get("test");
+        Map<String, Object> matchQ = (Map<String, Object>) map.get("match");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> matchQuery = (Map<String, Object>) matchQ.get("test");
+
         assertNotNull(matchQuery);
         assertEquals("foo", matchQuery.get("query"));
     }
@@ -538,7 +540,9 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Request request = new Request("POST", "/_xpack/sql" + suffix);
         request.addParameter("error_trace", "true");
         request.setEntity(entity);
-        request.setHeaders(new BasicHeader("Accept", accept));
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Accept", accept);
+        request.setOptions(options);
         Response response = client().performRequest(request);
         return new Tuple<>(
                 Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),

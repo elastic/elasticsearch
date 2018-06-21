@@ -31,7 +31,7 @@ public class ServerInfoCliCommand extends AbstractServerCliCommand {
         terminal.line()
                 .text("Node:").em(info.getNodeName())
                 .text(" Cluster:").em(info.getClusterName())
-                .text(" Version:").em(info.getVersion().toString())
+                .text(" Version:").em(info.getVersion())
                 .ln();
         return true;
     }

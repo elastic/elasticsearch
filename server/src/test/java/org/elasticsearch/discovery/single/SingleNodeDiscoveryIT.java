@@ -150,7 +150,6 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                         internalCluster().getClusterName(),
                         configurationSource,
                         0,
-                        false,
                         "other",
                         Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
                         Function.identity())) {

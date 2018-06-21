@@ -24,11 +24,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class IndexShardRoutingTableTests extends ESTestCase {
     public void testEqualsAttributesKey() {
-        String[] attr1 = {"a"};
-        String[] attr2 = {"b"};
+        List<String> attr1 = Arrays.asList("a");
+        List<String> attr2 = Arrays.asList("b");
         IndexShardRoutingTable.AttributesKey attributesKey1 = new IndexShardRoutingTable.AttributesKey(attr1);
         IndexShardRoutingTable.AttributesKey attributesKey2 = new IndexShardRoutingTable.AttributesKey(attr1);
         IndexShardRoutingTable.AttributesKey attributesKey3 = new IndexShardRoutingTable.AttributesKey(attr2);

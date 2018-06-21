@@ -23,19 +23,28 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to execute a search based on a search template.
  */
-public class SearchTemplateRequest extends ActionRequest implements CompositeIndicesRequest {
+public class SearchTemplateRequest extends ActionRequest implements CompositeIndicesRequest, ToXContentObject {
 
     private SearchRequest request;
     private boolean simulate = false;
@@ -60,6 +69,24 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         return request;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SearchTemplateRequest request1 = (SearchTemplateRequest) o;
+        return simulate == request1.simulate &&
+            explain == request1.explain &&
+            profile == request1.profile &&
+            Objects.equals(request, request1.request) &&
+            scriptType == request1.scriptType &&
+            Objects.equals(script, request1.script) &&
+            Objects.equals(scriptParams, request1.scriptParams);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(request, simulate, explain, profile, scriptType, script, scriptParams);
+    }
 
     public boolean isSimulate() {
         return simulate;
@@ -132,6 +159,62 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
             }
         }
         return validationException;
+    }
+
+    private static ParseField ID_FIELD = new ParseField("id");
+    private static ParseField SOURCE_FIELD = new ParseField("source", "inline", "template");
+
+    private static ParseField PARAMS_FIELD = new ParseField("params");
+    private static ParseField EXPLAIN_FIELD = new ParseField("explain");
+    private static ParseField PROFILE_FIELD = new ParseField("profile");
+
+    private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
+    static {
+        PARSER = new ObjectParser<>("search_template");
+        PARSER.declareField((parser, request, s) ->
+                request.setScriptParams(parser.map())
+            , PARAMS_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareString((request, s) -> {
+            request.setScriptType(ScriptType.STORED);
+            request.setScript(s);
+        }, ID_FIELD);
+        PARSER.declareBoolean(SearchTemplateRequest::setExplain, EXPLAIN_FIELD);
+        PARSER.declareBoolean(SearchTemplateRequest::setProfile, PROFILE_FIELD);
+        PARSER.declareField((parser, request, value) -> {
+            request.setScriptType(ScriptType.INLINE);
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                //convert the template to json which is the only supported XContentType (see CustomMustacheFactory#createEncoder)
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                    request.setScript(Strings.toString(builder.copyCurrentStructure(parser)));
+                } catch (IOException e) {
+                    throw new ParsingException(parser.getTokenLocation(), "Could not parse inline template", e);
+                }
+            } else {
+                request.setScript(parser.text());
+            }
+        }, SOURCE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+    }
+
+    public static SearchTemplateRequest fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new SearchTemplateRequest(), null);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+
+        if (scriptType == ScriptType.STORED) {
+            builder.field(ID_FIELD.getPreferredName(), script);
+        } else if (scriptType == ScriptType.INLINE) {
+            builder.field(SOURCE_FIELD.getPreferredName(), script);
+        } else {
+            throw new UnsupportedOperationException("Unrecognized script type [" + scriptType + "].");
+        }
+
+        return builder.field(PARAMS_FIELD.getPreferredName(), scriptParams)
+            .field(EXPLAIN_FIELD.getPreferredName(), explain)
+            .field(PROFILE_FIELD.getPreferredName(), profile)
+            .endObject();
     }
 
     @Override

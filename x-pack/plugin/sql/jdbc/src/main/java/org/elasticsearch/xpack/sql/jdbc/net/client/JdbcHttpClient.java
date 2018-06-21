@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.jdbc.net.client;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.sql.client.HttpClient;
+import org.elasticsearch.xpack.sql.client.shared.Version;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.InfoResponse;
@@ -79,7 +80,8 @@ public class JdbcHttpClient {
 
     private InfoResponse fetchServerInfo() throws SQLException {
         MainResponse mainResponse = httpClient.serverInfo();
-        return new InfoResponse(mainResponse.getClusterName(), mainResponse.getVersion().major, mainResponse.getVersion().minor);
+        Version version = Version.fromString(mainResponse.getVersion());
+        return new InfoResponse(mainResponse.getClusterName(), version.major, version.minor);
     }
 
     /**

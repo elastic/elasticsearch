@@ -23,8 +23,14 @@ Which returns:
 {
     "size" : 10,
     "docvalue_fields" : [
-        "page_count",
-        "release_date"
+        {
+            "field": "page_count",
+            "format": "use_field_mapping"
+        },
+        {
+            "field": "release_date",
+            "format": "epoch_millis"
+        }
     ],
     "_source": {
         "includes": [

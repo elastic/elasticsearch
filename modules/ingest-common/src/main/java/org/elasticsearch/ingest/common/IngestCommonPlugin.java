@@ -25,9 +25,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.ThreadWatchdog;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -45,6 +48,10 @@ import java.util.function.Supplier;
 public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     static final Map<String, String> GROK_PATTERNS = Grok.getBuiltinPatterns();
+    static final Setting<TimeValue> WATCHDOG_INTERVAL =
+        Setting.timeSetting("ingest.grok.watchdog.interval", TimeValue.timeValueSeconds(1), Setting.Property.NodeScope);
+    static final Setting<TimeValue> WATCHDOG_MAX_EXECUTION_TIME =
+        Setting.timeSetting("ingest.grok.watchdog.max_execution_time", TimeValue.timeValueSeconds(1), Setting.Property.NodeScope);
 
     public IngestCommonPlugin() {
     }
@@ -68,7 +75,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         processors.put(ForEachProcessor.TYPE, new ForEachProcessor.Factory());
         processors.put(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory());
         processors.put(SortProcessor.TYPE, new SortProcessor.Factory());
-        processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(GROK_PATTERNS));
+        processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(GROK_PATTERNS, createGrokThreadWatchdog(parameters)));
         processors.put(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService));
         processors.put(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory());
         processors.put(JsonProcessor.TYPE, new JsonProcessor.Factory());
@@ -88,6 +95,17 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(new GrokProcessorGetAction.RestAction(settings, restController));
+    }
+    
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(WATCHDOG_INTERVAL, WATCHDOG_MAX_EXECUTION_TIME);
+    }
+    
+    private static ThreadWatchdog createGrokThreadWatchdog(Processor.Parameters parameters) {
+        long intervalMillis = WATCHDOG_INTERVAL.get(parameters.env.settings()).getMillis();
+        long maxExecutionTimeMillis = WATCHDOG_MAX_EXECUTION_TIME.get(parameters.env.settings()).getMillis();
+        return ThreadWatchdog.newInstance(intervalMillis, maxExecutionTimeMillis, parameters.relativeTimeSupplier, parameters.scheduler);
     }
 
 }

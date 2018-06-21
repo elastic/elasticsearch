@@ -21,18 +21,16 @@ package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.HttpHost;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -52,11 +50,20 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Runs a suite of yaml tests shared with all the official Elasticsearch clients against against an elasticsearch cluster.
+ * Runs a suite of yaml tests shared with all the official Elasticsearch
+ * clients against against an elasticsearch cluster.
+ * <p>
+ * <strong>IMPORTANT</strong>: These tests sniff the cluster for metadata
+ * and hosts on startup and replace the list of hosts that they are
+ * configured to use with the list sniffed from the cluster. So you can't
+ * control which nodes receive the request by providing the right list of
+ * nodes in the <code>tests.rest.cluster</code> system property. Instead
+ * the tests must explictly use `node_selector`s.
  */
 public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
@@ -70,6 +77,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * e.g. "-Dtests.rest.blacklist=get/10_basic/*"
      */
     public static final String REST_TESTS_BLACKLIST = "tests.rest.blacklist";
+    /**
+     * We use tests.rest.blacklist in build files to blacklist tests; this property enables a user to add additional blacklisted tests on
+     * top of the tests blacklisted in the build.
+     */
+    public static final String REST_TESTS_BLACKLIST_ADDITIONS = "tests.rest.blacklist_additions";
     /**
      * Property that allows to control whether spec validation is enabled or not (default true).
      */
@@ -109,35 +121,30 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     @Before
     public void initAndResetContext() throws Exception {
         if (restTestExecutionContext == null) {
+            // Sniff host metadata in case we need it in the yaml tests
+            List<Node> nodesWithMetadata = sniffHostMetadata(adminClient());
+            client().setNodes(nodesWithMetadata);
+            adminClient().setNodes(nodesWithMetadata);
+
             assert adminExecutionContext == null;
             assert blacklistPathMatchers == null;
-            ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
+            final ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
             validateSpec(restSpec);
-            List<HttpHost> hosts = getClusterHosts();
-            RestClient restClient = client();
-            Version infoVersion = readVersionsFromInfo(restClient, hosts.size());
-            Version esVersion;
-            try {
-                Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(restClient);
-                esVersion = versionVersionTuple.v1();
-                Version masterVersion = versionVersionTuple.v2();
-                logger.info("initializing yaml client, minimum es version: [{}] master version: [{}] hosts: {}",
-                        esVersion, masterVersion, hosts);
-            } catch (ResponseException ex) {
-                if (ex.getResponse().getStatusLine().getStatusCode() == 403) {
-                    logger.warn("Fallback to simple info '/' request, _cat/nodes is not authorized");
-                    esVersion = infoVersion;
-                    logger.info("initializing yaml client, minimum es version: [{}] hosts: {}", esVersion, hosts);
-                } else {
-                    throw ex;
-                }
-            }
-            ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+            final List<HttpHost> hosts = getClusterHosts();
+            Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
+            final Version esVersion = versionVersionTuple.v1();
+            final Version masterVersion = versionVersionTuple.v2();
+            logger.info("initializing client, minimum es version [{}], master version, [{}], hosts {}", esVersion, masterVersion, hosts);
+            final ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
-            String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
+            final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
-            for (String entry : blacklist) {
+            for (final String entry : blacklist) {
+                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+            }
+            final String[] blacklistAdditions = resolvePathsProperty(REST_TESTS_BLACKLIST_ADDITIONS, null);
+            for (final String entry : blacklistAdditions) {
                 blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
             }
         }
@@ -151,9 +158,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         restTestExecutionContext.clear();
     }
 
-    protected ClientYamlTestClient initClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient,
-                                                            List<HttpHost> hosts, Version esVersion) throws IOException {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+    protected ClientYamlTestClient initClientYamlTestClient(
+            final ClientYamlSuiteRestSpec restSpec,
+            final RestClient restClient,
+            final List<HttpHost> hosts,
+            final Version esVersion,
+            final Version masterVersion) throws IOException {
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion);
     }
 
     /**
@@ -333,8 +344,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (useDefaultNumberOfShards == false
                 && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
             final Request request = new Request("PUT", "/_template/global");
-            request.setHeaders(new BasicHeader("Content-Type", XContentType.JSON.mediaTypeWithoutParameters()));
-            request.setEntity(new StringEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}"));
+            request.setJsonEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}");
             adminClient().performRequest(request);
         }
 
@@ -386,5 +396,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     protected boolean randomizeContentType() {
         return true;
+    }
+
+    /**
+     * Sniff the cluster for host metadata.
+     */
+    private List<Node> sniffHostMetadata(RestClient client) throws IOException {
+        ElasticsearchNodesSniffer.Scheme scheme =
+            ElasticsearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
+        ElasticsearchNodesSniffer sniffer = new ElasticsearchNodesSniffer(
+                adminClient(), ElasticsearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
+        return sniffer.sniff();
     }
 }

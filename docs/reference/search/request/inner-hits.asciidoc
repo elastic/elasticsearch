@@ -242,7 +242,12 @@ POST test/_search
       },
       "inner_hits": {
         "_source" : false,
-        "docvalue_fields" : ["comments.text.keyword"]
+        "docvalue_fields" : [
+          {
+            "field": "comments.text.keyword",
+            "format": "use_field_mapping"
+          }
+        ]
       }
     }
   }

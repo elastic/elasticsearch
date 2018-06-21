@@ -11,7 +11,6 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
@@ -23,7 +22,6 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
@@ -57,10 +55,9 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     @Inject
     public TransportGetJobsStatsAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                        ActionFilters actionFilters, ClusterService clusterService,
-                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                        AutodetectProcessManager processManager, JobProvider jobProvider) {
         super(settings, GetJobsStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, GetJobsStatsAction.Request::new, GetJobsStatsAction.Response::new,
+            GetJobsStatsAction.Request::new, GetJobsStatsAction.Response::new,
                 ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.processManager = processManager;
@@ -69,8 +66,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
 
     @Override
     protected void doExecute(Task task, GetJobsStatsAction.Request request, ActionListener<GetJobsStatsAction.Response> listener) {
-        MlMetadata clusterMlMetadata = clusterService.state().metaData().custom(MLMetadataField.TYPE);
-        MlMetadata mlMetadata = (clusterMlMetadata == null) ? MlMetadata.EMPTY_METADATA : clusterMlMetadata;
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
         request.setExpandedJobsIds(new ArrayList<>(mlMetadata.expandJobIds(request.getJobId(), request.allowNoJobs())));
         ActionListener<GetJobsStatsAction.Response> finalListener = listener;
         listener = ActionListener.wrap(response -> gatherStatsForClosedJobs(mlMetadata,

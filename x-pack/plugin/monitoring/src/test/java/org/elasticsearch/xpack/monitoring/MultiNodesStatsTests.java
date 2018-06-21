@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
 
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;

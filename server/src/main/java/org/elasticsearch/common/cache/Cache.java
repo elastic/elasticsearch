@@ -68,6 +68,7 @@ import java.util.function.ToLongBiFunction;
  * @param <V> The type of the values
  */
 public class Cache<K, V> {
+
     // positive if entries have an expiration
     private long expireAfterAccessNanos = -1;
 
@@ -282,6 +283,39 @@ public class Cache<K, V> {
             }
         }
 
+        /**
+         * remove an entry from the segment iff the future is done and the value is equal to the
+         * expected value
+         *
+         * @param key the key of the entry to remove from the cache
+         * @param value the value expected to be associated with the key
+         * @param onRemoval a callback for the removed entry
+         */
+        void remove(K key, V value, Consumer<CompletableFuture<Entry<K, V>>> onRemoval) {
+            CompletableFuture<Entry<K, V>> future;
+            boolean removed = false;
+            try (ReleasableLock ignored = writeLock.acquire()) {
+                future = map.get(key);
+                try {
+                    if (future != null) {
+                        if (future.isDone()) {
+                            Entry<K, V> entry = future.get();
+                            if (Objects.equals(value, entry.value)) {
+                                removed = map.remove(key, future);
+                            }
+                        }
+                    }
+                } catch (ExecutionException | InterruptedException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+
+            if (future != null && removed) {
+                segmentStats.eviction();
+                onRemoval.accept(future);
+            }
+        }
+
         private static class SegmentStats {
             private final LongAdder hits = new LongAdder();
             private final LongAdder misses = new LongAdder();
@@ -314,7 +348,7 @@ public class Cache<K, V> {
     Entry<K, V> tail;
 
     // lock protecting mutations to the LRU list
-    private ReleasableLock lruLock = new ReleasableLock(new ReentrantLock());
+    private final ReleasableLock lruLock = new ReleasableLock(new ReentrantLock());
 
     /**
      * Returns the value to which the specified key is mapped, or null if this map contains no mapping for the key.
@@ -455,6 +489,19 @@ public class Cache<K, V> {
         }
     }
 
+    private final Consumer<CompletableFuture<Entry<K, V>>> invalidationConsumer = f -> {
+        try {
+            Entry<K, V> entry = f.get();
+            try (ReleasableLock ignored = lruLock.acquire()) {
+                delete(entry, RemovalNotification.RemovalReason.INVALIDATED);
+            }
+        } catch (ExecutionException e) {
+            // ok
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(e);
+        }
+    };
+
     /**
      * Invalidate the association for the specified key. A removal notification will be issued for invalidated
      * entries with {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
@@ -463,18 +510,20 @@ public class Cache<K, V> {
      */
     public void invalidate(K key) {
         CacheSegment<K, V> segment = getCacheSegment(key);
-        segment.remove(key, f -> {
-            try {
-                Entry<K, V> entry = f.get();
-                try (ReleasableLock ignored = lruLock.acquire()) {
-                    delete(entry, RemovalNotification.RemovalReason.INVALIDATED);
-                }
-            } catch (ExecutionException e) {
-                // ok
-            } catch (InterruptedException e) {
-                throw new IllegalStateException(e);
-            }
-        });
+        segment.remove(key, invalidationConsumer);
+    }
+
+    /**
+     * Invalidate the entry for the specified key and value. If the value provided is not equal to the value in
+     * the cache, no removal will occur. A removal notification will be issued for invalidated
+     * entries with {@link org.elasticsearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
+     *
+     * @param key the key whose mapping is to be invalidated from the cache
+     * @param value the expected value that should be associated with the key
+     */
+    public void invalidate(K key, V value) {
+        CacheSegment<K, V> segment = getCacheSegment(key);
+        segment.remove(key, value, invalidationConsumer);
     }
 
     /**
@@ -625,7 +674,7 @@ public class Cache<K, V> {
             Entry<K, V> entry = current;
             if (entry != null) {
                 CacheSegment<K, V> segment = getCacheSegment(entry.key);
-                segment.remove(entry.key, f -> {});
+                segment.remove(entry.key, entry.value, f -> {});
                 try (ReleasableLock ignored = lruLock.acquire()) {
                     current = null;
                     delete(entry, RemovalNotification.RemovalReason.INVALIDATED);
@@ -710,7 +759,7 @@ public class Cache<K, V> {
 
         CacheSegment<K, V> segment = getCacheSegment(entry.key);
         if (segment != null) {
-            segment.remove(entry.key, f -> {});
+            segment.remove(entry.key, entry.value, f -> {});
         }
         delete(entry, RemovalNotification.RemovalReason.EVICTED);
     }

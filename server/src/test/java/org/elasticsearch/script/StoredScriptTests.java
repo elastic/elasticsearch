@@ -74,6 +74,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             StoredScriptSource source = new StoredScriptSource("mustache", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
+            assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
         }
 
         // complex template with wrapper template object
@@ -89,6 +90,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             StoredScriptSource source = new StoredScriptSource("mustache", code, Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
+            assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
         }
 
         // complex template with no wrapper object
@@ -104,6 +106,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             StoredScriptSource source = new StoredScriptSource("mustache", code, Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
+            assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
         }
 
         // complex template using script as the field name
@@ -223,7 +226,10 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             StoredScriptSource source = new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
-            assertWarnings("empty templates should no longer be used");
+            assertWarnings(
+                "the template context is now deprecated. Specify templates in a \"script\" element.",
+                "empty templates should no longer be used"
+            );
         }
 
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {

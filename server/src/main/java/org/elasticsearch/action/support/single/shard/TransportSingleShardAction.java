@@ -49,7 +49,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
@@ -62,8 +61,8 @@ import static org.elasticsearch.action.support.TransportActions.isShardNotAvaila
 public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse> extends TransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
-
     protected final TransportService transportService;
+    protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
     final String transportShardAction;
     final String executor;
@@ -71,9 +70,10 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected TransportSingleShardAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                          Supplier<Request> request, String executor) {
-        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
+        super(settings, actionName, threadPool, actionFilters, transportService.getTaskManager());
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
 
         this.transportShardAction = actionName + "[s]";
         this.executor = executor;

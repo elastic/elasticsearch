@@ -120,7 +120,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
     }
     
     /**
-     * Test parsing {@link MultiSearchTemplateResponse} with inner failures as they don't support asserting on xcontent equivalence, given that
+     * Test parsing {@link MultiSearchTemplateResponse} with inner failures as they don't support asserting on xcontent equivalence, given
      * exceptions are not parsed back as the same original class. We run the usual {@link AbstractXContentTestCase#testFromXContent()}
      * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.
      */

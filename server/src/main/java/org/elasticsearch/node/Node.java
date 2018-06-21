@@ -26,6 +26,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
@@ -139,6 +140,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -165,8 +167,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -678,17 +682,37 @@ public class Node implements Closeable {
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
+        final ThreadPool thread = injector.getInstance(ThreadPool.class);
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings);
-        if (initialStateTimeout.millis() > 0) {
-            final ThreadPool thread = injector.getInstance(ThreadPool.class);
-            ClusterState clusterState = clusterService.state();
-            ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, null, logger, thread.getThreadContext());
-            if (clusterState.nodes().getMasterNodeId() == null) {
+        final boolean connectToRemote = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
+        final boolean waitForState = initialStateTimeout.millis() > 0;
+        Predicate<ClusterState> connectRemoteClusterPredicate = state -> "_na_".equals(state.metaData().clusterUUID()) == false;
+        ClusterState clusterState = clusterService.state();
+        AtomicBoolean connectRemoteClusters = new AtomicBoolean(connectToRemote);
+        if (waitForState) {
+            CountDownLatch latch = new CountDownLatch(1);
+            Predicate<ClusterState> clusterStatePredicate = state -> state.nodes().getMasterNodeId() != null;
+            final Consumer<ClusterState> consumer;
+            if (connectToRemote) {
+                clusterStatePredicate = clusterStatePredicate.and(connectRemoteClusterPredicate);
+                connectRemoteClusters.set(false);
+                consumer = c ->  transportService.getRemoteClusterService().initializeRemoteClusters(c.metaData().clusterUUID(),
+                    c.metaData().settings(), ActionListener.wrap(v -> latch.countDown(), e -> {
+                        latch.countDown();
+                        logger.warn("Failed to connect to remote clusters", e);
+                    }));
+            } else {
+                consumer = c -> latch.countDown();
+            }
+            if (clusterStatePredicate.test(clusterState) == false) {
                 logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
-                final CountDownLatch latch = new CountDownLatch(1);
+                ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, initialStateTimeout, logger,
+                    thread.getThreadContext());
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
-                    public void onNewClusterState(ClusterState state) { latch.countDown(); }
+                    public void onNewClusterState(ClusterState state) {
+                       consumer.accept(state);
+                    }
 
                     @Override
                     public void onClusterServiceClose() {
@@ -701,13 +725,42 @@ public class Node implements Closeable {
                             initialStateTimeout);
                         latch.countDown();
                     }
-                }, state -> state.nodes().getMasterNodeId() != null, initialStateTimeout);
+                }, clusterStatePredicate);
+            } else {
+                consumer.accept(clusterState);
+            }
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
+            }
+        }
+        if (connectRemoteClusters.get()) {
+            Consumer<ClusterState> consumer = state ->  transportService.getRemoteClusterService().initializeRemoteClusters(
+                state.metaData().clusterUUID(), state.metaData().settings(), ActionListener.wrap(v -> {},
+                    e -> logger.warn("Failed to connect to remote clusters", e)));
+            if (connectRemoteClusterPredicate.test(clusterState) == false) {
+                ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, null, logger,
+                    thread.getThreadContext());
+                //
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        consumer.accept(state);
+                    }
 
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
-                }
+                    @Override
+                    public void onClusterServiceClose() {
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                       assert false;
+                    }
+                }, connectRemoteClusterPredicate);
+
+            } else {
+               consumer.accept(clusterState);
             }
         }
 

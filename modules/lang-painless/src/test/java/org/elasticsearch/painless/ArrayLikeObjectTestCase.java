@@ -92,19 +92,34 @@ public abstract class ArrayLikeObjectTestCase extends ScriptTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testInts() {         arrayLoadStoreTestCase(false, "int",    5,         6); }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testIntsInDef() {    arrayLoadStoreTestCase(true,  "int",    5,         6); }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testLongs() {        arrayLoadStoreTestCase(false, "long",   5L,        6L); }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testLongsInDef() {   arrayLoadStoreTestCase(true,  "long",   5L,        6L); }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testShorts() {       arrayLoadStoreTestCase(false, "short",  (short) 5, (short) 6); }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testShortsInDef() {  arrayLoadStoreTestCase(true,  "short",  (short) 5, (short) 6); }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testBytes() {        arrayLoadStoreTestCase(false, "byte",   (byte) 5,  (byte) 6); }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testBytesInDef() {   arrayLoadStoreTestCase(true,  "byte",   (byte) 5,  (byte) 6); }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testFloats() {       arrayLoadStoreTestCase(false, "float",  5.0f,      6.0f); }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testFloatsInDef() {  arrayLoadStoreTestCase(true,  "float",  5.0f,      6.0f); }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testDoubles() {      arrayLoadStoreTestCase(false, "double", 5.0d,      6.0d); }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testDoublesInDef() { arrayLoadStoreTestCase(true,  "double", 5.0d,      6.0d); }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testStrings() {      arrayLoadStoreTestCase(false, "String", "cat",     null); }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testStringsInDef() { arrayLoadStoreTestCase(true,  "String", "cat",     null); }
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31500")
     public void testDef() {          arrayLoadStoreTestCase(true,  "def",    5,         null); }
 }

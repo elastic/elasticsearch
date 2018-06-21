@@ -3,11 +3,14 @@ package com.carrotsearch.gradle.junit4
 import com.carrotsearch.ant.tasks.junit4.JUnit4
 import org.gradle.api.AntBuilder
 import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.UnknownTaskException
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.TaskContainer
+import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.testing.Test
 
 import java.util.concurrent.atomic.AtomicBoolean
@@ -68,29 +71,36 @@ class RandomizedTestingPlugin implements Plugin<Project> {
     }
 
     static void replaceTestTask(TaskContainer tasks) {
-        Test oldTestTask = tasks.findByPath('test')
-        if (oldTestTask == null) {
+        // Gradle 4.8 introduced lazy tasks, thus we deal both with the `test` task as well as it's provider
+        // https://github.com/gradle/gradle/issues/5730#issuecomment-398822153
+        // since we can't be sure if the task was ever realized, we remove both the provider and the task
+        TaskProvider<Test> oldTestProvider
+        try {
+            oldTestProvider = tasks.getByNameLater(Test, 'test')
+        }
+        catch (UnknownTaskException why) {
             // no test task, ok, user will use testing task on their own
             return
         }
+        Test oldTestTask = oldTestProvider.get()
         tasks.remove(oldTestTask)
+        // there's no way to remove the provider form the task collection, but since we realize the task above, this is
+        // sufficient.
 
-        Map properties = [
-            name: 'test',
-            type: RandomizedTestingTask,
-            dependsOn: oldTestTask.dependsOn,
-            group: JavaBasePlugin.VERIFICATION_GROUP,
-            description: 'Runs unit tests with the randomized testing framework'
-        ]
-        RandomizedTestingTask newTestTask = tasks.create(properties)
-        newTestTask.classpath = oldTestTask.classpath
-        newTestTask.testClassesDir = oldTestTask.project.sourceSets.test.output.classesDir
-        // since gradle 4.5, tasks immutable dependencies are "hidden" (do not show up in dependsOn)
-        // so we must explicitly add a dependency on generating the test classpath
-        newTestTask.dependsOn('testClasses')
+        // we still have to use replace here despite the remove above because the task container knows about the provider
+        // by the same name
+        RandomizedTestingTask newTestTask = tasks.replace('test', RandomizedTestingTask)
+        newTestTask.configure{
+            group =  JavaBasePlugin.VERIFICATION_GROUP
+            description = 'Runs unit tests with the randomized testing framework'
+            dependsOn oldTestTask.dependsOn, 'testClasses'
+            classpath = oldTestTask.classpath
+            testClassesDir = oldTestTask.project.sourceSets.test.output.classesDir
+        }
 
         // hack so check task depends on custom test
-        Task checkTask = tasks.findByPath('check')
+        Task checkTask = tasks.getByName('check')
+        checkTask.dependsOn.remove(oldTestProvider)
         checkTask.dependsOn.remove(oldTestTask)
         checkTask.dependsOn.add(newTestTask)
     }

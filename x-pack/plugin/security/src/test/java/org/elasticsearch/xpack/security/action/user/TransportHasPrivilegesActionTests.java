@@ -44,6 +44,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
@@ -51,6 +52,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -392,6 +394,42 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                         .put("read", true).put("write", true).put("all", false).map()),
                 new ResourcePrivileges("baz/bar/foo", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
                         .put("read", false).put("write", true).put("all", false).map())
+        ));
+    }
+
+    public void testCheckingApplicationPrivilegesWithComplexNames() throws Exception {
+        final String appName = randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(3, 10);
+        final String action1 = randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(2, 5);
+        final String action2 = randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(6, 9);
+
+        final ApplicationPrivilege priv1 = defineApplicationPrivilege(appName, action1, "DATA:read/*", "ACTION:" + action1);
+        final ApplicationPrivilege priv2 = defineApplicationPrivilege(appName, action2, "DATA:read/*", "ACTION:" + action2);
+
+        role = Role.builder("test-write")
+            .addApplicationPrivilege(priv1, Collections.singleton("user/*/name"))
+            .build();
+
+        final HasPrivilegesResponse response = hasPrivileges(
+            new RoleDescriptor.IndicesPrivileges[0],
+            new RoleDescriptor.ApplicationResourcePrivileges[]{
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application(appName)
+                    .resources("user/hawkeye/name")
+                    .privileges("DATA:read/user/*", "ACTION:" + action1, "ACTION:" + action2, action1, action2)
+                    .build()
+            },
+            "monitor");
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getApplicationPrivileges().keySet(), containsInAnyOrder(appName));
+        assertThat(response.getApplicationPrivileges().get(appName), iterableWithSize(1));
+        assertThat(response.getApplicationPrivileges().get(appName), containsInAnyOrder(
+            new ResourcePrivileges("user/hawkeye/name", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                .put("DATA:read/user/*", true)
+                .put("ACTION:" + action1, true)
+                .put("ACTION:" + action2, false)
+                .put(action1, true)
+                .put(action2, false)
+                .map())
         ));
     }
 

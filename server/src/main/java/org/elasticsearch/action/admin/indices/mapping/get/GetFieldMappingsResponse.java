@@ -122,13 +122,16 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
                     final Object o1 = typeObjectEntry.getValue();
                     if (!(o1 instanceof Map)) {
-                        throw new ParsingException(parser.getTokenLocation(), "Nested type mapping is not found");
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "Nested type mapping at " + entry.getKey() + "." + typeObjectEntry.getKey() + " is not found");
                     }
                     Map<String, Object> map2 = (Map) o1;
                     for (Map.Entry<String, Object> e : map2.entrySet()) {
                         final Object o2 = e.getValue();
                         if (!(o2 instanceof Map)) {
-                            throw new ParsingException(parser.getTokenLocation(), "Nested field mapping is not found");
+                            throw new ParsingException(parser.getTokenLocation(),
+                                "Nested field mapping at " + entry.getKey() + "." + typeObjectEntry.getKey() + "." + e.getKey()
+                                    + " is not found");
                         }
                         Map<String, Object> map3 = (Map) o2;
 

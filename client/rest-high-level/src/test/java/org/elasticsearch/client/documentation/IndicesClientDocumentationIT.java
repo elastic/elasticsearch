@@ -758,11 +758,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             final String fullName = metaData.fullName();// <4>
             final Map<String, Object> source = metaData.sourceAsMap(); // <5>
-
             // end::get-field-mapping-response
-
-            assertThat(fullName, equalTo("message"));
-            assertThat(source, equalTo(Collections.singletonMap("message", Collections.singletonMap("type", "text"))));
         }
 
         {

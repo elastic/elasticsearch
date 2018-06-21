@@ -67,26 +67,11 @@ public class GetFieldMappingsResponseTests extends AbstractStreamableXContentTes
         return new GetFieldMappingsResponse(randomMapping());
     }
 
-    static int charCount(final String s, char ch) {
-        int count = 0;
-        int pos = 0;
-        while (pos >= 0) {
-            pos = s.indexOf(ch, pos);
-            if (pos >= 0) {
-                count++;
-                pos++;
-            }
-        }
-        return count;
-    }
-
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // allow random fields at the level of index and index.mappings.doctype.field
         // otherwise random field could be evaluated as index name or type name
-        return s -> {
-            final int c = s.length() > 0 ? charCount(s, '.') : -1;
-            return c != 0 && c != 3;};
+        return s -> !(s.matches("[^.]+") || s.matches("[^.]+\\.[^.]+\\.[^.]+\\.[^.]+"));
     }
 
     private Map<String, Map<String, Map<String, FieldMappingMetaData>>> randomMapping() {

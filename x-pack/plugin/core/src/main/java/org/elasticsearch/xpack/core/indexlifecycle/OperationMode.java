@@ -12,31 +12,31 @@ public enum OperationMode {
     /**
      * This represents a state where no policies are executed
      */
-    MAINTENANCE {
+    STOPPED {
         @Override
         public boolean isValidChange(OperationMode nextMode) {
-            return nextMode == NORMAL;
+            return nextMode == RUNNING;
         }
     },
 
     /**
-     * this representes a state where only sensitive actions (like {@link ShrinkAction}) will be executed
-     * until they finish, at which point the operation mode will move to maintenance mode.
+     * this represents a state where only sensitive actions (like {@link ShrinkAction}) will be executed
+     * until they finish, at which point the operation mode will move to <code>STOPPED</code>.
      */
-    MAINTENANCE_REQUESTED {
+    STOPPING {
         @Override
         public boolean isValidChange(OperationMode nextMode) {
-            return nextMode == NORMAL || nextMode == MAINTENANCE;
+            return nextMode == RUNNING || nextMode == STOPPED;
         }
     },
 
     /**
      * Normal operation where all policies are executed as normal.
      */
-    NORMAL {
+    RUNNING {
         @Override
         public boolean isValidChange(OperationMode nextMode) {
-            return nextMode == MAINTENANCE_REQUESTED;
+            return nextMode == STOPPING;
         }
     };
 

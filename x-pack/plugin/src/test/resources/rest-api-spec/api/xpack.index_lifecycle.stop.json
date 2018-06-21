@@ -1,0 +1,13 @@
+{
+  "xpack.index_lifecycle.stop": {
+    "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_xpack/index_lifecycle/_stop",
+      "paths": ["/_xpack/index_lifecycle/_stop"],
+      "parts": {},
+      "params": {}
+    },
+    "body": null
+  }
+}

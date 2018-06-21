@@ -17,45 +17,62 @@ import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
-public class MaintenanceModeUpdateTaskTests extends ESTestCase {
+public class OperationModeUpdateTaskTests extends ESTestCase {
 
     public void testExecute() {
-        assertMove(OperationMode.NORMAL, randomFrom(OperationMode.MAINTENANCE_REQUESTED));
-        assertMove(OperationMode.MAINTENANCE_REQUESTED, randomFrom(OperationMode.NORMAL, OperationMode.MAINTENANCE));
-        assertMove(OperationMode.MAINTENANCE, randomFrom(OperationMode.NORMAL));
+        assertMove(OperationMode.RUNNING, OperationMode.STOPPING);
+        assertMove(OperationMode.STOPPING, randomFrom(OperationMode.RUNNING, OperationMode.STOPPED));
+        assertMove(OperationMode.STOPPED, OperationMode.RUNNING);
 
         OperationMode mode = randomFrom(OperationMode.values());
         assertNoMove(mode, mode);
-        assertNoMove(OperationMode.MAINTENANCE, randomFrom(OperationMode.MAINTENANCE_REQUESTED));
-        assertNoMove(OperationMode.NORMAL, randomFrom(OperationMode.MAINTENANCE));
+        assertNoMove(OperationMode.STOPPED, OperationMode.STOPPING);
+        assertNoMove(OperationMode.RUNNING, OperationMode.STOPPED);
+    }
+
+    public void testExecuteWithEmptyMetadata() {
+        OperationMode requestedMode = OperationMode.STOPPING;
+        OperationMode newMode = executeUpdate(false, IndexLifecycleMetadata.EMPTY.getOperationMode(),
+            requestedMode, false);
+        assertThat(newMode, equalTo(requestedMode));
+
+        requestedMode = randomFrom(OperationMode.RUNNING, OperationMode.STOPPED);
+        newMode = executeUpdate(false, IndexLifecycleMetadata.EMPTY.getOperationMode(),
+            requestedMode, false);
+        assertThat(newMode, equalTo(OperationMode.RUNNING));
     }
 
     private void assertMove(OperationMode currentMode, OperationMode requestedMode) {
-        OperationMode newMode = executeUpdate(currentMode, requestedMode, false);
+        OperationMode newMode = executeUpdate(true, currentMode, requestedMode, false);
         assertThat(newMode, equalTo(requestedMode));
     }
 
     private void assertNoMove(OperationMode currentMode, OperationMode requestedMode) {
-        OperationMode newMode = executeUpdate(currentMode, requestedMode, true);
+        OperationMode newMode = executeUpdate(true, currentMode, requestedMode, true);
         assertThat(newMode, equalTo(currentMode));
     }
 
-    private OperationMode executeUpdate(OperationMode currentMode, OperationMode requestMode, boolean assertSameClusterState) {
+    private OperationMode executeUpdate(boolean metadataInstalled, OperationMode currentMode, OperationMode requestMode,
+                                        boolean assertSameClusterState) {
         IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Collections.emptyMap(), currentMode);
         ImmutableOpenMap.Builder<String, MetaData.Custom> customsMapBuilder = ImmutableOpenMap.builder();
-        MetaData metaData = MetaData.builder()
-            .customs(customsMapBuilder.fPut(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata).build())
-            .persistentSettings(settings(Version.CURRENT).build())
-            .build();
+        MetaData.Builder metaData = MetaData.builder()
+            .persistentSettings(settings(Version.CURRENT).build());
+        if (metadataInstalled) {
+            metaData.customs(customsMapBuilder.fPut(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata).build());
+        }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-        MaintenanceModeUpdateTask task = new MaintenanceModeUpdateTask(requestMode);
+        OperationModeUpdateTask task = new OperationModeUpdateTask(requestMode);
         ClusterState newState = task.execute(state);
         if (assertSameClusterState) {
             assertSame(state, newState);
+        } else {
+            assertThat(state, not(equalTo(newState)));
         }
         IndexLifecycleMetadata newMetaData = newState.metaData().custom(IndexLifecycleMetadata.TYPE);
         assertThat(newMetaData.getPolicyMetadatas(), equalTo(indexLifecycleMetadata.getPolicyMetadatas()));
-        return newMetaData.getMaintenanceMode();
+        return newMetaData.getOperationMode();
     }
 }

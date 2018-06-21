@@ -151,7 +151,7 @@ public class IndexLifecycleService extends AbstractComponent
     /**
      * executes the policy execution on the appropriate indices by running cluster-state tasks per index.
      *
-     * If maintenance-mode was requested, and it is safe to move into maintenance-mode, this will also be done here
+     * If stopping ILM was requested, and it is safe to stop, this will also be done here
      * when possible after no policies are executed.
      *
      * @param clusterState the current cluster state
@@ -164,13 +164,13 @@ public class IndexLifecycleService extends AbstractComponent
             return;
         }
 
-        OperationMode currentMode = currentMetadata.getMaintenanceMode();
+        OperationMode currentMode = currentMetadata.getOperationMode();
 
-        if (OperationMode.MAINTENANCE.equals(currentMode)) {
+        if (OperationMode.STOPPED.equals(currentMode)) {
             return;
         }
 
-        boolean safeToEnterMaintenanceMode = true; // true until proven false by a run policy
+        boolean safeToStop = true; // true until proven false by a run policy
 
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
@@ -180,18 +180,18 @@ public class IndexLifecycleService extends AbstractComponent
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
                 StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(idxMeta.getSettings());
-                if (OperationMode.MAINTENANCE_REQUESTED == currentMode && stepKey != null
+                if (OperationMode.STOPPING == currentMode && stepKey != null
                         && IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getAction()) == false) {
                     logger.info("skipping policy [" + policyName + "] for index [" + idxMeta.getIndex().getName()
-                        + "]. maintenance mode requested");
+                        + "]. stopping Index Lifecycle execution");
                     continue;
                 }
                 lifecycleRunner.runPolicy(policyName, idxMeta, clusterState, fromClusterStateChange);
-                safeToEnterMaintenanceMode = false; // proven false!
+                safeToStop = false; // proven false!
             }
         }
-        if (safeToEnterMaintenanceMode && OperationMode.MAINTENANCE_REQUESTED == currentMode) {
-            submitMaintenanceModeUpdate(OperationMode.MAINTENANCE);
+        if (safeToStop && OperationMode.STOPPING == currentMode) {
+            submitOperationModeUpdate(OperationMode.STOPPED);
         }
     }
 
@@ -203,8 +203,8 @@ public class IndexLifecycleService extends AbstractComponent
         }
     }
 
-    public void submitMaintenanceModeUpdate(OperationMode mode) {
-        clusterService.submitStateUpdateTask("ilm_maintenance_update",
-            new MaintenanceModeUpdateTask(mode));
+    public void submitOperationModeUpdate(OperationMode mode) {
+        clusterService.submitStateUpdateTask("ilm_operation_mode_update",
+            new OperationModeUpdateTask(mode));
     }
 }

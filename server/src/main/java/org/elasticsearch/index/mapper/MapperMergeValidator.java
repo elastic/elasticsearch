@@ -25,41 +25,46 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 public class MapperMergeValidator {
     public static void validateMapperStructure(String type,
                                                Collection<ObjectMapper> objectMappers,
                                                Collection<FieldMapper> fieldMappers,
+                                               Collection<FieldAliasMapper> fieldAliasMappers,
                                                Map<String, ObjectMapper> fullPathObjectMappers,
                                                FieldTypeLookup fieldTypes) {
-        checkFieldUniqueness(type, objectMappers, fieldMappers, fullPathObjectMappers, fieldTypes);
+        checkFieldUniqueness(type, objectMappers, fieldMappers,
+            fieldAliasMappers, fullPathObjectMappers, fieldTypes);
         checkObjectsCompatibility(objectMappers, fullPathObjectMappers);
     }
 
     private static void checkFieldUniqueness(String type,
                                              Collection<ObjectMapper> objectMappers,
                                              Collection<FieldMapper> fieldMappers,
+                                             Collection<FieldAliasMapper> fieldAliasMappers,
                                              Map<String, ObjectMapper> fullPathObjectMappers,
                                              FieldTypeLookup fieldTypes) {
 
         // first check within mapping
-        final Set<String> objectFullNames = new HashSet<>();
+        Set<String> objectFullNames = new HashSet<>();
         for (ObjectMapper objectMapper : objectMappers) {
-            final String fullPath = objectMapper.fullPath();
+            String fullPath = objectMapper.fullPath();
             if (objectFullNames.add(fullPath) == false) {
                 throw new IllegalArgumentException("Object mapper [" + fullPath + "] is defined twice in mapping for type [" + type + "]");
             }
         }
 
-        final Set<String> fieldNames = new HashSet<>();
-        for (FieldMapper fieldMapper : fieldMappers) {
-            final String name = fieldMapper.name();
-            if (objectFullNames.contains(name)) {
-                throw new IllegalArgumentException("Field [" + name + "] is defined both as an object and a field in [" + type + "]");
-            } else if (fieldNames.add(name) == false) {
-                throw new IllegalArgumentException("Field [" + name + "] is defined twice in [" + type + "]");
-            }
-        }
+        Set<String> fieldNames = new HashSet<>();
+        Stream.concat(fieldMappers.stream(), fieldAliasMappers.stream())
+            .forEach(mapper -> {
+                String name = mapper.name();
+                if (objectFullNames.contains(name)) {
+                    throw new IllegalArgumentException("Field [" + name + "] is defined both as an object and a field in [" + type + "]");
+                } else if (fieldNames.add(name) == false) {
+                    throw new IllegalArgumentException("Field [" + name + "] is defined twice in [" + type + "]");
+                }
+            });
 
         // then check other types
         for (String fieldName : fieldNames) {

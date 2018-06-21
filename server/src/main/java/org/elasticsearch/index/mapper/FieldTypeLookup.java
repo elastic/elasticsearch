@@ -70,15 +70,9 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             MappedFieldType fieldType = fieldMapper.fieldType();
             MappedFieldType fullNameFieldType = fullName.get(fieldType.name());
 
-            if (fullNameFieldType == null) {
-                // introduction of a new field
-                fullName = fullName.copyAndPut(fieldType.name(), fieldMapper.fieldType());
-            } else {
-                // modification of an existing field
-                validateFieldType(fullNameFieldType, fieldType);
-                if (fieldType.equals(fullNameFieldType) == false) {
-                    fullName = fullName.copyAndPut(fieldType.name(), fieldMapper.fieldType());
-                }
+            if (!Objects.equals(fieldType, fullNameFieldType)) {
+                validateField(fullNameFieldType, fieldType, aliases);
+                fullName = fullName.copyAndPut(fieldType.name(), fieldType);
             }
         }
 
@@ -93,15 +87,22 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         return new FieldTypeLookup(fullName, aliases);
     }
 
-    /**
-     * Checks if the given field type is compatible with an existing field type.
-     * An IllegalArgumentException is thrown in case of incompatibility.
-     */
-    private void validateFieldType(MappedFieldType existingFieldType, MappedFieldType newFieldType) {
-        List<String> conflicts = new ArrayList<>();
-        existingFieldType.checkCompatibility(newFieldType, conflicts);
-        if (conflicts.isEmpty() == false) {
-            throw new IllegalArgumentException("Mapper for [" + newFieldType.name() + "] conflicts with existing mapping:\n" + conflicts.toString());
+    private void validateField(MappedFieldType existingFieldType,
+                               MappedFieldType newFieldType,
+                               CopyOnWriteHashMap<String, String> aliasToConcreteName) {
+        String fieldName = newFieldType.name();
+        if (aliasToConcreteName.containsKey(fieldName)) {
+            throw new IllegalArgumentException("The name for field [" + fieldName + "] has already" +
+                " been used to define a field alias.");
+        }
+
+        if (existingFieldType != null) {
+            List<String> conflicts = new ArrayList<>();
+            existingFieldType.checkCompatibility(newFieldType, conflicts);
+            if (conflicts.isEmpty() == false) {
+                throw new IllegalArgumentException("Mapper for [" + fieldName +
+                    "] conflicts with existing mapping:\n" + conflicts.toString());
+            }
         }
     }
 
@@ -109,6 +110,11 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
                                String path,
                                CopyOnWriteHashMap<String, String> aliasToConcreteName,
                                CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType) {
+        if (fullNameToFieldType.containsKey(aliasName)) {
+            throw new IllegalArgumentException("The name for field alias [" + aliasName + "] has already" +
+                " been used to define a concrete field.");
+        }
+
         if (path.equals(aliasName)) {
             throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
                 aliasName + "]: an alias cannot refer to itself.");

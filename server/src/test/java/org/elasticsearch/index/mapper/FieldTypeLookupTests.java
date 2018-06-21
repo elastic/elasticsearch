@@ -214,6 +214,35 @@ public class FieldTypeLookupTests extends ESTestCase {
             " must refer to an existing field in the mappings.", e.getMessage());
     }
 
+    public void testAddAliasWithPreexistingField() {
+        MockFieldMapper field = new MockFieldMapper("field");
+        FieldTypeLookup lookup = new FieldTypeLookup()
+            .copyAndAddAll("type", newList(field), emptyList());
+
+        MockFieldMapper invalidField = new MockFieldMapper("invalid");
+        FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid", "invalid", "field");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> lookup.copyAndAddAll("type", newList(invalidField), newList(invalidAlias)));
+        assertEquals("The name for field alias [invalid] has already been used to define a concrete field.",
+            e.getMessage());
+    }
+
+    public void testAddFieldWithPreexistingAlias() {
+        MockFieldMapper field = new MockFieldMapper("field");
+        FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid", "invalid", "field");
+
+        FieldTypeLookup lookup = new FieldTypeLookup()
+            .copyAndAddAll("type", newList(field), newList(invalidAlias));
+
+        MockFieldMapper invalidField = new MockFieldMapper("invalid");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> lookup.copyAndAddAll("type", newList(invalidField), emptyList()));
+        assertEquals("The name for field [invalid] has already been used to define a field alias.",
+            e.getMessage());
+    }
+
     public void testSimpleMatchToFullName() {
         MockFieldMapper field1 = new MockFieldMapper("foo");
         MockFieldMapper field2 = new MockFieldMapper("bar");

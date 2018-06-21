@@ -31,6 +31,20 @@ import static java.util.Collections.singletonList;
 
 public class MapperMergeValidatorTests extends ESTestCase {
 
+    public void testDuplicateFieldAliasAndObject() {
+        ObjectMapper objectMapper = createObjectMapper("some.path");
+        FieldAliasMapper aliasMapper = new FieldAliasMapper("path", "some.path", "field");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            MapperMergeValidator.validateMapperStructure("type",
+                singletonList(objectMapper),
+                emptyList(),
+                singletonList(aliasMapper),
+                emptyMap(),
+                new FieldTypeLookup()));
+        assertEquals("Field [some.path] is defined both as an object and a field in [type]", e.getMessage());
+    }
+
     public void testFieldAliasWithNestedScope() {
         ObjectMapper objectMapper = createNestedObjectMapper("nested");
         FieldAliasMapper aliasMapper = new FieldAliasMapper("alias", "nested.alias", "nested.field");

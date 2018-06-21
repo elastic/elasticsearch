@@ -25,12 +25,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Get snapshots response
@@ -87,4 +90,20 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         return builder;
     }
 
+    public static GetSnapshotsResponse fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ArrayList<SnapshotInfo> snapshots = new ArrayList<>();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            String currentFieldName = parser.currentName();
+            if ("snapshots".equals(currentFieldName)) {
+                token = parser.nextToken();
+                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    snapshots.add(SnapshotInfo.fromXContent(parser));
+                }
+            }
+        }
+        return new GetSnapshotsResponse(snapshots);
+    }
 }

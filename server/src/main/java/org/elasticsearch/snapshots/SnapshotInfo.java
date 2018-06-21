@@ -41,6 +41,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+
 /**
  * Information about a snapshot
  */
@@ -117,7 +119,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, long startTime, String reason, long endTime,
                         int totalShards, List<SnapshotShardFailure> shardFailures, Boolean includeGlobalState) {
         this(snapshotId, indices, snapshotState(reason, shardFailures), reason, Version.CURRENT,
-             startTime, endTime, totalShards, totalShards - shardFailures.size(), shardFailures, includeGlobalState);
+            startTime, endTime, totalShards, totalShards - shardFailures.size(), shardFailures, includeGlobalState);
     }
 
     private SnapshotInfo(SnapshotId snapshotId, List<String> indices, SnapshotState state, String reason, Version version,
@@ -183,8 +185,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
      */
     public static SnapshotInfo incompatible(SnapshotId snapshotId) {
         return new SnapshotInfo(snapshotId, Collections.emptyList(), SnapshotState.INCOMPATIBLE,
-                                "the snapshot is incompatible with the current version of Elasticsearch and its exact version is unknown",
-                                null, 0L, 0L, 0, 0, Collections.emptyList(), null);
+            "the snapshot is incompatible with the current version of Elasticsearch and its exact version is unknown",
+            null, 0L, 0L, 0, 0, Collections.emptyList(), null);
     }
 
     /**
@@ -353,7 +355,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             return RestStatus.OK;
         }
         return RestStatus.status(successfulShards, totalShards,
-                                 shardFailures.toArray(new ShardOperationFailedException[shardFailures.size()]));
+            shardFailures.toArray(new ShardOperationFailedException[shardFailures.size()]));
     }
 
     @Override
@@ -415,7 +417,104 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         return builder;
     }
 
-    private XContentBuilder toXContentSnapshot(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
+    public static SnapshotInfo fromXContent(final XContentParser parser) throws IOException {
+        String name = null;
+        String uuid = null;
+        Version version = Version.CURRENT;
+        SnapshotState state = SnapshotState.IN_PROGRESS;
+        String reason = null;
+        List<String> indices = Collections.emptyList();
+        long startTime = 0;
+        long endTime = 0;
+        int totalShards = 0;
+        int successfulShards = 0;
+        Boolean includeGlobalState = null;
+        List<SnapshotShardFailure> shardFailures = Collections.emptyList();
+        if (parser.currentToken() == null) { // fresh parser? move to the first token
+            parser.nextToken();
+        }
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                String currentFieldName = parser.currentName();
+                token = parser.nextToken();
+                if (token.isValue()) {
+                    if (SNAPSHOT.equals(currentFieldName)) {
+                        name = parser.text();
+                    } else if (UUID.equals(currentFieldName)) {
+                        uuid = parser.text();
+                    } else if (VERSION_ID.equals(currentFieldName)) {
+                        version = Version.fromId(parser.intValue());
+                    } else if (INCLUDE_GLOBAL_STATE.equals(currentFieldName)) {
+                        includeGlobalState = parser.booleanValue();
+                    } else if (STATE.equals(currentFieldName)) {
+                        state = SnapshotState.valueOf(parser.text());
+                    } else if (REASON.equals(currentFieldName)) {
+                        reason = parser.text();
+                    } else if (START_TIME_IN_MILLIS.equals(currentFieldName)) {
+                        startTime = parser.longValue();
+                    } else if (END_TIME_IN_MILLIS.equals(currentFieldName)) {
+                        endTime = parser.longValue();
+                    }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if (INDICES.equals(currentFieldName)) {
+                        ArrayList<String> indicesArray = new ArrayList<>();
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            indicesArray.add(parser.text());
+                        }
+                        indices = Collections.unmodifiableList(indicesArray);
+                    } else if (FAILURES.equals(currentFieldName)) {
+                        ArrayList<SnapshotShardFailure> shardFailureArrayList = new ArrayList<>();
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            shardFailureArrayList.add(SnapshotShardFailure.fromXContent(parser));
+                        }
+                        shardFailures = Collections.unmodifiableList(shardFailureArrayList);
+                    } else {
+                        // It was probably created by newer version - ignoring
+                        parser.skipChildren();
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if (SHARDS.equals(currentFieldName)) {
+                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                                token = parser.nextToken();
+                                if (token.isValue()) {
+                                    if (TOTAL.equals(currentFieldName)) {
+                                        totalShards = parser.intValue();
+                                    } else if (SUCCESSFUL.equals(currentFieldName)) {
+                                        successfulShards = parser.intValue();
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // It was probably created by newer version - ignoring
+                        parser.skipChildren();
+                    }
+                }
+            }
+        }
+        if (uuid == null) {
+            // the old format where there wasn't a UUID
+            uuid = name;
+        }
+        return new SnapshotInfo(new SnapshotId(name, uuid),
+            indices,
+            state,
+            reason,
+            version,
+            startTime,
+            endTime,
+            totalShards,
+            successfulShards,
+            shardFailures,
+            includeGlobalState);
+    }
+
+    private XContentBuilder toXContentSnapshot(final XContentBuilder builder, final ToXContent.Params params) throws
+        IOException {
         builder.startObject(SNAPSHOT);
         builder.field(NAME, snapshotId.getName());
         builder.field(UUID, snapshotId.getUUID());
@@ -453,7 +552,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
      * handle x-content written with the external version as external x-content
      * is only for display purposes and does not need to be parsed.
      */
-    public static SnapshotInfo fromXContent(final XContentParser parser) throws IOException {
+    public static SnapshotInfo fromXContentSnapshot(final XContentParser parser) throws IOException {
         String name = null;
         String uuid = null;
         Version version = Version.CURRENT;
@@ -534,16 +633,16 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             uuid = name;
         }
         return new SnapshotInfo(new SnapshotId(name, uuid),
-                                indices,
-                                state,
-                                reason,
-                                version,
-                                startTime,
-                                endTime,
-                                totalShards,
-                                successfulShards,
-                                shardFailures,
-                                includeGlobalState);
+            indices,
+            state,
+            reason,
+            version,
+            startTime,
+            endTime,
+            totalShards,
+            successfulShards,
+            shardFailures,
+            includeGlobalState);
     }
 
     @Override

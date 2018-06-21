@@ -30,11 +30,14 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -117,6 +120,24 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         VerifyRepositoryResponse response = execute(request, highLevelClient().snapshot()::verifyRepository,
             highLevelClient().snapshot()::verifyRepositoryAsync);
         assertThat(response.getNodes().size(), equalTo(1));
+    }
+
+    public void testGetSnapshots() throws IOException {
+        String repository = "test_repository";
+        String snapshot = "test_snapshot";
+
+        PutRepositoryResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        Response putSnapshotResponse = createTestSnapshot(repository, snapshot);
+        // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
+        assertEquals(200, putSnapshotResponse.getStatusLine().getStatusCode());
+
+        GetSnapshotsRequest request = new GetSnapshotsRequest(repository, Arrays.asList(snapshot).toArray(new String[0]));
+        GetSnapshotsResponse response = execute(request, highLevelClient().snapshot()::get, highLevelClient().snapshot()::getAsync);
+
+        fail();
+//        assertTrue(response.isAcknowledged());
     }
 
     public void testDeleteSnapshot() throws IOException {

@@ -38,6 +38,8 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -1856,6 +1858,34 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(endpoint, equalTo(request.getEndpoint()));
         assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(expectedParams, equalTo(request.getParameters()));
+    }
+
+    public void testGetSnapshots() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String snapshot1 = "snapshot1-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+        String snapshot2 = "snapshot2-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+
+        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s,%s", repository, snapshot1, snapshot2);
+
+        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest();
+        getSnapshotsRequest.repository(repository);
+        getSnapshotsRequest.snapshots(Arrays.asList(snapshot1, snapshot2).toArray(new String[0]));
+        setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
+        if (randomBoolean()) {
+            getSnapshotsRequest.ignoreUnavailable(true);
+            expectedParams.put("ignore_unavailable", Boolean.TRUE.toString());
+        }
+        if (randomBoolean() == false) {
+            getSnapshotsRequest.verbose(false);
+            expectedParams.put("verbose", Boolean.FALSE.toString());
+        }
+
+        Request request = RequestConverters.getSnapshots(getSnapshotsRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertNull(request.getEntity());
     }
 
     public void testDeleteSnapshot() {

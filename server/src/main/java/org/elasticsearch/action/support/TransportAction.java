@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
@@ -39,16 +38,14 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     protected final ThreadPool threadPool;
     protected final String actionName;
     private final ActionFilter[] filters;
-    protected final IndexNameExpressionResolver indexNameExpressionResolver;
     protected final TaskManager taskManager;
 
     protected TransportAction(Settings settings, String actionName, ThreadPool threadPool, ActionFilters actionFilters,
-                              IndexNameExpressionResolver indexNameExpressionResolver, TaskManager taskManager) {
+                              TaskManager taskManager) {
         super(settings);
         this.threadPool = threadPool;
         this.actionName = actionName;
         this.filters = actionFilters.filters();
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.taskManager = taskManager;
     }
 

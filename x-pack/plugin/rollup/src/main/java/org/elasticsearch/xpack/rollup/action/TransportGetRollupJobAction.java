@@ -12,7 +12,6 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -40,12 +39,9 @@ public class TransportGetRollupJobAction extends TransportTasksAction<RollupJobT
 
     @Inject
     public TransportGetRollupJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       ClusterService clusterService) {
-
+                                       ActionFilters actionFilters, ClusterService clusterService) {
         super(settings, GetRollupJobsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, GetRollupJobsAction.Request::new,
-                GetRollupJobsAction.Response::new, ThreadPool.Names.SAME);
+            GetRollupJobsAction.Request::new, GetRollupJobsAction.Response::new, ThreadPool.Names.SAME);
     }
 
     @Override

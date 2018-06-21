@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -30,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -42,10 +42,9 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
     @Inject
     public TransportPutFilterAction(Settings settings, ThreadPool threadPool,
                                     TransportService transportService, ActionFilters actionFilters,
-                                    IndexNameExpressionResolver indexNameExpressionResolver,
                                     Client client, JobManager jobManager) {
         super(settings, PutFilterAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, PutFilterAction.Request::new);
+            (Supplier<PutFilterAction.Request>) PutFilterAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
     }

@@ -22,9 +22,9 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,10 +43,9 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     @Inject
     public TransportSearchScrollAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                        ClusterService clusterService, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                        SearchTransportService searchTransportService, SearchPhaseController searchPhaseController) {
-        super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, SearchScrollRequest::new,
-            indexNameExpressionResolver);
+        super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters,
+            (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.searchPhaseController = searchPhaseController;

@@ -11,7 +11,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -39,10 +38,10 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
 
     @Inject
     public TransportDeleteModelSnapshotAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                              ActionFilters actionFilters,
                                               JobProvider jobProvider, ClusterService clusterService, Client client, Auditor auditor) {
-        super(settings, DeleteModelSnapshotAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                DeleteModelSnapshotAction.Request::new);
+        super(settings, DeleteModelSnapshotAction.NAME, threadPool, transportService, actionFilters,
+              DeleteModelSnapshotAction.Request::new);
         this.client = client;
         this.jobProvider = jobProvider;
         this.clusterService = clusterService;

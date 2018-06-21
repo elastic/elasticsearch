@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -49,9 +48,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
     @Inject
     public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                      ClusterService clusterService, TransportSearchAction searchAction,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver resolver) {
-        super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters, resolver, MultiSearchRequest::new);
+                                      ClusterService clusterService, TransportSearchAction searchAction, ActionFilters actionFilters) {
+        super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters, MultiSearchRequest::new);
         this.clusterService = clusterService;
         this.searchAction = searchAction;
         this.availableProcessors = EsExecutors.numberOfProcessors(settings);
@@ -60,8 +58,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
     TransportMultiSearchAction(ThreadPool threadPool, ActionFilters actionFilters, TransportService transportService,
                                ClusterService clusterService, TransportAction<SearchRequest, SearchResponse> searchAction,
-                               IndexNameExpressionResolver resolver, int availableProcessors, LongSupplier relativeTimeProvider) {
-        super(Settings.EMPTY, MultiSearchAction.NAME, threadPool, transportService, actionFilters, resolver, MultiSearchRequest::new);
+                               int availableProcessors, LongSupplier relativeTimeProvider) {
+        super(Settings.EMPTY, MultiSearchAction.NAME, threadPool, transportService, actionFilters, MultiSearchRequest::new);
         this.clusterService = clusterService;
         this.searchAction = searchAction;
         this.availableProcessors = availableProcessors;

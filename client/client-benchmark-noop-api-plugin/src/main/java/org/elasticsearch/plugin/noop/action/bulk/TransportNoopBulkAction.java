@@ -27,7 +27,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,8 +39,8 @@ public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest,
 
     @Inject
     public TransportNoopBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, NoopBulkAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, BulkRequest::new);
+                                      ActionFilters actionFilters) {
+        super(settings, NoopBulkAction.NAME, threadPool, transportService, actionFilters, BulkRequest::new);
     }
 
     @Override

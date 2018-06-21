@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.Action;
 
-public class DeleteStoredScriptAction extends Action<DeleteStoredScriptRequest, DeleteStoredScriptResponse> {
+public class DeleteStoredScriptAction extends Action<DeleteStoredScriptResponse> {
 
     public static final DeleteStoredScriptAction INSTANCE = new DeleteStoredScriptAction();
     public static final String NAME = "cluster:admin/script/delete";

@@ -46,19 +46,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final ClusterService clusterService;
     private final TransportFieldCapabilitiesIndexAction shardAction;
     private final RemoteClusterService remoteClusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportFieldCapabilitiesAction(Settings settings, TransportService transportService,
                                             ClusterService clusterService, ThreadPool threadPool,
                                             TransportFieldCapabilitiesIndexAction shardAction,
-                                            ActionFilters actionFilters,
-                                            IndexNameExpressionResolver
-                                                    indexNameExpressionResolver) {
-        super(settings, FieldCapabilitiesAction.NAME, threadPool, transportService,
-            actionFilters, indexNameExpressionResolver, FieldCapabilitiesRequest::new);
+                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, FieldCapabilitiesAction.NAME, threadPool, transportService, actionFilters, FieldCapabilitiesRequest::new);
         this.clusterService = clusterService;
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.shardAction = shardAction;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

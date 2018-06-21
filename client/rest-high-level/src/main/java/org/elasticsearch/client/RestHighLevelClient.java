@@ -26,6 +26,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -650,6 +654,62 @@ public class RestHighLevelClient implements Closeable {
                                                      RequestOptions options) throws IOException {
         return performRequestAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
             FieldCapabilitiesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Get stored script by id.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
+     *     How to use scripts on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetStoredScriptResponse getScript(GetStoredScriptRequest request, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(request, RequestConverters::getScript, options,
+            GetStoredScriptResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously get stored script by id.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
+     *     How to use scripts on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getScriptAsync(GetStoredScriptRequest request, RequestOptions options,
+                               ActionListener<GetStoredScriptResponse> listener) {
+        performRequestAsyncAndParseEntity(request, RequestConverters::getScript, options,
+            GetStoredScriptResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Delete stored script by id.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
+     *     How to use scripts on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DeleteStoredScriptResponse deleteScript(DeleteStoredScriptRequest request, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(request, RequestConverters::deleteScript, options,
+            DeleteStoredScriptResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously delete stored script by id.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html">
+     *     How to use scripts on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void deleteScriptAsync(DeleteStoredScriptRequest request, RequestOptions options,
+                                  ActionListener<DeleteStoredScriptResponse> listener) {
+        performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
+            DeleteStoredScriptResponse::fromXContent, listener, emptySet());
     }
 
     /**

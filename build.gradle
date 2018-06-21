@@ -600,3 +600,10 @@ if (System.properties.get("build.compare") != null) {
     }
   }
 }
+
+// make sure integration tests run after unit tests
+allprojects {
+  if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
+      integTest.mustRunAfter test
+  }
+}

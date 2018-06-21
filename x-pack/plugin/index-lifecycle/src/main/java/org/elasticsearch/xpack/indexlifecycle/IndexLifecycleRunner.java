@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
@@ -340,6 +342,36 @@ public class IndexLifecycleRunner {
             // Index not previously managed by ILM so safe to change policy
             return true;
         }
+    }
+
+    /**
+     * Returns <code>true</code> if the provided policy is allowed to be updated
+     * given the current {@link ClusterState}. In practice this method checks
+     * that all the indexes using the provided <code>policyName</code> is in a
+     * state where it is able to deal with the policy being updated to
+     * <code>newPolicy</code>. If any of these indexes is not in a state wheree
+     * it can deal with the update the method will return <code>false</code>.
+     * 
+     * @param policyName
+     *            the name of the policy being updated
+     * @param newPolicy
+     *            the new version of the {@link LifecyclePolicy}
+     * @param currentState
+     *            the current {@link ClusterState}
+     */
+    public static boolean canUpdatePolicy(String policyName, LifecyclePolicy newPolicy, ClusterState currentState) {
+        for (ObjectCursor<IndexMetaData> cursor : currentState.getMetaData().indices().values()) {
+            IndexMetaData idxMetadata = cursor.value;
+            Settings idxSettings = idxMetadata.getSettings();
+            String currentPolicyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
+            if (policyName.equals(currentPolicyName)) {
+                StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(idxSettings);
+                if (canSetPolicy(currentStepKey, policyName, newPolicy) == false) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     public static ClusterState removePolicyForIndexes(final Index[] indices, ClusterState currentState, List<String> failedIndexes) {

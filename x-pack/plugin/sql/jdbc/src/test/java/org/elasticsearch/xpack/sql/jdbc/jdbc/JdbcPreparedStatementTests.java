@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.jdbc.jdbc;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -15,6 +16,7 @@ import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Calendar;
 import java.util.Date;
@@ -318,7 +320,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         assertEquals(someTimestamp.getTime(), ((Date)value(jps)).getTime());
         assertEquals(TIMESTAMP, jdbcType(jps));
         
-        Calendar nonDefaultCal = Calendar.getInstance(randomTimeZone());
+        Calendar nonDefaultCal = randomCalendar();
         // February 29th, 2016. 01:17:55 GMT = 1456708675000 millis since epoch
         jps.setTimestamp(1, new Timestamp(1456708675000L), nonDefaultCal);
         assertEquals(1456708675000L + nonDefaultCal.getTimeZone().getRawOffset(), ((Date)value(jps)).getTime());
@@ -340,7 +342,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         JdbcPreparedStatement jps = createJdbcPreparedStatement();
         
         Time time = new Time(4675000);
-        Calendar nonDefaultCal = Calendar.getInstance(randomTimeZone());
+        Calendar nonDefaultCal = randomCalendar();
         jps.setTime(1, time, nonDefaultCal);
         assertEquals(4675000 + nonDefaultCal.getTimeZone().getRawOffset(), ((Date)value(jps)).getTime());
         assertEquals(TIMESTAMP, jdbcType(jps));
@@ -362,7 +364,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         assertEquals(TIMESTAMP, jdbcType(jps));
         
         someSqlDate = new java.sql.Date(randomMillisSinceEpoch());
-        Calendar nonDefaultCal = Calendar.getInstance(randomTimeZone());
+        Calendar nonDefaultCal = randomCalendar();
         jps.setDate(1, someSqlDate, nonDefaultCal);
         assertEquals(someSqlDate.getTime() + nonDefaultCal.getTimeZone().getRawOffset(), ((Date)value(jps)).getTime());
         assertEquals(TIMESTAMP, jdbcType(jps));
@@ -378,7 +380,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
     
     public void testCalendar() throws SQLException {
         JdbcPreparedStatement jps = createJdbcPreparedStatement();
-        Calendar someCalendar = Calendar.getInstance();
+        Calendar someCalendar = randomCalendar();
         someCalendar.setTimeInMillis(randomMillisSinceEpoch());
         
         jps.setObject(1, someCalendar);
@@ -392,7 +394,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, someCalendar, Types.DOUBLE));
         assertEquals("Conversion from type " + someCalendar.getClass().getName() + " to DOUBLE not supported", sqle.getMessage());
         
-        Calendar nonDefaultCal = Calendar.getInstance(randomTimeZone());
+        Calendar nonDefaultCal = randomCalendar();
         jps.setObject(1, nonDefaultCal);
         assertEquals(nonDefaultCal.getTime(), (Date) value(jps));
         assertEquals(TIMESTAMP, jdbcType(jps));
@@ -416,7 +418,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
     
     public void testLocalDateTime() throws SQLException {
         JdbcPreparedStatement jps = createJdbcPreparedStatement();
-        LocalDateTime ldt = LocalDateTime.now();
+        LocalDateTime ldt = LocalDateTime.now(Clock.systemDefaultZone());
         
         jps.setObject(1, ldt);
         assertEquals(Date.class, value(jps).getClass());
@@ -433,7 +435,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
     public void testBytesSetter() throws SQLException {
         JdbcPreparedStatement jps = createJdbcPreparedStatement();
         
-        byte[] buffer = "some data".getBytes();
+        byte[] buffer = "some data".getBytes(StandardCharsets.UTF_8);
         jps.setBytes(1, buffer);
         assertEquals(byte[].class, value(jps).getClass());
         assertEquals(VARBINARY, jdbcType(jps));
@@ -467,5 +469,9 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
     private Object value(JdbcPreparedStatement jps) throws SQLException {
         return jps.query.getParam(1).value;
+    }
+    
+    private Calendar randomCalendar() {
+        return Calendar.getInstance(randomTimeZone(), Locale.ROOT);
     }
 }

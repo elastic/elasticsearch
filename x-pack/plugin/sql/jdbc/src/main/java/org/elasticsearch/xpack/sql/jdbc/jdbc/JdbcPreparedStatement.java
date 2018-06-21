@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
+import java.util.Locale;
 
 class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     final PreparedQuery query;
@@ -370,14 +371,14 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                     dateToSet = (java.util.Date) x;
                 } else if (x instanceof LocalDateTime){
                     LocalDateTime ldt = (LocalDateTime) x;
-                    Calendar cal = Calendar.getInstance(cfg.timeZone());
+                    Calendar cal = getDefaultCalendar();
                     cal.set(ldt.getYear(), ldt.getMonthValue() - 1, ldt.getDayOfMonth(), ldt.getHour(), ldt.getMinute(), ldt.getSecond());
                     
                     dateToSet = cal.getTime();
                 } else if (x instanceof Date) {
-                    dateToSet = TypeConverter.convertDate(((Date) x).getTime(), Calendar.getInstance(cfg.timeZone()));
+                    dateToSet = TypeConverter.convertDate(((Date) x).getTime(), getDefaultCalendar());
                 } else {
-                    dateToSet = TypeConverter.convertDate(((Time) x).getTime(), Calendar.getInstance(cfg.timeZone()));
+                    dateToSet = TypeConverter.convertDate(((Time) x).getTime(), getDefaultCalendar());
                 }
 
                 setParam(parameterIndex, dateToSet, Types.TIMESTAMP);
@@ -410,6 +411,10 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                 throw new SQLFeatureNotSupportedException("Objects of type " + clazz.getName() + " are not supported");
            }
         }
+    }
+    
+    private Calendar getDefaultCalendar() {
+        return Calendar.getInstance(cfg.timeZone(), Locale.ROOT);
     }
 
     @Override

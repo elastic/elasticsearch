@@ -21,12 +21,15 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -36,6 +39,29 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
 
     @Override
     protected MultiSearchTemplateResponse createTestInstance() {
+        int numItems = randomIntBetween(0, 128);
+        long overallTookInMillis = randomNonNegativeLong();
+        MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[numItems];
+        for (int i = 0; i < numItems; i++) {
+            // Creating a minimal response is OK, because SearchResponse self
+            // is tested elsewhere.
+            long tookInMillis = randomNonNegativeLong();
+            int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
+            int successfulShards = randomIntBetween(0, totalShards);
+            int skippedShards = totalShards - successfulShards;
+            InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
+            SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalShards, successfulShards, skippedShards);
+            SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
+            SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
+                    successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
+            searchTemplateResponse.setResponse(searchResponse);
+            items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
+        }
+        return new MultiSearchTemplateResponse(items, overallTookInMillis);
+    }
+    
+
+    private static  MultiSearchTemplateResponse createTestInstanceWithFailures() {
         int numItems = randomIntBetween(0, 128);
         long overallTookInMillis = randomNonNegativeLong();
         MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[numItems];
@@ -75,11 +101,6 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return field -> field.startsWith("responses");
     }    
-    
-    @Override
-    protected boolean assertToXContentEquivalence() {
-        return false;
-    }
 
     @Override
     protected void assertEqualInstances(MultiSearchTemplateResponse expectedInstance, MultiSearchTemplateResponse newInstance) {
@@ -97,5 +118,22 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             }
         }
     }
+    
+    /**
+     * Test parsing {@link MultiSearchTemplateResponse} with inner failures as they don't support asserting on xcontent equivalence, given that
+     * exceptions are not parsed back as the same original class. We run the usual {@link AbstractXContentTestCase#testFromXContent()}
+     * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.
+     */
+    public void testFromXContentWithFailures() throws IOException {
+        Supplier<MultiSearchTemplateResponse> instanceSupplier = MultiSearchTemplateResponseTests::createTestInstanceWithFailures;
+        //with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
+        //but that does not bother our assertions, as we only want to test that we don't break.
+        boolean supportsUnknownFields = true;
+        //exceptions are not of the same type whenever parsed back
+        boolean assertToXContentEquivalence = false;
+        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
+                getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
+                this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
+    }    
 
 }

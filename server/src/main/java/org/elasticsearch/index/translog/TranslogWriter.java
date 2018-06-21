@@ -40,6 +40,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
@@ -202,9 +203,23 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             if (previous.v1().equals(data) == false) {
                 Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput()));
                 Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.v1().streamInput()));
-                throw new AssertionError(
-                    "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
-                        "prvOp [" + prvOp + "], newOp [" + newOp + "]", previous.v2());
+                // TODO: We haven't had timestamp for Index operations in Lucene yet, we need to loosen this check without timestamp.
+                final boolean sameOp;
+                if (newOp instanceof Translog.Index && prvOp instanceof Translog.Index) {
+                    final Translog.Index o1 = (Translog.Index) newOp;
+                    final Translog.Index o2 = (Translog.Index) prvOp;
+                    sameOp = Objects.equals(o1.id(), o2.id()) && Objects.equals(o1.type(), o2.type())
+                        && Objects.equals(o1.source(), o2.source()) && Objects.equals(o1.routing(), o2.routing())
+                        && o1.primaryTerm() == o2.primaryTerm() && o1.seqNo() == o2.seqNo()
+                        && o1.version() == o2.version() && o1.versionType() == o2.versionType();
+                } else {
+                    sameOp = false;
+                }
+                if (sameOp == false) {
+                    throw new AssertionError(
+                        "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
+                            "prvOp [" + prvOp + "], newOp [" + newOp + "]", previous.v2());
+                }
             }
         } else {
             seenSequenceNumbers.put(seqNo,

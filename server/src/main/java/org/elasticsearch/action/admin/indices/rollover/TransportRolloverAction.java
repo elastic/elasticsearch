@@ -109,8 +109,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                    final ActionListener<RolloverResponse> listener) {
         final MetaData metaData = state.metaData();
         validate(metaData, rolloverRequest);
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
-        final IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);
+        final AliasOrIndex.Alias alias = (AliasOrIndex.Alias) metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
+        final IndexMetaData indexMetaData = alias.getWriteIndex();
+        final boolean explicitWriteIndex = Boolean.TRUE.equals(indexMetaData.getAliases().get(alias.getAliasName()).writeIndex());
         final String sourceProvidedName = indexMetaData.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
             indexMetaData.getIndex().getName());
         final String sourceIndexName = indexMetaData.getIndex().getName();
@@ -138,10 +139,15 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                         CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(unresolvedName, rolloverIndexName,
                             rolloverRequest);
                         createIndexService.createIndex(updateRequest, ActionListener.wrap(createIndexClusterStateUpdateResponse -> {
-                            // switch the alias to point to the newly created index
-                            indexAliasesService.indicesAliases(
-                                prepareRolloverAliasesUpdateRequest(sourceIndexName, rolloverIndexName,
-                                    rolloverRequest),
+                            final IndicesAliasesClusterStateUpdateRequest aliasesUpdateRequest;
+                            if (explicitWriteIndex) {
+                                aliasesUpdateRequest = prepareRolloverAliasesWriteIndexUpdateRequest(sourceIndexName,
+                                    rolloverIndexName, rolloverRequest);
+                            } else {
+                                aliasesUpdateRequest = prepareRolloverAliasesUpdateRequest(sourceIndexName,
+                                    rolloverIndexName, rolloverRequest);
+                            }
+                            indexAliasesService.indicesAliases(aliasesUpdateRequest,
                                 ActionListener.wrap(aliasClusterStateUpdateResponse -> {
                                     if (aliasClusterStateUpdateResponse.isAcknowledged()) {
                                         clusterService.submitStateUpdateTask("update_rollover_info", new ClusterStateUpdateTask() {
@@ -196,8 +202,19 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesUpdateRequest(String oldIndex, String newIndex,
                                                                                        RolloverRequest request) {
         List<AliasAction> actions = unmodifiableList(Arrays.asList(
-                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null),
-                new AliasAction.Remove(oldIndex, request.getAlias())));
+            new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null),
+            new AliasAction.Remove(oldIndex, request.getAlias())));
+        final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(actions)
+            .ackTimeout(request.ackTimeout())
+            .masterNodeTimeout(request.masterNodeTimeout());
+        return updateRequest;
+    }
+
+    static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesWriteIndexUpdateRequest(String oldIndex, String newIndex,
+                                                                                                 RolloverRequest request) {
+        List<AliasAction> actions = unmodifiableList(Arrays.asList(
+            new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true),
+            new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false)));
         final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(actions)
             .ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout());
@@ -244,8 +261,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         if (aliasOrIndex.isAlias() == false) {
             throw new IllegalArgumentException("source alias is a concrete index");
         }
-        if (aliasOrIndex.getIndices().size() != 1) {
-            throw new IllegalArgumentException("source alias maps to multiple indices");
+        final AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
+        if (alias.getWriteIndex() == null) {
+            throw new IllegalArgumentException("source alias [" + alias.getAliasName() + "] does not point to a write index");
         }
     }
 

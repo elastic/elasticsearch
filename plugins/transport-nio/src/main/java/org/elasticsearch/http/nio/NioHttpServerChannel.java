@@ -20,20 +20,16 @@
 package org.elasticsearch.http.nio;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.http.HttpServerChannel;
+import org.elasticsearch.nio.NioServerSocketChannel;
 
-import java.nio.channels.SocketChannel;
+import java.io.IOException;
+import java.nio.channels.ServerSocketChannel;
 
-public class NioHttpChannel extends NioSocketChannel implements HttpChannel {
+public class NioHttpServerChannel extends NioServerSocketChannel implements HttpServerChannel {
 
-    NioHttpChannel(SocketChannel socketChannel) {
-        super(socketChannel);
-    }
-
-    public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        getContext().sendMessage(response, ActionListener.toBiConsumer(listener));
+    NioHttpServerChannel(ServerSocketChannel serverSocketChannel) throws IOException {
+        super(serverSocketChannel);
     }
 
     @Override
@@ -43,9 +39,6 @@ public class NioHttpChannel extends NioSocketChannel implements HttpChannel {
 
     @Override
     public String toString() {
-        return "NioHttpChannel{" +
-            "localAddress=" + getLocalAddress() +
-            ", remoteAddress=" + getRemoteAddress() +
-            '}';
+        return "NioHttpServerChannel{localAddress=" + getLocalAddress() + "}";
     }
 }

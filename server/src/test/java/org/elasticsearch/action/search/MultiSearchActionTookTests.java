@@ -22,7 +22,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -148,10 +148,9 @@ public class MultiSearchActionTookTests extends ESTestCase {
         final ExecutorService commonExecutor = threadPool.executor(threadPoolNames.get(0));
         final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
 
-        TransportAction<SearchRequest, SearchResponse> searchAction = new TransportAction<SearchRequest, SearchResponse>(Settings.EMPTY,
-                "action", threadPool, actionFilters, taskManager) {
+        NodeClient client = new NodeClient(settings, threadPool) {
             @Override
-            protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
+            public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
                 requests.add(request);
                 commonExecutor.execute(() -> {
                     counter.decrementAndGet();
@@ -161,8 +160,8 @@ public class MultiSearchActionTookTests extends ESTestCase {
         };
 
         if (controlledClock) {
-            return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction,
-                    availableProcessors, expected::get) {
+            return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, availableProcessors,
+                                                  expected::get, client) {
                 @Override
                 void executeSearch(final Queue<SearchRequestSlot> requests, final AtomicArray<MultiSearchResponse.Item> responses,
                         final AtomicInteger responseCounter, final ActionListener<MultiSearchResponse> listener, long startTimeInNanos) {
@@ -171,9 +170,8 @@ public class MultiSearchActionTookTests extends ESTestCase {
                 }
             };
         } else {
-            return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction,
-                    availableProcessors, System::nanoTime) {
-
+            return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService,
+                                                  availableProcessors, System::nanoTime, client) {
                 @Override
                 void executeSearch(final Queue<SearchRequestSlot> requests, final AtomicArray<MultiSearchResponse.Item> responses,
                         final AtomicInteger responseCounter, final ActionListener<MultiSearchResponse> listener, long startTimeInNanos) {

@@ -11,7 +11,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -21,16 +21,17 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class PutPrivilegesRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        final PutPrivilegesRequest original = request(randomArray(8, ApplicationPrivilege[]::new, () -> new ApplicationPrivilege(
+        final PutPrivilegesRequest original = request(randomArray(8, ApplicationPrivilegeDescriptor[]::new,
+            () -> new ApplicationPrivilegeDescriptor(
                 randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT),
                 randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT),
-                randomArray(3, String[]::new, () -> randomAlphaOfLength(3).toLowerCase(Locale.ROOT) + "/*")
+                Sets.newHashSet(randomArray(3, String[]::new, () -> randomAlphaOfLength(3).toLowerCase(Locale.ROOT) + "/*")),
+                Collections.emptyMap()
             )
         ));
         original.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
@@ -47,30 +48,31 @@ public class PutPrivilegesRequestTests extends ESTestCase {
 
     public void testValidation() {
         // wildcard app name
-        final ApplicationPrivilege wildcardApp = new ApplicationPrivilege("*", "all", "*");
+        final ApplicationPrivilegeDescriptor wildcardApp = descriptor("*", "all", "*");
         assertValidationFailure(request(wildcardApp), "Application names must match");
 
-        // multiple names
-        final ApplicationPrivilege read = new ApplicationPrivilege("app", "read", "read/*");
-        final ApplicationPrivilege write = new ApplicationPrivilege("app", "write", "write/*");
-        final ApplicationPrivilege multiName = ApplicationPrivilege.get("app",
-            Sets.newHashSet("read", "write"), Sets.newHashSet(read, write));
-        assertThat(multiName.name(), iterableWithSize(2));
-        assertValidationFailure(request(multiName), "must have a single name");
+        // invalid priv names
+        final ApplicationPrivilegeDescriptor spaceName = descriptor("app", "r e a d", "read/*");
+        final ApplicationPrivilegeDescriptor numericName = descriptor("app", "7346", "read/*");
+        assertValidationFailure(request(spaceName), "Application privilege names must match");
+        assertValidationFailure(request(numericName), "Application privilege names must match");
 
         // reserved metadata
-        final ApplicationPrivilege reservedMetadata = new ApplicationPrivilege("app", "all", Collections.emptyList(),
-            Collections.singletonMap("_foo", "var"));
+        final ApplicationPrivilegeDescriptor reservedMetadata = new ApplicationPrivilegeDescriptor("app", "all",
+            Collections.emptySet(), Collections.singletonMap("_notAllowed", true)
+        );
         assertValidationFailure(request(reservedMetadata), "metadata keys may not start");
 
+        ApplicationPrivilegeDescriptor badAction = descriptor("app", "foo", randomFrom("data.read", "data_read", "data+read", "read"));
+        assertValidationFailure(request(badAction), "must contain one of");
+
         // mixed
-        assertValidationFailure(request(wildcardApp, multiName, reservedMetadata),
-            "Application names must match", "must have a single name", "metadata keys may not start");
+        assertValidationFailure(request(wildcardApp, numericName, reservedMetadata, badAction),
+            "Application names must match", "Application privilege names must match", "metadata keys may not start", "must contain one of");
     }
 
-    private ApplicationPrivilege reservedMetadata() {
-        return new ApplicationPrivilege("app", "all", Collections.emptyList(),
-            Collections.singletonMap("_foo", "var"));
+    private ApplicationPrivilegeDescriptor descriptor(String application, String name, String... actions) {
+        return new ApplicationPrivilegeDescriptor(application, name, Sets.newHashSet(actions), Collections.emptyMap());
     }
 
     private void assertValidationFailure(PutPrivilegesRequest request, String... messages) {
@@ -81,7 +83,7 @@ public class PutPrivilegesRequestTests extends ESTestCase {
         }
     }
 
-    private PutPrivilegesRequest request(ApplicationPrivilege... privileges) {
+    private PutPrivilegesRequest request(ApplicationPrivilegeDescriptor... privileges) {
         final PutPrivilegesRequest original = new PutPrivilegesRequest();
 
         original.setPrivileges(Arrays.asList(privileges));

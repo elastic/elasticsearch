@@ -54,6 +54,10 @@ public class HasPrivilegesResponse extends ActionResponse {
         return Collections.unmodifiableList(index);
     }
 
+    /**
+     * Retrieves the results from checking application privileges,
+     * @return A {@code Map} keyed by application-name
+     */
     public Map<String, List<ResourcePrivileges>> getApplicationPrivileges() {
         return Collections.unmodifiableMap(application);
     }

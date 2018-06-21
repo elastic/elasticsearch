@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
@@ -47,9 +48,25 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         if (name == null) {
             validationException = addValidationError("role name is missing", validationException);
         }
+        if(applicationPrivileges != null) {
+            for (RoleDescriptor.ApplicationResourcePrivileges privilege : applicationPrivileges) {
+                try {
+                    ApplicationPrivilege.validateApplicationNameOrWildcard(privilege.getApplication());
+                } catch (IllegalArgumentException e) {
+                    validationException = addValidationError(e.getMessage(), validationException);
+                }
+                for (String name : privilege.getPrivileges()) {
+                    try {
+                        ApplicationPrivilege.validatePrivilegeOrActionName(name);
+                    } catch (IllegalArgumentException e) {
+                        validationException = addValidationError(e.getMessage(), validationException);
+                    }
+                }
+            }
+        }
         if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
             validationException =
-                    addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]", validationException);
+                addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]", validationException);
         }
         return validationException;
     }
@@ -79,13 +96,6 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
 
     void addApplicationPrivileges(RoleDescriptor.ApplicationResourcePrivileges... privileges) {
         this.applicationPrivileges.addAll(Arrays.asList(privileges));
-    }
-
-    public void addApplicationPrivilege(String[] privileges, String[] resources) {
-        this.applicationPrivileges.add(RoleDescriptor.ApplicationResourcePrivileges.builder()
-                .resources(resources)
-                .privileges(privileges)
-                .build());
     }
 
     public void runAs(String... usernames) {

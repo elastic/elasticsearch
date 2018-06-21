@@ -9,8 +9,9 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -19,14 +20,19 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ApplicationPermissionTests extends ESTestCase {
 
-    private ApplicationPrivilege app1All = new ApplicationPrivilege("app1", "all", "*");
-    private ApplicationPrivilege app1Read = new ApplicationPrivilege("app1", "read", "read/*");
-    private ApplicationPrivilege app1Write = new ApplicationPrivilege("app1", "write", "write/*");
-    private ApplicationPrivilege app1Delete = new ApplicationPrivilege("app1", "delete", "write/delete");
-    private ApplicationPrivilege app1Create = new ApplicationPrivilege("app1", "create", "write/create");
-    private ApplicationPrivilege app2Read = new ApplicationPrivilege("app2", "read", "read/*");
+    private List<ApplicationPrivilegeDescriptor> store = new ArrayList<>();
 
-    private List<ApplicationPrivilege> all = Arrays.asList(app1All, app1Read, app1Write, app1Create, app1Delete, app2Read);
+    private ApplicationPrivilege app1All = storePrivilege("app1", "all", "*");
+    private ApplicationPrivilege app1Read = storePrivilege("app1", "read", "read/*");
+    private ApplicationPrivilege app1Write = storePrivilege("app1", "write", "write/*");
+    private ApplicationPrivilege app1Delete = storePrivilege("app1", "delete", "write/delete");
+    private ApplicationPrivilege app1Create = storePrivilege("app1", "create", "write/create");
+    private ApplicationPrivilege app2Read = storePrivilege("app2", "read", "read/*");
+
+    private ApplicationPrivilege storePrivilege(String app, String name, String... patterns) {
+        store.add(new ApplicationPrivilegeDescriptor(app, name, Sets.newHashSet(patterns), Collections.emptyMap()));
+        return new ApplicationPrivilege(app, name, patterns);
+    }
 
     public void testCheckSimplePermission() {
         final ApplicationPermission hasPermission = buildPermission(app1Write, "*");
@@ -84,7 +90,7 @@ public class ApplicationPermissionTests extends ESTestCase {
     }
 
     public void testMergedPermissionChecking() {
-        final ApplicationPrivilege app1ReadWrite = ApplicationPrivilege.get("app1", Sets.union(app1Read.name(), app1Write.name()), all);
+        final ApplicationPrivilege app1ReadWrite = ApplicationPrivilege.get("app1", Sets.union(app1Read.name(), app1Write.name()), store);
         final ApplicationPermission hasPermission = buildPermission(app1ReadWrite, "allow/*");
 
         assertThat(hasPermission.grants(app1Read, "allow/1"), equalTo(true));

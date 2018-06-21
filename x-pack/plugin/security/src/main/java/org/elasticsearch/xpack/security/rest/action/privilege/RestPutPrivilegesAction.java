@@ -18,6 +18,7 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -57,15 +58,14 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
         return channel -> requestBuilder.execute(new RestBuilderListener<PutPrivilegesResponse>(channel) {
             @Override
             public RestResponse buildResponse(PutPrivilegesResponse response, XContentBuilder builder) throws Exception {
-                final List<ApplicationPrivilege> privileges = requestBuilder.request().getPrivileges();
+                final List<ApplicationPrivilegeDescriptor> privileges = requestBuilder.request().getPrivileges();
                 Map<String, Map<String, Map<String, Boolean>>> result = new HashMap<>();
                 privileges.stream()
-                        .map(ApplicationPrivilege::getApplication)
+                        .map(ApplicationPrivilegeDescriptor::getApplication)
                         .distinct()
                         .forEach(a -> result.put(a, new HashMap<>()));
                 privileges.forEach(privilege -> {
-                    assert privilege.name().size() == 1 : "Privilege name [" + privilege.name() + "] should have a single value";
-                    String name = privilege.getPrivilegeName();
+                    String name = privilege.getName();
                     boolean created = response.created().getOrDefault(privilege.getApplication(), Collections.emptyList()).contains(name);
                     result.get(privilege.getApplication()).put(name, Collections.singletonMap("created", created));
                 });

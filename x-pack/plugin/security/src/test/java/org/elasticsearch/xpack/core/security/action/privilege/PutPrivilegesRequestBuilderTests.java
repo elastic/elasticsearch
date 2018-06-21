@@ -6,10 +6,12 @@
 package org.elasticsearch.xpack.core.security.action.privilege;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
@@ -34,16 +36,20 @@ public class PutPrivilegesRequestBuilderTests extends ESTestCase {
                 + "  \"all\":{ \"application\":\"bar\", \"name\":\"all\", \"actions\":[ \"*\" ] }"
                 + " } "
                 + "}"), XContentType.JSON);
-        final List<ApplicationPrivilege> privileges = builder.request().getPrivileges();
+        final List<ApplicationPrivilegeDescriptor> privileges = builder.request().getPrivileges();
         assertThat(privileges, iterableWithSize(6));
         assertThat(privileges, contains(
-                new ApplicationPrivilege("foo", "read", "data:/read/*", "admin:/read/*"),
-                new ApplicationPrivilege("foo", "write", "data:/write/*", "admin:*"),
-                new ApplicationPrivilege("foo", "all", "*"),
-                new ApplicationPrivilege("bar", "read", "read/*"),
-                new ApplicationPrivilege("bar", "write", "write/*"),
-                new ApplicationPrivilege("bar", "all", "*")
+                descriptor("foo", "read", "data:/read/*", "admin:/read/*"),
+                descriptor("foo", "write", "data:/write/*", "admin:*"),
+                descriptor("foo", "all", "*"),
+                descriptor("bar", "read", "read/*"),
+                descriptor("bar", "write", "write/*"),
+                descriptor("bar", "all", "*")
         ));
+    }
+
+    private ApplicationPrivilegeDescriptor descriptor(String app, String name, String ... actions) {
+        return new ApplicationPrivilegeDescriptor(app, name, Sets.newHashSet(actions), Collections.emptyMap());
     }
 
     public void testBuildRequestFromJsonObject() throws Exception {
@@ -51,11 +57,9 @@ public class PutPrivilegesRequestBuilderTests extends ESTestCase {
         builder.source("foo", "read", new BytesArray(
                 "{  \"application\":\"foo\", \"name\":\"read\", \"actions\":[ \"data:/read/*\", \"admin:/read/*\" ] }"
         ), XContentType.JSON);
-        final List<ApplicationPrivilege> privileges = builder.request().getPrivileges();
+        final List<ApplicationPrivilegeDescriptor> privileges = builder.request().getPrivileges();
         assertThat(privileges, iterableWithSize(1));
-        assertThat(privileges, contains(
-                new ApplicationPrivilege("foo", "read", "data:/read/*", "admin:/read/*")
-        ));
+        assertThat(privileges, contains(descriptor("foo", "read", "data:/read/*", "admin:/read/*")));
     }
 
     public void testPrivilegeNameValidationOfSingleElement() throws Exception {
@@ -111,13 +115,13 @@ public class PutPrivilegesRequestBuilderTests extends ESTestCase {
             + "\"all\":{ \"actions\":[ \"*\" ] }"
             + "} }"), XContentType.JSON);
         assertThat(builder.request().getPrivileges(), iterableWithSize(3));
-        for (ApplicationPrivilege p : builder.request().getPrivileges()) {
+        for (ApplicationPrivilegeDescriptor p : builder.request().getPrivileges()) {
             assertThat(p.getApplication(), equalTo("foo"));
-            assertThat(p.getPrivilegeName(), notNullValue());
+            assertThat(p.getName(), notNullValue());
         }
-        assertThat(builder.request().getPrivileges().get(0).getPrivilegeName(), equalTo("read"));
-        assertThat(builder.request().getPrivileges().get(1).getPrivilegeName(), equalTo("write"));
-        assertThat(builder.request().getPrivileges().get(2).getPrivilegeName(), equalTo("all"));
+        assertThat(builder.request().getPrivileges().get(0).getName(), equalTo("read"));
+        assertThat(builder.request().getPrivileges().get(1).getName(), equalTo("write"));
+        assertThat(builder.request().getPrivileges().get(2).getName(), equalTo("all"));
     }
 
 }

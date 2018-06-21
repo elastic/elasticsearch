@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,7 +51,7 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
                 token = parser.nextToken();
             }
             if (token == XContentParser.Token.START_OBJECT) {
-                final ApplicationPrivilege privilege = parsePrivilege(parser, applicationName, expectedName);
+                final ApplicationPrivilegeDescriptor privilege = parsePrivilege(parser, applicationName, expectedName);
                 this.request.setPrivileges(Collections.singleton(privilege));
             } else {
                 throw new ElasticsearchParseException("expected an object but found {} instead", token);
@@ -60,8 +60,8 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
         return this;
     }
 
-    ApplicationPrivilege parsePrivilege(XContentParser parser, String applicationName, String privilegeName) throws IOException {
-        final ApplicationPrivilege privilege = ApplicationPrivilege.parse(parser, applicationName, privilegeName, false);
+    ApplicationPrivilegeDescriptor parsePrivilege(XContentParser parser, String applicationName, String privilegeName) throws IOException {
+        ApplicationPrivilegeDescriptor privilege = ApplicationPrivilegeDescriptor.parse(parser, applicationName, privilegeName, false);
         checkPrivilegeName(privilege, applicationName, privilegeName);
         return privilege;
     }
@@ -87,7 +87,7 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
                 throw new ElasticsearchParseException("expected object but found {} instead", token);
             }
 
-            List<ApplicationPrivilege> privileges = new ArrayList<>();
+            List<ApplicationPrivilegeDescriptor> privileges = new ArrayList<>();
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 token = parser.currentToken();
                 assert token == XContentParser.Token.FIELD_NAME : "Invalid token " + token;
@@ -117,12 +117,8 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
         return this;
     }
 
-    private String checkPrivilegeName(ApplicationPrivilege privilege, String applicationName, String providedName) {
-        if (privilege.name().size() != 1) {
-            throw new IllegalArgumentException("privilege name [" + privilege.name()
-                + "] in source must contain exactly 1 value");
-        }
-        final String privilegeName = privilege.getPrivilegeName();
+    private void checkPrivilegeName(ApplicationPrivilegeDescriptor privilege, String applicationName, String providedName) {
+        final String privilegeName = privilege.getName();
         if (Strings.isNullOrEmpty(applicationName) == false && applicationName.equals(privilege.getApplication()) == false) {
             throw new IllegalArgumentException("privilege application [" + privilege.getApplication()
                 + "] in source does not match the provided application [" + applicationName + "]");
@@ -131,6 +127,5 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
             throw new IllegalArgumentException("privilege name [" + privilegeName
                 + "] in source does not match the provided name [" + providedName + "]");
         }
-        return privilegeName;
     }
 }

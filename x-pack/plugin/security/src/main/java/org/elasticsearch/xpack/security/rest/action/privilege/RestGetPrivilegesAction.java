@@ -18,7 +18,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -57,14 +57,12 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
                 .execute(new RestBuilderListener<GetPrivilegesResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(GetPrivilegesResponse response, XContentBuilder builder) throws Exception {
-                        final Map<String, Set<ApplicationPrivilege>> privsByApp = groupByApplicationName(response.privileges());
+                        final Map<String, Set<ApplicationPrivilegeDescriptor>> privsByApp = groupByApplicationName(response.privileges());
                         builder.startObject();
                         for (String app : privsByApp.keySet()) {
                             builder.startObject(app);
-                            for (ApplicationPrivilege privilege : privsByApp.get(app)) {
-                                assert privilege.name().size() == 1
-                                        : "Stored privileges should have a single name (got: " + privilege.name() + ")";
-                                builder.field(privilege.getPrivilegeName(), privilege);
+                            for (ApplicationPrivilegeDescriptor privilege : privsByApp.get(app)) {
+                                builder.field(privilege.getName(), privilege);
                             }
                             builder.endObject();
                         }
@@ -83,9 +81,9 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
                 });
     }
 
-    static Map<String, Set<ApplicationPrivilege>> groupByApplicationName(ApplicationPrivilege[] privileges) {
+    static Map<String, Set<ApplicationPrivilegeDescriptor>> groupByApplicationName(ApplicationPrivilegeDescriptor[] privileges) {
         return Arrays.stream(privileges).collect(Collectors.toMap(
-                ApplicationPrivilege::getApplication,
+                ApplicationPrivilegeDescriptor::getApplication,
                 Collections::singleton,
                 Sets::union
         ));

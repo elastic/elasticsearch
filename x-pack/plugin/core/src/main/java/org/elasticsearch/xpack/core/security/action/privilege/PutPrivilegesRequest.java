@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public final class PutPrivilegesRequest extends ActionRequest implements WriteRequest<PutPrivilegesRequest> {
 
-    private List<ApplicationPrivilege> privileges;
+    private List<ApplicationPrivilegeDescriptor> privileges;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
     public PutPrivilegesRequest() {
@@ -38,19 +39,31 @@ public final class PutPrivilegesRequest extends ActionRequest implements WriteRe
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        for (ApplicationPrivilege privilege : privileges) {
+        for (ApplicationPrivilegeDescriptor privilege : privileges) {
             try {
                 ApplicationPrivilege.validateApplicationName(privilege.getApplication());
             } catch (IllegalArgumentException e) {
                 validationException = addValidationError(e.getMessage(), validationException);
             }
-            if (privilege.name().size() != 1) {
-                validationException = addValidationError("application privileges must have a single name (found " +
-                    privilege.name() + ")", validationException);
+            try {
+                ApplicationPrivilege.validatePrivilegeName(privilege.getName());
+            } catch (IllegalArgumentException e) {
+                validationException = addValidationError(e.getMessage(), validationException);
+            }
+            for (String action : privilege.getActions()) {
+                if (action.indexOf('/') == -1 && action.indexOf('*') == -1 && action.indexOf(':') == -1) {
+                    validationException = addValidationError("action [" + action + "] must contain one of [ '/' , '*' , ':' ]",
+                        validationException);
+                }
+                try {
+                    ApplicationPrivilege.validatePrivilegeOrActionName(action);
+                } catch (IllegalArgumentException e) {
+                    validationException = addValidationError(e.getMessage(), validationException);
+                }
             }
             if (MetadataUtils.containsReservedMetadata(privilege.getMetadata())) {
                 validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX
-                    + "] (in privilege " + privilege.name() + ")", validationException);
+                    + "] (in privilege " + privilege.getApplication() + ' ' + privilege.getName() + ")", validationException);
             }
         }
         return validationException;
@@ -71,11 +84,11 @@ public final class PutPrivilegesRequest extends ActionRequest implements WriteRe
         return this;
     }
 
-    public List<ApplicationPrivilege> getPrivileges() {
+    public List<ApplicationPrivilegeDescriptor> getPrivileges() {
         return privileges;
     }
 
-    public void setPrivileges(Collection<ApplicationPrivilege> privileges) {
+    public void setPrivileges(Collection<ApplicationPrivilegeDescriptor> privileges) {
         this.privileges = Collections.unmodifiableList(new ArrayList<>(privileges));
     }
 
@@ -88,7 +101,7 @@ public final class PutPrivilegesRequest extends ActionRequest implements WriteRe
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        privileges = Collections.unmodifiableList(in.readList(ApplicationPrivilege::readFrom));
+        privileges = Collections.unmodifiableList(in.readList(ApplicationPrivilegeDescriptor::new));
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 

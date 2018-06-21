@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 public abstract class AbstractLogFileStructure {
 
+    protected static final boolean IS_WINDOWS = System.getProperty("os.name").startsWith("Windows");
     protected static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
 
     // NUMBER Grok pattern doesn't support scientific notation, so we extend it
@@ -42,19 +43,24 @@ public abstract class AbstractLogFileStructure {
     private static final String FILEBEAT_EXCLUDE_LINES_TEMPLATE = "  exclude_lines: ['^%s']\n";
 
     private static final String LOGSTASH_ENCODING_TEMPLATE = "      charset => \"%s\"\n";
-    private static final String LOGSTASH_MULTILINE_CONFIG_TEMPLATE = "\n" +
-        "    codec => multiline {\n" +
+    private static final String LOGSTASH_MULTILINE_CODEC_TEMPLATE = "    codec => multiline {\n" +
         "%s" +
         "      pattern => \"%s\"\n" +
         "      negate => \"true\"\n" +
         "      what => \"previous\"\n" +
-        "    }\n" +
-        "  ";
-    private static final String LOGSTASH_LINE_CONFIG_TEMPLATE = "\n" +
-        "    codec => line {\n" +
+        "      auto_flush_interval => 1\n" +
+        "    }\n";
+    private static final String LOGSTASH_LINE_CODEC_TEMPLATE = "    codec => line {\n" +
         "%s" +
-        "    }\n" +
-        "  ";
+        "    }\n";
+    private static final String LOGSTASH_FILE_INPUT_TEMPLATE = "  file {\n" +
+        "    type => \"%s\"\n" +
+        "    path => [ '%s' ]\n" +
+        "    start_position => beginning\n" +
+        "    ignore_older => 0\n" +
+        "%s" +
+        "    sincedb_path => \"" + (IS_WINDOWS ? "NUL" : "/dev/null") + "\"\n" +
+        "  }\n";
 
     // These next two are needed because Joda will throw an error if asked to parse fractional seconds
     // more granular than milliseconds, so we need to truncate the fractional part to 3 digits
@@ -87,6 +93,7 @@ public abstract class AbstractLogFileStructure {
     protected final String indexName;
     protected final String typeName;
     protected final String charsetName;
+    private String preambleComment = "";
 
     protected AbstractLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String charsetName) {
         this.terminal = Objects.requireNonNull(terminal);
@@ -98,7 +105,7 @@ public abstract class AbstractLogFileStructure {
 
     protected void writeConfigFile(Path directory, String fileName, String contents) throws IOException {
         Path fullPath = directory.resolve(typeName + "-" + fileName);
-        Files.write(fullPath, contents.getBytes(StandardCharsets.UTF_8));
+        Files.write(fullPath, (preambleComment + contents).getBytes(StandardCharsets.UTF_8));
         terminal.println("Wrote config file " + fullPath);
         try {
             Files.setPosixFilePermissions(fullPath, PosixFilePermissions.fromString(fileName.endsWith(".sh") ? "rwxr-xr-x" : "rw-r--r--"));
@@ -143,7 +150,11 @@ public abstract class AbstractLogFileStructure {
         return builder.toString();
     }
 
-    protected String makeLogstashStdinCodec(String multilineRegex) {
+    protected String makeLogstashFileInput(String multilineRegex) {
+        return String.format(Locale.ROOT, LOGSTASH_FILE_INPUT_TEMPLATE, typeName, sampleFileName, makeLogstashFileCodec(multilineRegex));
+    }
+
+    private String makeLogstashFileCodec(String multilineRegex) {
 
         String encodingConfig =
             (charsetName.equals(StandardCharsets.UTF_8.name())) ? "" : String.format(Locale.ROOT, LOGSTASH_ENCODING_TEMPLATE, charsetName);
@@ -151,10 +162,10 @@ public abstract class AbstractLogFileStructure {
             if (encodingConfig.isEmpty()) {
                 return "";
             }
-            return String.format(Locale.ROOT, LOGSTASH_LINE_CONFIG_TEMPLATE, encodingConfig);
+            return String.format(Locale.ROOT, LOGSTASH_LINE_CODEC_TEMPLATE, encodingConfig);
         }
 
-        return String.format(Locale.ROOT, LOGSTASH_MULTILINE_CONFIG_TEMPLATE, encodingConfig, multilineRegex);
+        return String.format(Locale.ROOT, LOGSTASH_MULTILINE_CODEC_TEMPLATE, encodingConfig, multilineRegex);
     }
 
     protected String makeLogstashFractionalSecondsGsubFilter(String timeFieldName, TimestampMatch timestampMatch) {
@@ -213,5 +224,16 @@ public abstract class AbstractLogFileStructure {
     static boolean isMoreLikelyTextThanKeyword(String str) {
         int length = str.length();
         return length > KEYWORD_MAX_LEN || length - str.replaceAll("\\s", "").length() > KEYWORD_MAX_SPACES;
+    }
+
+    protected void createPreambleComment(String preamble) {
+        if (preamble == null || preamble.isEmpty()) {
+            preambleComment = "";
+        } else {
+            preambleComment = "# This config was derived from a sample that began with:\n" +
+                "#\n" +
+                "# " + preamble.replaceFirst("\n$", "").replace("\n", "\n# ") + "\n" +
+                "#\n";
+        }
     }
 }

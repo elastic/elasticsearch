@@ -29,8 +29,8 @@ import java.util.Set;
 
 public final class LogFileStructureFinder {
 
-    static final int MIN_SAMPLE_LINE_COUNT = 2;
-    static final int IDEAL_SAMPLE_LINE_COUNT = 1000;
+    private static final int MIN_SAMPLE_LINE_COUNT = 2;
+    private static final int IDEAL_SAMPLE_LINE_COUNT = 1000;
 
     private static final int BUFFER_SIZE = 8192;
 

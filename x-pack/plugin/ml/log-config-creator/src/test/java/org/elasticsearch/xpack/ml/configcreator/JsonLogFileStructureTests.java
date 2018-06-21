@@ -28,11 +28,11 @@ public class JsonLogFileStructureTests extends LogConfigCreatorTestCase {
         }
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
         if (charset.equals(StandardCharsets.UTF_8.name())) {
-            assertThat(structure.getLogstashFromStdinConfig(), not(containsString("charset =>")));
+            assertThat(structure.getLogstashFromFileConfig(), not(containsString("charset =>")));
         } else {
-            assertThat(structure.getLogstashFromStdinConfig(), containsString("charset => \"" + charset + "\""));
+            assertThat(structure.getLogstashFromFileConfig(), containsString("charset => \"" + charset + "\""));
         }
-        assertThat(structure.getLogstashFromStdinConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
+        assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToIngestPipelineConfig(), not(containsString("encoding:")));
         } else {

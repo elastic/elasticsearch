@@ -37,6 +37,9 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         "- type: log\n" +
         "%s" +
         "\n" +
+        "processors:\n" +
+        "- add_locale: ~\n" +
+        "\n" +
         "output.logstash:\n" +
         "  hosts: [\"localhost:5044\"]\n";
     private static final String LOGSTASH_FROM_FILEBEAT_TEMPLATE = "input {\n" +
@@ -61,11 +64,16 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         "    index => \"%%{[@metadata][beat]}-%%{[@metadata][version]}-%%{+YYYY.MM.dd}\"\n" +
         "  }\n" +
         "}\n";
-    private static final String LOGSTASH_FROM_STDIN_TEMPLATE = "input {\n" +
-        "  stdin {%s}\n" +
+    private static final String LOGSTASH_FROM_FILE_TEMPLATE = "input {\n" +
+        "%s" +
         "}\n" +
         "\n" +
         "filter {\n" +
+        "  mutate {\n" +
+        "    rename => {\n" +
+        "      \"path\" => \"source\"\n" +
+        "    }\n" +
+        "  }\n" +
         "  xml {\n" +
         "    source => \"message\"\n" +
         "    remove_field => [ \"message\" ]\n" +
@@ -87,7 +95,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
     private SortedMap<String, String> mappings;
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
-    private String logstashFromStdinConfig;
+    private String logstashFromFileConfig;
 
     XmlLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String sample, String charsetName)
         throws IOException, ParserConfigurationException, SAXException {
@@ -104,8 +112,12 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         sampleRecords = new ArrayList<>();
 
         String[] sampleDocEnds = sample.split(Pattern.quote(messagePrefix));
+        StringBuilder preamble = new StringBuilder(sampleDocEnds[0]);
         for (int i = 1; i < sampleDocEnds.length; ++i) {
             String sampleDoc = messagePrefix + sampleDocEnds[i];
+            if (i < 3) {
+                preamble.append(sampleDoc);
+            }
             DocumentBuilder docBuilder = docBuilderFactory.newDocumentBuilder();
             try (InputStream is = new ByteArrayInputStream(sampleDoc.getBytes(StandardCharsets.UTF_8))) {
                 sampleRecords.add(docToMap(docBuilder.parse(is)));
@@ -116,6 +128,8 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
                 }
             }
         }
+
+        createPreambleComment(preamble.toString());
     }
 
     private static Map<String, Object> docToMap(Document doc) {
@@ -166,7 +180,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
             makeFilebeatInputOptions("^\\s*" + messagePrefix, null));
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashDateFilter);
-        logstashFromStdinConfig = String.format(Locale.ROOT, LOGSTASH_FROM_STDIN_TEMPLATE, makeLogstashStdinCodec("^\\s*" + messagePrefix),
+        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput("^\\s*" + messagePrefix),
             logstashDateFilter, indexName);
     }
 
@@ -178,8 +192,8 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         return logstashFromFilebeatConfig;
     }
 
-    String getLogstashFromStdinConfig() {
-        return logstashFromStdinConfig;
+    String getLogstashFromFileConfig() {
+        return logstashFromFileConfig;
     }
 
     @Override
@@ -192,6 +206,6 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
 
         writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
         writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);
-        writeConfigFile(directory, "logstash-from-stdin.conf", logstashFromStdinConfig);
+        writeConfigFile(directory, "logstash-from-file.conf", logstashFromFileConfig);
         }
 }

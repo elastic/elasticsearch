@@ -28,15 +28,18 @@ import java.util.stream.Collectors;
 
 public class TextLogFileStructure extends AbstractLogFileStructure implements LogFileStructure {
 
-    private static final String INTERIM_TIMESTAMP_FIELD = "_timestamp";
+    private static final String INTERIM_TIMESTAMP_FIELD = "timestamp";
 
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
         "%s" +
         "\n" +
+        "processors:\n" +
+        "- add_locale: ~\n" +
+        "\n" +
         "output.logstash:\n" +
         "  hosts: [\"localhost:5044\"]\n";
-    private static final String LOGSTASH_FILTERS_TEMPLATE = "filter {\n" +
+    private static final String COMMON_LOGSTASH_FILTERS_TEMPLATE =
         "  grok {\n" +
         "    match => { \"message\" => %s%s%s }\n" +
         "  }\n" +
@@ -44,8 +47,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "  date {\n" +
         "    match => [ \"" + INTERIM_TIMESTAMP_FIELD + "\", %s ]\n" +
         "    remove_field => [ \"" + INTERIM_TIMESTAMP_FIELD + "\" ]\n" +
-        "  }\n" +
-        "}\n" ;
+        "  }\n";
     private static final String LOGSTASH_FROM_FILEBEAT_TEMPLATE = "input {\n" +
         "  beats {\n" +
         "    port => 5044\n" +
@@ -53,7 +55,9 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "  }\n" +
         "}\n" +
         "\n" +
+        "filter {\n" +
         "%s" +
+        "}\n" +
         "\n" +
         "output {\n" +
         "  elasticsearch {\n" +
@@ -62,11 +66,18 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "    index => \"%%{[@metadata][beat]}-%%{[@metadata][version]}-%%{+YYYY.MM.dd}\"\n" +
         "  }\n" +
         "}\n";
-    private static final String LOGSTASH_FROM_STDIN_TEMPLATE = "input {\n" +
-        "  stdin {%s}\n" +
+    private static final String LOGSTASH_FROM_FILE_TEMPLATE = "input {\n" +
+        "%s" +
         "}\n" +
         "\n" +
+        "filter {\n" +
+        "  mutate {\n" +
+        "    rename => {\n" +
+        "      \"path\" => \"source\"\n" +
+        "    }\n" +
+        "  }\n" +
         "%s" +
+        "}\n" +
         "\n" +
         "output {\n" +
         "  elasticsearch {\n" +
@@ -79,6 +90,9 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
     private static final String FILEBEAT_TO_INGEST_PIPELINE_WITHOUT_MODULE_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
         "%s" +
+        "\n" +
+        "processors:\n" +
+        "- add_locale: ~\n" +
         "\n" +
         "output.elasticsearch:\n" +
         "  hosts: [\"http://localhost:9200\"]\n" +
@@ -117,7 +131,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
     private SortedMap<String, String> mappings;
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
-    private String logstashFromStdinConfig;
+    private String logstashFromFileConfig;
     private String filebeatToIngestPipelineConfig;
     private String ingestPipelineFromFilebeatConfig;
 
@@ -136,8 +150,8 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         return logstashFromFilebeatConfig;
     }
 
-    String getLogstashFromStdinConfig() {
-        return logstashFromStdinConfig;
+    String getLogstashFromFileConfig() {
+        return logstashFromFileConfig;
     }
 
     String getFilebeatToIngestPipelineConfig() {
@@ -161,6 +175,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         terminal.println(Verbosity.VERBOSE, "Most common timestamp format is [" + bestTimestamp.v1() + "]");
 
         List<String> sampleMessages = new ArrayList<>();
+        StringBuilder preamble = new StringBuilder();
         StringBuilder message = null;
         String multiLineRegex = createMultiLineMessageStartRegex(bestTimestamp.v2(), bestTimestamp.v1().simplePattern.pattern());
         Pattern multiLinePattern = Pattern.compile(multiLineRegex);
@@ -176,26 +191,31 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
                     message.append('\n').append(sampleLine);
                 }
             }
+            if (sampleMessages.size() < 2) {
+                preamble.append(sampleLine).append('\n');
+            }
         }
         // Don't add the last message, as it might be partial and mess up subsequent pattern finding
+
+        createPreambleComment(preamble.toString());
 
         mappings = new TreeMap<>();
         mappings.put("message", "text");
         mappings.put(DEFAULT_TIMESTAMP_FIELD, "date");
 
-        // We can't parse directly into @timestamp using Grok, so parse to _timestamp, which the date filter will remove
+        // We can't parse directly into @timestamp using Grok, so parse to timestamp, which the date filter will remove
         String grokPattern = GrokPatternCreator.createGrokPatternFromExamples(terminal, sampleMessages, bestTimestamp.v1().grokPatternName,
             INTERIM_TIMESTAMP_FIELD, mappings);
         String grokQuote = bestLogstashQuoteFor(grokPattern);
         String dateFormatsStr = bestTimestamp.v1().dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\""));
-        String logstashFilters = String.format(Locale.ROOT, LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
+        String commonLogstashFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
             makeLogstashFractionalSecondsGsubFilter(INTERIM_TIMESTAMP_FIELD, bestTimestamp.v1()), dateFormatsStr);
 
         String filebeatInputOptions = makeFilebeatInputOptions(multiLineRegex, null);
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions);
-        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFilters);
-        logstashFromStdinConfig = String.format(Locale.ROOT, LOGSTASH_FROM_STDIN_TEMPLATE, makeLogstashStdinCodec(multiLineRegex),
-            logstashFilters, indexName);
+        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, commonLogstashFilters);
+        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(multiLineRegex),
+            commonLogstashFilters, indexName);
         BeatsModule matchingModule = (beatsModuleStore != null) ? beatsModuleStore.findMatchingModule(sampleMessages) : null;
         if (matchingModule == null) {
             filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_WITHOUT_MODULE_TEMPLATE,
@@ -268,7 +288,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
 
         writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
         writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);
-        writeConfigFile(directory, "logstash-from-stdin.conf", logstashFromStdinConfig);
+        writeConfigFile(directory, "logstash-from-file.conf", logstashFromFileConfig);
         writeConfigFile(directory, "filebeat-to-ingest-pipeline.yml", filebeatToIngestPipelineConfig);
         writeRestCallConfigs(directory, "ingest-pipeline-from-filebeat.console", ingestPipelineFromFilebeatConfig);
     }

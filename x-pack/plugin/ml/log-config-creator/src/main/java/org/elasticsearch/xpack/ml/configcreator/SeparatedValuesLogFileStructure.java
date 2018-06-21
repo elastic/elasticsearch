@@ -25,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -35,6 +36,9 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
         "%s" +
+        "\n" +
+        "processors:\n" +
+        "- add_locale: ~\n" +
         "\n" +
         "output.logstash:\n" +
         "  hosts: [\"localhost:5044\"]\n";
@@ -66,11 +70,16 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         "    index => \"%%{[@metadata][beat]}-%%{[@metadata][version]}-%%{+YYYY.MM.dd}\"\n" +
         "  }\n" +
         "}\n";
-    private static final String LOGSTASH_FROM_STDIN_TEMPLATE = "input {\n" +
-        "  stdin {%s}\n" +
+    private static final String LOGSTASH_FROM_FILE_TEMPLATE = "input {\n" +
+        "%s" +
         "}\n" +
         "\n" +
         "filter {\n" +
+        "  mutate {\n" +
+        "    rename => {\n" +
+        "      \"path\" => \"source\"\n" +
+        "    }\n" +
+        "  }\n" +
         "  csv {\n" +
         "%s" +
         "    columns => [ %s ]\n" +
@@ -97,7 +106,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
     private SortedMap<String, String> mappings;
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
-    private String logstashFromStdinConfig;
+    private String logstashFromFileConfig;
 
     SeparatedValuesLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String sample,
                                     String charsetName, CsvPreference csvPreference) throws IOException {
@@ -114,6 +123,10 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
             try {
                 Map<String, String> sampleRecord;
                 while ((sampleRecord = csvReader.read(csvHeader)) != null) {
+                    if (sampleRecords.isEmpty()) {
+                        createPreambleComment(Pattern.compile("\n").splitAsStream(sample).limit(csvReader.getLineNumber())
+                            .collect(Collectors.joining("\n", "", "\n")));
+                    }
                     sampleRecords.add(sampleRecord);
                 }
             } catch (SuperCsvException e) {
@@ -391,7 +404,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, separatorIfRequired, logstashColumns,
             logStashColumnConversions, logstashDateFilter);
         String skipHeaderIfRequired = isCsvHeaderInFile ? "    skip_header => true\n": "";
-        logstashFromStdinConfig = String.format(Locale.ROOT, LOGSTASH_FROM_STDIN_TEMPLATE, makeLogstashStdinCodec(timeLineRegex),
+        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(timeLineRegex),
             separatorIfRequired, logstashColumns, skipHeaderIfRequired, logStashColumnConversions, logstashDateFilter, indexName);
     }
 
@@ -403,8 +416,8 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         return logstashFromFilebeatConfig;
     }
 
-    String getLogstashFromStdinConfig() {
-        return logstashFromStdinConfig;
+    String getLogstashFromFileConfig() {
+        return logstashFromFileConfig;
     }
 
     @Override
@@ -417,7 +430,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
 
         writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
         writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);
-        writeConfigFile(directory, "logstash-from-stdin.conf", logstashFromStdinConfig);
+        writeConfigFile(directory, "logstash-from-file.conf", logstashFromFileConfig);
     }
 
     static String makeColumnConversions(Map<String, String> mappings) {

@@ -37,7 +37,7 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
             containsString("multiline.pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("columns => [ \"time\", \"message\" ]\n"));
-        assertThat(structure.getLogstashFromStdinConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
+        assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
     }
 
     public void testCreateConfigsGivenCsvWithIncompleteLastRecord() throws Exception {
@@ -61,11 +61,11 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("columns => [ \"message\", \"time\" ]\n"));
         if (charset.equals(StandardCharsets.UTF_8.name())) {
-            assertThat(structure.getLogstashFromStdinConfig(), not(containsString("charset =>")));
+            assertThat(structure.getLogstashFromFileConfig(), not(containsString("charset =>")));
         } else {
-            assertThat(structure.getLogstashFromStdinConfig(), containsString("charset => \"" + charset + "\""));
+            assertThat(structure.getLogstashFromFileConfig(), containsString("charset => \"" + charset + "\""));
         }
-        assertThat(structure.getLogstashFromStdinConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
+        assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
     }
 
     public void testFindHeaderFromSampleGivenHeaderInSample() throws IOException {

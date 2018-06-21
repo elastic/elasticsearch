@@ -40,18 +40,18 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
         assertThat(structure.getFilebeatToLogstashConfig(),
             containsString("multiline.pattern: '^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(),
-            containsString("match => { \"message\" => \"\\[%{TIMESTAMP_ISO8601:_timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]" +
+            containsString("match => { \"message\" => \"\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]" +
                 "\\[.*\" }\n"));
-        assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"_timestamp\", \"ISO8601\" ]\n"));
+        assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"timestamp\", \"ISO8601\" ]\n"));
         if (charset.equals(StandardCharsets.UTF_8.name())) {
-            assertThat(structure.getLogstashFromStdinConfig(), not(containsString("charset =>")));
+            assertThat(structure.getLogstashFromFileConfig(), not(containsString("charset =>")));
         } else {
-            assertThat(structure.getLogstashFromStdinConfig(), containsString("charset => \"" + charset + "\""));
+            assertThat(structure.getLogstashFromFileConfig(), containsString("charset => \"" + charset + "\""));
         }
-        assertThat(structure.getLogstashFromStdinConfig(),
-            containsString("match => { \"message\" => \"\\[%{TIMESTAMP_ISO8601:_timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]" +
+        assertThat(structure.getLogstashFromFileConfig(),
+            containsString("match => { \"message\" => \"\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]" +
                 "\\[.*\" }\n"));
-        assertThat(structure.getLogstashFromStdinConfig(), containsString("match => [ \"_timestamp\", \"ISO8601\" ]\n"));
+        assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"timestamp\", \"ISO8601\" ]\n"));
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToIngestPipelineConfig(), not(containsString("encoding:")));
         } else {
@@ -61,9 +61,9 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
         assertThat(structure.getFilebeatToIngestPipelineConfig(),
             containsString("multiline.pattern: '^\\[\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
         assertThat(structure.getIngestPipelineFromFilebeatConfig(),
-            containsString("\"patterns\": [ \"\\\\[%{TIMESTAMP_ISO8601:_timestamp}\\\\]\\\\[%{LOGLEVEL:loglevel} \\\\]" +
+            containsString("\"patterns\": [ \"\\\\[%{TIMESTAMP_ISO8601:timestamp}\\\\]\\\\[%{LOGLEVEL:loglevel} \\\\]" +
                 "\\\\[.*\" ]\n"));
-        assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"field\": \"_timestamp\",\n"));
+        assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"field\": \"timestamp\",\n"));
         assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"formats\": [ \"ISO8601\" ],\n"));
     }
 

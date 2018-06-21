@@ -19,7 +19,7 @@ public interface LogFileStructureFactory {
     /**
      * Create an object representing the structure of a log file.
      * @param sampleFileName The name of the sample log file to be ingested.
-     * @param indexName The name of the index to specify in the Logstash stdin config.
+     * @param indexName The name of the index to specify in the Logstash direct from file config.
      * @param typeName The name for this type of log file.
      * @param sample A sample from the log file to be ingested.
      * @param charsetName The name of the character set in which the sample was provided.

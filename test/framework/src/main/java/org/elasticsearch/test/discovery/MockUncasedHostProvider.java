@@ -21,6 +21,7 @@ package org.elasticsearch.test.discovery;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 
@@ -55,7 +56,7 @@ public final class MockUncasedHostProvider implements UnicastHostsProvider, Clos
     }
 
     @Override
-    public List<DiscoveryNode> buildDynamicNodes() {
+    public List<TransportAddress> buildDynamicHosts() {
         final DiscoveryNode localNode = getNode();
         assert localNode != null;
         synchronized (activeNodesPerCluster) {
@@ -64,6 +65,7 @@ public final class MockUncasedHostProvider implements UnicastHostsProvider, Clos
                 .map(MockUncasedHostProvider::getNode)
                 .filter(Objects::nonNull)
                 .filter(n -> localNode.equals(n) == false)
+                .map(DiscoveryNode::getAddress)
                 .collect(Collectors.toList());
         }
     }

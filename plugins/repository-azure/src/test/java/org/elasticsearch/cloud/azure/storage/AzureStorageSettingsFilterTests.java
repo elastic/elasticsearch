@@ -21,6 +21,7 @@ package org.elasticsearch.cloud.azure.storage;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.ModuleTestCase;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -68,6 +69,15 @@ public class AzureStorageSettingsFilterTests extends ESTestCase {
         String filteredSettingsString = Strings.toString(xContentBuilder);
         filteredSettings = Settings.builder().loadFromSource(filteredSettingsString, xContentBuilder.contentType()).build();
         assertThat(filteredSettings.keySet(), contains("cloud.azure.storage.azure1.default"));
+
+        assertSettingDeprecationsAndWarnings(
+                new Setting<?>[] { AzureStorageSettings.DEPRECATED_ACCOUNT_SETTING.getConcreteSettingForNamespace("azure1"),
+                        AzureStorageSettings.DEPRECATED_KEY_SETTING.getConcreteSettingForNamespace("azure1"),
+                        AzureStorageSettings.DEPRECATED_ACCOUNT_SETTING.getConcreteSettingForNamespace("azure2"),
+                        AzureStorageSettings.DEPRECATED_KEY_SETTING.getConcreteSettingForNamespace("azure2"),
+                        AzureStorageSettings.DEPRECATED_ACCOUNT_SETTING.getConcreteSettingForNamespace("azure3"),
+                        AzureStorageSettings.DEPRECATED_KEY_SETTING.getConcreteSettingForNamespace("azure3"),
+                        AzureStorageSettings.DEPRECATED_DEFAULT_SETTING.getConcreteSettingForNamespace("azure1") });
     }
 
 }

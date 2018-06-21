@@ -17,27 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.s3;
+package org.elasticsearch.discovery.ec2;
 
-import java.io.Closeable;
-import java.util.Map;
+import com.amazonaws.services.ec2.model.Tag;
 
-interface AwsS3Service extends Closeable {
+import org.elasticsearch.common.settings.Settings;
 
-    /**
-     * Creates then caches an {@code AmazonS3} client using the current client
-     * settings. Returns an {@code AmazonS3Reference} wrapper which has to be
-     * released as soon as it is not needed anymore.
-     */
-    AmazonS3Reference client(String clientName);
+import java.util.List;
 
-    /**
-     * Updates settings for building clients and clears the client cache. Future
-     * client requests will use the new settings to lazily build new clients.
-     *
-     * @param clientsSettings the new refreshed settings
-     * @return the old stale settings
-     */
-    Map<String, S3ClientSettings> refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings);
+public class Ec2DiscoveryPluginMock extends Ec2DiscoveryPlugin {
+
+    Ec2DiscoveryPluginMock(Settings settings) {
+        this(settings, 1, null);
+    }
+
+    public Ec2DiscoveryPluginMock(Settings settings, int nodes, List<List<Tag>> tagsList) {
+        super(settings, new AwsEc2ServiceMock(settings, nodes, tagsList));
+    }
 
 }

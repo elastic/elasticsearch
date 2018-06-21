@@ -55,7 +55,7 @@ bundlePlugin {
 }
 
 additionalTest('testRepositoryCreds'){
-  include '**/RepositorySettingsCredentialsTests.class'
+  include '**/RepositoryCredentialsTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
 }
 

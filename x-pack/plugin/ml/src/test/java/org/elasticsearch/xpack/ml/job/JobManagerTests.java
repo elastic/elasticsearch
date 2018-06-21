@@ -229,7 +229,8 @@ public class JobManagerTests extends ESTestCase {
 
         MlFilter filter = MlFilter.builder("foo_filter").setItems("a", "b").build();
 
-        jobManager.notifyFilterChanged(filter, new TreeSet<>(Arrays.asList("item 1", "item 2")), new TreeSet<>(Arrays.asList("item 3")));
+        jobManager.notifyFilterChanged(filter, new TreeSet<>(Arrays.asList("item 1", "item 2")),
+                new TreeSet<>(Collections.singletonList("item 3")));
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
         verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any(ActionListener.class));

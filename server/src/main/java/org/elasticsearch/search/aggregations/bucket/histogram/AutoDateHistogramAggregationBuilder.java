@@ -61,6 +61,8 @@ public class AutoDateHistogramAggregationBuilder
         PARSER.declareInt(AutoDateHistogramAggregationBuilder::setNumBuckets, NUM_BUCKETS_FIELD);
     }
 
+    public static final int BUCKET_LIMIT = 10000;
+
     public static AutoDateHistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new AutoDateHistogramAggregationBuilder(aggregationName), null);
     }
@@ -102,6 +104,10 @@ public class AutoDateHistogramAggregationBuilder
     public AutoDateHistogramAggregationBuilder setNumBuckets(int numBuckets) {
         if (numBuckets <= 0) {
             throw new IllegalArgumentException(NUM_BUCKETS_FIELD.getPreferredName() + " must be greater than 0 for [" + name + "]");
+        }
+        if (numBuckets > BUCKET_LIMIT) {
+            throw new IllegalArgumentException(
+                String.format("%s should be less than %d for %s", NUM_BUCKETS_FIELD.getPreferredName(), BUCKET_LIMIT, name));
         }
         this.numBuckets = numBuckets;
         return this;
@@ -160,7 +166,7 @@ public class AutoDateHistogramAggregationBuilder
             this.roughEstimateDurationMillis = roughEstimateDurationMillis;
             this.innerIntervals = innerIntervals;
         }
-        
+
         public RoundingInfo(StreamInput in) throws IOException {
             rounding = Rounding.Streams.read(in);
             roughEstimateDurationMillis = in.readVLong();
@@ -173,7 +179,7 @@ public class AutoDateHistogramAggregationBuilder
             out.writeVLong(roughEstimateDurationMillis);
             out.writeIntArray(innerIntervals);
         }
-        
+
         public int getMaximumInnerInterval() {
             return innerIntervals[innerIntervals.length - 1];
         }
@@ -186,7 +192,7 @@ public class AutoDateHistogramAggregationBuilder
         public int hashCode() {
             return Objects.hash(rounding, Arrays.hashCode(innerIntervals));
         }
-        
+
         @Override
         public boolean equals(Object obj) {
             if (obj == null) {

@@ -103,7 +103,7 @@ public final class InternalAutoDateHistogram extends
 
         @Override
         public String getKeyAsString() {
-            return (String) format.format(key);
+            return format.format(key).toString();
         }
 
         @Override
@@ -134,7 +134,7 @@ public final class InternalAutoDateHistogram extends
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            String keyAsString = (String) format.format(key);
+            String keyAsString = format.format(key).toString();
             builder.startObject();
             if (format != DocValueFormat.RAW) {
                 builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), keyAsString);

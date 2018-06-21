@@ -30,6 +30,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -47,6 +48,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
 
@@ -280,6 +283,17 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                     assertEquals(3, bucket.getDocCount());
                 }
         );
+    }
+
+    public void testWithLargeNumberOfBuckets() {
+        Query query = new MatchAllDocsQuery();
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> testSearchCase(query, dataset,
+                aggregation -> aggregation.setNumBuckets(AutoDateHistogramAggregationBuilder.BUCKET_LIMIT+1).field(DATE_FIELD),
+                // since an exception is thrown, this assertion won't be invoked.
+                histogram -> assertTrue(false)
+            ));
+        assertThat(exception.getMessage(), containsString("should be less than"));
     }
 
     public void testIntervalDay() throws IOException {
@@ -628,7 +642,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             DateTime date = startDate.plusSeconds(i);
             dataset.add(format.print(date));
         }
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(600).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -639,7 +653,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(1, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(300).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -650,7 +664,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(5, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(100).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -661,7 +675,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(10, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(50).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -672,7 +686,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(30, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(15).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -693,7 +707,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             DateTime date = startDate.plusMinutes(i);
             dataset.add(format.print(date));
         }
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(600).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -704,7 +718,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(1, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(300).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -715,7 +729,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(5, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(100).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -726,7 +740,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(10, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(50).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -737,7 +751,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(30, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(15).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -758,7 +772,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             DateTime date = startDate.plusHours(i);
             dataset.add(format.print(date));
         }
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(600).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -769,7 +783,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(1, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(300).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -780,7 +794,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(3, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(100).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -791,7 +805,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(12, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(30).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -812,7 +826,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             DateTime date = startDate.plusDays(i);
             dataset.add(format.print(date));
         }
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(700).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -823,7 +837,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(1, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(300).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -834,7 +848,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(7, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(30).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -855,7 +869,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             DateTime date = startDate.plusMonths(i);
             dataset.add(format.print(date));
         }
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(600).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -866,7 +880,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(1, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(300).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -877,7 +891,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(3, bucket.getDocCount());
                     }
                 });
-        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(60).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();

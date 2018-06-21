@@ -714,8 +714,20 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
             // make sure all recoveries are done
             ensureGreen(index);
-            // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
-            client().performRequest("POST", "/_flush");
+            // Recovering a synced-flush index from 5.x to 6.x might be subtle as a 5.x index commit does not have all 6.x commit tags.
+            if (randomBoolean()) {
+                // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
+                // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
+                assertBusy(() -> {
+                    Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
+                    assertOK(resp);
+                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                    assertThat(result.get("successful"), equalTo(2));
+                });
+            } else {
+                // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
+                assertOK(client().performRequest(new Request("POST", "/_flush")));
+            }
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
                 indexRandomDocuments(count / 10, false /* Flushing here would invalidate the whole thing....*/, false,
@@ -787,45 +799,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 0, numCurrentVersion);
             assertNotEquals("expected at least 1 old segment. segments:\n" + segmentsResponse, 0, numBwcVersion);}
         }
-    }
-
-    /**
-     * Tests that a synced-flushed index is correctly recovered.
-     * This might be an edge-case from 5.x to 6.x since a 5.x index commit does not have all required 6.x commit tags.
-     */
-    public void testRecoverSyncedFlushIndex() throws Exception {
-        final int count;
-        if (runningAgainstOldCluster) {
-            Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                // if the node with the replica is the first to be restarted, while a replica is still recovering
-                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
-                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
-                // before timing out
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
-                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-            createIndex(index, settings.build());
-            count = randomInt(10);
-            indexRandomDocuments(count, randomBoolean(), randomBoolean(),
-                n -> JsonXContent.contentBuilder().startObject().field("key", "value").endObject());
-            // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
-            // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
-            assertBusy(() -> {
-                Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
-                assertOK(resp);
-                Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                assertThat(result.get("successful"), equalTo(2));
-            });
-        } else {
-            count = countOfIndexedRandomDocuments();
-        }
-        ensureGreen(index);
-        refresh();
-        Request countRequest = new Request("GET", "/" + index + "/_search");
-        countRequest.addParameter("size", "0");
-        String countResponse = toStr(client().performRequest(countRequest));
-        assertThat(countResponse, containsString("\"total\":" + count));
     }
 
     /**

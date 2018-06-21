@@ -237,7 +237,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
-    public void testMaintenanceModeSkip() {
+    public void testStoppedModeSkip() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
         IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
             new IndexLifecycleRunnerTests.MockClusterStateActionStep(randomStepKey(), randomStepKey());
@@ -254,7 +254,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
             .fPut(index.getName(), indexMetadata);
         MetaData metaData = MetaData.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.MAINTENANCE))
+            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPED))
             .indices(indices.build())
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
@@ -266,7 +266,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertThat(mockStep.getExecuteCount(), equalTo(0L));
     }
 
-    public void testRequestedMaintenanceOnShrink() {
+    public void testRequestedStopOnShrink() {
         Step.StepKey mockShrinkStep = new Step.StepKey(randomAlphaOfLength(4), ShrinkAction.NAME, randomAlphaOfLength(5));
         String policyName = randomAlphaOfLengthBetween(1, 20);
         IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
@@ -287,7 +287,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
             .fPut(index.getName(), indexMetadata);
         MetaData metaData = MetaData.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.MAINTENANCE_REQUESTED))
+            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
             .indices(indices.build())
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
@@ -307,7 +307,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertTrue(executedShrink.get());
     }
 
-    public void testRequestedMaintenanceOnSafeAction() {
+    public void testRequestedStopOnSafeAction() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
         Step.StepKey currentStepKey = randomStepKey();
         IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
@@ -328,7 +328,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder()
             .fPut(index.getName(), indexMetadata);
         MetaData metaData = MetaData.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.MAINTENANCE_REQUESTED))
+            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.STOPPING))
             .indices(indices.build())
             .persistentSettings(settings(Version.CURRENT).build())
             .build();
@@ -347,11 +347,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         }).when(clusterService).submitStateUpdateTask(anyString(), any(ExecuteStepsUpdateTask.class));
 
         doAnswer(invocationOnMock -> {
-            MaintenanceModeUpdateTask task = (MaintenanceModeUpdateTask) invocationOnMock.getArguments()[1];
-            assertThat(task.getOperationMode(), equalTo(OperationMode.MAINTENANCE));
+            OperationModeUpdateTask task = (OperationModeUpdateTask) invocationOnMock.getArguments()[1];
+            assertThat(task.getOperationMode(), equalTo(OperationMode.STOPPED));
             moveToMaintenance.set(true);
             return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(MaintenanceModeUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(OperationModeUpdateTask.class));
 
         indexLifecycleService.clusterChanged(event);
         assertNull(ranPolicy.get());

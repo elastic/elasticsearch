@@ -33,9 +33,9 @@ import java.util.stream.Collectors;
 
 public class IndexLifecycleMetadata implements XPackMetaDataCustom {
     public static final String TYPE = "index_lifecycle";
-    public static final ParseField MAINTENANCE_MODE_FIELD = new ParseField("maintenance_mode");
+    public static final ParseField OPERATION_MODE_FIELD = new ParseField("operation_mode");
     public static final ParseField POLICIES_FIELD = new ParseField("policies");
-    public static final IndexLifecycleMetadata EMPTY = new IndexLifecycleMetadata(Collections.emptySortedMap(), OperationMode.NORMAL);
+    public static final IndexLifecycleMetadata EMPTY = new IndexLifecycleMetadata(Collections.emptySortedMap(), OperationMode.RUNNING);
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<IndexLifecycleMetadata, Void> PARSER = new ConstructingObjectParser<>(
@@ -47,15 +47,15 @@ public class IndexLifecycleMetadata implements XPackMetaDataCustom {
                 v -> {
                     throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported");
                 }, POLICIES_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), MAINTENANCE_MODE_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), OPERATION_MODE_FIELD);
     }
 
     private final Map<String, LifecyclePolicyMetadata> policyMetadatas;
-    private final OperationMode maintenanceMode;
+    private final OperationMode operationMode;
 
-    public IndexLifecycleMetadata(Map<String, LifecyclePolicyMetadata> policies, OperationMode maintenanceMode) {
+    public IndexLifecycleMetadata(Map<String, LifecyclePolicyMetadata> policies, OperationMode operationMode) {
         this.policyMetadatas = Collections.unmodifiableMap(policies);
-        this.maintenanceMode = maintenanceMode;
+        this.operationMode = operationMode;
     }
 
     public IndexLifecycleMetadata(StreamInput in) throws IOException {
@@ -65,7 +65,7 @@ public class IndexLifecycleMetadata implements XPackMetaDataCustom {
             policies.put(in.readString(), new LifecyclePolicyMetadata(in));
         }
         this.policyMetadatas = policies;
-        this.maintenanceMode = in.readEnum(OperationMode.class);
+        this.operationMode = in.readEnum(OperationMode.class);
     }
 
     @Override
@@ -75,15 +75,15 @@ public class IndexLifecycleMetadata implements XPackMetaDataCustom {
             out.writeString(entry.getKey());
             entry.getValue().writeTo(out);
         }
-        out.writeEnum(maintenanceMode);
+        out.writeEnum(operationMode);
     }
 
     public Map<String, LifecyclePolicyMetadata> getPolicyMetadatas() {
         return policyMetadatas;
     }
 
-    public OperationMode getMaintenanceMode() {
-        return maintenanceMode;
+    public OperationMode getOperationMode() {
+        return operationMode;
     }
 
     public Map<String, LifecyclePolicy> getPolicies() {
@@ -99,7 +99,7 @@ public class IndexLifecycleMetadata implements XPackMetaDataCustom {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(POLICIES_FIELD.getPreferredName(), policyMetadatas);
-        builder.field(MAINTENANCE_MODE_FIELD.getPreferredName(), maintenanceMode);
+        builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode);
         return builder;
     }
 
@@ -120,7 +120,7 @@ public class IndexLifecycleMetadata implements XPackMetaDataCustom {
 
     @Override
     public int hashCode() {
-        return Objects.hash(policyMetadatas, maintenanceMode);
+        return Objects.hash(policyMetadatas, operationMode);
     }
 
     @Override
@@ -133,7 +133,7 @@ public class IndexLifecycleMetadata implements XPackMetaDataCustom {
         }
         IndexLifecycleMetadata other = (IndexLifecycleMetadata) obj;
         return Objects.equals(policyMetadatas, other.policyMetadatas)
-            && Objects.equals(maintenanceMode, other.maintenanceMode);
+            && Objects.equals(operationMode, other.operationMode);
     }
 
     @Override
@@ -144,30 +144,30 @@ public class IndexLifecycleMetadata implements XPackMetaDataCustom {
     public static class IndexLifecycleMetadataDiff implements NamedDiff<MetaData.Custom> {
 
         final Diff<Map<String, LifecyclePolicyMetadata>> policies;
-        final OperationMode maintenanceMode;
+        final OperationMode operationMode;
 
         IndexLifecycleMetadataDiff(IndexLifecycleMetadata before, IndexLifecycleMetadata after) {
             this.policies = DiffableUtils.diff(before.policyMetadatas, after.policyMetadatas, DiffableUtils.getStringKeySerializer());
-            this.maintenanceMode = after.maintenanceMode;
+            this.operationMode = after.operationMode;
         }
 
         public IndexLifecycleMetadataDiff(StreamInput in) throws IOException {
             this.policies = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), LifecyclePolicyMetadata::new,
                     IndexLifecycleMetadataDiff::readLifecyclePolicyDiffFrom);
-            this.maintenanceMode = in.readEnum(OperationMode.class);
+            this.operationMode = in.readEnum(OperationMode.class);
         }
 
         @Override
         public MetaData.Custom apply(MetaData.Custom part) {
             TreeMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(
                     policies.apply(((IndexLifecycleMetadata) part).policyMetadatas));
-            return new IndexLifecycleMetadata(newPolicies, this.maintenanceMode);
+            return new IndexLifecycleMetadata(newPolicies, this.operationMode);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             policies.writeTo(out);
-            out.writeEnum(maintenanceMode);
+            out.writeEnum(operationMode);
         }
 
         @Override

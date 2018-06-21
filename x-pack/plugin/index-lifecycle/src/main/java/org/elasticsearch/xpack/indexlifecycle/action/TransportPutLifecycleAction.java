@@ -85,7 +85,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                         LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(request.getPolicy(), filteredHeaders);
                         newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
-                        IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, OperationMode.NORMAL);
+                        IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, OperationMode.RUNNING);
                         newState.metaData(MetaData.builder(currentState.getMetaData())
                                 .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
                         return newState.build();

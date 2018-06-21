@@ -94,13 +94,13 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
         IndexLifecycleMetadata metadata = (IndexLifecycleMetadata) instance;
         Map<String, LifecyclePolicyMetadata> policies = metadata.getPolicyMetadatas();
         policies = new TreeMap<>(policies);
-        OperationMode mode = metadata.getMaintenanceMode();
+        OperationMode mode = metadata.getOperationMode();
         if (randomBoolean()) {
             String policyName = randomAlphaOfLength(10);
             policies.put(policyName, new LifecyclePolicyMetadata(
                 new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, Collections.emptyMap()), Collections.emptyMap()));
         } else {
-            mode = randomValueOtherThan(metadata.getMaintenanceMode(), () -> randomFrom(OperationMode.values()));
+            mode = randomValueOtherThan(metadata.getOperationMode(), () -> randomFrom(OperationMode.values()));
         }
         return new IndexLifecycleMetadata(policies, mode);
     }

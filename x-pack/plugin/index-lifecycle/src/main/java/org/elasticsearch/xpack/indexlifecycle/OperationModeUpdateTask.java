@@ -13,11 +13,11 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 
-public class MaintenanceModeUpdateTask extends ClusterStateUpdateTask {
-    private static final Logger logger = ESLoggerFactory.getLogger(MaintenanceModeUpdateTask.class);
+public class OperationModeUpdateTask extends ClusterStateUpdateTask {
+    private static final Logger logger = ESLoggerFactory.getLogger(OperationModeUpdateTask.class);
     private final OperationMode mode;
 
-    public MaintenanceModeUpdateTask(OperationMode mode) {
+    public OperationModeUpdateTask(OperationMode mode) {
         this.mode = mode;
     }
 
@@ -28,16 +28,23 @@ public class MaintenanceModeUpdateTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(ClusterState currentState) {
         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
-
-
-        if (currentMetadata.getMaintenanceMode().isValidChange(mode) == false) {
+        if (currentMetadata != null && currentMetadata.getOperationMode().isValidChange(mode) == false) {
             return currentState;
+        } else if (currentMetadata == null) {
+            currentMetadata = IndexLifecycleMetadata.EMPTY;
+        }
+
+        final OperationMode newMode;
+        if (currentMetadata.getOperationMode().isValidChange(mode)) {
+            newMode = mode;
+        } else {
+            newMode = currentMetadata.getOperationMode();
         }
 
         ClusterState.Builder builder = new ClusterState.Builder(currentState);
         MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
         metadataBuilder.putCustom(IndexLifecycleMetadata.TYPE,
-            new IndexLifecycleMetadata(currentMetadata.getPolicyMetadatas(), mode));
+            new IndexLifecycleMetadata(currentMetadata.getPolicyMetadatas(), newMode));
         builder.metaData(metadataBuilder.build());
         return builder.build();
     }

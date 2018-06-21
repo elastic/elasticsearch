@@ -71,18 +71,15 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
                     String fieldName = parser.currentName();
                     token = parser.nextToken();
                     if (token == Token.START_ARRAY) {
-                        switch (fieldName) {
-                            case SimulateDocumentVerboseResult.PROCESSOR_RESULT_FIELD:
-                                List<SimulateProcessorResult> results = new ArrayList<>();
-                                while ((token = parser.nextToken()).equals(Token.START_OBJECT)) {
-                                    results.add(SimulateProcessorResult.fromXContent(parser));
-                                }
-                                ensureExpectedToken(Token.END_ARRAY, token, parser::getTokenLocation);
-                                result = new SimulateDocumentVerboseResult(results);
-                                break;
-                            default:
-                                parser.skipChildren();
-                                break;
+                        if (fieldName.equals(SimulateDocumentVerboseResult.PROCESSOR_RESULT_FIELD)) {
+                            List<SimulateProcessorResult> results = new ArrayList<>();
+                            while ((token = parser.nextToken()) == Token.START_OBJECT) {
+                                results.add(SimulateProcessorResult.fromXContent(parser));
+                            }
+                            ensureExpectedToken(Token.END_ARRAY, token, parser::getTokenLocation);
+                            result = new SimulateDocumentVerboseResult(results);
+                        } else {
+                            parser.skipChildren();
                         }
                     } else if (token.equals(Token.START_OBJECT)) {
                         switch (fieldName) {

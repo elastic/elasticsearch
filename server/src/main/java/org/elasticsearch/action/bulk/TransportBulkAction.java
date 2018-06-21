@@ -30,7 +30,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
@@ -38,6 +37,7 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -88,27 +88,24 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final ClusterService clusterService;
     private final IngestService ingestService;
     private final TransportShardBulkAction shardBulkAction;
-    private final TransportCreateIndexAction createIndexAction;
     private final LongSupplier relativeTimeProvider;
     private final IngestActionForwarder ingestForwarder;
+    private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
-                               TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction,
+                               TransportShardBulkAction shardBulkAction, NodeClient client,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex) {
-        this(settings, threadPool, transportService, clusterService, ingestService,
-                shardBulkAction, createIndexAction,
-                actionFilters, indexNameExpressionResolver,
-                autoCreateIndex,
-                System::nanoTime);
+        this(settings, threadPool, transportService, clusterService, ingestService, shardBulkAction, client, actionFilters,
+            indexNameExpressionResolver, autoCreateIndex, System::nanoTime);
     }
 
     public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
-                               TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction,
+                               TransportShardBulkAction shardBulkAction, NodeClient client,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider) {
         super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, BulkRequest::new);
@@ -116,10 +113,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.clusterService = clusterService;
         this.ingestService = ingestService;
         this.shardBulkAction = shardBulkAction;
-        this.createIndexAction = createIndexAction;
         this.autoCreateIndex = autoCreateIndex;
         this.relativeTimeProvider = relativeTimeProvider;
         this.ingestForwarder = new IngestActionForwarder(transportService);
+        this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         clusterService.addStateApplier(this.ingestForwarder);
     }
@@ -224,7 +221,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         createIndexRequest.index(index);
         createIndexRequest.cause("auto(bulk api)");
         createIndexRequest.masterNodeTimeout(timeout);
-        createIndexAction.execute(createIndexRequest, listener);
+        client.admin().indices().create(createIndexRequest, listener);
     }
 
     private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest request, String index, Exception e) {

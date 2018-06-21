@@ -23,6 +23,7 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
@@ -42,22 +43,19 @@ import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.CloseableChannel;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
-import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
-import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
@@ -65,14 +63,9 @@ import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
-import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -154,20 +147,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     private final int pipeliningMaxEvents;
 
-    private final boolean tcpNoDelay;
-    private final boolean tcpKeepAlive;
-    private final boolean reuseAddress;
-
-    private final ByteSizeValue tcpSendBufferSize;
-    private final ByteSizeValue tcpReceiveBufferSize;
     private final RecvByteBufAllocator recvByteBufAllocator;
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
 
     protected volatile ServerBootstrap serverBootstrap;
-
-    protected final List<Channel> serverChannels = new ArrayList<>();
 
     private final Netty4CorsConfig corsConfig;
 
@@ -184,11 +169,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
         this.workerCount = SETTING_HTTP_WORKER_COUNT.get(settings);
 
-        this.tcpNoDelay = SETTING_HTTP_TCP_NO_DELAY.get(settings);
-        this.tcpKeepAlive = SETTING_HTTP_TCP_KEEP_ALIVE.get(settings);
-        this.reuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
-        this.tcpSendBufferSize = SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings);
-        this.tcpReceiveBufferSize = SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings);
         this.readTimeoutMillis = Math.toIntExact(SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis());
 
         ByteSizeValue receivePredictor = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
@@ -217,6 +197,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             serverBootstrap.channel(NioServerSocketChannel.class);
 
             serverBootstrap.childHandler(configureServerChannelHandler());
+            serverBootstrap.handler(new ServerChannelExceptionHandler(this));
 
             serverBootstrap.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings));
             serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
@@ -238,10 +219,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             serverBootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
             serverBootstrap.childOption(ChannelOption.SO_REUSEADDR, reuseAddress);
 
-            this.boundAddress = createBoundHttpAddress();
-            if (logger.isInfoEnabled()) {
-                logger.info("{}", boundAddress);
-            }
+            bindServer();
             success = true;
         } finally {
             if (success == false) {
@@ -284,69 +262,20 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @Override
-    protected TransportAddress bindAddress(final InetAddress hostAddress) {
-        final AtomicReference<Exception> lastException = new AtomicReference<>();
-        final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
-        boolean success = port.iterate(portNumber -> {
-            try {
-                synchronized (serverChannels) {
-                    ChannelFuture future = serverBootstrap.bind(new InetSocketAddress(hostAddress, portNumber)).sync();
-                    serverChannels.add(future.channel());
-                    boundSocket.set((InetSocketAddress) future.channel().localAddress());
-                }
-            } catch (Exception e) {
-                lastException.set(e);
-                return false;
-            }
-            return true;
-        });
-        if (!success) {
-            throw new BindHttpException("Failed to bind to [" + port.getPortRangeString() + "]", lastException.get());
-        }
-
-        if (logger.isDebugEnabled()) {
-            logger.debug("Bound http to address {{}}", NetworkAddress.format(boundSocket.get()));
-        }
-        return new TransportAddress(boundSocket.get());
+    protected HttpServerChannel bind(InetSocketAddress socketAddress) throws Exception {
+        ChannelFuture future = serverBootstrap.bind(socketAddress).sync();
+        Channel channel = future.channel();
+        Netty4HttpServerChannel httpServerChannel = new Netty4HttpServerChannel(channel);
+        channel.attr(HTTP_SERVER_CHANNEL_KEY).set(httpServerChannel);
+        return httpServerChannel;
     }
 
     @Override
-    protected void doStop() {
-        synchronized (serverChannels) {
-            if (!serverChannels.isEmpty()) {
-                try {
-                    Netty4Utils.closeChannels(serverChannels);
-                } catch (IOException e) {
-                    logger.trace("exception while closing channels", e);
-                } finally {
-                    serverChannels.clear();
-                }
-            }
-        }
-
-        // TODO: Move all of channel closing to abstract class once server channels are handled
-        try {
-            CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
-        } catch (Exception e) {
-            logger.warn("unexpected exception while closing http channels", e);
-        }
-        httpChannels.clear();
-
-
-
+    protected void stopInternal() {
         if (serverBootstrap != null) {
             serverBootstrap.config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS).awaitUninterruptibly();
             serverBootstrap = null;
         }
-    }
-
-    @Override
-    protected void doClose() {
-    }
-
-    @Override
-    public HttpStats stats() {
-        return new HttpStats(httpChannels.size(), totalChannelsAccepted.get());
     }
 
     @Override
@@ -355,7 +284,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (logger.isTraceEnabled()) {
                 logger.trace("Http read timeout {}", channel);
             }
-            CloseableChannel.closeChannel(channel);;
+            CloseableChannel.closeChannel(channel);
         } else {
             super.onException(channel, cause);
         }
@@ -366,6 +295,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
+    static final AttributeKey<Netty4HttpServerChannel> HTTP_SERVER_CHANNEL_KEY = AttributeKey.newInstance("es-http-server-channel");
 
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
@@ -413,4 +343,24 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         }
     }
 
+    @ChannelHandler.Sharable
+    private static class ServerChannelExceptionHandler extends ChannelHandlerAdapter {
+
+        private final Netty4HttpServerTransport transport;
+
+        private ServerChannelExceptionHandler(Netty4HttpServerTransport transport) {
+            this.transport = transport;
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            Netty4Utils.maybeDie(cause);
+            Netty4HttpServerChannel httpServerChannel = ctx.channel().attr(HTTP_SERVER_CHANNEL_KEY).get();
+            if (cause instanceof Error) {
+                transport.onServerException(httpServerChannel, new Exception(cause));
+            } else {
+                transport.onServerException(httpServerChannel, (Exception) cause);
+            }
+        }
+    }
 }

@@ -17,19 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen;
+package org.elasticsearch.transport;
 
-import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.network.CloseableChannel;
 
-import java.util.List;
+import java.net.InetSocketAddress;
+
 
 /**
- * A pluggable provider of the list of unicast hosts to use for unicast discovery.
+ * This is a tcp channel representing a server channel listening for new connections. It is the server
+ * channel abstraction used by the {@link TcpTransport} and {@link TransportService}. All tcp transport
+ * implementations must return server channels that adhere to the required method contracts.
  */
-public interface UnicastHostsProvider {
+public interface TcpServerChannel extends CloseableChannel {
 
     /**
-     * Builds the dynamic list of unicast hosts to be used for unicast discovery.
+     * This returns the profile for this channel.
      */
-    List<TransportAddress> buildDynamicHosts();
+    String getProfile();
+
+    /**
+     * Returns the local address for this channel.
+     *
+     * @return the local address of this channel.
+     */
+    InetSocketAddress getLocalAddress();
+
 }

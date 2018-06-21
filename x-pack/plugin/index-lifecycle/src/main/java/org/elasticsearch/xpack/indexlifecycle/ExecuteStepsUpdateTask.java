@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
-import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
 import java.io.IOException;
@@ -58,12 +58,12 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
             // We can do cluster state steps all together until we
             // either get to a step that isn't a cluster state step or a
             // cluster state wait step returns not completed
-            while (currentStep instanceof InitializePolicyContextStep || currentStep instanceof ClusterStateWaitStep) {
-                if (currentStep instanceof InitializePolicyContextStep) {
+            while (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
+                if (currentStep instanceof ClusterStateActionStep) {
                     // cluster state action step so do the action and
                     // move
                     // the cluster state to the next step
-                    currentState = ((InitializePolicyContextStep) currentStep).performAction(index, currentState);
+                    currentState = ((ClusterStateActionStep) currentStep).performAction(index, currentState);
                     if (currentStep.getNextStepKey() == null) {
                         return currentState;
                     }

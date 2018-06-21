@@ -239,8 +239,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testMaintenanceModeSkip() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
-        IndexLifecycleRunnerTests.MockInitializePolicyContextStep mockStep =
-            new IndexLifecycleRunnerTests.MockInitializePolicyContextStep(randomStepKey(), randomStepKey());
+        IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
+            new IndexLifecycleRunnerTests.MockClusterStateActionStep(randomStepKey(), randomStepKey());
         MockAction mockAction = new MockAction(Collections.singletonList(mockStep));
         Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
@@ -269,8 +269,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     public void testRequestedMaintenanceOnShrink() {
         Step.StepKey mockShrinkStep = new Step.StepKey(randomAlphaOfLength(4), ShrinkAction.NAME, randomAlphaOfLength(5));
         String policyName = randomAlphaOfLengthBetween(1, 20);
-        IndexLifecycleRunnerTests.MockInitializePolicyContextStep mockStep =
-            new IndexLifecycleRunnerTests.MockInitializePolicyContextStep(mockShrinkStep, randomStepKey());
+        IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
+            new IndexLifecycleRunnerTests.MockClusterStateActionStep(mockShrinkStep, randomStepKey());
         MockAction mockAction = new MockAction(Collections.singletonList(mockStep));
         Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
@@ -310,8 +310,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     public void testRequestedMaintenanceOnSafeAction() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
         Step.StepKey currentStepKey = randomStepKey();
-        IndexLifecycleRunnerTests.MockInitializePolicyContextStep mockStep =
-            new IndexLifecycleRunnerTests.MockInitializePolicyContextStep(currentStepKey, randomStepKey());
+        IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep =
+            new IndexLifecycleRunnerTests.MockClusterStateActionStep(currentStepKey, randomStepKey());
         MockAction mockAction = new MockAction(Collections.singletonList(mockStep));
         Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,

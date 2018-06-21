@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunnerTests.MockClusterStateWaitStep;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunnerTests.MockInitializePolicyContextStep;
+import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunnerTests.MockClusterStateActionStep;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -57,7 +57,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
     private String mixedPolicyName;
     private String allClusterPolicyName;
     private Index index;
-    private MockInitializePolicyContextStep firstStep;
+    private MockClusterStateActionStep firstStep;
     private MockClusterStateWaitStep secondStep;
     private MockClusterStateWaitStep allClusterSecondStep;
     private MockStep thirdStep;
@@ -67,7 +67,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
     public void prepareState() {
         client = Mockito.mock(Client.class);
         Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
-        firstStep = new MockInitializePolicyContextStep(firstStepKey, secondStepKey);
+        firstStep = new MockClusterStateActionStep(firstStepKey, secondStepKey);
         secondStep = new MockClusterStateWaitStep(secondStepKey, thirdStepKey);
         secondStep.setWillComplete(true);
         allClusterSecondStep = new MockClusterStateWaitStep(secondStepKey, TerminalPolicyStep.KEY);

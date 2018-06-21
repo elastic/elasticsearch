@@ -28,8 +28,6 @@ import java.util.stream.Collectors;
 
 public class TextLogFileStructure extends AbstractLogFileStructure implements LogFileStructure {
 
-    private static final String INTERIM_TIMESTAMP_FIELD = "timestamp";
-
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
         "%s" +
@@ -45,8 +43,8 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "  }\n" +
         "%s" +
         "  date {\n" +
-        "    match => [ \"" + INTERIM_TIMESTAMP_FIELD + "\", %s ]\n" +
-        "    remove_field => [ \"" + INTERIM_TIMESTAMP_FIELD + "\" ]\n" +
+        "    match => [ \"%s\", %s ]\n" +
+        "    remove_field => [ \"%s\" ]\n" +
         "  }\n";
     private static final String LOGSTASH_FROM_FILEBEAT_TEMPLATE = "input {\n" +
         "  beats {\n" +
@@ -107,12 +105,12 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "        \"patterns\": [ \"%s\" ]\n" +
         "      }%s,\n" +
         "      \"date\": {\n" +
-        "        \"field\": \"" + INTERIM_TIMESTAMP_FIELD + "\",\n" +
+        "        \"field\": \"%s\",\n" +
         "        \"formats\": [ %s ],\n" +
         "        \"timezone\": \"{{ beat.timezone }}\"\n" +
         "      },\n" +
         "      \"remove\": {\n" +
-        "        \"field\": \"" + INTERIM_TIMESTAMP_FIELD + "\"\n" +
+        "        \"field\": \"%s\"\n" +
         "      }\n" +
         "    }\n" +
         "  ]\n" +
@@ -203,13 +201,24 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         mappings.put("message", "text");
         mappings.put(DEFAULT_TIMESTAMP_FIELD, "date");
 
-        // We can't parse directly into @timestamp using Grok, so parse to timestamp, which the date filter will remove
-        String grokPattern = GrokPatternCreator.createGrokPatternFromExamples(terminal, sampleMessages, bestTimestamp.v1().grokPatternName,
-            INTERIM_TIMESTAMP_FIELD, mappings);
+        // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
+        String interimTimestampField;
+        String grokPattern;
+        Tuple<String, String> timestampFieldAndFullMatchGrokPattern =
+            GrokPatternCreator.findFullLineGrokPattern(terminal, sampleMessages, mappings);
+        if (timestampFieldAndFullMatchGrokPattern != null) {
+            interimTimestampField = timestampFieldAndFullMatchGrokPattern.v1();
+            grokPattern = timestampFieldAndFullMatchGrokPattern.v2();
+        } else {
+            interimTimestampField = "timestamp";
+            grokPattern = GrokPatternCreator.createGrokPatternFromExamples(terminal, sampleMessages, bestTimestamp.v1().grokPatternName,
+                interimTimestampField, mappings);
+        }
         String grokQuote = bestLogstashQuoteFor(grokPattern);
         String dateFormatsStr = bestTimestamp.v1().dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\""));
         String commonLogstashFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
-            makeLogstashFractionalSecondsGsubFilter(INTERIM_TIMESTAMP_FIELD, bestTimestamp.v1()), dateFormatsStr);
+            makeLogstashFractionalSecondsGsubFilter(interimTimestampField, bestTimestamp.v1()), interimTimestampField, dateFormatsStr,
+            interimTimestampField);
 
         String filebeatInputOptions = makeFilebeatInputOptions(multiLineRegex, null);
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions);
@@ -223,7 +232,8 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
             String jsonEscapedGrokPattern = grokPattern.replaceAll("([\\\\\"])", "\\\\$1");
             ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_WITHOUT_MODULE_TEMPLATE, typeName,
                 typeName, jsonEscapedGrokPattern,
-                makeIngestPipelineFractionalSecondsGsubFilter(INTERIM_TIMESTAMP_FIELD, bestTimestamp.v1()), dateFormatsStr);
+                makeIngestPipelineFractionalSecondsGsubFilter(interimTimestampField, bestTimestamp.v1()), interimTimestampField,
+                dateFormatsStr, interimTimestampField);
         } else {
             String aOrAn = ("aeiou".indexOf(matchingModule.fileType.charAt(0)) >= 0) ? "an" : "a";
             terminal.println("An existing filebeat module [" + matchingModule.moduleName +

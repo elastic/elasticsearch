@@ -6,11 +6,14 @@
 package org.elasticsearch.xpack.ml.configcreator;
 
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.grok.Grok;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -33,6 +36,27 @@ public final class GrokPatternCreator {
     private static final String PREFACE = "preface";
     private static final String VALUE = "value";
     private static final String EPILOGUE = "epilogue";
+
+    /**
+     * Grok patterns that are designed to match the whole message, not just a part of it.
+     */
+    private static final List<FullMatchGrokPatternCandidate> FULL_MATCH_GROK_PATTERNS = Arrays.asList(
+        new FullMatchGrokPatternCandidate("BACULA_LOGLINE", "bts"),
+        new FullMatchGrokPatternCandidate("CATALINALOG", "timestamp"),
+        new FullMatchGrokPatternCandidate("COMBINEDAPACHELOG", "timestamp"),
+        new FullMatchGrokPatternCandidate("COMMONAPACHELOG", "timestamp"),
+        new FullMatchGrokPatternCandidate("ELB_ACCESS_LOG", "timestamp"),
+        new FullMatchGrokPatternCandidate("HAPROXYHTTP", "syslog_timestamp"),
+        new FullMatchGrokPatternCandidate("HAPROXYTCP", "syslog_timestamp"),
+        new FullMatchGrokPatternCandidate("HTTPD20_ERRORLOG", "timestamp"),
+        new FullMatchGrokPatternCandidate("HTTPD24_ERRORLOG", "timestamp"),
+        new FullMatchGrokPatternCandidate("NAGIOSLOGLINE", "nagios_epoch"),
+        new FullMatchGrokPatternCandidate("NETSCREENSESSIONLOG", "date"),
+        new FullMatchGrokPatternCandidate("RAILS3", "timestamp"),
+        new FullMatchGrokPatternCandidate("RUBY_LOGGER", "timestamp"),
+        new FullMatchGrokPatternCandidate("SHOREWALL", "timestamp"),
+        new FullMatchGrokPatternCandidate("TOMCATLOG", "timestamp")
+    );
 
     /**
      * The first match in this list will be chosen, so it needs to be ordered
@@ -80,6 +104,18 @@ public final class GrokPatternCreator {
     );
 
     private GrokPatternCreator() {
+    }
+
+    public static Tuple<String, String> findFullLineGrokPattern(Terminal terminal, Collection<String> sampleMessages,
+                                                                Map<String, String> mappings) {
+
+        for (FullMatchGrokPatternCandidate candidate : FULL_MATCH_GROK_PATTERNS) {
+            if (candidate.matchesAll(sampleMessages)) {
+                return candidate.processMatch(terminal, sampleMessages, mappings);
+            }
+        }
+
+        return null;
     }
 
     public static String createGrokPatternFromExamples(Terminal terminal, Collection<String> sampleMessages, String seedPatternName,
@@ -279,7 +315,7 @@ public final class GrokPatternCreator {
             this.mappingType = mappingType;
             this.fieldName = fieldName;
             // The (?m) here has the Ruby meaning, which is equivalent to (?s) in Java
-            this.grok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}" + preBreak +
+            grok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}" + preBreak +
                 "%{" + grokPatternName + ":" + VALUE + "}" + postBreak + "%{GREEDYDATA:" + EPILOGUE + "}");
         }
 
@@ -391,6 +427,72 @@ public final class GrokPatternCreator {
         public String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
                                       Collection<String> epilogues, Map<String, String> mappings) {
             return super.processCaptures(fieldNameCountStore, snippets, prefaces, epilogues, null);
+        }
+    }
+
+    /**
+     * Used to check whether a single Grok pattern matches every sample message in its entirety.
+     */
+    static class FullMatchGrokPatternCandidate {
+
+        private final String grokString;
+        private final String timeField;
+        private final Grok grok;
+
+        FullMatchGrokPatternCandidate(String grokPatternName, String timeField) {
+            grokString = "%{" + grokPatternName + "}";
+            this.timeField = timeField;
+            grok = new Grok(Grok.getBuiltinPatterns(), grokString);
+        }
+
+        public boolean matchesAll(Collection<String> sampleMessages) {
+            return sampleMessages.stream().allMatch(grok::match);
+        }
+
+        /**
+         * This must only be called if @link{matchesAll} returns <code>true</code>.
+         * @return A tuple of (time field, Grok string).
+         */
+        public Tuple<String, String> processMatch(Terminal terminal, Collection<String> sampleMessages, Map<String, String> mappings) {
+
+            terminal.println(Verbosity.VERBOSE, "A full message Grok pattern [" + grokString.substring(2, grokString.length() - 1) +
+                "] looks appropriate");
+
+            if (mappings != null) {
+                Map<String, Collection<String>> valuesPerField = new HashMap<>();
+
+                for (String sampleMessage : sampleMessages) {
+                    Map<String, Object> captures = grok.captures(sampleMessage);
+                    // If the pattern doesn't match then captures will be null
+                    if (captures == null) {
+                        throw new IllegalStateException("[" + grokString + "] does not match snippet [" + sampleMessage + "]");
+                    }
+                    for (Map.Entry<String, Object> capture : captures.entrySet()) {
+
+                        String fieldName = capture.getKey();
+                        String fieldValue = capture.getValue().toString();
+
+                        // Exclude the time field because that will be dropped and replaced with @timestamp
+                        if (fieldName.equals(timeField) == false) {
+                            valuesPerField.compute(fieldName, (k, v) -> {
+                                if (v == null) {
+                                    return new ArrayList<>(Collections.singletonList(fieldValue));
+                                } else {
+                                    v.add(fieldValue);
+                                    return v;
+                                }
+                            });
+                        }
+                    }
+                }
+
+                for (Map.Entry<String, Collection<String>> valuesForField : valuesPerField.entrySet()) {
+                    String fieldName = valuesForField.getKey();
+                    mappings.put(fieldName, AbstractLogFileStructure.guessScalarMapping(terminal, fieldName, valuesForField.getValue()));
+                }
+            }
+
+            return new Tuple<>(timeField, grokString);
         }
     }
 }

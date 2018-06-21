@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.GrokPatternCreator.ValueOnlyGrokPatternCandidate;
 
 import java.util.ArrayList;
@@ -222,9 +223,9 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
             "Sep  8 11:55:42 linux named[22529]: error (unexpected RCODE REFUSED) resolving 'b.akamaiedge.net/A/IN': 95.110.64.205#53");
         Map<String, String> mappings = new HashMap<>();
 
-        assertEquals("%{SYSLOGTIMESTAMP:_timestamp} .*? .*?\\[%{INT:field}\\]: %{LOGLEVEL:loglevel} \\(.*? .*? .*?\\) .*? " +
+        assertEquals("%{SYSLOGTIMESTAMP:timestamp} .*? .*?\\[%{INT:field}\\]: %{LOGLEVEL:loglevel} \\(.*? .*? .*?\\) .*? " +
                 "%{QUOTEDSTRING:field2}: %{IP:ipaddress}#%{INT:field3}",
-            GrokPatternCreator.createGrokPatternFromExamples(TEST_TERMINAL, sampleMessages, "SYSLOGTIMESTAMP", "_timestamp", mappings));
+            GrokPatternCreator.createGrokPatternFromExamples(TEST_TERMINAL, sampleMessages, "SYSLOGTIMESTAMP", "timestamp", mappings));
         assertEquals(5, mappings.size());
         assertEquals("long", mappings.get("field"));
         assertEquals("keyword", mappings.get("loglevel"));
@@ -246,8 +247,8 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
                 "Invalid chunk ignored.");
         Map<String, String> mappings = new HashMap<>();
 
-        assertEquals("%{CATALINA_DATESTAMP:_timestamp} .*? .*?\\n%{LOGLEVEL:loglevel}: .*",
-            GrokPatternCreator.createGrokPatternFromExamples(TEST_TERMINAL, sampleMessages, "CATALINA_DATESTAMP", "_timestamp", mappings));
+        assertEquals("%{CATALINA_DATESTAMP:timestamp} .*? .*?\\n%{LOGLEVEL:loglevel}: .*",
+            GrokPatternCreator.createGrokPatternFromExamples(TEST_TERMINAL, sampleMessages, "CATALINA_DATESTAMP", "timestamp", mappings));
         assertEquals(1, mappings.size());
         assertEquals("keyword", mappings.get("loglevel"));
     }
@@ -266,14 +267,49 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
                 "Info\tsshd\tsubsystem request for sftp");
         Map<String, String> mappings = new HashMap<>();
 
-        assertEquals("%{INT:field}\\t%{TIMESTAMP_ISO8601:_timestamp}\\t%{TIMESTAMP_ISO8601:extra_timestamp}\\t%{INT:field2}\\t.*?\\t" +
+        assertEquals("%{INT:field}\\t%{TIMESTAMP_ISO8601:timestamp}\\t%{TIMESTAMP_ISO8601:extra_timestamp}\\t%{INT:field2}\\t.*?\\t" +
                 "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
-            GrokPatternCreator.createGrokPatternFromExamples(TEST_TERMINAL, sampleMessages, "TIMESTAMP_ISO8601", "_timestamp", mappings));
+            GrokPatternCreator.createGrokPatternFromExamples(TEST_TERMINAL, sampleMessages, "TIMESTAMP_ISO8601", "timestamp", mappings));
         assertEquals(5, mappings.size());
         assertEquals("long", mappings.get("field"));
         assertEquals("date", mappings.get("extra_timestamp"));
         assertEquals("long", mappings.get("field2"));
         assertEquals("ip", mappings.get("ipaddress"));
         assertEquals("keyword", mappings.get("loglevel"));
+    }
+
+    public void testFindFullLineGrokPatternGivenApacheCombinedLogs() {
+        Collection<String> sampleMessages = Arrays.asList(
+            "83.149.9.216 - - [19/Jan/2016:08:13:42 +0000] " +
+                "\"GET /presentations/logstash-monitorama-2013/images/kibana-search.png HTTP/1.1\" 200 203023 " +
+                "\"http://semicomplete.com/presentations/logstash-monitorama-2013/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_1) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.77 Safari/537.36\"",
+            "83.149.9.216 - - [19/Jan/2016:08:13:44 +0000] " +
+                "\"GET /presentations/logstash-monitorama-2013/plugin/zoom-js/zoom.js HTTP/1.1\" 200 7697 " +
+                "\"http://semicomplete.com/presentations/logstash-monitorama-2013/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_1) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.77 Safari/537.36\"",
+            "83.149.9.216 - - [19/Jan/2016:08:13:44 +0000] " +
+                "\"GET /presentations/logstash-monitorama-2013/plugin/highlight/highlight.js HTTP/1.1\" 200 26185 " +
+                "\"http://semicomplete.com/presentations/logstash-monitorama-2013/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_1) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.77 Safari/537.36\"",
+            "83.149.9.216 - - [19/Jan/2016:08:13:42 +0000] " +
+                "\"GET /presentations/logstash-monitorama-2013/images/sad-medic.png HTTP/1.1\" 200 430406 " +
+                "\"http://semicomplete.com/presentations/logstash-monitorama-2013/\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_1) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.77 Safari/537.36\"");
+        Map<String, String> mappings = new HashMap<>();
+
+        assertEquals(new Tuple<>("timestamp", "%{COMBINEDAPACHELOG}"),
+            GrokPatternCreator.findFullLineGrokPattern(TEST_TERMINAL, sampleMessages, mappings));
+        assertEquals(10, mappings.size());
+        assertEquals("text", mappings.get("agent"));
+        assertEquals("keyword", mappings.get("auth"));
+        assertEquals("long", mappings.get("bytes"));
+        assertEquals("ip", mappings.get("clientip"));
+        assertEquals("double", mappings.get("httpversion"));
+        assertEquals("keyword", mappings.get("ident"));
+        assertEquals("keyword", mappings.get("referrer"));
+        assertEquals("keyword", mappings.get("request"));
+        assertEquals("long", mappings.get("response"));
+        assertEquals("keyword", mappings.get("verb"));
     }
 }

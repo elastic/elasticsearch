@@ -19,7 +19,6 @@ import java.security.AccessControlException;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
 
@@ -187,9 +186,18 @@ public abstract class AbstractLogFileStructure {
             return "boolean";
         }
 
-        Set<TimestampMatch> timestampMatches =
-            fieldValues.stream().map(TimestampFormatFinder::findFirstMatch).collect(Collectors.toSet());
-        if (timestampMatches.size() == 1 && timestampMatches.iterator().next() != null) {
+        TimestampMatch timestampMatch = null;
+        for (String fieldValue : fieldValues) {
+            if (timestampMatch == null) {
+                timestampMatch = TimestampFormatFinder.findFirstMatch(fieldValue);
+                if (timestampMatch == null) {
+                    break;
+                }
+            } else if (TimestampFormatFinder.findFirstMatch(fieldValue, timestampMatch.candidateIndex) != timestampMatch) {
+                break;
+            }
+        }
+        if (timestampMatch != null) {
             return "date";
         }
 

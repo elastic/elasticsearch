@@ -121,8 +121,8 @@ another rack if none of the local nodes are available, rather than returning
 no nodes in such case which would make the client forcibly revive a local node
 whenever none of the nodes from the preferred rack is available.
 
-WARNING: Node selectors that select a different set of nodes out of different
-runs will make the round-robin behaviour unpredictable and possibly unfair.
-The preference example  above is fine as it reasons about availability of nodes
+WARNING: Node selectors that do not consistently select the same set of nodes
+will make round-robin behaviour unpredictable and possibly unfair. The
+preference example  above is fine as it reasons about availability of nodes
 which already affects the predictability of round-robin. Node selection should
 not depend on other external factors or round-robin will not work properly.

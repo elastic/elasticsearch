@@ -34,12 +34,14 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
@@ -47,7 +49,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -64,7 +65,7 @@ public class ClientYamlTestClient {
     protected final Map<NodeSelector, RestClient> restClients = new HashMap<>();
     private final Version esVersion;
     private final Version masterVersion;
-    private final Consumer<RestClientBuilder> clientBuilderConsumer;
+    private final CheckedConsumer<RestClientBuilder, IOException> clientBuilderConsumer;
 
     public ClientYamlTestClient(
             final ClientYamlSuiteRestSpec restSpec,
@@ -72,7 +73,7 @@ public class ClientYamlTestClient {
             final List<HttpHost> hosts,
             final Version esVersion,
             final Version masterVersion,
-            final Consumer<RestClientBuilder> clientBuilderConsumer) {
+            final CheckedConsumer<RestClientBuilder, IOException> clientBuilderConsumer) {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClients.put(NodeSelector.ANY, restClient);
@@ -199,7 +200,11 @@ public class ClientYamlTestClient {
         return restClients.computeIfAbsent(nodeSelector, selector -> {
             RestClient anyClient = restClients.get(NodeSelector.ANY);
             RestClientBuilder builder = RestClient.builder(anyClient.getNodes().toArray(new Node[0]));
-            clientBuilderConsumer.accept(builder);
+            try {
+                clientBuilderConsumer.accept(builder);
+            } catch(IOException e) {
+                throw new UncheckedIOException(e);
+            }
             builder.setNodeSelector(nodeSelector);
             return builder.build();
         });

@@ -56,7 +56,6 @@ import org.junit.Before;
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyManagementException;
@@ -386,7 +385,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return builder.build();
     }
 
-    protected static void configureClient(RestClientBuilder builder, Settings settings) {
+    protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
         String keystorePath = settings.get(TRUSTSTORE_PATH);
         if (keystorePath != null) {
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
@@ -407,8 +406,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                 builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
             } catch (KeyStoreException |NoSuchAlgorithmException |KeyManagementException |CertificateException e) {
                 throw new RuntimeException("Error setting up ssl", e);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
             }
         }
         try (ThreadContext threadContext = new ThreadContext(settings)) {
@@ -418,8 +415,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                 defaultHeaders[i++] = new BasicHeader(entry.getKey(), entry.getValue());
             }
             builder.setDefaultHeaders(defaultHeaders);
-        } catch(IOException e) {
-            throw new UncheckedIOException(e);
         }
         final String requestTimeoutString = settings.get(CLIENT_RETRY_TIMEOUT);
         if (requestTimeoutString != null) {

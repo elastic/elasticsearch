@@ -14,6 +14,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
 
@@ -38,9 +39,29 @@ public class FollowIndexActionTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("follow index [index2] does not exist"));
         }
         {
-            // should fail because leader index does not have soft deletes enabled
+            // should fail because follow index does not have follow engine enabled
             IndexMetaData leaderIMD = createIMD("index1", 5);
             IndexMetaData followIMD = createIMD("index2", 5);
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> FollowIndexAction.validate(request, leaderIMD, followIMD, null));
+            assertThat(e.getMessage(), equalTo("follow index [index2] does not have the follow index setting enabled"));
+        }
+        {
+            // should fail because follow index does not reference a leader index
+            IndexMetaData leaderIMD = createIMD("index1", 5);
+            IndexMetaData followIMD = createIMD("index2", 5,
+                new Tuple<>(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> FollowIndexAction.validate(request, leaderIMD, followIMD, null));
+            assertThat(e.getMessage(), equalTo("follow index [index2] should reference [_na_] as leader index but instead " +
+                "reference [null] as leader index"));
+        }
+        {
+            // should fail because leader index does not have soft deletes enabled
+            IndexMetaData leaderIMD = createIMD("index1", 5);
+            IndexMetaData followIMD = createIMD("index2", 5,
+                new Tuple<>(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"),
+                new Tuple<>(CcrSettings.CCR_LEADER_INDEX_UUID_SETTING.getKey(), leaderIMD.getIndex().getUUID()));
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> FollowIndexAction.validate(request, leaderIMD, followIMD, null));
             assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
@@ -48,7 +69,9 @@ public class FollowIndexActionTests extends ESTestCase {
         {
             // should fail because the number of primary shards between leader and follow index are not equal
             IndexMetaData leaderIMD = createIMD("index1", 5, new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
-            IndexMetaData followIMD = createIMD("index2", 4);
+            IndexMetaData followIMD = createIMD("index2", 4,
+                new Tuple<>(CcrSettings.CCR_LEADER_INDEX_UUID_SETTING.getKey(), leaderIMD.getIndex().getUUID()),
+                new Tuple<>(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> FollowIndexAction.validate(request, leaderIMD, followIMD, null));
             assertThat(e.getMessage(),
@@ -59,7 +82,8 @@ public class FollowIndexActionTests extends ESTestCase {
             IndexMetaData leaderIMD = createIMD("index1", State.CLOSE, "{}", 5,
                 new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
             IndexMetaData followIMD = createIMD("index2", State.OPEN, "{}", 5,
-                new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+                new Tuple<>(CcrSettings.CCR_LEADER_INDEX_UUID_SETTING.getKey(), leaderIMD.getIndex().getUUID()),
+                new Tuple<>(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> FollowIndexAction.validate(request, leaderIMD, followIMD, null));
             assertThat(e.getMessage(), equalTo("leader and follow index must be open"));
@@ -68,7 +92,9 @@ public class FollowIndexActionTests extends ESTestCase {
             // should fail, because leader has a field with the same name mapped as keyword and follower as text
             IndexMetaData leaderIMD = createIMD("index1", State.OPEN, "{\"properties\": {\"field\": {\"type\": \"keyword\"}}}", 5,
                 new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
-            IndexMetaData followIMD = createIMD("index2", State.OPEN, "{\"properties\": {\"field\": {\"type\": \"text\"}}}", 5);
+            IndexMetaData followIMD = createIMD("index2", State.OPEN, "{\"properties\": {\"field\": {\"type\": \"text\"}}}", 5,
+                new Tuple<>(CcrSettings.CCR_LEADER_INDEX_UUID_SETTING.getKey(), leaderIMD.getIndex().getUUID()),
+                new Tuple<>(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
             mapperService.updateMapping(followIMD);
             Exception e = expectThrows(IllegalArgumentException.class,
@@ -84,7 +110,9 @@ public class FollowIndexActionTests extends ESTestCase {
                 new Tuple<>("index.analysis.analyzer.my_analyzer.tokenizer", "whitespace"));
             IndexMetaData followIMD = createIMD("index2", State.OPEN, mapping, 5,
                 new Tuple<>("index.analysis.analyzer.my_analyzer.type", "custom"),
-                new Tuple<>("index.analysis.analyzer.my_analyzer.tokenizer", "standard"));
+                new Tuple<>("index.analysis.analyzer.my_analyzer.tokenizer", "standard"),
+                new Tuple<>(CcrSettings.CCR_LEADER_INDEX_UUID_SETTING.getKey(), leaderIMD.getIndex().getUUID()),
+                new Tuple<>(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> FollowIndexAction.validate(request, leaderIMD, followIMD, null));
             assertThat(e.getMessage(), equalTo("the leader and follower index settings must be identical"));
@@ -92,7 +120,9 @@ public class FollowIndexActionTests extends ESTestCase {
         {
             // should succeed
             IndexMetaData leaderIMD = createIMD("index1", 5, new Tuple<>(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
-            IndexMetaData followIMD = createIMD("index2", 5);
+            IndexMetaData followIMD = createIMD("index2", 5,
+                new Tuple<>(CcrSettings.CCR_LEADER_INDEX_UUID_SETTING.getKey(), leaderIMD.getIndex().getUUID()),
+                new Tuple<>(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
             mapperService.updateMapping(followIMD);
             FollowIndexAction.validate(request, leaderIMD, followIMD, mapperService);
@@ -106,7 +136,9 @@ public class FollowIndexActionTests extends ESTestCase {
                 new Tuple<>("index.analysis.analyzer.my_analyzer.tokenizer", "standard"));
             IndexMetaData followIMD = createIMD("index2", State.OPEN, mapping, 5,
                 new Tuple<>("index.analysis.analyzer.my_analyzer.type", "custom"),
-                new Tuple<>("index.analysis.analyzer.my_analyzer.tokenizer", "standard"));
+                new Tuple<>("index.analysis.analyzer.my_analyzer.tokenizer", "standard"),
+                new Tuple<>(CcrSettings.CCR_LEADER_INDEX_UUID_SETTING.getKey(), leaderIMD.getIndex().getUUID()),
+                new Tuple<>(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
                 followIMD.getSettings(), "index2");
             mapperService.updateMapping(followIMD);
@@ -121,6 +153,8 @@ public class FollowIndexActionTests extends ESTestCase {
                 new Tuple<>("index.analysis.analyzer.my_analyzer.type", "custom"),
                 new Tuple<>("index.analysis.analyzer.my_analyzer.tokenizer", "standard"));
             IndexMetaData followIMD = createIMD("index2", State.OPEN, mapping, 5,
+                new Tuple<>(CcrSettings.CCR_LEADER_INDEX_UUID_SETTING.getKey(), leaderIMD.getIndex().getUUID()),
+                new Tuple<>(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"),
                 new Tuple<>(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s"),
                 new Tuple<>("index.analysis.analyzer.my_analyzer.type", "custom"),
                 new Tuple<>("index.analysis.analyzer.my_analyzer.tokenizer", "standard"));
@@ -130,7 +164,7 @@ public class FollowIndexActionTests extends ESTestCase {
             FollowIndexAction.validate(request, leaderIMD, followIMD, mapperService);
         }
     }
-    
+
     private static IndexMetaData createIMD(String index, int numShards, Tuple<?, ?>... settings) throws IOException {
         return createIMD(index, State.OPEN, "{\"properties\": {}}", numShards, settings);
     }

@@ -276,6 +276,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
                     settingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
                     settingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followIndex);
                     settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
+                    settingsBuilder.put(CcrSettings.CCR_LEADER_INDEX_UUID_SETTING.getKey(), leaderIndexMetaData.getIndexUUID());
                     imdBuilder.settings(settingsBuilder);
 
                     // Copy mappings from leader IMD to follow IMD

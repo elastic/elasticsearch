@@ -353,6 +353,16 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         if (followIndex == null) {
             throw new IllegalArgumentException("follow index [" + request.followIndex + "] does not exist");
         }
+        if (followIndex.getSettings().getAsBoolean(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), false) == false) {
+            throw new IllegalArgumentException("follow index [" + request.followIndex +
+                "] does not have the follow index setting enabled");
+        }
+        String key = CcrSettings.CCR_LEADER_INDEX_UUID_SETTING.getKey();
+        String leaderIndexUUID = leaderIndex.getIndex().getUUID();
+        if (leaderIndexUUID.equals(followIndex.getSettings().get(key)) == false) {
+            throw new IllegalArgumentException("follow index [" + request.followIndex + "] should reference [" + leaderIndexUUID +
+                "] as leader index but instead reference [" + followIndex.getSettings().get(key) + "] as leader index");
+        }
         if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
             throw new IllegalArgumentException("leader index [" + request.leaderIndex + "] does not have soft deletes enabled");
         }
@@ -384,6 +394,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         Settings.Builder settings = Settings.builder().put(originalSettings);
         // Remove settings that are always going to be different between leader and follow index:
         settings.remove(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey());
+        settings.remove(CcrSettings.CCR_LEADER_INDEX_UUID_SETTING.getKey());
         settings.remove(IndexMetaData.SETTING_INDEX_UUID);
         settings.remove(IndexMetaData.SETTING_INDEX_PROVIDED_NAME);
         settings.remove(IndexMetaData.SETTING_CREATION_DATE);

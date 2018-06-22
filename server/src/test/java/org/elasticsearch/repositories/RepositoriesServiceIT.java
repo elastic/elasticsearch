@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0, numClientNodes = 0, supportsDedicatedMasters = false)
 public class RepositoriesServiceIT extends ESIntegTestCase {
 
     @Override
@@ -47,14 +46,15 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
         return Collections.singletonList(MockRepository.Plugin.class);
     }
 
-    public void testUpdateRepository() {
+    public void testUpdateRepository() throws Exception {
+        waitNoPendingTasksOnAll();
         final InternalTestCluster cluster = internalCluster();
-        cluster.startMasterOnlyNode();
 
         final String repositoryName = "test-repo";
 
         final Client client = client();
-        final RepositoriesService repositoriesService = cluster.getInstance(RepositoriesService.class);
+        final RepositoriesService repositoriesService =
+            cluster.getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
         final Settings settings = cluster.getDefaultSettings();
 
         final Settings.Builder repoSettings = Settings.builder().put(settings).put("location", randomRepoPath());

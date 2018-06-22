@@ -148,7 +148,7 @@ public class PutMappingRequestTests extends ESTestCase {
     private void assertMappingsEqual(String expected, String actual) throws IOException {
 
         try (XContentParser expectedJson = createParser(XContentType.JSON.xContent(), expected);
-        XContentParser actualJson = createParser(XContentType.JSON.xContent(), actual)) {
+            XContentParser actualJson = createParser(XContentType.JSON.xContent(), actual)) {
             assertEquals(expectedJson.mapOrdered(), actualJson.mapOrdered());
         }
     }

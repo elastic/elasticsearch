@@ -215,58 +215,58 @@ public class QueryRescorerBuilderTests extends ESTestCase {
     public void testUnknownFieldsExpection() throws IOException {
 
         String rescoreElement = "{\n" +
-                "    \"window_size\" : 20,\n" +
-                "    \"bad_rescorer_name\" : { }\n" +
-                "}\n";
-            try (XContentParser parser = createParser(rescoreElement)) {
-                Exception e = expectThrows(NamedObjectNotFoundException.class, () -> RescorerBuilder.parseFromXContent(parser));
-                assertEquals("[3:27] unable to parse RescorerBuilder with name [bad_rescorer_name]: parser not found", e.getMessage());
-            }
+            "    \"window_size\" : 20,\n" +
+            "    \"bad_rescorer_name\" : { }\n" +
+            "}\n";
+        try (XContentParser parser = createParser(rescoreElement)) {
+            Exception e = expectThrows(NamedObjectNotFoundException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertEquals("[3:27] unable to parse RescorerBuilder with name [bad_rescorer_name]: parser not found", e.getMessage());
+        }
         rescoreElement = "{\n" +
-                "    \"bad_fieldName\" : 20\n" +
-                "}\n";
-            try (XContentParser parser = createParser(rescoreElement)) {
-                Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
-                assertEquals("rescore doesn't support [bad_fieldName]", e.getMessage());
-            }
+            "    \"bad_fieldName\" : 20\n" +
+            "}\n";
+        try (XContentParser parser = createParser(rescoreElement)) {
+            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertEquals("rescore doesn't support [bad_fieldName]", e.getMessage());
+        }
 
         rescoreElement = "{\n" +
-                "    \"window_size\" : 20,\n" +
-                "    \"query\" : [ ]\n" +
-                "}\n";
-            try (XContentParser parser = createParser(rescoreElement)) {
-                Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
-                assertEquals("unexpected token [START_ARRAY] after [query]", e.getMessage());
-            }
+            "    \"window_size\" : 20,\n" +
+            "    \"query\" : [ ]\n" +
+            "}\n";
+        try (XContentParser parser = createParser(rescoreElement)) {
+            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertEquals("unexpected token [START_ARRAY] after [query]", e.getMessage());
+        }
 
         rescoreElement = "{ }";
-            try (XContentParser parser = createParser(rescoreElement)) {
-                Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
-                assertEquals("missing rescore type", e.getMessage());
-            }
+        try (XContentParser parser = createParser(rescoreElement)) {
+            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertEquals("missing rescore type", e.getMessage());
+        }
 
         rescoreElement = "{\n" +
-                "    \"window_size\" : 20,\n" +
-                "    \"query\" : { \"bad_fieldname\" : 1.0  } \n" +
-                "}\n";
-            try (XContentParser parser = createParser(rescoreElement)) {
-                XContentParseException e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
-                assertEquals("[3:17] [query] unknown field [bad_fieldname], parser not found", e.getMessage());
-            }
+            "    \"window_size\" : 20,\n" +
+            "    \"query\" : { \"bad_fieldname\" : 1.0  } \n" +
+            "}\n";
+        try (XContentParser parser = createParser(rescoreElement)) {
+            XContentParseException e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertEquals("[3:17] [query] unknown field [bad_fieldname], parser not found", e.getMessage());
+        }
 
         rescoreElement = "{\n" +
-                "    \"window_size\" : 20,\n" +
-                "    \"query\" : { \"rescore_query\" : { \"unknown_queryname\" : { } } } \n" +
-                "}\n";
-            try (XContentParser parser = createParser(rescoreElement)) {
-                Exception e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
-                assertThat(e.getMessage(), containsString("[query] failed to parse field [rescore_query]"));
-            }
+            "    \"window_size\" : 20,\n" +
+            "    \"query\" : { \"rescore_query\" : { \"unknown_queryname\" : { } } } \n" +
+            "}\n";
+        try (XContentParser parser = createParser(rescoreElement)) {
+            Exception e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertThat(e.getMessage(), containsString("[query] failed to parse field [rescore_query]"));
+        }
 
         rescoreElement = "{\n" +
-                "    \"window_size\" : 20,\n" +
-                "    \"query\" : { \"rescore_query\" : { \"match_all\" : { } } } \n"
-                + "}\n";
+            "    \"window_size\" : 20,\n" +
+            "    \"query\" : { \"rescore_query\" : { \"match_all\" : { } } } \n"
+            + "}\n";
         try (XContentParser parser = createParser(rescoreElement)) {
             RescorerBuilder.parseFromXContent(parser);
         }

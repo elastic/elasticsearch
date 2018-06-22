@@ -46,8 +46,7 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
         return Collections.singletonList(MockRepository.Plugin.class);
     }
 
-    public void testUpdateRepository() throws Exception {
-        waitNoPendingTasksOnAll();
+    public void testUpdateRepository() {
         final InternalTestCluster cluster = internalCluster();
 
         final String repositoryName = "test-repo";
@@ -57,7 +56,7 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
             cluster.getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
         final Settings settings = cluster.getDefaultSettings();
 
-        final Settings.Builder repoSettings = Settings.builder().put(settings).put("location", randomRepoPath());
+        final Settings.Builder repoSettings = Settings.builder().put("location", randomRepoPath());
 
         assertAcked(client.admin().cluster().preparePutRepository(repositoryName)
                 .setType(FsRepository.TYPE)
@@ -74,8 +73,6 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
 
         final Repository originalRepository = repositoriesService.repository(repositoryName);
         assertThat(originalRepository, instanceOf(FsRepository.class));
-
-        // update repository
 
         final boolean updated = randomBoolean();
         final String updatedRepositoryType = updated ? "mock" : FsRepository.TYPE;

@@ -43,12 +43,14 @@ import java.util.Map;
  */
 public class TransportHasPrivilegesAction extends HandledTransportAction<HasPrivilegesRequest, HasPrivilegesResponse> {
 
+    private final ThreadPool threadPool;
     private final AuthorizationService authorizationService;
 
     @Inject
     public TransportHasPrivilegesAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                         ActionFilters actionFilters, AuthorizationService authorizationService) {
-        super(settings, HasPrivilegesAction.NAME, threadPool, transportService, actionFilters, HasPrivilegesRequest::new);
+        super(settings, HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new);
+        this.threadPool = threadPool;
         this.authorizationService = authorizationService;
     }
 

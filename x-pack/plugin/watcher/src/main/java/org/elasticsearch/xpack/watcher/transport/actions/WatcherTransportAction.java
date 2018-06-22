@@ -24,9 +24,9 @@ public abstract class WatcherTransportAction<Request extends ActionRequest, Resp
 
     protected final XPackLicenseState licenseState;
 
-    public WatcherTransportAction(Settings settings, String actionName, TransportService transportService, ThreadPool threadPool,
+    public WatcherTransportAction(Settings settings, String actionName, TransportService transportService,
                                   ActionFilters actionFilters, XPackLicenseState licenseState, Writeable.Reader<Request> request) {
-        super(settings, actionName, threadPool, transportService, actionFilters, request);
+        super(settings, actionName, transportService, actionFilters, request);
         this.licenseState = licenseState;
     }
 

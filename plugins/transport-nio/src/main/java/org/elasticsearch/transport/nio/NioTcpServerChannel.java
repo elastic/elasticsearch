@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.transport.TcpServerChannel;
 
-import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 
 /**
@@ -34,12 +33,11 @@ public class NioTcpServerChannel extends NioServerSocketChannel implements TcpSe
 
     private final String profile;
 
-    public NioTcpServerChannel(String profile, ServerSocketChannel socketChannel) throws IOException {
+    public NioTcpServerChannel(String profile, ServerSocketChannel socketChannel) {
         super(socketChannel);
         this.profile = profile;
     }
 
-    @Override
     public void close() {
         getContext().closeChannel();
     }

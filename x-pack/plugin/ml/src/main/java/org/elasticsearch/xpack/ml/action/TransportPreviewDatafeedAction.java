@@ -36,14 +36,16 @@ import java.util.stream.Collectors;
 
 public class TransportPreviewDatafeedAction extends HandledTransportAction<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response> {
 
+    private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
 
     @Inject
     public TransportPreviewDatafeedAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                           ActionFilters actionFilters, Client client, ClusterService clusterService) {
-        super(settings, PreviewDatafeedAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, PreviewDatafeedAction.NAME, transportService, actionFilters,
             (Supplier<PreviewDatafeedAction.Request>) PreviewDatafeedAction.Request::new);
+        this.threadPool = threadPool;
         this.client = client;
         this.clusterService = clusterService;
     }

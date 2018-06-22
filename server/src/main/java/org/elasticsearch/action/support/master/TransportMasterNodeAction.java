@@ -54,6 +54,7 @@ import java.util.function.Supplier;
  * A base class for operations that needs to be performed on the master node.
  */
 public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse> extends HandledTransportAction<Request, Response> {
+    protected final ThreadPool threadPool;
     protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -75,10 +76,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected TransportMasterNodeAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
                                         TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        super(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters,
-            request);
+        super(settings, actionName, canTripCircuitBreaker, transportService, actionFilters, request);
         this.transportService = transportService;
         this.clusterService = clusterService;
+        this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor();
     }
@@ -87,10 +88,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                         TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ActionFilters actionFilters, Writeable.Reader<Request> request,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters, request
-        );
+        super(settings, actionName, canTripCircuitBreaker, transportService, actionFilters, request);
         this.transportService = transportService;
         this.clusterService = clusterService;
+        this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor();
     }

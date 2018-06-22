@@ -26,12 +26,14 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
  */
 public class TransportSetEnabledAction extends HandledTransportAction<SetEnabledRequest, SetEnabledResponse> {
 
+    private final ThreadPool threadPool;
     private final NativeUsersStore usersStore;
 
     @Inject
     public TransportSetEnabledAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                      ActionFilters actionFilters, NativeUsersStore usersStore) {
-        super(settings, SetEnabledAction.NAME, threadPool, transportService, actionFilters, SetEnabledRequest::new);
+        super(settings, SetEnabledAction.NAME, transportService, actionFilters, SetEnabledRequest::new);
+        this.threadPool = threadPool;
         this.usersStore = usersStore;
     }
 

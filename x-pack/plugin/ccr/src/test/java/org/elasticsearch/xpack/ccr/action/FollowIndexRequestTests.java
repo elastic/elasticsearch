@@ -23,9 +23,13 @@ public class FollowIndexRequestTests extends AbstractStreamableTestCase<FollowIn
         FollowIndexAction.Request request = new FollowIndexAction.Request();
         request.setLeaderIndex(randomAlphaOfLength(4));
         request.setFollowIndex(randomAlphaOfLength(4));
-        request.setBatchSize(randomNonNegativeLong());
-        request.setConcurrentProcessors(randomIntBetween(0, Integer.MAX_VALUE));
+        request.setMaxReadSize(randomIntBetween(1, Integer.MAX_VALUE));
+        request.setMaxConcurrentReads(randomIntBetween(1, Integer.MAX_VALUE));
         request.setProcessorMaxTranslogBytes(randomNonNegativeLong());
+        request.setMaxWriteSize(randomIntBetween(1, Integer.MAX_VALUE));
+        request.setMaxConcurrentWrites(randomIntBetween(1, Integer.MAX_VALUE));
+        request.setMaxConcurrentWrites(randomIntBetween(1, Integer.MAX_VALUE));
+        request.setMaxBufferSize(randomIntBetween(1, Integer.MAX_VALUE));
         return request;
     }
 }

@@ -103,7 +103,8 @@ public class TransportBulkShardOperationsAction
         }).toArray(Translog.Operation[]::new);
         final Translog.Location location = applyTranslogOperations(targetOperations, primary, Engine.Operation.Origin.PRIMARY);
         final BulkShardOperationsRequest replicaRequest = new BulkShardOperationsRequest(shardId, targetOperations);
-        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, null, primary, logger);
+        long localCheckPoint = primary.getLocalCheckpoint();
+        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(localCheckPoint), location, null, primary, logger);
     }
 
     @Override

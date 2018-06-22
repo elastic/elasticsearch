@@ -40,15 +40,21 @@ public class RestFollowIndexAction extends BaseRestHandler {
         Request request = new Request();
         request.setLeaderIndex(restRequest.param("leader_index"));
         request.setFollowIndex(restRequest.param("index"));
-        if (restRequest.hasParam(ShardFollowTask.MAX_CHUNK_SIZE.getPreferredName())) {
-            request.setBatchSize(Long.valueOf(restRequest.param(ShardFollowTask.MAX_CHUNK_SIZE.getPreferredName())));
+        if (restRequest.hasParam(ShardFollowTask.MAX_READ_SIZE.getPreferredName())) {
+            request.setMaxReadSize(Integer.valueOf(restRequest.param(ShardFollowTask.MAX_READ_SIZE.getPreferredName())));
         }
-        if (restRequest.hasParam(ShardFollowTask.NUM_CONCURRENT_CHUNKS.getPreferredName())) {
-            request.setConcurrentProcessors(Integer.valueOf(restRequest.param(ShardFollowTask.NUM_CONCURRENT_CHUNKS.getPreferredName())));
+        if (restRequest.hasParam(ShardFollowTask.MAX_CONCURRENT_READS.getPreferredName())) {
+            request.setMaxConcurrentReads(Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_READS.getPreferredName())));
         }
-        if (restRequest.hasParam(ShardFollowTask.PROCESSOR_MAX_TRANSLOG_BYTES_PER_REQUEST.getPreferredName())) {
-            long value = Long.valueOf(restRequest.param(ShardFollowTask.PROCESSOR_MAX_TRANSLOG_BYTES_PER_REQUEST.getPreferredName()));
+        if (restRequest.hasParam(ShardFollowTask.MAX_TRANSLOG_BYTES_PER_REQUEST.getPreferredName())) {
+            long value = Long.valueOf(restRequest.param(ShardFollowTask.MAX_TRANSLOG_BYTES_PER_REQUEST.getPreferredName()));
             request.setProcessorMaxTranslogBytes(value);
+        }
+        if (restRequest.hasParam(ShardFollowTask.MAX_WRITE_SIZE.getPreferredName())) {
+            request.setMaxWriteSize(Integer.valueOf(restRequest.param(ShardFollowTask.MAX_WRITE_SIZE.getPreferredName())));
+        }
+        if (restRequest.hasParam(ShardFollowTask.MAX_CONCURRENT_WRITES.getPreferredName())) {
+            request.setMaxConcurrentWrites(Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_WRITES.getPreferredName())));
         }
         return request;
     }

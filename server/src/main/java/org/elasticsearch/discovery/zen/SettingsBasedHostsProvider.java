@@ -30,11 +30,18 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 
+/**
+ * An implementation of {@link UnicastHostsProvider} that reads hosts/ports
+ * from the "discovery.zen.ping.unicast.hosts" node setting. If the port is
+ * left off an entry, a default port of 9300 is assumed.
+ *
+ * An example unicast hosts setting might look as follows:
+ * [67.81.244.10, 67.81.244.11:9305, 67.81.244.15:9400]
+ */
 public class SettingsBasedHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     public static final Setting<List<String>> DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING =
-        Setting.listSetting("discovery.zen.ping.unicast.hosts", emptyList(), Function.identity(),
-            Setting.Property.NodeScope);
+        Setting.listSetting("discovery.zen.ping.unicast.hosts", emptyList(), Function.identity(), Setting.Property.NodeScope);
 
     // these limits are per-address
     public static final int LIMIT_FOREIGN_PORTS_COUNT = 1;
@@ -49,7 +56,7 @@ public class SettingsBasedHostsProvider extends AbstractComponent implements Uni
 
         if (DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.exists(settings)) {
             configuredHosts = DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
-            // we only limit to 1 addresses, makes no sense to ping 100 ports
+            // we only limit to 1 address, makes no sense to ping 100 ports
             limitPortCounts = LIMIT_FOREIGN_PORTS_COUNT;
         } else {
             // if unicast hosts are not specified, fill with simple defaults on the local machine

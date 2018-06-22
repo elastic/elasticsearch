@@ -150,9 +150,9 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     }
 
     /**
-     * Resolves a list of hosts to a list of discovery nodes. Each host is resolved into a transport address (or a collection of addresses
-     * if the number of ports is greater than one) and the transport addresses are used to created discovery nodes. Host lookups are done
-     * in parallel using specified executor service up to the specified resolve timeout.
+     * Resolves a list of hosts to a list of transport addresses. Each host is resolved into a transport address (or a collection of
+     * addresses if the number of ports is greater than one). Host lookups are done in parallel using specified executor service up
+     * to the specified resolve timeout.
      *
      * @param executorService  the executor service used to parallelize hostname lookups
      * @param logger           logger used for logging messages regarding hostname lookups

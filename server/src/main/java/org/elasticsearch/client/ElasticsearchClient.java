@@ -39,7 +39,7 @@ public interface ElasticsearchClient {
      * @return A future allowing to get back the response.
      */
     <Request extends ActionRequest, Response extends ActionResponse> ActionFuture<Response> execute(
-            Action<Request, Response> action, Request request);
+        Action<Response> action, Request request);
 
     /**
      * Executes a generic action, denoted by an {@link Action}.
@@ -51,7 +51,7 @@ public interface ElasticsearchClient {
      * @param <Response>       The response type.
      */
     <Request extends ActionRequest, Response extends ActionResponse> void execute(
-            Action<Request, Response> action, Request request, ActionListener<Response> listener);
+        Action<Response> action, Request request, ActionListener<Response> listener);
 
     /**
      * Returns the threadpool used to execute requests on this client

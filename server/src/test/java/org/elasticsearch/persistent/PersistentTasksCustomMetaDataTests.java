@@ -42,10 +42,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Builder;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.Status;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.State;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 
 import java.io.IOException;
@@ -79,7 +78,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                     randomAssignment());
             if (randomBoolean()) {
                 // From time to time update status
-                tasks.updateTaskStatus(taskId, new Status(randomAlphaOfLength(10)));
+                tasks.updateTaskState(taskId, new State(randomAlphaOfLength(10)));
             }
         }
         return tasks.build();
@@ -96,7 +95,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                 new Entry(MetaData.Custom.class, PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData::new),
                 new Entry(NamedDiff.class, PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData::readDiffFrom),
                 new Entry(PersistentTaskParams.class, TestPersistentTasksExecutor.NAME, TestParams::new),
-                new Entry(Task.Status.class, TestPersistentTasksExecutor.NAME, Status::new)
+                new Entry(PersistentTaskState.class, TestPersistentTasksExecutor.NAME, State::new)
         ));
     }
 
@@ -118,7 +117,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                 if (builder.getCurrentTaskIds().isEmpty()) {
                     addRandomTask(builder);
                 } else {
-                    builder.updateTaskStatus(pickRandomTask(builder), randomBoolean() ? new Status(randomAlphaOfLength(10)) : null);
+                    builder.updateTaskState(pickRandomTask(builder), randomBoolean() ? new State(randomAlphaOfLength(10)) : null);
                 }
                 break;
             case 3:
@@ -155,9 +154,10 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(Arrays.asList(
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(TestPersistentTasksExecutor.NAME),
-                        TestParams::fromXContent),
-                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(TestPersistentTasksExecutor.NAME), Status::fromXContent)
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class,
+                    new ParseField(TestPersistentTasksExecutor.NAME), TestParams::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskState.class,
+                    new ParseField(TestPersistentTasksExecutor.NAME), State::fromXContent)
         ));
     }
 
@@ -186,7 +186,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
             // Things that should be serialized
             assertEquals(testTask.getTaskName(), newTask.getTaskName());
             assertEquals(testTask.getId(), newTask.getId());
-            assertEquals(testTask.getStatus(), newTask.getStatus());
+            assertEquals(testTask.getState(), newTask.getState());
             assertEquals(testTask.getParams(), newTask.getParams());
 
             // Things that shouldn't be serialized
@@ -224,10 +224,10 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                     case 2:
                         if (builder.hasTask(lastKnownTask)) {
                             changed = true;
-                            builder.updateTaskStatus(lastKnownTask, randomBoolean() ? new Status(randomAlphaOfLength(10)) : null);
+                            builder.updateTaskState(lastKnownTask, randomBoolean() ? new State(randomAlphaOfLength(10)) : null);
                         } else {
                             String fLastKnownTask = lastKnownTask;
-                            expectThrows(ResourceNotFoundException.class, () -> builder.updateTaskStatus(fLastKnownTask, null));
+                            expectThrows(ResourceNotFoundException.class, () -> builder.updateTaskState(fLastKnownTask, null));
                         }
                         break;
                     case 3:

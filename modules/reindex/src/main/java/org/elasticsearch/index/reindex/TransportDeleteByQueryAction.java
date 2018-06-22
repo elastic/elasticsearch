@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.reindex;
 
+import java.util.function.Supplier;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -40,10 +41,10 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final ClusterService clusterService;
 
     @Inject
-    public TransportDeleteByQueryAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver resolver, Client client, TransportService transportService,
-                                        ScriptService scriptService, ClusterService clusterService) {
-        super(settings, DeleteByQueryAction.NAME, threadPool, transportService, actionFilters, resolver, DeleteByQueryRequest::new);
+    public TransportDeleteByQueryAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, Client client,
+                                        TransportService transportService, ScriptService scriptService, ClusterService clusterService) {
+        super(settings, DeleteByQueryAction.NAME, threadPool, transportService, actionFilters,
+            (Supplier<DeleteByQueryRequest>) DeleteByQueryRequest::new);
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;

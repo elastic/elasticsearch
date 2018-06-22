@@ -24,7 +24,7 @@ import org.elasticsearch.action.Action;
 /**
  * Recovery information action
  */
-public class RecoveryAction extends Action<RecoveryRequest, RecoveryResponse> {
+public class RecoveryAction extends Action<RecoveryResponse> {
 
     public static final RecoveryAction INSTANCE = new RecoveryAction();
     public static final String NAME = "indices:monitor/recovery";

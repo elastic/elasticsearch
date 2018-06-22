@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -45,12 +44,10 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
     private final JobManager jobManager;
 
     @Inject
-    public TransportPostCalendarEventsAction(Settings settings, ThreadPool threadPool,
-                                             TransportService transportService, ActionFilters actionFilters,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Client client, JobProvider jobProvider, JobManager jobManager) {
+    public TransportPostCalendarEventsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                             ActionFilters actionFilters, Client client, JobProvider jobProvider, JobManager jobManager) {
         super(settings, PostCalendarEventsAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, PostCalendarEventsAction.Request::new);
+            PostCalendarEventsAction.Request::new);
         this.client = client;
         this.jobProvider = jobProvider;
         this.jobManager = jobManager;

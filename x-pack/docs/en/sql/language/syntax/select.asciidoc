@@ -191,14 +191,14 @@ which results in something like:
 [source,text]
 --------------------------------------------------
      author      |        name        |  page_count   | release_date
------------------`--------------------`---------------`------------------------
+-----------------+--------------------+---------------+------------------------
 Peter F. Hamilton|Pandora's Star      |768            |2004-03-02T00:00:00.000Z
 Vernor Vinge     |A Fire Upon the Deep|613            |1992-06-01T00:00:00.000Z
 Frank Herbert    |Dune                |604            |1965-06-01T00:00:00.000Z
 Alastair Reynolds|Revelation Space    |585            |2000-03-15T00:00:00.000Z
 James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 --------------------------------------------------
-// TESTRESPONSE[s/\|/\\|/ s/\`/\\`/]
+// TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 // TESTRESPONSE[_cat]
 
 [[sql-syntax-order-by-score]]
@@ -228,13 +228,13 @@ Which results in something like:
 [source,text]
 --------------------------------------------------
     SCORE()    |    author     |       name        |  page_count   | release_date
----------------`---------------`-------------------`---------------`------------------------
+---------------+---------------+-------------------+---------------+------------------------
 2.288635       |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00.000Z
 1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00.000Z
 1.6086555      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00.000Z
 1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00.000Z
 --------------------------------------------------
-// TESTRESPONSE[s/\|/\\|/ s/\`/\\`/ s/\(/\\\(/ s/\)/\\\)/]
+// TESTRESPONSE[s/\|/\\|/ s/\+/\\+/ s/\(/\\\(/ s/\)/\\\)/]
 // TESTRESPONSE[_cat]
 
 Note that you can return `SCORE()` by adding it to the where clause. This
@@ -253,13 +253,13 @@ POST /_xpack/sql?format=txt
 [source,text]
 --------------------------------------------------
     SCORE()    |    author     |       name        |  page_count   | release_date
----------------`---------------`-------------------`---------------`------------------------
+---------------+---------------+-------------------+---------------+------------------------
 2.288635       |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00.000Z
 1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00.000Z
 1.6086555      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00.000Z
 1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00.000Z
 --------------------------------------------------
-// TESTRESPONSE[s/\|/\\|/ s/\`/\\`/ s/\(/\\\(/ s/\)/\\\)/]
+// TESTRESPONSE[s/\|/\\|/ s/\+/\\+/ s/\(/\\\(/ s/\)/\\\)/]
 // TESTRESPONSE[_cat]
 
 NOTE:

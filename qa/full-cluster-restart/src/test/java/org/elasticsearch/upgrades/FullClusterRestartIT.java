@@ -699,6 +699,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
      * Tests recovery of an index with or without a translog and the
      * statistics we gather about that.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31530")
     public void testRecovery() throws Exception {
         int count;
         boolean shouldHaveTranslog;

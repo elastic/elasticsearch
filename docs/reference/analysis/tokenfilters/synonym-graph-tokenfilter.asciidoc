@@ -50,7 +50,11 @@ PUT /test_index
 The above configures a `search_synonyms` filter, with a path of
 `analysis/synonym.txt` (relative to the `config` location). The
 `search_synonyms` analyzer is then configured with the filter.
-Additional settings are: `expand` (defaults to `true`).
+
+Additional settings are:
+
+* `expand` (defaults to `true`).
+* `lenient` (defaults to `false`). If `true` ignores exceptions while parsing the synonym configuration.
 
 [float]
 ==== `tokenizer` and `ignore_case` are deprecated

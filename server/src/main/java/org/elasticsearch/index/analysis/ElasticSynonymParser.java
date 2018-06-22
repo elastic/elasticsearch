@@ -30,7 +30,7 @@ import java.io.IOException;
 
 public class ElasticSynonymParser extends SolrSynonymParser {
 
-    private boolean lenient;
+    private final boolean lenient;
     private final Logger logger;
 
     public ElasticSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer) {
@@ -41,7 +41,7 @@ public class ElasticSynonymParser extends SolrSynonymParser {
 
     @Override
     public void add(CharsRef input, CharsRef output, boolean includeOrig) {
-        if (!lenient || (input.length > 0 && output.length > 0)) {
+        if (lenient == false || (input.length > 0 && output.length > 0)) {
             super.add(input, output, includeOrig);
         } // the else would happen only in the case for lenient in which case we quietly ignore it
     }

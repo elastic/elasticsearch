@@ -61,8 +61,8 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
             assertEqualsConsumer.accept(testInstance, parsed);
             if (assertToXContentEquivalence) {
                 assertToXContentEquivalent(
-                        XContentHelper.toXContent(testInstance, xContentType, false),
-                        XContentHelper.toXContent(parsed, xContentType, false),
+                        XContentHelper.toXContent(testInstance, xContentType, toXContentParams, false),
+                        XContentHelper.toXContent(parsed, xContentType, toXContentParams, false),
                         xContentType);
             }
         }

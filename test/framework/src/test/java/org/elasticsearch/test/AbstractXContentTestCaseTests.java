@@ -14,39 +14,35 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AbstractXContentTestCaseTests extends ESTestCase {
 
-    private static final int NUMBER_OF_TEST_RUNS = 10;
-
-    public void testSomethign() throws IOException {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            TestInstance t = new TestInstance();
-            boolean atRandomPosition = false;
-            for (int i = 0; i < 5; i++) {
-                BytesReference insertRandomFieldsAndShuffle = AbstractXContentTestCase.insertRandomFieldsAndShuffle(t, XContentType.JSON,
-                        true, new String[] {}, null, this::createParser, ToXContent.EMPTY_PARAMS);
-                try (XContentParser parser = createParser(XContentType.JSON.xContent(), insertRandomFieldsAndShuffle)) {
-                    Map<String, Object> mapOrdered = parser.mapOrdered();
-                    assertThat(mapOrdered.size(), equalTo(2));
-                    if (false == "field".equals(mapOrdered.keySet().iterator().next())) {
-                        atRandomPosition = true;
-                        break;
-                    }
+    public void testInsertRandomFieldsAndShuffle() throws IOException {
+        TestInstance t = new TestInstance();
+        boolean randomFieldAtFirstPosition = false;
+        for (int i = 0; i < 5; i++) {
+            BytesReference insertRandomFieldsAndShuffle = AbstractXContentTestCase.insertRandomFieldsAndShuffle(t, XContentType.JSON, true,
+                    new String[] {}, null, this::createParser, ToXContent.EMPTY_PARAMS);
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), insertRandomFieldsAndShuffle)) {
+                Map<String, Object> mapOrdered = parser.mapOrdered();
+                assertThat(mapOrdered.size(), equalTo(2));
+                if (false == "field".equals(mapOrdered.keySet().iterator().next())) {
+                    randomFieldAtFirstPosition = true;
                 }
             }
-            assertThat(atRandomPosition, equalTo(true));
         }
+        assertThat(randomFieldAtFirstPosition, equalTo(true));
     }
-}
 
-class TestInstance implements ToXContentObject {
+    private class TestInstance implements ToXContentObject {
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        {
-            builder.field("field", 1);
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field("field", 1);
+            }
+            builder.endObject();
+            return builder;
         }
-        builder.endObject();
-        return builder;
+
     }
 
 }

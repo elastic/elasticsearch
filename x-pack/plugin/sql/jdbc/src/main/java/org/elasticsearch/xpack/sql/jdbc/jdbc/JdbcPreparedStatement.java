@@ -23,6 +23,7 @@ import java.sql.Ref;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.RowId;
+import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLXML;
@@ -131,22 +132,22 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
-        setObject(parameterIndex, x);
+        setObject(parameterIndex, x, Types.VARBINARY);
     }
 
     @Override
     public void setDate(int parameterIndex, Date x) throws SQLException {
-        setObject(parameterIndex, x);
+        setObject(parameterIndex, x, Types.TIMESTAMP);
     }
 
     @Override
     public void setTime(int parameterIndex, Time x) throws SQLException {
-        setObject(parameterIndex, x);
+        setObject(parameterIndex, x, Types.TIMESTAMP);
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
-        setObject(parameterIndex, x);
+        setObject(parameterIndex, x, Types.TIMESTAMP);
     }
 
     @Override
@@ -229,40 +230,40 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         if (cal == null) {
-            setDate(parameterIndex, x);
+            setObject(parameterIndex, x, Types.TIMESTAMP);
             return;
         }
-        if (checkNull(parameterIndex, x, Types.TIMESTAMP)) {
+        if (setIfNull(parameterIndex, x, Types.TIMESTAMP)) {
             return;
         }
-        
-        setDate(parameterIndex, new Date(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)));
+        // converting to UTC since this is what ES is storing internally
+        setObject(parameterIndex, new Date(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)), Types.TIMESTAMP);
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         if (cal == null) {
-            setTime(parameterIndex, x);
+            setObject(parameterIndex, x, Types.TIMESTAMP);
             return;
         }
-        if (checkNull(parameterIndex, x, Types.TIMESTAMP)) {
+        if (setIfNull(parameterIndex, x, Types.TIMESTAMP)) {
             return;
         }
-
-        setTime(parameterIndex, new Time(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)));
+        // converting to UTC since this is what ES is storing internally
+        setObject(parameterIndex, new Time(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)), Types.TIMESTAMP);
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         if (cal == null) {
-            setTimestamp(parameterIndex, x);
+            setObject(parameterIndex, x, Types.TIMESTAMP);
             return;
         }
-        if (checkNull(parameterIndex, x, Types.TIMESTAMP)) {
+        if (setIfNull(parameterIndex, x, Types.TIMESTAMP)) {
             return;
         }
-        
-        setTimestamp(parameterIndex, new Timestamp(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)));
+        // converting to UTC since this is what ES is storing internally
+        setObject(parameterIndex, new Timestamp(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)), Types.TIMESTAMP);
     }
 
     @Override
@@ -329,7 +330,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
             // this is also a way to check early for the validity of the desired sql type
             targetJDBCType = JDBCType.valueOf(targetSqlType);
         } catch (IllegalArgumentException e) {
-            throw new SQLException(e.getMessage());
+            throw new SQLDataException(e.getMessage());
         }
         
         // set the null value on the type and exit
@@ -346,20 +347,17 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                 || x instanceof Long
                 || x instanceof Float
                 || x instanceof Double
-                || x instanceof String) {
-            try {
-                setParam(parameterIndex, 
-                        TypeConverter.convert(x, TypeConverter.fromJavaToJDBC(x.getClass()), DataType.fromJdbcTypeToJava(targetJDBCType)), 
-                        targetSqlType);
-            } catch (ClassCastException cce) {
-                throw new SQLException("Unable to convert " + x.getClass().getName() + " to " + targetJDBCType, cce);
-            }
+                || x instanceof String) 
+        {
+            setParam(parameterIndex, 
+                    TypeConverter.convert(x, TypeConverter.fromJavaToJDBC(x.getClass()), DataType.fromJdbcTypeToJava(targetJDBCType)), 
+                    targetSqlType);
         } else if (x instanceof Timestamp
                 || x instanceof Calendar
-                || x instanceof java.util.Date
-                || x instanceof LocalDateTime
                 || x instanceof Date
-                || x instanceof Time) {
+                || x instanceof LocalDateTime
+                || x instanceof Time
+                || x instanceof java.util.Date) {
             if (targetJDBCType == JDBCType.TIMESTAMP ) {
                 // converting to {@code java.util.Date} because this is the type supported by {@code XContentBuilder} for serialization
                 java.util.Date dateToSet;
@@ -367,18 +365,18 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                     dateToSet = new java.util.Date(((Timestamp) x).getTime());
                 } else if (x instanceof Calendar) {
                     dateToSet = ((Calendar) x).getTime();
-                } else if (x instanceof java.util.Date) {
-                    dateToSet = (java.util.Date) x;
+                } else if (x instanceof Date) {
+                    dateToSet = new java.util.Date(((Date) x).getTime());
                 } else if (x instanceof LocalDateTime){
                     LocalDateTime ldt = (LocalDateTime) x;
                     Calendar cal = getDefaultCalendar();
                     cal.set(ldt.getYear(), ldt.getMonthValue() - 1, ldt.getDayOfMonth(), ldt.getHour(), ldt.getMinute(), ldt.getSecond());
                     
                     dateToSet = cal.getTime();
-                } else if (x instanceof Date) {
-                    dateToSet = TypeConverter.convertDate(((Date) x).getTime(), getDefaultCalendar());
+                } else if (x instanceof Time) {
+                    dateToSet = new java.util.Date(((Time) x).getTime());
                 } else {
-                    dateToSet = TypeConverter.convertDate(((Time) x).getTime(), getDefaultCalendar());
+                    dateToSet = (java.util.Date) x;
                 }
 
                 setParam(parameterIndex, dateToSet, Types.TIMESTAMP);
@@ -517,7 +515,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         throw new SQLFeatureNotSupportedException("Batching not supported");
     }
     
-    private boolean checkNull(int parameterIndex, Object o, int type) throws SQLException {
+    private boolean setIfNull(int parameterIndex, Object o, int type) throws SQLException {
         if (o == null) {
             setNull(parameterIndex, type);
             return true;

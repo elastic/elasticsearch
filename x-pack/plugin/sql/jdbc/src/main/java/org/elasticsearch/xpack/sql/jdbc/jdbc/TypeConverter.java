@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.sql.Date;
 import java.sql.JDBCType;
+import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Time;
@@ -124,23 +125,27 @@ final class TypeConverter {
         c.setTimeInMillis(value);
 
         ZonedDateTime convertedDateTime = ZonedDateTime
-                .ofInstant(c.toInstant(), ZoneOffset.ofTotalSeconds(c.getTimeZone().getRawOffset() / 1000))
+                .ofInstant(c.toInstant(), c.getTimeZone().toZoneId())
                 .withZoneSameLocal(ZoneOffset.UTC);
 
-        return convertedDateTime.toEpochSecond() * 1000 + convertedDateTime.getNano() / 1_000_000;
+        return convertedDateTime.toInstant().toEpochMilli();
     }
 
     /**
      * Converts object val from columnType to type
      */
     @SuppressWarnings("unchecked")
-    static <T> T convert(Object val, JDBCType columnType, Class<T> type) throws SQLException, ClassCastException {
+    static <T> T convert(Object val, JDBCType columnType, Class<T> type) throws SQLException {
         if (type == null) {
             return (T) convert(val, columnType);
         }
         
         if (type.isInstance(val)) {
-            return type.cast(val);
+            try {
+                return type.cast(val);
+            } catch (ClassCastException cce) {
+                throw new SQLDataException("Unable to convert " + val.getClass().getName() + " to " + columnType, cce);
+            }
         }
         
         if (type == String.class) {

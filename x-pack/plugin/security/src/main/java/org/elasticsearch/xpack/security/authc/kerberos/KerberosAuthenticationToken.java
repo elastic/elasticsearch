@@ -36,10 +36,10 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
     // authorization scheme check is case-insensitive
     private static final boolean IGNORE_CASE_AUTH_HEADER_MATCH = true;
 
-    private final byte[] base64DecodedToken;
+    private final byte[] decodedToken;
 
-    public KerberosAuthenticationToken(final byte[] base64DecodedToken) {
-        this.base64DecodedToken = base64DecodedToken;
+    public KerberosAuthenticationToken(final byte[] decodedToken) {
+        this.decodedToken = decodedToken;
     }
 
     /**
@@ -79,22 +79,22 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
 
     @Override
     public String principal() {
-        return "<Unauthenticated Principal>";
+        return "<Kerberos Token>";
     }
 
     @Override
     public Object credentials() {
-        return base64DecodedToken;
+        return decodedToken;
     }
 
     @Override
     public void clearCredentials() {
-        Arrays.fill(base64DecodedToken, (byte) 0);
+        Arrays.fill(decodedToken, (byte) 0);
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(base64DecodedToken);
+        return Arrays.hashCode(decodedToken);
     }
 
     @Override
@@ -106,7 +106,7 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
         if (getClass() != other.getClass())
             return false;
         final KerberosAuthenticationToken otherKerbToken = (KerberosAuthenticationToken) other;
-        return Arrays.equals(otherKerbToken.base64DecodedToken, this.base64DecodedToken);
+        return Arrays.equals(otherKerbToken.decodedToken, this.decodedToken);
     }
 
     private static ElasticsearchSecurityException unauthorized(final String message, final Throwable cause, final Object... args) {

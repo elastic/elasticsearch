@@ -69,7 +69,7 @@ public class KerberosTicketValidator {
      * negotiation.
      *
      * @param decodedToken base64 decoded kerberos ticket bytes
-     * @param keyTabPath Path to Service key tab file containing credentials for ES
+     * @param keytabPath Path to Service key tab file containing credentials for ES
      *            service.
      * @param krbDebug if {@code true} enables jaas krb5 login module debug logs.
      * @return {@link Tuple} of user name {@link GSSContext#getSrcName()} and out
@@ -80,13 +80,13 @@ public class KerberosTicketValidator {
      * @throws GSSException thrown when GSS Context negotiation fails
      *             {@link GSSException}
      */
-    public Tuple<String, String> validateTicket(final byte[] decodedToken, final Path keyTabPath, final boolean krbDebug)
+    public Tuple<String, String> validateTicket(final byte[] decodedToken, final Path keytabPath, final boolean krbDebug)
             throws LoginException, GSSException {
         final GSSManager gssManager = GSSManager.getInstance();
         GSSContext gssContext = null;
         LoginContext loginContext = null;
         try {
-            loginContext = serviceLogin(keyTabPath.toString(), krbDebug);
+            loginContext = serviceLogin(keytabPath.toString(), krbDebug);
             GSSCredential serviceCreds = createCredentials(gssManager, loginContext.getSubject());
             gssContext = gssManager.createContext(serviceCreds);
             final String base64OutToken = base64Encode(acceptSecContext(decodedToken, gssContext, loginContext.getSubject()));
@@ -100,7 +100,7 @@ public class KerberosTicketValidator {
             if (pve.getCause() instanceof GSSException) {
                 throw (GSSException) pve.getCause();
             }
-            throw ExceptionsHelper.convertToRuntime((Exception) ExceptionsHelper.unwrapCause(pve));
+            throw ExceptionsHelper.convertToRuntime(pve.getException());
         } finally {
             privilegedLogoutNoThrow(loginContext);
             privilegedDisposeNoThrow(gssContext);
@@ -185,7 +185,7 @@ public class KerberosTicketValidator {
                     return null;
                 });
             } catch (PrivilegedActionException e) {
-                LOGGER.debug("Could not dispose GSS Context", (Exception) ExceptionsHelper.unwrapCause(e));
+                LOGGER.debug("Could not dispose GSS Context", e.getCause());
             }
         }
     }
@@ -204,7 +204,7 @@ public class KerberosTicketValidator {
                     return null;
                 });
             } catch (PrivilegedActionException e) {
-                LOGGER.debug("Could not close LoginContext", (Exception) ExceptionsHelper.unwrapCause(e));
+                LOGGER.debug("Could not close LoginContext", e.getCause());
             }
         }
     }

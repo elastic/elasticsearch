@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -374,7 +374,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
      * @see ClearRealmCacheAction
      */
     @Override
-    public void refreshRealmOnChange(CachingUsernamePasswordRealm realm) {
+    public void refreshRealmOnChange(CachingRealm realm) {
         realmsToRefresh.add(realm.name());
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -44,7 +45,7 @@ public interface UserRoleMapper {
      * the whole cluster depending on whether this role-mapper has node-local data or cluster-wide
      * data.
      */
-    void refreshRealmOnChange(CachingUsernamePasswordRealm realm);
+    void refreshRealmOnChange(CachingRealm realm);
 
     /**
      * A representation of a user for whom roles should be mapped.

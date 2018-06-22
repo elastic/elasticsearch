@@ -22,6 +22,8 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 
+import java.nio.charset.Charset
+
 import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
 
 /**
@@ -179,6 +181,8 @@ subprojects {
     } else if (showStacktraceName.equals("ALWAYS_FULL")) {
       args "--full-stacktrace"
     }
+    standardOutput = new IdentingOutputStream(System.out)
+    errorOutput = new IdentingOutputStream(System.err)
     doLast {
       List missing = artifactFiles.grep { file ->
         false == file.exists()
@@ -196,5 +200,27 @@ subprojects {
       String suffix = artifactFile.toString()[-3..-1]
       'default' file: artifactFile, name: artifactName, type: suffix, builtBy: buildBwcVersion
     }
+  }
+}
+
+class IdentingOutputStream extends OutputStream {
+
+  private final OutputStream delegate
+
+  public IdentingOutputStream(OutputStream delegate) {
+      this.delegate = delegate
+  }
+
+  @Override
+  public void write(int b) {
+    write([b] as int[], 0, 1)
+  }
+
+  public void write(int[] bytes, int offset, int length) {
+    delegate.write(
+            new String(bytes, offset, length)
+                    .replace("\n", "\n  [bwc] ")
+                    .getBytes(Charset.forName("UTF-8"))
+    )
   }
 }

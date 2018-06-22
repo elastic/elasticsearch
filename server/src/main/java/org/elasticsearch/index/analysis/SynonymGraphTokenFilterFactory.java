@@ -60,8 +60,8 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
                     parser = new WordnetSynonymParser(true, expand, analyzerForParseSynonym);
                     ((WordnetSynonymParser) parser).parse(rulesReader);
                 } else {
-                    parser = new ElasticSynonymParser(true, expand, lenient, analyzerForParseSynonym);
-                    ((ElasticSynonymParser) parser).parse(rulesReader);
+                    parser = new ElasticsearchSynonymParser(true, expand, lenient, analyzerForParseSynonym);
+                    ((ElasticsearchSynonymParser) parser).parse(rulesReader);
                 }
                 synonymMap = parser.build();
             } catch (Exception e) {

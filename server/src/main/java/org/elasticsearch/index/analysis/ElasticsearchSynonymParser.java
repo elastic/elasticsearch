@@ -28,22 +28,28 @@ import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 
-public class ElasticSynonymParser extends SolrSynonymParser {
+public class ElasticsearchSynonymParser extends SolrSynonymParser {
 
     private final boolean lenient;
-    private final Logger logger;
+    private static final Logger logger =
+        Loggers.getLogger(ElasticsearchSynonymParser.class, "ElasticsearchSynonymParser");
 
-    public ElasticSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer) {
+    public ElasticsearchSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer) {
         super(dedup, expand, analyzer);
         this.lenient = lenient;
-        logger = Loggers.getLogger(getClass(), "ElasticSynonymParser");
     }
 
     @Override
     public void add(CharsRef input, CharsRef output, boolean includeOrig) {
+        // This condition follows up on the overridden analyze method. In case lenient was set to true and there was an
+        // exception during super.analyze we return a zero-length CharsRef for that word which caused an exception. When
+        // the synonym mappings for the words are added using the add method we skip the ones that were left empty by
+        // analyze i.e., in the case when lenient is set we only add those combinations which are non-zero-length. The
+        // else would happen only in the case when the input or output is empty and lenient is set, in which case we
+        // quietly ignore it. For more details on the control-flow see SolrSynonymParser::addInternal.
         if (lenient == false || (input.length > 0 && output.length > 0)) {
             super.add(input, output, includeOrig);
-        } // the else would happen only in the case for lenient in which case we quietly ignore it
+        }
     }
 
     @Override

@@ -33,10 +33,10 @@ import java.text.ParseException;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ElasticSynonymParserTests extends ESTokenStreamTestCase {
+public class ElasticsearchSynonymParserTests extends ESTokenStreamTestCase {
 
     public void testLenientParser() throws IOException, ParseException {
-        ElasticSynonymParser parser = new ElasticSynonymParser(true, false, true, new StandardAnalyzer());
+        ElasticsearchSynonymParser parser = new ElasticsearchSynonymParser(true, false, true, new StandardAnalyzer());
         String rules =
             "&,and\n" +
             "come,advance,approach\n";
@@ -50,7 +50,7 @@ public class ElasticSynonymParserTests extends ESTokenStreamTestCase {
     }
 
     public void testNonLenientParser() {
-        ElasticSynonymParser parser = new ElasticSynonymParser(true, false, false, new StandardAnalyzer());
+        ElasticsearchSynonymParser parser = new ElasticsearchSynonymParser(true, false, false, new StandardAnalyzer());
         String rules =
             "&,and=>and\n" +
             "come,advance,approach\n";

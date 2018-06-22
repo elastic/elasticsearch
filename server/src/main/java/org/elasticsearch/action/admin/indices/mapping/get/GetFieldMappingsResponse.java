@@ -56,18 +56,23 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     static {
         PARSER.declareField((p, typeMappings, index) -> {
-            while (p.nextToken() == XContentParser.Token.FIELD_NAME) {
+            p.nextToken();
+            while (p.currentToken() == XContentParser.Token.FIELD_NAME) {
                 final String typeName = p.currentName();
-                final Map<String, FieldMappingMetaData> typeMapping = new HashMap<>();
-                typeMappings.put(typeName, typeMapping);
 
                 if (p.nextToken() == XContentParser.Token.START_OBJECT) {
+                    final Map<String, FieldMappingMetaData> typeMapping = new HashMap<>();
+                    typeMappings.put(typeName, typeMapping);
+
                     while (p.nextToken() == XContentParser.Token.FIELD_NAME) {
                         final String fieldName = p.currentName();
                         final FieldMappingMetaData fieldMappingMetaData = FieldMappingMetaData.fromXContent(p);
                         typeMapping.put(fieldName, fieldMappingMetaData);
                     }
+                } else {
+                    p.skipChildren();
                 }
+                p.nextToken();
             }
         }, MAPPINGS, ObjectParser.ValueType.OBJECT);
     }

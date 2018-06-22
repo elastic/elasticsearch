@@ -23,7 +23,9 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
@@ -31,6 +33,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
+
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class GetFieldMappingsResponseTests extends AbstractStreamableXContentTestCase<GetFieldMappingsResponse> {
 
@@ -50,6 +54,48 @@ public class GetFieldMappingsResponseTests extends AbstractStreamableXContentTes
                 assertEquals(new BytesArray("{}"), metaData.getSource());
             }
         }
+    }
+
+    public void testManualJunkedJson() throws Exception {
+        // in fact random fields could be evaluated as proper mapping, while proper junk in this case is arrays and values
+        final String json =
+            "{\"index1\":{\"mappings\":"
+                + "{\"doctype0\":{\"field1\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}},"
+                    + "\"field0\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}}},"
+                // junk here
+                + "\"junk1\": [\"field1\", {\"field2\":{}}],"
+                + "\"junk2\": [{\"field3\":{}}],"
+                + "\"junk3\": 42,"
+                + "\"junk4\": \"Q\","
+                + "\"doctype1\":{\"field1\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}},"
+                    + "\"field0\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}}}}},"
+            + "\"index0\":{\"mappings\":"
+                + "{\"doctype0\":{\"field1\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}},"
+                + "\"field0\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}}},"
+                + "\"doctype1\":{\"field1\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}},"
+                + "\"field0\":{\"full_name\":\"my field\",\"mapping\":{\"type\":\"keyword\"}}}}}}";
+
+        final XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry(),
+            LoggingDeprecationHandler.INSTANCE, json.getBytes("UTF-8"));
+
+        final GetFieldMappingsResponse response = GetFieldMappingsResponse.fromXContent(parser);
+
+        FieldMappingMetaData fieldMappingMetaData =
+            new FieldMappingMetaData("my field", new BytesArray("{\"type\":\"keyword\"}"));
+        Map<String, FieldMappingMetaData> fieldMapping = new HashMap<>();
+        fieldMapping.put("field0", fieldMappingMetaData);
+        fieldMapping.put("field1", fieldMappingMetaData);
+
+        Map<String, Map<String, FieldMappingMetaData>> typeMapping = new HashMap<>();
+        typeMapping.put("doctype0", fieldMapping);
+        typeMapping.put("doctype1", fieldMapping);
+
+        Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = new HashMap<>();
+        mappings.put("index0", typeMapping);
+        mappings.put("index1", typeMapping);
+
+        final Map<String, Map<String, Map<String, FieldMappingMetaData>>> responseMappings = response.mappings();
+        assertThat(responseMappings, equalTo(mappings));
     }
 
     @Override

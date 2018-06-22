@@ -37,6 +37,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -243,7 +244,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     private class ShardTransportHandler implements TransportRequestHandler<Request> {
 
         @Override
-        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
             shardOperation(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {

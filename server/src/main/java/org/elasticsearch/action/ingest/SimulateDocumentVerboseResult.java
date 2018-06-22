@@ -18,20 +18,37 @@
  */
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Holds the result of what a pipeline did to a sample document via the simulate api, but instead of {@link SimulateDocumentBaseResult}
  * this result class holds the intermediate result each processor did to the sample document.
  */
 public final class SimulateDocumentVerboseResult implements SimulateDocumentResult {
+    public static final String PROCESSOR_RESULT_FIELD = "processor_results";
     private final List<SimulateProcessorResult> processorResults;
+
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<SimulateDocumentVerboseResult, Void> PARSER =
+        new ConstructingObjectParser<>(
+            "simulate_document_verbose_result",
+            true,
+            a -> new SimulateDocumentVerboseResult((List<SimulateProcessorResult>)a[0])
+        );
+    static {
+        PARSER.declareObjectArray(constructorArg(), SimulateProcessorResult.PARSER, new ParseField(PROCESSOR_RESULT_FIELD));
+    }
 
     public SimulateDocumentVerboseResult(List<SimulateProcessorResult> processorResults) {
         this.processorResults = processorResults;
@@ -63,12 +80,16 @@ public final class SimulateDocumentVerboseResult implements SimulateDocumentResu
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startArray("processor_results");
+        builder.startArray(PROCESSOR_RESULT_FIELD);
         for (SimulateProcessorResult processorResult : processorResults) {
             processorResult.toXContent(builder, params);
         }
         builder.endArray();
         builder.endObject();
         return builder;
+    }
+
+    public static SimulateDocumentVerboseResult fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

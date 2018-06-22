@@ -40,6 +40,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -271,7 +272,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     private class TransportHandler implements TransportRequestHandler<Request> {
 
         @Override
-        public void messageReceived(Request request, final TransportChannel channel) throws Exception {
+        public void messageReceived(Request request, final TransportChannel channel, Task task) throws Exception {
             // if we have a local operation, execute it on a thread since we don't spawn
             execute(request, new ActionListener<Response>() {
                 @Override
@@ -298,7 +299,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     private class ShardTransportHandler implements TransportRequestHandler<Request> {
 
         @Override
-        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
             if (logger.isTraceEnabled()) {
                 logger.trace("executing [{}] on shard [{}]", request, request.internalShardId);
             }

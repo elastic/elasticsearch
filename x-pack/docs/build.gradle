@@ -47,7 +47,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/watcher/trigger/schedule/yearly.asciidoc',
         'en/watcher/troubleshooting.asciidoc',
         'en/rest-api/ml/delete-snapshot.asciidoc',
-        'en/rest-api/ml/forecast.asciidoc',
         'en/rest-api/ml/get-bucket.asciidoc',
         'en/rest-api/ml/get-job-stats.asciidoc',
         'en/rest-api/ml/get-overall-buckets.asciidoc',
@@ -56,7 +55,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/ml/get-influencer.asciidoc',
         'en/rest-api/ml/get-snapshot.asciidoc',
         'en/rest-api/ml/post-data.asciidoc',
-        'en/rest-api/ml/preview-datafeed.asciidoc',
         'en/rest-api/ml/revert-snapshot.asciidoc',
         'en/rest-api/ml/update-snapshot.asciidoc',
         'en/rest-api/watcher/stats.asciidoc',
@@ -296,7 +294,9 @@ setups['farequote_index'] = '''
                   responsetime:
                     type: float
                   airline:
-                     type: keyword   
+                     type: keyword
+                  doc_count:
+                     type: integer       
 '''
 setups['farequote_data'] = setups['farequote_index'] + '''
   - do:
@@ -306,11 +306,11 @@ setups['farequote_data'] = setups['farequote_index'] + '''
           refresh: true
           body: |
             {"index": {"_id":"1"}}
-            {"airline":"JZA","responsetime":990.4628,"time":"2016-02-07T00:00:00+0000"}
+            {"airline":"JZA","responsetime":990.4628,"time":"2016-02-07T00:00:00+0000", "doc_count": 5}
             {"index": {"_id":"2"}}
-            {"airline":"JBU","responsetime":877.5927,"time":"2016-02-07T00:00:00+0000"}
+            {"airline":"JBU","responsetime":877.5927,"time":"2016-02-07T00:00:00+0000", "doc_count": 23}
             {"index": {"_id":"3"}}            
-            {"airline":"KLM","responsetime":1355.4812,"time":"2016-02-07T00:00:00+0000"}
+            {"airline":"KLM","responsetime":1355.4812,"time":"2016-02-07T00:00:00+0000", "doc_count": 42}
 '''
 setups['farequote_job'] = setups['farequote_data'] + '''
   - do:
@@ -332,6 +332,16 @@ setups['farequote_job'] = setups['farequote_data'] + '''
             }
           }
 '''
+setups['farequote_datafeed'] = setups['farequote_job'] + '''
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: "datafeed-farequote"
+        body:  >
+          {
+          "job_id":"farequote",
+          "indexes":"farequote"
+          }
+'''          
 setups['server_metrics_index'] = '''
   - do:
         indices.create:

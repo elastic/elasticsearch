@@ -317,7 +317,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             }
         };
         ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-            masterService, clusterApplier, clusterSettings, Collections::emptyList, ESAllocationTestCase.createAllocationService(),
+            masterService, clusterApplier, clusterSettings, hostsResolver -> Collections.emptyList(), ESAllocationTestCase.createAllocationService(),
             Collections.emptyList());
         zenDiscovery.start();
         return zenDiscovery;

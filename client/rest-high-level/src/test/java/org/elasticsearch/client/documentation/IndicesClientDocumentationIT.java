@@ -793,9 +793,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
                 final String fullName = metaData1.fullName();
                 final Map<String, Object> source = metaData1.sourceAsMap();
-
-                assertThat(fullName, equalTo("message"));
-                assertThat(source, equalTo(Collections.singletonMap("message", Collections.singletonMap("type", "text"))));
                 latchListener.onResponse(r);
             }, e -> {
                 latchListener.onFailure(e);

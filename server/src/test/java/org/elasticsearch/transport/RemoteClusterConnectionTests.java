@@ -114,7 +114,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, null);
         try {
             newService.registerRequestHandler(ClusterSearchShardsAction.NAME,ThreadPool.Names.SAME, ClusterSearchShardsRequest::new,
-                    (request, channel) -> {
+                (request, channel, task) -> {
                         if ("index_not_found".equals(request.preference())) {
                             channel.sendResponse(new IndexNotFoundException("index"));
                         } else {
@@ -123,7 +123,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         }
                     });
             newService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,
-                    (request, channel) -> {
+                (request, channel, task) -> {
                         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
                         for (DiscoveryNode node : knownNodes) {
                             builder.add(node);

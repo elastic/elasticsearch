@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -41,14 +42,14 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
     @Inject
     public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                            ActionFilters actionFilters, NodeService nodeService) {
-        super(settings, SimulatePipelineAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, SimulatePipelineAction.NAME, transportService, actionFilters,
             (Writeable.Reader<SimulatePipelineRequest>) SimulatePipelineRequest::new);
         this.pipelineStore = nodeService.getIngestService().getPipelineStore();
         this.executionService = new SimulateExecutionService(threadPool);
     }
 
     @Override
-    protected void doExecute(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {
+    protected void doExecute(Task task, SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {
         final Map<String, Object> source = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
 
         final SimulatePipelineRequest.Parsed simulateRequest;

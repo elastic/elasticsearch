@@ -48,6 +48,7 @@ import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.client.DeadHostState.TimeSupplier;
 
+import javax.net.ssl.SSLHandshakeException;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.ConnectException;
@@ -74,7 +75,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.net.ssl.SSLHandshakeException;
 
 import static java.util.Collections.singletonList;
 
@@ -108,15 +108,17 @@ public class RestClient implements Closeable {
     private final AtomicInteger lastNodeIndex = new AtomicInteger(0);
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
+    private final NodeSelector nodeSelector;
     private volatile NodeTuple<List<Node>> nodeTuple;
 
     RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
-               List<Node> nodes, String pathPrefix, FailureListener failureListener) {
+               List<Node> nodes, String pathPrefix, FailureListener failureListener, NodeSelector nodeSelector) {
         this.client = client;
         this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
+        this.nodeSelector = nodeSelector;
         setNodes(nodes);
     }
 
@@ -146,7 +148,7 @@ public class RestClient implements Closeable {
     /**
      * Replaces the hosts with which the client communicates.
      *
-     * @deprecated prefer {@link setNodes} because it allows you
+     * @deprecated prefer {@link #setNodes(Collection)} because it allows you
      * to set metadata for use with {@link NodeSelector}s
      */
     @Deprecated
@@ -180,8 +182,8 @@ public class RestClient implements Closeable {
             throw new IllegalArgumentException("hosts must not be null nor empty");
         }
         List<Node> nodes = new ArrayList<>(hosts.length);
-        for (int i = 0; i < hosts.length; i++) {
-            nodes.add(new Node(hosts[i]));
+        for (HttpHost host : hosts) {
+            nodes.add(new Node(host));
         }
         return nodes;
     }
@@ -509,7 +511,7 @@ public class RestClient implements Closeable {
         setHeaders(httpRequest, request.getOptions().getHeaders());
         FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(listener);
         long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextNode(request.getOptions().getNodeSelector()), httpRequest, ignoreErrorCodes,
+        performRequestAsync(startTime, nextNode(), httpRequest, ignoreErrorCodes,
                 request.getOptions().getHttpAsyncResponseConsumerFactory(), failureTrackingResponseListener);
     }
 
@@ -611,7 +613,7 @@ public class RestClient implements Closeable {
      * that is closest to being revived.
      * @throws IOException if no nodes are available
      */
-    private NodeTuple<Iterator<Node>> nextNode(NodeSelector nodeSelector) throws IOException {
+    private NodeTuple<Iterator<Node>> nextNode() throws IOException {
         NodeTuple<List<Node>> nodeTuple = this.nodeTuple;
         List<Node> hosts = selectHosts(nodeTuple, blacklist, lastNodeIndex, nodeSelector);
         return new NodeTuple<>(hosts.iterator(), nodeTuple.authCache);

@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -228,7 +229,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final SamlLogoutRequest request = new SamlLogoutRequest();
         request.setToken(tokenString);
         final PlainActionFuture<SamlLogoutResponse> listener = new PlainActionFuture<>();
-        action.doExecute(request, listener);
+        action.doExecute(mock(Task.class), request, listener);
         final SamlLogoutResponse response = listener.get();
         assertThat(response, notNullValue());
         assertThat(response.getRedirectUrl(), notNullValue());

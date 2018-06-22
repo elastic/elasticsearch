@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
@@ -46,7 +47,7 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
     }
 
     @Override
-    protected void doExecute(PutFilterAction.Request request, ActionListener<PutFilterAction.Response> listener) {
+    protected void doExecute(Task task, PutFilterAction.Request request, ActionListener<PutFilterAction.Response> listener) {
         MlFilter filter = request.getFilter();
         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
         indexRequest.opType(DocWriteRequest.OpType.CREATE);

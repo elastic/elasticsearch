@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.Configuration;
@@ -33,7 +34,7 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
     }
 
     @Override
-    protected void doExecute(SqlClearCursorRequest request, ActionListener<SqlClearCursorResponse> listener) {
+    protected void doExecute(Task task, SqlClearCursorRequest request, ActionListener<SqlClearCursorResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
         operation(planExecutor, request, listener);
     }

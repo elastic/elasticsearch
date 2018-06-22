@@ -40,6 +40,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -83,7 +84,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     }
 
     @Override
-    protected void doExecute(RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
+    protected void doExecute(Task task, RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
         RankEvalSpec evaluationSpecification = request.getRankEvalSpec();
         EvaluationMetric metric = evaluationSpecification.getMetric();
 

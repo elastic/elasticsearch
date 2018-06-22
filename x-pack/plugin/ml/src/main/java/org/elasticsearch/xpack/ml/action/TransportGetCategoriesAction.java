@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
@@ -35,7 +36,7 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
     }
 
     @Override
-    protected void doExecute(GetCategoriesAction.Request request, ActionListener<GetCategoriesAction.Response> listener) {
+    protected void doExecute(Task task, GetCategoriesAction.Request request, ActionListener<GetCategoriesAction.Response> listener) {
         jobManager.getJobOrThrowIfUnknown(request.getJobId());
 
         Integer from = request.getPageParams() != null ? request.getPageParams().getFrom() : null;

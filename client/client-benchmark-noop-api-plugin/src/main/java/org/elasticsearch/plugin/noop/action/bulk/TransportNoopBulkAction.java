@@ -30,6 +30,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
@@ -42,7 +43,7 @@ public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest,
     }
 
     @Override
-    protected void doExecute(BulkRequest request, ActionListener<BulkResponse> listener) {
+    protected void doExecute(Task task, BulkRequest request, ActionListener<BulkResponse> listener) {
         final int itemCount = request.requests().size();
         // simulate at least a realistic amount of data that gets serialized
         BulkItemResponse[] bulkItemResponses = new BulkItemResponse[itemCount];

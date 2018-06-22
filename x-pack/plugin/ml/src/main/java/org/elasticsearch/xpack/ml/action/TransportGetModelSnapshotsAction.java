@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
@@ -35,7 +36,8 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
     }
 
     @Override
-    protected void doExecute(GetModelSnapshotsAction.Request request, ActionListener<GetModelSnapshotsAction.Response> listener) {
+    protected void doExecute(Task task, GetModelSnapshotsAction.Request request,
+                             ActionListener<GetModelSnapshotsAction.Response> listener) {
         logger.debug("Get model snapshots for job {} snapshot ID {}. from = {}, size = {}"
                 + " start = '{}', end='{}', sort={} descending={}",
                 request.getJobId(), request.getSnapshotId(), request.getPageParams().getFrom(), request.getPageParams().getSize(),

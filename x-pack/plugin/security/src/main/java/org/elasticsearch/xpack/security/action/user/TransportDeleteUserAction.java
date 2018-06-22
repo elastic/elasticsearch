@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
@@ -35,7 +36,7 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
     }
 
     @Override
-    protected void doExecute(DeleteUserRequest request, final ActionListener<DeleteUserResponse> listener) {
+    protected void doExecute(Task task, DeleteUserRequest request, final ActionListener<DeleteUserResponse> listener) {
         final String username = request.username();
         if (ClientReservedRealm.isReserved(username, settings)) {
             if (AnonymousUser.isAnonymousUsername(username, settings)) {

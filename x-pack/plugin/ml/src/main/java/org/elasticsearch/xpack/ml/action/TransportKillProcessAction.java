@@ -9,21 +9,19 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
@@ -35,12 +33,11 @@ public class TransportKillProcessAction extends TransportJobTaskAction<KillProce
     private final Auditor auditor;
 
     @Inject
-    public TransportKillProcessAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportKillProcessAction(Settings settings, TransportService transportService,
                                       ClusterService clusterService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver,
                                       AutodetectProcessManager processManager, Auditor auditor) {
-        super(settings, KillProcessAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                KillProcessAction.Request::new, KillProcessAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME, processManager);
+        super(settings, KillProcessAction.NAME, clusterService, transportService, actionFilters,
+            KillProcessAction.Request::new, KillProcessAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME, processManager);
         this.auditor = auditor;
     }
 

@@ -8,10 +8,8 @@ package org.elasticsearch.xpack.security.action.role;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesRequest;
@@ -29,12 +27,11 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
     private final ReservedRolesStore reservedRolesStore;
 
     @Inject
-    public TransportGetRolesAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver,
+    public TransportGetRolesAction(Settings settings, ActionFilters actionFilters,
                                    NativeRolesStore nativeRolesStore, TransportService transportService,
                                    ReservedRolesStore reservedRolesStore) {
-        super(settings, GetRolesAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GetRolesRequest::new);
+        super(settings, GetRolesAction.NAME, transportService, actionFilters,
+            GetRolesRequest::new);
         this.nativeRolesStore = nativeRolesStore;
         this.reservedRolesStore = reservedRolesStore;
     }

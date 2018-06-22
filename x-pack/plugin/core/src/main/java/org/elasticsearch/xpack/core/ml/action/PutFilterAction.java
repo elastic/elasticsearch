@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 
-public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAction.Response> {
+public class PutFilterAction extends Action<PutFilterAction.Response> {
 
     public static final PutFilterAction INSTANCE = new PutFilterAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/put";

@@ -14,22 +14,21 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
-import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.job.JobManager;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -40,12 +39,10 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
     private final JobManager jobManager;
 
     @Inject
-    public TransportPutFilterAction(Settings settings, ThreadPool threadPool,
-                                    TransportService transportService, ActionFilters actionFilters,
-                                    IndexNameExpressionResolver indexNameExpressionResolver,
+    public TransportPutFilterAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
                                     Client client, JobManager jobManager) {
-        super(settings, PutFilterAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, PutFilterAction.Request::new);
+        super(settings, PutFilterAction.NAME, transportService, actionFilters,
+            (Supplier<PutFilterAction.Request>) PutFilterAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
     }

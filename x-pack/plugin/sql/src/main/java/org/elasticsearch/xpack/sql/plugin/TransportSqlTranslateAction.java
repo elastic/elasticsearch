@@ -8,10 +8,9 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.Configuration;
@@ -24,13 +23,10 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
-    public TransportSqlTranslateAction(Settings settings, ThreadPool threadPool,
-                                       TransportService transportService, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver,
-                                       PlanExecutor planExecutor,
-                                       SqlLicenseChecker sqlLicenseChecker) {
-        super(settings, SqlTranslateAction.NAME, threadPool, transportService, actionFilters,
-                SqlTranslateRequest::new, indexNameExpressionResolver);
+    public TransportSqlTranslateAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+                                       PlanExecutor planExecutor, SqlLicenseChecker sqlLicenseChecker) {
+        super(settings, SqlTranslateAction.NAME, transportService, actionFilters,
+            (Writeable.Reader<SqlTranslateRequest>) SqlTranslateRequest::new);
 
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;

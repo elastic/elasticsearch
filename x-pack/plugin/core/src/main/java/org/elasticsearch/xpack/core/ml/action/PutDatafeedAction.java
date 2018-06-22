@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutDatafeedAction.Response> {
+public class PutDatafeedAction extends Action<PutDatafeedAction.Response> {
 
     public static final PutDatafeedAction INSTANCE = new PutDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/put";

@@ -8,10 +8,8 @@ package org.elasticsearch.xpack.core.ssl.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -26,12 +24,10 @@ public class TransportGetCertificateInfoAction extends HandledTransportAction<Ge
     private final SSLService sslService;
 
     @Inject
-    public TransportGetCertificateInfoAction(Settings settings, ThreadPool threadPool,
-                                             TransportService transportService, ActionFilters actionFilters,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
+    public TransportGetCertificateInfoAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
                                              SSLService sslService) {
-        super(settings, GetCertificateInfoAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, GetCertificateInfoAction.Request::new);
+        super(settings, GetCertificateInfoAction.NAME, transportService, actionFilters,
+            GetCertificateInfoAction.Request::new);
         this.sslService = sslService;
     }
 

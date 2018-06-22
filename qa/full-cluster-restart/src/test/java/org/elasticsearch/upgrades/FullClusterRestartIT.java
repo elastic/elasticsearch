@@ -26,6 +26,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
@@ -720,11 +721,14 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
                 // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
                 assertBusy(() -> {
-                    Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
-                    assertOK(resp);
-                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                    assertThat(result.get("successful"), equalTo(result.get("total")));
-                    assertThat(result.get("failed"), equalTo(0));
+                    try {
+                        Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
+                        Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                        assertThat(result.get("successful"), equalTo(result.get("total")));
+                        assertThat(result.get("failed"), equalTo(0));
+                    } catch (ResponseException ex) {
+                        throw new AssertionError(ex); // cause assert busy to retry
+                    }
                 });
             } else {
                 // Explicitly flush so we're sure to have a bunch of documents in the Lucene index

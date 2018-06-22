@@ -19,22 +19,15 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.explain.ExplainRequest;
-import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
@@ -42,8 +35,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  * Rest action for computing a score explanation for specific documents.
@@ -91,18 +82,5 @@ public class RestExplainAction extends BaseRestHandler {
         explainRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
         return channel -> client.explain(explainRequest, new RestStatusToXContentListener<>(channel));
-    }
-
-    static class Fields {
-        static final String _INDEX = "_index";
-        static final String _TYPE = "_type";
-        static final String _ID = "_id";
-        static final String MATCHED = "matched";
-        static final String EXPLANATION = "explanation";
-        static final String VALUE = "value";
-        static final String DESCRIPTION = "description";
-        static final String DETAILS = "details";
-        static final String GET = "get";
-
     }
 }

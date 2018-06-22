@@ -74,11 +74,19 @@ public class ExplainResponseTests extends AbstractStreamableXContentTestCase<Exp
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> field.startsWith("fields") || field.startsWith("get");
+        return field -> field.startsWith("get");
     }
 
     public void testToXContent() throws IOException {
-        ExplainResponse response = createSimpleResponse();
+        String index = "index";
+        String type = "type";
+        String id = "1";
+        boolean exist = true;
+        Explanation explanation = Explanation.match(1.0f, "description", Collections.emptySet());
+        GetResult getResult = new GetResult(null, null, null, -1, true, new BytesArray("{ \"field1\" : " +
+            "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
+            singletonList("value1"))));
+        ExplainResponse response = new ExplainResponse(index, type, id, exist, explanation, getResult);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -112,19 +120,7 @@ public class ExplainResponseTests extends AbstractStreamableXContentTestCase<Exp
         assertThat(expectedResponse, equalTo(generatedResponse));
     }
 
-    private ExplainResponse createSimpleResponse() {
-        String index = "index";
-        String type = "type";
-        String id = "1";
-        boolean exist = true;
-        Explanation explanation = Explanation.match(1.0f, "description", Collections.emptySet());
-        GetResult getResult = new GetResult(null, null, null, -1, true, new BytesArray("{ \"field1\" : " +
-            "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
-            singletonList("value1"))));
-        return new ExplainResponse(index, type, id, exist, explanation, getResult);
-    }
-
-    private Explanation randomExplanation(Explanation... explanations) {
+    private static Explanation randomExplanation(Explanation... explanations) {
         return Explanation.match(randomFloat(), randomAlphaOfLengthBetween(1, 10),
             explanations.length > 0 ? explanations : new Explanation[0]);
     }

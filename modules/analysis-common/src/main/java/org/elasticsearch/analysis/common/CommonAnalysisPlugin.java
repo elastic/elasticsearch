@@ -226,6 +226,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("limit", LimitTokenCountFilterFactory::new);
         filters.put("lowercase", LowerCaseTokenFilterFactory::new);
         filters.put("min_hash", MinHashTokenFilterFactory::new);
+        filters.put("multiplexer", MultiplexerTokenFilterFactory::new);
         filters.put("ngram", NGramTokenFilterFactory::new);
         filters.put("nGram", NGramTokenFilterFactory::new);
         filters.put("pattern_capture", requriesAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));

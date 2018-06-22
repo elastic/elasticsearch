@@ -1,4 +1,3 @@
-[role="xpack"]
 [[sql-cli]]
 == SQL CLI
 
@@ -37,18 +36,3 @@ James S.A. Corey |Leviathan Wakes     |561            |1306972800000
 --------------------------------------------------
 // TODO it'd be lovely to be able to assert that this is correct but
 // that is probably more work then it is worth right now.
-
-[[sql-cli-permissions]]
-[NOTE]
-===============================
-If you are using Security you need to add a few permissions to
-users so they can run SQL. To run SQL using the CLI a user needs
-`read`, `indices:admin/get`, and `cluster:monitor/main`. The
-following example configures a role that can run SQL in the CLI
-for the `test` and `bort` indices:
-
-["source","yaml",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{sql-tests}/security/roles.yml[cli_jdbc]
---------------------------------------------------
-===============================

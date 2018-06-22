@@ -15,13 +15,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -43,11 +41,10 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<U
     private final Client client;
 
     @Inject
-    public TransportUpdateModelSnapshotAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                              JobProvider jobProvider, Client client) {
-        super(settings, UpdateModelSnapshotAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                UpdateModelSnapshotAction.Request::new);
+    public TransportUpdateModelSnapshotAction(Settings settings, TransportService transportService,
+                                              ActionFilters actionFilters, JobProvider jobProvider, Client client) {
+        super(settings, UpdateModelSnapshotAction.NAME, transportService, actionFilters,
+            UpdateModelSnapshotAction.Request::new);
         this.jobProvider = jobProvider;
         this.client = client;
     }

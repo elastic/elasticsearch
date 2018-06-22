@@ -11,7 +11,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -44,14 +43,14 @@ import java.util.Map;
  */
 public class TransportHasPrivilegesAction extends HandledTransportAction<HasPrivilegesRequest, HasPrivilegesResponse> {
 
+    private final ThreadPool threadPool;
     private final AuthorizationService authorizationService;
 
     @Inject
     public TransportHasPrivilegesAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        AuthorizationService authorizationService) {
-        super(settings, HasPrivilegesAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                HasPrivilegesRequest::new);
+                                        ActionFilters actionFilters, AuthorizationService authorizationService) {
+        super(settings, HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new);
+        this.threadPool = threadPool;
         this.authorizationService = authorizationService;
     }
 

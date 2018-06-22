@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -19,13 +18,14 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -37,12 +37,10 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
     private final JobProvider jobProvider;
 
     @Inject
-    public TransportDeleteCalendarAction(Settings settings, ThreadPool threadPool,
-                                         TransportService transportService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver,
-                                         Client client, JobManager jobManager, JobProvider jobProvider) {
-        super(settings, DeleteCalendarAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, DeleteCalendarAction.Request::new);
+    public TransportDeleteCalendarAction(Settings settings, TransportService transportService,
+                                         ActionFilters actionFilters, Client client, JobManager jobManager, JobProvider jobProvider) {
+        super(settings, DeleteCalendarAction.NAME, transportService, actionFilters,
+            (Supplier<DeleteCalendarAction.Request>) DeleteCalendarAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
         this.jobProvider = jobProvider;

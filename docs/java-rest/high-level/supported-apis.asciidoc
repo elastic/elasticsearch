@@ -123,10 +123,12 @@ The Java High Level REST Client supports the following Ingest APIs:
 * <<java-rest-high-ingest-put-pipeline>>
 * <<java-rest-high-ingest-get-pipeline>>
 * <<java-rest-high-ingest-delete-pipeline>>
+* <<java-rest-high-ingest-simulate-pipeline>>
 
 include::ingest/put_pipeline.asciidoc[]
 include::ingest/get_pipeline.asciidoc[]
 include::ingest/delete_pipeline.asciidoc[]
+include::ingest/simulate_pipeline.asciidoc[]
 
 == Snapshot APIs
 
@@ -136,11 +138,13 @@ The Java High Level REST Client supports the following Snapshot APIs:
 * <<java-rest-high-snapshot-create-repository>>
 * <<java-rest-high-snapshot-delete-repository>>
 * <<java-rest-high-snapshot-verify-repository>>
+* <<java-rest-high-snapshot-delete-snapshot>>
 
 include::snapshot/get_repository.asciidoc[]
 include::snapshot/create_repository.asciidoc[]
 include::snapshot/delete_repository.asciidoc[]
 include::snapshot/verify_repository.asciidoc[]
+include::snapshot/delete_snapshot.asciidoc[]
 
 == Tasks APIs
 

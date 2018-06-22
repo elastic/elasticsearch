@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -73,6 +74,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -1533,6 +1535,34 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, expectedRequest.getParameters());
     }
 
+    public void testSimulatePipeline() throws IOException {
+        String pipelineId = randomBoolean() ? "some_pipeline_id" : null;
+        boolean verbose = randomBoolean();
+        String json = "{\"pipeline\":{" +
+            "\"description\":\"_description\"," +
+            "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]}," +
+            "\"docs\":[{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}]}";
+        SimulatePipelineRequest request = new SimulatePipelineRequest(
+            new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
+        request.setId(pipelineId);
+        request.setVerbose(verbose);
+        Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put("verbose", Boolean.toString(verbose));
+
+        Request expectedRequest = RequestConverters.simulatePipeline(request);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add("_ingest/pipeline");
+        if (pipelineId != null && !pipelineId.isEmpty())
+            endpoint.add(pipelineId);
+        endpoint.add("_simulate");
+        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(expectedParams, expectedRequest.getParameters());
+        assertToXContentBody(request, expectedRequest.getEntity());
+    }
+
     public void testClusterHealth() {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest();
         Map<String, String> expectedParams = new HashMap<>();
@@ -1855,6 +1885,25 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(endpoint, equalTo(request.getEndpoint()));
         assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(expectedParams, equalTo(request.getParameters()));
+    }
+
+    public void testDeleteSnapshot() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String snapshot = "snapshot-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+
+        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s", repository, snapshot);
+
+        DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest();
+        deleteSnapshotRequest.repository(repository);
+        deleteSnapshotRequest.snapshot(snapshot);
+        setRandomMasterTimeout(deleteSnapshotRequest, expectedParams);
+
+        Request request = RequestConverters.deleteSnapshot(deleteSnapshotRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpDelete.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertNull(request.getEntity());
     }
 
     public void testPutTemplateRequest() throws Exception {

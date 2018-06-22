@@ -86,6 +86,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         this.trustManager = trustManagers(config);
         this.principalPattern = PkiRealmSettings.USERNAME_PATTERN_SETTING.get(config.settings());
         this.roleMapper = roleMapper;
+        this.roleMapper.refreshRealmOnChange(this);
         this.cache = CacheBuilder.<BytesKey, User>builder()
                 .setExpireAfterWrite(PkiRealmSettings.CACHE_TTL_SETTING.get(config.settings()))
                 .setMaximumWeight(PkiRealmSettings.CACHE_MAX_USERS_SETTING.get(config.settings()))

@@ -76,6 +76,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static final Logger logger = ESLoggerFactory.getLogger(TransportShardBulkAction.class);
 
+    private final ThreadPool threadPool;
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
 
@@ -86,6 +87,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                     IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             indexNameExpressionResolver, BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE);
+        this.threadPool = threadPool;
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
     }

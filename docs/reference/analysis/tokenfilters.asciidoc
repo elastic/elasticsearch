@@ -35,6 +35,8 @@ include::tokenfilters/word-delimiter-tokenfilter.asciidoc[]
 
 include::tokenfilters/word-delimiter-graph-tokenfilter.asciidoc[]
 
+include::tokenfilters/multiplexer-tokenfilter.asciidoc[]
+
 include::tokenfilters/stemmer-tokenfilter.asciidoc[]
 
 include::tokenfilters/stemmer-override-tokenfilter.asciidoc[]

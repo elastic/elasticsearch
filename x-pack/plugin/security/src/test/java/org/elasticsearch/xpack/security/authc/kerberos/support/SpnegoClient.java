@@ -60,7 +60,7 @@ class SpnegoClient implements AutoCloseable {
 
     /**
      * Creates SpengoClient to interact with given service principal<br>
-     * Use {@link #close()} to release and dispose {@link LoginContext} and
+     * Use {@link #close()} to logout {@link LoginContext} and dispose
      * {@link GSSContext} after usage.
      * @param userPrincipalName User principal name for login as client
      * @param password password for client
@@ -130,7 +130,7 @@ class SpnegoClient implements AutoCloseable {
 
     /**
      * Spnego Client after usage needs to be closed in order to logout from
-     * {@link LoginContext} and disposes {@link GSSContext}
+     * {@link LoginContext} and dispose {@link GSSContext}
      */
     public void close() throws LoginException, GSSException, PrivilegedActionException {
         if (loginContext != null) {

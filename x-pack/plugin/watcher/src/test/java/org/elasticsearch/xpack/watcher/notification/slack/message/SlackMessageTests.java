@@ -602,11 +602,18 @@ public class SlackMessageTests extends ESTestCase {
         }
     }
 
-    public void canHaveNullTextAndAttachment()  throws Exception {
-        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon");
-        assertThat(slackMessage.getText(), is(null));
-        assertThat(slackMessage.getAttachments(), is(null));
+    public void canHaveNullText()  throws Exception {
+        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", new Attachment[1]);
+        assertNull(slackMessage.getText());
+        assertNotNull(slackMessage.getAttachments());
     }
+
+    public void canHaveNullAttachments()  throws Exception {
+        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", "text");
+        assertNotNull(slackMessage.getText());
+        assertNull(slackMessage.getAttachments());
+    }
+
     private static void writeFieldIfNotNull(XContentBuilder builder, String field, Object value) throws IOException {
         if (value != null) {
             builder.field(field, value);

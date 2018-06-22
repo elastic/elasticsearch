@@ -26,11 +26,14 @@ public class SlackMessage implements MessageElement {
     final String from;
     final String[] to;
     final String icon;
-    String text;
-    Attachment[] attachments;
+    final String text;
+    final Attachment[] attachments;
 
-    public SlackMessage(String from, String[] to, String icon) {
-        this(from, to, icon, null, null); // Empty text and empty attachments
+    //Note on constructors:
+    // Slack with fail to send a message if it has no attachments AND no text.
+    // Slack will succeed with attachments OR text.
+    public SlackMessage(String from, String[] to, String icon, Attachment[] attachments) {
+        this(from, to, icon, null, null); // Empty text
     }
 
     public SlackMessage(String from, String[] to, String icon, String text) {
@@ -64,10 +67,6 @@ public class SlackMessage implements MessageElement {
     public Attachment[] getAttachments() {
         return attachments;
     }
-
-    public void setText(String text) { this.text = text;}
-
-    public void setAttachments(Attachment[] attachments) { this.attachments = attachments;}
 
     @Override
     public boolean equals(Object o) {

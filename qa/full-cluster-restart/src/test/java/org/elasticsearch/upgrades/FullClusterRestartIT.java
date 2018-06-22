@@ -713,8 +713,21 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
             // make sure all recoveries are done
             ensureGreen(index);
-            // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
-            client().performRequest("POST", "/_flush");
+            // Recovering a synced-flush index from 5.x to 6.x might be subtle as a 5.x index commit does not have all 6.x commit tags.
+            if (randomBoolean()) {
+                // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
+                // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
+                assertBusy(() -> {
+                    Response resp = client().performRequest("POST", index + "/_flush/synced");
+                    assertOK(resp);
+                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                    assertThat(result.get("successful"), equalTo(result.get("total")));
+                    assertThat(result.get("failed"), equalTo(0));
+                });
+            } else {
+                // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
+                assertOK(client().performRequest("POST", "/_flush"));
+            }
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
                 indexRandomDocuments(count / 10, false /* Flushing here would invalidate the whole thing....*/, false,

@@ -120,7 +120,7 @@ class ScrollDataExtractor implements DataExtractor {
             if (docValueField.equals(context.extractedFields.timeField())) {
                 searchRequestBuilder.addDocValueField(docValueField, EPOCH_MILLIS_FORMAT);
             } else {
-                searchRequestBuilder.addDocValueField(docValueField, DocValueFieldsContext.USE_DEFAULT_FORMAT);
+                searchRequestBuilder.addDocValueField(docValueField);
             }
         }
         String[] sourceFields = context.extractedFields.getSourceFields();

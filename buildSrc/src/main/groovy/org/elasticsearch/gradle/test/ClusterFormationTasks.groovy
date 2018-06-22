@@ -88,6 +88,9 @@ class ClusterFormationTasks {
         Configuration currentDistro = project.configurations.create("${prefix}_elasticsearchDistro")
         Configuration bwcDistro = project.configurations.create("${prefix}_elasticsearchBwcDistro")
         Configuration bwcPlugins = project.configurations.create("${prefix}_elasticsearchBwcPlugins")
+        if (System.getProperty('tests.distribution', 'oss-zip') == 'integ-test-zip') {
+            throw new Exception("tests.distribution=integ-test-zip is not supported")
+        }
         configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.elasticsearch)
         if (config.numBwcNodes > 0) {
             if (config.bwcVersion == null) {

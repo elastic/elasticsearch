@@ -1,4 +1,4 @@
-# Integration tests for Expression scriptsmatch
+# Integration tests for Expression scripts
 #
 "Expression loaded":
     - do:

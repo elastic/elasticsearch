@@ -1,4 +1,4 @@
-# Integration tests for monitoring.23.
+# Integration tests for monitoring
 #
 "X-Pack loaded":
     - do:

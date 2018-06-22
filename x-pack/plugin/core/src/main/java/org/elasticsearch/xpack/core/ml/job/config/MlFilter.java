@@ -56,7 +56,7 @@ public class MlFilter implements ToXContentObject, Writeable {
     private final String description;
     private final SortedSet<String> items;
 
-    public MlFilter(String id, String description, SortedSet<String> items) {
+    private MlFilter(String id, String description, SortedSet<String> items) {
         this.id = Objects.requireNonNull(id, ID.getPreferredName() + " must not be null");
         this.description = description;
         this.items = Objects.requireNonNull(items, ITEMS.getPreferredName() + " must not be null");
@@ -69,8 +69,7 @@ public class MlFilter implements ToXContentObject, Writeable {
         } else {
             description = null;
         }
-        items = new TreeSet<>();
-        items.addAll(Arrays.asList(in.readStringArray()));
+        items = new TreeSet<>(Arrays.asList(in.readStringArray()));
     }
 
     @Override
@@ -163,9 +162,13 @@ public class MlFilter implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setItems(SortedSet<String> items) {
+            this.items = items;
+            return this;
+        }
+
         public Builder setItems(List<String> items) {
-            this.items = new TreeSet<>();
-            this.items.addAll(items);
+            this.items = new TreeSet<>(items);
             return this;
         }
 

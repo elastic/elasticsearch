@@ -258,12 +258,6 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
             channel.sendResponse(nodeOperation(request, task));
         }
-
-        @Override
-        public void messageReceived(NodeRequest request, TransportChannel channel) throws Exception {
-            channel.sendResponse(nodeOperation(request));
-        }
-
     }
 
 }

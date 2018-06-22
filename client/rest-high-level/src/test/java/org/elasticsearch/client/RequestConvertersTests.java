@@ -74,6 +74,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -1532,6 +1533,34 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
         assertEquals(HttpDelete.METHOD_NAME, expectedRequest.getMethod());
         assertEquals(expectedParams, expectedRequest.getParameters());
+    }
+
+    public void testSimulatePipeline() throws IOException {
+        String pipelineId = randomBoolean() ? "some_pipeline_id" : null;
+        boolean verbose = randomBoolean();
+        String json = "{\"pipeline\":{" +
+            "\"description\":\"_description\"," +
+            "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]}," +
+            "\"docs\":[{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}]}";
+        SimulatePipelineRequest request = new SimulatePipelineRequest(
+            new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
+        request.setId(pipelineId);
+        request.setVerbose(verbose);
+        Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put("verbose", Boolean.toString(verbose));
+
+        Request expectedRequest = RequestConverters.simulatePipeline(request);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add("_ingest/pipeline");
+        if (pipelineId != null && !pipelineId.isEmpty())
+            endpoint.add(pipelineId);
+        endpoint.add("_simulate");
+        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(expectedParams, expectedRequest.getParameters());
+        assertToXContentBody(request, expectedRequest.getEntity());
     }
 
     public void testClusterHealth() {

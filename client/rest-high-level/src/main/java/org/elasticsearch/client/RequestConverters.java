@@ -71,6 +71,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -883,6 +884,20 @@ final class RequestConverters {
         params.putParam("all_shards", Boolean.toString(validateQueryRequest.allShards()));
         params.putParam("rewrite", Boolean.toString(validateQueryRequest.rewrite()));
         request.setEntity(createEntity(validateQueryRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request simulatePipeline(SimulatePipelineRequest simulatePipelineRequest) throws IOException {
+        EndpointBuilder builder = new EndpointBuilder().addPathPartAsIs("_ingest/pipeline");
+        if (simulatePipelineRequest.getId() != null && !simulatePipelineRequest.getId().isEmpty()) {
+            builder.addPathPart(simulatePipelineRequest.getId());
+        }
+        builder.addPathPartAsIs("_simulate");
+        String endpoint = builder.build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.putParam("verbose", Boolean.toString(simulatePipelineRequest.isVerbose()));
+        request.setEntity(createEntity(simulatePipelineRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

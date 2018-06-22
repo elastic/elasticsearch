@@ -350,8 +350,6 @@ class BuildPlugin implements Plugin<Project> {
             }
             configuration.resolutionStrategy { 
                 failOnVersionConflict()
-                // work around https://github.com/gradle/gradle/issues/5692
-                preferProjectModules()
             }
         })
 

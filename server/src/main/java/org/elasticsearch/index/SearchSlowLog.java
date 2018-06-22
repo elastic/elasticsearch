@@ -174,6 +174,11 @@ public final class SearchSlowLog implements SearchOperationListener {
             } else {
                 sb.append("source[], ");
             }
+            if (context.getTask().getHeader("X-Opaque-Id") != null) {
+                sb.append("id[").append(context.getTask().getHeader("X-Opaque-Id")).append("], ");
+            } else {
+                sb.append("id[], ");
+            }
             return sb.toString();
         }
     }

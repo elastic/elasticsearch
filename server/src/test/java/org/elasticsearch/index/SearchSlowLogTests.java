@@ -20,6 +20,7 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,7 +40,9 @@ import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collections;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -166,10 +169,12 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchContext searchContext = createSearchContext(index);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
+        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null, Collections.singletonMap("X-Opaque-Id", "my_id")));
         SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10);
         assertThat(p.toString(), startsWith("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
         assertThat(p.toString(), not(containsString("\n")));
+        assertThat(p.toString(), endsWith("id[my_id], "));
     }
 
     public void testLevelSetting() {

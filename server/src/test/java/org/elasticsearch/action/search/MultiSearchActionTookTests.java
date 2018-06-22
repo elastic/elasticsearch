@@ -32,6 +32,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -106,7 +107,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
 
         TransportMultiSearchAction action = createTransportMultiSearchAction(controlledClock, expected);
 
-        action.doExecute(multiSearchRequest, new ActionListener<MultiSearchResponse>() {
+        action.doExecute(mock(Task.class), multiSearchRequest, new ActionListener<MultiSearchResponse>() {
             @Override
             public void onResponse(MultiSearchResponse multiSearchResponse) {
                 if (controlledClock) {

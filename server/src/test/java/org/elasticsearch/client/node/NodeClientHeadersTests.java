@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -63,7 +64,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         }
 
         @Override
-        protected void doExecute(ActionRequest request, ActionListener listener) {
+        protected void doExecute(Task task, ActionRequest request, ActionListener listener) {
             listener.onFailure(new InternalException(actionName));
         }
     }

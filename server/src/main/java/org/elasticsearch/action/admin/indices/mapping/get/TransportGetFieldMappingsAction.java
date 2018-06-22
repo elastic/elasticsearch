@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
@@ -53,7 +54,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     }
 
     @Override
-    protected void doExecute(GetFieldMappingsRequest request, final ActionListener<GetFieldMappingsResponse> listener) {
+    protected void doExecute(Task task, GetFieldMappingsRequest request, final ActionListener<GetFieldMappingsResponse> listener) {
         ClusterState clusterState = clusterService.state();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         final AtomicInteger indexCounter = new AtomicInteger();

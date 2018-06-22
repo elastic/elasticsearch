@@ -362,11 +362,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return new GroupShardsIterator<>(shards);
     }
 
-    @Override
-    protected final void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        throw new UnsupportedOperationException("the task parameter is required");
-    }
-
     private AbstractSearchAsyncAction searchAsyncAction(SearchTask task, SearchRequest searchRequest,
                                                         GroupShardsIterator<SearchShardIterator> shardIterators,
                                                         SearchTimeProvider timeProvider,

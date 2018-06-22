@@ -74,7 +74,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     }
 
     @Override
-    protected void doExecute(Request request, ActionListener<Response> listener) {
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new AsyncSingleAction(request, listener).start();
     }
 

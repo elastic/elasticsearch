@@ -99,7 +99,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     }
 
     @Override
-    protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
+    protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         RollupSearchContext rollupSearchContext = separateIndices(request.indices(),
                 clusterService.state().getMetaData().indices());
 

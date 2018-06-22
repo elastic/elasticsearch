@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
@@ -36,7 +37,7 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
     }
 
     @Override
-    protected void doExecute(GetRecordsAction.Request request, ActionListener<GetRecordsAction.Response> listener) {
+    protected void doExecute(Task task, GetRecordsAction.Request request, ActionListener<GetRecordsAction.Response> listener) {
 
         jobManager.getJobOrThrowIfUnknown(request.getJobId());
 

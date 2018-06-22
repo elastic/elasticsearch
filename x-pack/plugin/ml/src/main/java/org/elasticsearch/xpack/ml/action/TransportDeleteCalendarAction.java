@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
@@ -47,7 +48,7 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
     }
 
     @Override
-    protected void doExecute(DeleteCalendarAction.Request request, ActionListener<DeleteCalendarAction.Response> listener) {
+    protected void doExecute(Task task, DeleteCalendarAction.Request request, ActionListener<DeleteCalendarAction.Response> listener) {
 
         final String calendarId = request.getCalendarId();
 

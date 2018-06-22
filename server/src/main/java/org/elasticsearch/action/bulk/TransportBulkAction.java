@@ -124,11 +124,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     @Override
-    protected final void doExecute(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
-        throw new UnsupportedOperationException("task parameter is required for this operation");
-    }
-
-    @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         if (bulkRequest.hasIndexRequestsWithPipelines()) {
             if (clusterService.localNode().isIngestNode()) {

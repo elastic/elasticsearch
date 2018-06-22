@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.remote;
 import java.util.function.Supplier;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.ActionFilters;
@@ -45,7 +46,7 @@ public final class TransportRemoteInfoAction extends HandledTransportAction<Remo
     }
 
     @Override
-    protected void doExecute(RemoteInfoRequest remoteInfoRequest, ActionListener<RemoteInfoResponse> listener) {
+    protected void doExecute(Task task, RemoteInfoRequest remoteInfoRequest, ActionListener<RemoteInfoResponse> listener) {
         listener.onResponse(new RemoteInfoResponse(remoteClusterService.getRemoteConnectionInfos().collect(toList())));
     }
 }

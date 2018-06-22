@@ -182,12 +182,10 @@ public class MetaDataTests extends ESTestCase {
                 .endObject()
             .endObject());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, metadata)) {
-            try {
-                MetaData.Builder.fromXContent(parser);
-                fail();
-            } catch (IllegalArgumentException e) {
-                assertEquals("Unexpected field [random]", e.getMessage());
-            }
+            MetaData.Builder.fromXContent(parser);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("Unexpected field [random]", e.getMessage());
         }
     }
 
@@ -199,12 +197,10 @@ public class MetaDataTests extends ESTestCase {
                 .endObject()
             .endObject());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, metadata)) {
-            try {
-                IndexMetaData.Builder.fromXContent(parser);
-                fail();
-            } catch (IllegalArgumentException e) {
-                assertEquals("Unexpected field [random]", e.getMessage());
-            }
+            IndexMetaData.Builder.fromXContent(parser);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertEquals("Unexpected field [random]", e.getMessage());
         }
     }
 

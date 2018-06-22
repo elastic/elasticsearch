@@ -43,8 +43,9 @@ public final class TransportSamlPrepareAuthenticationAction
     }
 
     @Override
-    protected void doExecute(Task task, SamlPrepareAuthenticationRequest request, ActionListener<SamlPrepareAuthenticationResponse> listener) {
-        List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL()         );
+    protected void doExecute(Task task, SamlPrepareAuthenticationRequest request,
+                             ActionListener<SamlPrepareAuthenticationResponse> listener) {
+        List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL());
         if (realms.isEmpty()) {
             listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request));
         } else if (realms.size() > 1) {

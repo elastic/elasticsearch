@@ -36,7 +36,8 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
     }
 
     @Override
-    protected void doExecute(Task task, GetModelSnapshotsAction.Request request, ActionListener<GetModelSnapshotsAction.Response> listener) {
+    protected void doExecute(Task task, GetModelSnapshotsAction.Request request,
+                             ActionListener<GetModelSnapshotsAction.Response> listener) {
         logger.debug("Get model snapshots for job {} snapshot ID {}. from = {}, size = {}"
                 + " start = '{}', end='{}', sort={} descending={}",
                 request.getJobId(), request.getSnapshotId(), request.getPageParams().getFrom(), request.getPageParams().getSize(),

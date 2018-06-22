@@ -51,7 +51,8 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<U
     }
 
     @Override
-    protected void doExecute(Task task, UpdateModelSnapshotAction.Request request, ActionListener<UpdateModelSnapshotAction.Response> listener) {
+    protected void doExecute(Task task, UpdateModelSnapshotAction.Request request,
+                             ActionListener<UpdateModelSnapshotAction.Response> listener) {
         logger.debug("Received request to update model snapshot [{}] for job [{}]", request.getSnapshotId(), request.getJobId());
         jobProvider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), modelSnapshot -> {
             if (modelSnapshot == null) {

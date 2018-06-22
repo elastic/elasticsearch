@@ -51,7 +51,8 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
     }
 
     @Override
-    protected void doExecute(Task task, DeleteCalendarEventAction.Request request, ActionListener<DeleteCalendarEventAction.Response> listener) {
+    protected void doExecute(Task task, DeleteCalendarEventAction.Request request,
+                             ActionListener<DeleteCalendarEventAction.Response> listener) {
         final String eventId = request.getEventId();
 
         ActionListener<Calendar> calendarListener = ActionListener.wrap(

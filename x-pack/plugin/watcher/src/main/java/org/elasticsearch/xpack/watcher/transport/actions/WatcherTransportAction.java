@@ -43,5 +43,5 @@ public abstract class WatcherTransportAction<Request extends ActionRequest, Resp
         }
     }
 
-    protected abstract void doExecute(final Request request, ActionListener<Response> listener);
+    protected abstract void doExecute(Request request, ActionListener<Response> listener);
 }

@@ -44,7 +44,8 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
     }
 
     @Override
-    protected void doExecute(Task task, GetCalendarEventsAction.Request request, ActionListener<GetCalendarEventsAction.Response> listener) {
+    protected void doExecute(Task task, GetCalendarEventsAction.Request request,
+                             ActionListener<GetCalendarEventsAction.Response> listener) {
         ActionListener<Boolean> calendarExistsListener = ActionListener.wrap(
                 r -> {
                     ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder()

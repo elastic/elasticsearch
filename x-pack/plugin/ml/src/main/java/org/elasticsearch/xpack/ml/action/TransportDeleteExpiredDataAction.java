@@ -47,7 +47,8 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
     }
 
     @Override
-    protected void doExecute(Task task, DeleteExpiredDataAction.Request request, ActionListener<DeleteExpiredDataAction.Response> listener) {
+    protected void doExecute(Task task, DeleteExpiredDataAction.Request request,
+                             ActionListener<DeleteExpiredDataAction.Response> listener) {
         logger.info("Deleting expired data");
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> deleteExpiredData(listener));
     }

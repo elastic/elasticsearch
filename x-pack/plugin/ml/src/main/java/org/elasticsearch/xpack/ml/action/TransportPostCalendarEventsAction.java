@@ -54,7 +54,8 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
     }
 
     @Override
-    protected void doExecute(Task task, PostCalendarEventsAction.Request request, ActionListener<PostCalendarEventsAction.Response> listener) {
+    protected void doExecute(Task task, PostCalendarEventsAction.Request request,
+                             ActionListener<PostCalendarEventsAction.Response> listener) {
         List<ScheduledEvent> events = request.getScheduledEvents();
 
         ActionListener<Calendar> calendarListener = ActionListener.wrap(

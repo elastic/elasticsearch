@@ -75,7 +75,8 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     }
 
     @Override
-    protected void doExecute(Task task, GetOverallBucketsAction.Request request, ActionListener<GetOverallBucketsAction.Response> listener) {
+    protected void doExecute(Task task, GetOverallBucketsAction.Request request,
+                             ActionListener<GetOverallBucketsAction.Response> listener) {
         QueryPage<Job> jobsPage = jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), clusterService.state());
         if (jobsPage.count() == 0) {
             listener.onResponse(new GetOverallBucketsAction.Response());

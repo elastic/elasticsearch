@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
@@ -44,9 +43,9 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
     private final JobManager jobManager;
 
     @Inject
-    public TransportPostCalendarEventsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportPostCalendarEventsAction(Settings settings, TransportService transportService,
                                              ActionFilters actionFilters, Client client, JobProvider jobProvider, JobManager jobManager) {
-        super(settings, PostCalendarEventsAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, PostCalendarEventsAction.NAME, transportService, actionFilters,
             PostCalendarEventsAction.Request::new);
         this.client = client;
         this.jobProvider = jobProvider;

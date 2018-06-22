@@ -84,6 +84,7 @@ import static java.util.Collections.emptyMap;
  */
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
+    private final ThreadPool threadPool;
     private final AutoCreateIndex autoCreateIndex;
     private final ClusterService clusterService;
     private final IngestService ingestService;
@@ -108,8 +109,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                TransportShardBulkAction shardBulkAction, NodeClient client,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider) {
-        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, BulkRequest::new);
+        super(settings, BulkAction.NAME, transportService, actionFilters, BulkRequest::new);
         Objects.requireNonNull(relativeTimeProvider);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.ingestService = ingestService;
         this.shardBulkAction = shardBulkAction;

@@ -1,4 +1,3 @@
-[role="xpack"]
 [[sql-translate]]
 == SQL Translate API
 
@@ -57,18 +56,3 @@ the normal <<search-request-body,search>> API.
 
 The request body accepts all of the <<sql-rest-fields,fields>> that
 the <<sql-rest,SQL REST API>> accepts except `cursor`.
-
-[[sql-translate-permissions]]
-[NOTE]
-===============================
-If you are using Security you need to add a few permissions to
-users so they can run translate SQL. To translate SQL a user
-needs `read` and `indices:admin/get`. The following example
-configures a role that can run SQL against the `test` and
-`bort` indices:
-
-["source","yaml",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{sql-tests}/security/roles.yml[rest]
---------------------------------------------------
-===============================

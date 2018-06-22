@@ -48,14 +48,16 @@ import java.util.stream.Stream;
 public class TransportStopDatafeedAction extends TransportTasksAction<TransportStartDatafeedAction.DatafeedTask, StopDatafeedAction.Request,
         StopDatafeedAction.Response, StopDatafeedAction.Response> {
 
+    private final ThreadPool threadPool;
     private final PersistentTasksService persistentTasksService;
 
     @Inject
     public TransportStopDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                        ActionFilters actionFilters, ClusterService clusterService,
                                        PersistentTasksService persistentTasksService) {
-        super(settings, StopDatafeedAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(settings, StopDatafeedAction.NAME, clusterService, transportService, actionFilters,
             StopDatafeedAction.Request::new, StopDatafeedAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
+        this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;
     }
 

@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
@@ -23,9 +22,9 @@ public class TransportPutRoleMappingAction
     private final NativeRoleMappingStore roleMappingStore;
 
     @Inject
-    public TransportPutRoleMappingAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportPutRoleMappingAction(Settings settings, ActionFilters actionFilters,
                                          TransportService transportService, NativeRoleMappingStore roleMappingStore) {
-        super(settings, PutRoleMappingAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, PutRoleMappingAction.NAME, transportService, actionFilters,
             PutRoleMappingRequest::new);
         this.roleMappingStore = roleMappingStore;
     }

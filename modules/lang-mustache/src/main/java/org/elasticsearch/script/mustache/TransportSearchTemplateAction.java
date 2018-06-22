@@ -38,7 +38,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -54,11 +53,10 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     private final NodeClient client;
 
     @Inject
-    public TransportSearchTemplateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                         ActionFilters actionFilters, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
-                                         NodeClient client) {
-        super(settings, SearchTemplateAction.NAME, threadPool, transportService, actionFilters,
-              (Supplier<SearchTemplateRequest>) SearchTemplateRequest::new);
+    public TransportSearchTemplateAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+                                         ScriptService scriptService, NamedXContentRegistry xContentRegistry, NodeClient client) {
+        super(settings, SearchTemplateAction.NAME, transportService, actionFilters,
+            (Supplier<SearchTemplateRequest>) SearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;

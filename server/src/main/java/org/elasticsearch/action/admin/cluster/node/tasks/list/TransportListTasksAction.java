@@ -51,9 +51,9 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     private static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = timeValueSeconds(30);
 
     @Inject
-    public TransportListTasksAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportListTasksAction(Settings settings, ClusterService clusterService,
             TransportService transportService, ActionFilters actionFilters) {
-        super(settings, ListTasksAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(settings, ListTasksAction.NAME, clusterService, transportService, actionFilters,
             ListTasksRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
     }
 

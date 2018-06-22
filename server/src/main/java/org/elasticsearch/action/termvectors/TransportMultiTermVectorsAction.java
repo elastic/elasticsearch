@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
@@ -45,10 +44,10 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportMultiTermVectorsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportMultiTermVectorsAction(Settings settings, TransportService transportService,
                                            ClusterService clusterService, TransportShardMultiTermsVectorAction shardAction,
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters, MultiTermVectorsRequest::new);
+        super(settings, MultiTermVectorsAction.NAME, transportService, actionFilters, MultiTermVectorsRequest::new);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

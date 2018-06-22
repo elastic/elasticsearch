@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportFieldCapabilitiesIndexAction shardAction;
     private final RemoteClusterService remoteClusterService;
@@ -53,7 +54,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                             ClusterService clusterService, ThreadPool threadPool,
                                             TransportFieldCapabilitiesIndexAction shardAction,
                                             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, FieldCapabilitiesAction.NAME, threadPool, transportService, actionFilters, FieldCapabilitiesRequest::new);
+        super(settings, FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.shardAction = shardAction;

@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import static java.util.stream.Collectors.toList;
@@ -38,9 +37,9 @@ public final class TransportRemoteInfoAction extends HandledTransportAction<Remo
     private final RemoteClusterService remoteClusterService;
 
     @Inject
-    public TransportRemoteInfoAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportRemoteInfoAction(Settings settings, TransportService transportService,
                                      ActionFilters actionFilters, SearchTransportService searchTransportService) {
-        super(settings, RemoteInfoAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, RemoteInfoAction.NAME, transportService, actionFilters,
             (Supplier<RemoteInfoRequest>) RemoteInfoRequest::new);
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
     }

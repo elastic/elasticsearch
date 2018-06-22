@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import java.util.function.Supplier;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -35,7 +33,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.function.Supplier;
+
 public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteByQueryRequest, BulkByScrollResponse> {
+
+    private final ThreadPool threadPool;
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
@@ -43,8 +45,9 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     @Inject
     public TransportDeleteByQueryAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, Client client,
                                         TransportService transportService, ScriptService scriptService, ClusterService clusterService) {
-        super(settings, DeleteByQueryAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, DeleteByQueryAction.NAME, transportService, actionFilters,
             (Supplier<DeleteByQueryRequest>) DeleteByQueryRequest::new);
+        this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;

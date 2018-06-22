@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
@@ -28,9 +27,9 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
     private final NativeUsersStore usersStore;
 
     @Inject
-    public TransportPutUserAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportPutUserAction(Settings settings, ActionFilters actionFilters,
                                   NativeUsersStore usersStore, TransportService transportService) {
-        super(settings, PutUserAction.NAME, threadPool, transportService, actionFilters, PutUserRequest::new);
+        super(settings, PutUserAction.NAME, transportService, actionFilters, PutUserRequest::new);
         this.usersStore = usersStore;
     }
 

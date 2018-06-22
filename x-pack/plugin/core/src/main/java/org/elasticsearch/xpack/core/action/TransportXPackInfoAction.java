@@ -10,15 +10,14 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.license.XPackInfoResponse;
+import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
+import org.elasticsearch.license.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackBuild;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
-import org.elasticsearch.license.XPackInfoResponse.LicenseInfo;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -29,9 +28,9 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
     private final Set<XPackFeatureSet> featureSets;
 
     @Inject
-    public TransportXPackInfoAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportXPackInfoAction(Settings settings, TransportService transportService,
                                     ActionFilters actionFilters, LicenseService licenseService, Set<XPackFeatureSet> featureSets) {
-        super(settings, XPackInfoAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, XPackInfoAction.NAME, transportService, actionFilters,
             XPackInfoRequest::new);
         this.licenseService = licenseService;
         this.featureSets = featureSets;

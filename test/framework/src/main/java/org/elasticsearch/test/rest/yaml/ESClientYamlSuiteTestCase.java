@@ -46,6 +46,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -114,7 +115,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     public void initAndResetContext() throws Exception {
         if (restTestExecutionContext == null) {
             // Sniff host metadata in case we need it in the yaml tests
-            List<Node> nodesWithMetadata = sniffHostMetadata(adminClient());
+            List<Node> nodesWithMetadata = sniffHostMetadata();
             client().setNodes(nodesWithMetadata);
             adminClient().setNodes(nodesWithMetadata);
 
@@ -164,9 +165,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         restTestExecutionContext.clear();
     }
 
-    protected ClientYamlTestClient initClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient,
-                                                            List<HttpHost> hosts, Version esVersion) throws IOException {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+    protected ClientYamlTestClient initClientYamlTestClient(
+            final ClientYamlSuiteRestSpec restSpec,
+            final RestClient restClient,
+            final List<HttpHost> hosts,
+            final Version esVersion) {
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion,
+                restClientBuilder -> configureClient(restClientBuilder, restClientSettings()));
     }
 
     /**
@@ -197,8 +202,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
 
         //sort the candidates so they will always be in the same order before being shuffled, for repeatability
-        Collections.sort(tests,
-            (o1, o2) -> ((ClientYamlTestCandidate)o1[0]).getTestPath().compareTo(((ClientYamlTestCandidate)o2[0]).getTestPath()));
+        tests.sort(Comparator.comparing(o -> ((ClientYamlTestCandidate) o[0]).getTestPath()));
         return tests;
     }
 
@@ -396,7 +400,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     /**
      * Sniff the cluster for host metadata.
      */
-    private List<Node> sniffHostMetadata(RestClient client) throws IOException {
+    private List<Node> sniffHostMetadata() throws IOException {
         ElasticsearchNodesSniffer.Scheme scheme =
             ElasticsearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
         ElasticsearchNodesSniffer sniffer = new ElasticsearchNodesSniffer(

@@ -368,7 +368,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build());
             if (incompatible) {
                 IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-                    request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), null));
+                    request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), null, null));
                 assertEquals("index [test] version not supported: "
                     + VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
                     + " minimum compatible index version is: " + Version.CURRENT.minimumIndexCompatibilityVersion(), ex.getMessage());
@@ -400,7 +400,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                     public void sendResponse(Exception exception) throws IOException {
 
                     }
-                });
+                }, null);
                 assertTrue(sendResponse.get());
             }
         }

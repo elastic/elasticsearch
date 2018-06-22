@@ -284,10 +284,5 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
         public void messageReceived(ShardRequest request, TransportChannel channel, Task task) throws Exception {
             channel.sendResponse(shardOperation(request, task));
         }
-
-        @Override
-        public final void messageReceived(final ShardRequest request, final TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required");
-        }
     }
 }

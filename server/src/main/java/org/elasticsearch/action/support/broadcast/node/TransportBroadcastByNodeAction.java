@@ -393,7 +393,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
     class BroadcastByNodeTransportRequestHandler implements TransportRequestHandler<NodeRequest> {
         @Override
-        public void messageReceived(final NodeRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(final NodeRequest request, TransportChannel channel, Task task) throws Exception {
             List<ShardRouting> shards = request.getShards();
             final int totalShards = shards.size();
             if (logger.isTraceEnabled()) {

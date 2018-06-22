@@ -82,11 +82,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -94,25 +92,14 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
-    public static final Setting<List<String>> DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING =
-        Setting.listSetting("discovery.zen.ping.unicast.hosts", emptyList(), Function.identity(),
-            Property.NodeScope);
     public static final Setting<Integer> DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING =
         Setting.intSetting("discovery.zen.ping.unicast.concurrent_connects", 10, 0, Property.NodeScope);
     public static final Setting<TimeValue> DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT =
         Setting.positiveTimeSetting("discovery.zen.ping.unicast.hosts.resolve_timeout", TimeValue.timeValueSeconds(5), Property.NodeScope);
 
-    // these limits are per-address
-    public static final int LIMIT_FOREIGN_PORTS_COUNT = 1;
-    public static final int LIMIT_LOCAL_PORTS_COUNT = 5;
-
     private final ThreadPool threadPool;
     private final TransportService transportService;
     private final ClusterName clusterName;
-
-    private final List<String> configuredHosts;
-
-    private final int limitPortCounts;
 
     private final PingContextProvider contextProvider;
 
@@ -141,19 +128,10 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         this.contextProvider = contextProvider;
 
         final int concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
-        if (DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.exists(settings)) {
-            configuredHosts = DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
-            // we only limit to 1 addresses, makes no sense to ping 100 ports
-            limitPortCounts = LIMIT_FOREIGN_PORTS_COUNT;
-        } else {
-            // if unicast hosts are not specified, fill with simple defaults on the local machine
-            configuredHosts = transportService.getLocalAddresses();
-            limitPortCounts = LIMIT_LOCAL_PORTS_COUNT;
-        }
+
         resolveTimeout = DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
         logger.debug(
-            "using initial hosts {}, with concurrent_connects [{}], resolve_timeout [{}]",
-            configuredHosts,
+            "using concurrent_connects [{}], resolve_timeout [{}]",
             concurrentConnects,
             resolveTimeout);
 
@@ -172,9 +150,9 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     }
 
     /**
-     * Resolves a list of hosts to a list of discovery nodes. Each host is resolved into a transport address (or a collection of addresses
-     * if the number of ports is greater than one) and the transport addresses are used to created discovery nodes. Host lookups are done
-     * in parallel using specified executor service up to the specified resolve timeout.
+     * Resolves a list of hosts to a list of transport addresses. Each host is resolved into a transport address (or a collection of
+     * addresses if the number of ports is greater than one). Host lookups are done in parallel using specified executor service up
+     * to the specified resolve timeout.
      *
      * @param executorService  the executor service used to parallelize hostname lookups
      * @param logger           logger used for logging messages regarding hostname lookups
@@ -190,7 +168,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         final List<String> hosts,
         final int limitPortCounts,
         final TransportService transportService,
-        final TimeValue resolveTimeout) throws InterruptedException {
+        final TimeValue resolveTimeout) {
         Objects.requireNonNull(executorService);
         Objects.requireNonNull(logger);
         Objects.requireNonNull(hosts);
@@ -205,8 +183,13 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                 .stream()
                 .map(hn -> (Callable<TransportAddress[]>) () -> transportService.addressesFromString(hn, limitPortCounts))
                 .collect(Collectors.toList());
-        final List<Future<TransportAddress[]>> futures =
-            executorService.invokeAll(callables, resolveTimeout.nanos(), TimeUnit.NANOSECONDS);
+        final List<Future<TransportAddress[]>> futures;
+        try {
+            futures = executorService.invokeAll(callables, resolveTimeout.nanos(), TimeUnit.NANOSECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Collections.emptyList();
+        }
         final List<TransportAddress> transportAddresses = new ArrayList<>();
         final Set<TransportAddress> localAddresses = new HashSet<>();
         localAddresses.add(transportService.boundAddress().publishAddress());
@@ -232,12 +215,20 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                     assert e.getCause() != null;
                     final String message = "failed to resolve host [" + hostname + "]";
                     logger.warn(message, e.getCause());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    // ignore
                 }
             } else {
                 logger.warn("timed out after [{}] resolving host [{}]", resolveTimeout, hostname);
             }
         }
         return Collections.unmodifiableList(transportAddresses);
+    }
+
+    private UnicastHostsProvider.HostsResolver createHostsResolver() {
+        return (hosts, limitPortCounts) -> resolveHostsLists(unicastZenPingExecutorService, logger, hosts,
+            limitPortCounts, transportService, resolveTimeout);
     }
 
     @Override
@@ -281,18 +272,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                         final TimeValue scheduleDuration,
                         final TimeValue requestDuration) {
         final List<TransportAddress> seedAddresses = new ArrayList<>();
-        try {
-            seedAddresses.addAll(resolveHostsLists(
-                unicastZenPingExecutorService,
-                logger,
-                configuredHosts,
-                limitPortCounts,
-                transportService,
-                resolveTimeout));
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        seedAddresses.addAll(hostsProvider.buildDynamicHosts());
+        seedAddresses.addAll(hostsProvider.buildDynamicHosts(createHostsResolver()));
         final DiscoveryNodes nodes = contextProvider.clusterState().nodes();
         // add all possible master nodes that were active in the last known cluster configuration
         for (ObjectCursor<DiscoveryNode> masterNode : nodes.getMasterNodes().values()) {

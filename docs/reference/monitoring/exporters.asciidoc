@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="basic"]
 [[es-monitoring-exporters]]
 == Exporters
 

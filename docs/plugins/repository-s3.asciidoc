@@ -212,7 +212,11 @@ The following settings are supported:
     `standard`, `reduced_redundancy`, `standard_ia`. Defaults to `standard`.
     All new files created will use the set storage class.
     Previous snapshot files created with a different storage class will retain
-    their existing storage class and can be changed via the AWS API. 
+    their existing storage class and can be changed via the AWS API.
+    Due to the incremental nature of snapshots, the recommended usage is to set 
+    the same storage class for all files in a repository.
+    If changing storage class, use the AWS API to reset all files then update the repository
+    to use the new preferred storage class for all files created from that point on.
     Due to the extra complexity with the Glacier class lifecycle, it is not
     currently supported by the plugin. For more information about the
     different classes, see http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide]

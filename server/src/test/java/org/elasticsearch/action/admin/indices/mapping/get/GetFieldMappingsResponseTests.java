@@ -69,9 +69,10 @@ public class GetFieldMappingsResponseTests extends AbstractStreamableXContentTes
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // allow random fields at the level of index and index.mappings.doctype.field
+        // allow random fields at the level of `index` and `index.mappings.doctype.field`
         // otherwise random field could be evaluated as index name or type name
-        return s -> !(s.matches("[^.]+") || s.matches("[^.]+\\.[^.]+\\.[^.]+\\.[^.]+"));
+        return s -> false == (s.matches("(?<index>[^.]+)")
+            || s.matches("(?<index>[^.]+)\\.mappings\\.(?<doctype>[^.]+)\\.(?<field>[^.]+)"));
     }
 
     private Map<String, Map<String, Map<String, FieldMappingMetaData>>> randomMapping() {

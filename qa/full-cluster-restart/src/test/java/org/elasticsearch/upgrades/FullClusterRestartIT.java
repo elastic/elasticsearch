@@ -722,7 +722,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
                     Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
                     assertOK(resp);
                     Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                    assertThat(result.get("successful"), equalTo(2));
+                    assertThat(result.get("successful"), equalTo(result.get("total")));
+                    assertThat(result.get("failed"), equalTo(0));
                 });
             } else {
                 // Explicitly flush so we're sure to have a bunch of documents in the Lucene index

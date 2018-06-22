@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class KerberosAuthenticationTokenTests extends ESTestCase {
 
-    private static final String UNAUTHENTICATED_PRINCIPAL_NAME = "<Unauthenticated Principal>";
+    private static final String UNAUTHENTICATED_PRINCIPAL_NAME = "<Kerberos Token>";
 
     public void testExtractTokenForValidAuthorizationHeader() throws IOException {
         final String base64Token = Base64.getEncoder().encodeToString(randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8));

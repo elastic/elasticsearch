@@ -869,7 +869,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * @return {@link CommitStats}
-     * @throws {@link AlreadyClosedException} if shard is closed
+     * @throws AlreadyClosedException if shard is closed
      */
     public CommitStats commitStats() {
         return getEngine().commitStats();
@@ -877,7 +877,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * @return {@link SeqNoStats}
-     * @throws {@link AlreadyClosedException} if shard is closed
+     * @throws AlreadyClosedException if shard is closed
      */
     public SeqNoStats seqNoStats() {
         return getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());

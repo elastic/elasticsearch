@@ -123,7 +123,7 @@ if a field is useful for aggregating later, and how you might wish to use it (te
 
 There was previously a limitation in how Rollup could handle indices that had heterogeneous mappings (multiple, unrelated/non-overlapping
 mappings).  The recommendation at the time was to configure a separate job per data "type".  For example, you might configure a separate
-job for each Beat module that you had enabled (one for `process`, another for `filesystem`, etc).
+job for each Beats module that you had enabled (one for `process`, another for `filesystem`, etc).
 
 This recommendation was driven by internal implementation details that caused document counts to be potentially incorrect if a single "merged"
 job was used.

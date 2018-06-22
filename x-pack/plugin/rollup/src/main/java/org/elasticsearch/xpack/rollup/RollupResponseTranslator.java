@@ -384,6 +384,8 @@ public class RollupResponseTranslator {
             return unrollMultiBucket(rolled, original, currentTree, (bucket, bucketCount, subAggs) -> {
 
                 // Hide our `null_value` placeholder so it doesn't show up in the terms list
+                // Note: this only applies to string terms right now, because we only configure a `null_value`
+                // on keywords in the template.  Other fields won't have a `null_value` placeholder to replace
                 if (bucket.getKeyAsString().equals(Rollup.ROLLUP_NULL_VALUE)) {
                     return null;
                 }

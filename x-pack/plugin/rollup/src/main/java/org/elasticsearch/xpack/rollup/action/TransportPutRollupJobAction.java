@@ -181,7 +181,9 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
 
             String stringVersion = (String)((Map<String, Object>) m).get(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD);
             if (stringVersion == null) {
-                logger.warn("Could not determine version of existing rollup metadata for index [" + indexName + "]");
+                listener.onFailure(new IllegalStateException("Could not determine version of existing rollup metadata for index ["
+                    + indexName + "]"));
+                return;
             }
             Version parsedVersion = Version.fromString(stringVersion);
             if (parsedVersion.before(Version.V_6_4_0)) {

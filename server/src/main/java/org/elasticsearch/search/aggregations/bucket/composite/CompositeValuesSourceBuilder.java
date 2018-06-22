@@ -40,11 +40,12 @@ import java.util.Objects;
  * A {@link ValuesSource} builder for {@link CompositeAggregationBuilder}
  */
 public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSourceBuilder<AB>> implements Writeable, ToXContentFragment {
+
     protected final String name;
     private String field = null;
     private Script script = null;
     private ValueType valueType = null;
-    private Object missing = null;
+    private boolean missingBucket = false;
     private SortOrder order = SortOrder.ASC;
     private String format = null;
 
@@ -66,7 +67,15 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (in.readBoolean()) {
             this.valueType = ValueType.readFromStream(in);
         }
-        this.missing = in.readGenericValue();
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            this.missingBucket = in.readBoolean();
+        } else {
+            this.missingBucket = false;
+        }
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            // skip missing value for BWC
+            in.readGenericValue();
+        }
         this.order = SortOrder.readFromStream(in);
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             this.format = in.readOptionalString();
@@ -89,7 +98,13 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (hasValueType) {
             valueType.writeTo(out);
         }
-        out.writeGenericValue(missing);
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            out.writeBoolean(missingBucket);
+        }
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            // write missing value for BWC
+            out.writeGenericValue(null);
+        }
         order.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeOptionalString(format);
@@ -110,9 +125,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (script != null) {
             builder.field("script", script);
         }
-        if (missing != null) {
-            builder.field("missing", missing);
-        }
+        builder.field("missing_bucket", missingBucket);
         if (valueType != null) {
             builder.field("value_type", valueType.getPreferredName());
         }
@@ -127,7 +140,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     @Override
     public final int hashCode() {
-        return Objects.hash(field, missing, script, valueType, order, format, innerHashCode());
+        return Objects.hash(field, missingBucket, script, valueType, order, format, innerHashCode());
     }
 
     protected abstract int innerHashCode();
@@ -142,7 +155,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         return Objects.equals(field, that.field()) &&
             Objects.equals(script, that.script()) &&
             Objects.equals(valueType, that.valueType()) &&
-            Objects.equals(missing, that.missing()) &&
+            Objects.equals(missingBucket, that.missingBucket()) &&
             Objects.equals(order, that.order()) &&
             Objects.equals(format, that.format()) &&
             innerEquals(that);
@@ -214,20 +227,20 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     /**
-     * Sets the value to use when the source finds a missing value in a
-     * document
+     * If true an explicit `null bucket will represent documents with missing values.
      */
     @SuppressWarnings("unchecked")
-    public AB missing(Object missing) {
-        if (missing == null) {
-            throw new IllegalArgumentException("[missing] must not be null");
-        }
-        this.missing = missing;
+    public AB missingBucket(boolean missingBucket) {
+        this.missingBucket = missingBucket;
         return (AB) this;
     }
 
-    public Object missing() {
-        return missing;
+    /**
+     * False if documents with missing values are ignored, otherwise missing values are
+     * represented by an explicit `null` value.
+     */
+    public boolean missingBucket() {
+        return missingBucket;
     }
 
     /**
@@ -290,13 +303,13 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     public final CompositeValuesSourceConfig build(SearchContext context) throws IOException {
         ValuesSourceConfig<?> config = ValuesSourceConfig.resolve(context.getQueryShardContext(),
-            valueType, field, script, missing, null, format);
+            valueType, field, script, null,null, format);
 
-        if (config.unmapped() && field != null && config.missing() == null) {
+        if (config.unmapped() && field != null && missingBucket == false) {
             // this source cannot produce any values so we refuse to build
-            // since composite buckets are not created on null values
+            // since composite buckets are not created on null values by default.
             throw new QueryShardException(context.getQueryShardContext(),
-                "failed to find field [" + field + "] and [missing] is not provided");
+                "failed to find field [" + field + "] and [missing_bucket] is not set");
         }
         return innerBuild(context, config);
     }

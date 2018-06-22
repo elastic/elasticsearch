@@ -110,8 +110,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         // if this is not a data node, we need to start it ourselves possibly
         if (event.state().nodes().getLocalNode().isDataNode() == false &&
             isWatcherStoppedManually == false && this.state.get() == WatcherState.STOPPED) {
-            watcherService.start(event.state());
-            this.state.set(WatcherState.STARTED);
+            watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
             return;
         }
 
@@ -157,8 +156,8 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
                 if (state.get() == WatcherState.STARTED) {
                     watcherService.reload(event.state(), "new local watcher shard allocation ids");
                 } else if (state.get() == WatcherState.STOPPED) {
-                    watcherService.start(event.state());
-                    this.state.set(WatcherState.STARTED);
+                    this.state.set(WatcherState.STARTING);
+                    watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
                 }
             } else {
                 clearAllocationIds();

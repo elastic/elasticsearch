@@ -284,22 +284,7 @@ You may further restrict the permissions by specifying a prefix within the bucke
 // NOTCONSOLE
 
 The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository
-registration will fail. If you want Elasticsearch to create the bucket instead, you can add the permission to create a
-specific bucket like this:
-
-[source,js]
-----
-{
-   "Action": [
-      "s3:CreateBucket"
-   ],
-   "Effect": "Allow",
-   "Resource": [
-      "arn:aws:s3:::snaps.example.com"
-   ]
-}
-----
-// NOTCONSOLE
+registration will fail.
 
 [[repository-s3-aws-vpc]]
 [float]

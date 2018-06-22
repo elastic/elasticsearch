@@ -1,0 +1,284 @@
+[[sql-syntax-select]]
+=== SELECT
+
+.Synopsis
+[source, sql]
+----
+SELECT select_expr [, ...]
+[ FROM table_name ]
+[ WHERE condition ]
+[ GROUP BY grouping_element [, ...] ]
+[ HAVING condition]
+[ ORDER BY expression [ ASC | DESC ] [, ...] ]
+[ LIMIT [ count ] ]
+----
+
+.Description
+
+Retrieves rows from zero or more tables.
+
+The general execution of `SELECT` is as follows:
+
+. All elements in the `FROM` list are computed (each element can be base or alias table). Currently `FROM` supports exactly one table. Do note however that the table name can be a pattern (see <<sql-syntax-from, FROM Clause>> below).
+. If the `WHERE` clause is specified, all rows that do not satisfy the condition are eliminated from the output. (See <<sql-syntax-where, WHERE Clause>> below.)
+. If the `GROUP BY` clause is specified, or if there are aggregate function calls, the output is combined into groups of rows that match on one or more values, and the results of aggregate functions are computed. If the `HAVING` clause is present, it eliminates groups that do not satisfy the given condition. (See <<sql-syntax-group-by, GROUP BY Clause>> and <<sql-syntax-having, HAVING Clause>> below.)
+. The actual output rows are computed using the `SELECT` output expressions for each selected row or row group.
+. If the `ORDER BY` clause is specified, the returned rows are sorted in the specified order. If `ORDER BY` is not given, the rows are returned in whatever order the system finds fastest to produce. (See <<sql-syntax-order-by,ORDER BY Clause>> below.)
+. If the `LIMIT` is specified, the `SELECT` statement only returns a subset of the result rows. (See <<sql-syntax-limit, LIMIT Clause>> below.)
+
+
+[[sql-syntax-select-list]]
+==== `SELECT` List
+
+`SELECT` list, namely the expressions between `SELECT` and `FROM`, represent the output rows of the `SELECT` statement.
+
+As with a table, every output column of a `SELECT` has a name which can be either specified per column through the `AS` keyword :
+
+[source,sql]
+----
+SELECT column AS c
+----
+
+assigned by {es-sql} if no name is given:
+
+[source,sql]
+----
+SELECT 1 + 1
+----
+
+or if it's a simple column reference, use its name as the column name:
+
+[source,sql]
+----
+SELECT col FROM table
+----
+
+[[sql-syntax-select-wildcard]]
+==== Wildcard
+
+To select all the columns in the source, one can use `*`:
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/select.sql-spec[wildcardWithOrder]
+--------------------------------------------------
+
+which essentially returns all columsn found.
+
+[[sql-syntax-from]]
+[float]
+==== FROM Clause
+
+The `FROM` clause specifies one table for the `SELECT` and has the following syntax:
+
+[source, sql]
+----
+FROM table_name [ [ AS ] alias ]
+----
+
+where:
+
+`table_name`::
+
+Represents the name (optionally qualified) of an existing table, either a concrete or base one (actual index) or alias.
+If the table name contains special SQL characters (such as `.`,`-`,etc...) use double quotes to escape them:
+[source, sql]
+----
+SELECT ... FROM "some-table"
+----
+
+The name can be a <<multi-index, pattern>> pointing to multiple indices (likely requiring quoting as mentioned above) with the restriction that *all* resolved concrete tables have **exact mapping**.
+
+`alias`::
+A substitute name for the `FROM` item containing the alias. An alias is used for brevity or to eliminate ambiguity. When an alias is provided, it completely hides the actual name of the table and must be used in its place.
+
+[[sql-syntax-where]]
+[float]
+==== WHERE Clause
+
+The optional `WHERE` clause is used to filter rows from the query and has the following syntax:
+
+[source, sql]
+----
+WHERE condition
+----
+
+where:
+
+`condition`::
+
+Represents an expression that evaluates to a `boolean`. Only the rows that match the condition (to `true`) are returned.
+
+[[sql-syntax-group-by]]
+[float]
+==== GROUP BY
+
+The `GROUP BY` clause is used to divide the results into groups of rows on matching values from the designated columns. It has the following syntax:
+
+[source, sql]
+----
+GROUP BY grouping_element [, ...]
+----
+
+where:
+
+`grouping_element`::
+
+Represents an expression on which rows are being grouped _on_. It can be a column name, name or ordinal number of a column or an arbitrary expression of column values.
+
+When a `GROUP BY` clause is used in a `SELECT`, _all_ output expressions must be either aggregate functions or expressions used for grouping or derivates of (otherwise there would be more than one possible value to return for each ungrouped column).
+
+[[sql-syntax-having]]
+[float]
+==== HAVING
+
+The `HAVING` clause can be used _only_ along aggregate functions (and thus `GROUP BY`) to filter what groups are kept or not and has the following syntax:
+
+[source, sql]
+----
+GROUP BY condition
+----
+
+where:
+
+`condition`::
+
+Represents an expression that evaluates to a `boolean`. Only groups that match the condition (to `true`) are returned.
+
+Both `WHERE` and `HAVING` are used for filtering however there are several differences between them:
+
+. `WHERE` works on individual *rows*, `HAVING` works on the *groups* created by ``GROUP BY``
+. `WHERE` is evaluated *before* grouping, `HAVING` is evaluated *after* grouping
+
+Note that it is possible to have a `HAVING` clause without a ``GROUP BY``. In this case, an __implicit grouping__ is applied, meaning all selected rows are considered to form a single group and `HAVING` can be applied on any of the aggregate functions specified on this group. ` 
+As such a query emits only a single row (as there is only a single group), `HAVING` condition returns either one row (the group) or zero if the condition fails.
+
+[[sql-syntax-order-by]]
+[float]
+==== ORDER BY
+
+The `ORDER BY` clause is used to sort the results of `SELECT` by one or more expressions:
+
+[source, sql]
+----
+ORDER BY expression [ ASC | DESC ] [, ...]
+----
+
+where:
+
+`expression`::
+
+Represents an input column, an output column or an ordinal number of the position (starting from one) of an output column. Additionally, ordering can be done based on the results _score_ ` 
+The direction, if not specified, is by default `ASC` (ascending). ` 
+Regardless of the ordering specified, null values are ordered last (at the end).
+
+IMPORTANT: When used along-side, `GROUP BY` expression can point _only_ to the columns used for grouping.
+
+For example, the following query sorts by an arbitrary input field (`page_count`):
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/sql?format=txt
+{
+    "query": "SELECT * FROM library ORDER BY page_count DESC LIMIT 5"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:library]
+
+which results in something like:
+
+[source,text]
+--------------------------------------------------
+     author      |        name        |  page_count   | release_date
+-----------------+--------------------+---------------+------------------------
+Peter F. Hamilton|Pandora's Star      |768            |2004-03-02T00:00:00.000Z
+Vernor Vinge     |A Fire Upon the Deep|613            |1992-06-01T00:00:00.000Z
+Frank Herbert    |Dune                |604            |1965-06-01T00:00:00.000Z
+Alastair Reynolds|Revelation Space    |585            |2000-03-15T00:00:00.000Z
+James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
+--------------------------------------------------
+// TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
+// TESTRESPONSE[_cat]
+
+[[sql-syntax-order-by-score]]
+==== Order By Score
+
+When doing full-text queries in the `WHERE` clause, results can be returned based on their
+{defguide}/relevance-intro.html[score] or _relevance_ to the given query.
+
+NOTE: When doing multiple text queries in the `WHERE` clause then, their scores will be
+combined using the same rules as {es}'s
+<<query-dsl-bool-query,bool query>>. 
+
+To sort based on the `score`, use the special function `SCORE()`:
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/sql?format=txt
+{
+    "query": "SELECT SCORE(), * FROM library WHERE match(name, 'dune') ORDER BY SCORE() DESC"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:library]
+
+Which results in something like:
+
+[source,text]
+--------------------------------------------------
+    SCORE()    |    author     |       name        |  page_count   | release_date
+---------------+---------------+-------------------+---------------+------------------------
+2.288635       |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00.000Z
+1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00.000Z
+1.6086555      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00.000Z
+1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00.000Z
+--------------------------------------------------
+// TESTRESPONSE[s/\|/\\|/ s/\+/\\+/ s/\(/\\\(/ s/\)/\\\)/]
+// TESTRESPONSE[_cat]
+
+Note that you can return `SCORE()` by adding it to the where clause. This
+is possible even if you are not sorting by `SCORE()`:
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/sql?format=txt
+{
+    "query": "SELECT SCORE(), * FROM library WHERE match(name, 'dune') ORDER BY page_count DESC"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:library]
+
+[source,text]
+--------------------------------------------------
+    SCORE()    |    author     |       name        |  page_count   | release_date
+---------------+---------------+-------------------+---------------+------------------------
+2.288635       |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00.000Z
+1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00.000Z
+1.6086555      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00.000Z
+1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00.000Z
+--------------------------------------------------
+// TESTRESPONSE[s/\|/\\|/ s/\+/\\+/ s/\(/\\\(/ s/\)/\\\)/]
+// TESTRESPONSE[_cat]
+
+NOTE:
+Trying to return `score` from a non full-text queries will return the same value for all results, as
+all are equilley relevant.
+
+[[sql-syntax-limit]]
+[float]
+==== LIMIT
+
+The `LIMIT` clause restricts (limits) the number of rows returns using the format:
+
+[source, sql]
+----
+LIMIT ( count | ALL )
+----
+
+where
+
+count:: is a positive integer or zero indicating the maximum *possible* number of results being returned (as there might be less matches than the limit). If `0` is specified, no results are returned.
+
+ALL:: indicates there is no limit and thus all results are being returned.

@@ -54,15 +54,17 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
+    protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
     final String transportShardAction;
 
-    protected TransportBroadcastAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
+    protected TransportBroadcastAction(Settings settings, String actionName, ClusterService clusterService,
                                        TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                        Supplier<Request> request, Supplier<ShardRequest> shardRequest, String shardExecutor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
+        super(settings, actionName, transportService, actionFilters, request);
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.transportShardAction = actionName + "[s]";
 
         transportService.registerRequestHandler(transportShardAction, shardRequest, shardExecutor, new ShardTransportHandler());
@@ -84,11 +86,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
 
     protected abstract ShardResponse newShardResponse();
 
-    protected abstract ShardResponse shardOperation(ShardRequest request) throws IOException;
-
-    protected ShardResponse shardOperation(ShardRequest request, Task task) throws IOException {
-        return shardOperation(request);
-    }
+    protected abstract ShardResponse shardOperation(ShardRequest request, Task task) throws IOException;
 
     /**
      * Determines the shards this operation will be executed on. The operation is executed once per shard iterator, typically
@@ -284,7 +282,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
 
         @Override
         public void messageReceived(ShardRequest request, TransportChannel channel, Task task) throws Exception {
-            channel.sendResponse(shardOperation(request));
+            channel.sendResponse(shardOperation(request, task));
         }
 
         @Override

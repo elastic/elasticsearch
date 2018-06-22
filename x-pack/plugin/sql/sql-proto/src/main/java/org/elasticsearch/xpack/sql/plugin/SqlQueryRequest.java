@@ -12,11 +12,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,7 +29,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request to perform an sql query
  */
-public class SqlQueryRequest extends AbstractSqlQueryRequest implements ToXContentObject {
+public class SqlQueryRequest extends AbstractSqlQueryRequest {
     private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
 
     public static final ParseField CURSOR = new ParseField("cursor");
@@ -37,7 +38,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest implements ToXConte
     static {
         PARSER.declareString(SqlQueryRequest::cursor, CURSOR);
         PARSER.declareObject(SqlQueryRequest::filter,
-                (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
+            (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
     }
 
     private String cursor = "";
@@ -108,22 +109,13 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        super.toXContent(builder, params);
-        if (cursor != null) {
-            builder.field("cursor", cursor);
-        }
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
+        // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
+        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(mode(), query(), params(), timeZone(), fetchSize(),
+            requestTimeout(), pageTimeout(), filter(), cursor()).toXContent(builder, params);
     }
 
     public static SqlQueryRequest fromXContent(XContentParser parser, Mode mode) {
-        SqlQueryRequest request =  PARSER.apply(parser, null);
+        SqlQueryRequest request = PARSER.apply(parser, null);
         request.mode(mode);
         return request;
     }

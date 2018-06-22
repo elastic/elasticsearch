@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
@@ -57,23 +59,10 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     static final Map<String, Consumer<IndicesStatsRequest>> METRICS;
 
     static {
-        final Map<String, Consumer<IndicesStatsRequest>> metrics = new HashMap<>();
-        metrics.put("docs", r -> r.docs(true));
-        metrics.put("store", r -> r.store(true));
-        metrics.put("indexing", r -> r.indexing(true));
-        metrics.put("search", r -> r.search(true));
-        metrics.put("get", r -> r.get(true));
-        metrics.put("merge", r -> r.merge(true));
-        metrics.put("refresh", r -> r.refresh(true));
-        metrics.put("flush", r -> r.flush(true));
-        metrics.put("warmer", r -> r.warmer(true));
-        metrics.put("query_cache", r -> r.queryCache(true));
-        metrics.put("segments", r -> r.segments(true));
-        metrics.put("fielddata", r -> r.fieldData(true));
-        metrics.put("completion", r -> r.completion(true));
-        metrics.put("request_cache", r -> r.requestCache(true));
-        metrics.put("recovery", r -> r.recovery(true));
-        metrics.put("translog", r -> r.translog(true));
+        Map<String, Consumer<IndicesStatsRequest>> metrics = new HashMap<>();
+        for (Flag flag : CommonStatsFlags.Flag.values()) {
+            metrics.put(flag.getRestName(), m -> m.flags().set(flag, true));
+        }
         METRICS = Collections.unmodifiableMap(metrics);
     }
 

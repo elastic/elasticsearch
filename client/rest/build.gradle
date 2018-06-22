@@ -69,7 +69,7 @@ forbiddenApisTest {
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in elasticsearch-core
+// TODO: Not anymore. Now in :libs:core
 jarHell.enabled=false
 
 namingConventions {

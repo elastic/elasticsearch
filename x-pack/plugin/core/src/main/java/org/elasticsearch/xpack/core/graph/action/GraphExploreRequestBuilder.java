@@ -20,8 +20,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
  * 
  * @see GraphExploreRequest
  */
-public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExploreRequest, 
-    GraphExploreResponse, GraphExploreRequestBuilder> {
+public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExploreRequest, GraphExploreResponse> {
 
     public GraphExploreRequestBuilder(ElasticsearchClient client, GraphExploreAction action) {
         super(client, action, new GraphExploreRequest());

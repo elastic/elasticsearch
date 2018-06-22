@@ -9,7 +9,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -38,12 +37,12 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         return true;
     }
 
-    enum CLUSTER_TYPE {
+    enum ClusterType {
         OLD,
         MIXED,
         UPGRADED;
 
-        public static CLUSTER_TYPE parse(String value) {
+        public static ClusterType parse(String value) {
             switch (value) {
                 case "old_cluster":
                     return OLD;
@@ -57,7 +56,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         }
     }
 
-    protected final CLUSTER_TYPE clusterType = CLUSTER_TYPE.parse(System.getProperty("tests.rest.suite"));
+    protected static final ClusterType CLUSTER_TYPE = ClusterType.parse(System.getProperty("tests.rest.suite"));
 
     @Override
     protected Settings restClientSettings() {
@@ -67,7 +66,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     }
 
     protected Collection<String> templatesToWaitFor() {
-        return Collections.singletonList(SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME);
+        return Collections.singletonList("security-index-template");
     }
 
     @Before

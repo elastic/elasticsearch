@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.services.storage.Storage;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
@@ -39,7 +37,6 @@ import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.simpleString;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 class GoogleCloudStorageRepository extends BlobStoreRepository {
 
@@ -87,8 +84,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
 
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, compress);
 
-        Storage client = SocketAccess.doPrivilegedIOException(() -> storageService.createClient(clientName));
-        this.blobStore = new GoogleCloudStorageBlobStore(settings, bucket, client);
+        this.blobStore = new GoogleCloudStorageBlobStore(settings, bucket, clientName, storageService);
     }
 
 

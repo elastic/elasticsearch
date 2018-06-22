@@ -1,8 +1,7 @@
-[role="xpack"]
 [[sql-cli]]
 == SQL CLI
 
-X-Pack ships with a script to run the SQL CLI in its bin directory:
+Elasticsearch ships with a script to run the SQL CLI in its `bin` directory:
 
 [source,bash]
 --------------------------------------------------
@@ -11,7 +10,7 @@ $ ./bin/elasticsearch-sql-cli
 
 The jar containing the SQL CLI is a stand alone Java application and
 the scripts just launch it. You can move it around to other machines
-without having to install Elasticsearch or X-Pack on them.
+without having to install Elasticsearch on them.
 
 You can pass the URL of the Elasticsearch instance to connect to as
 the first parameter:
@@ -37,18 +36,3 @@ James S.A. Corey |Leviathan Wakes     |561            |1306972800000
 --------------------------------------------------
 // TODO it'd be lovely to be able to assert that this is correct but
 // that is probably more work then it is worth right now.
-
-[[sql-cli-permissions]]
-[NOTE]
-===============================
-If you are using Security you need to add a few permissions to
-users so they can run SQL. To run SQL using the CLI a user needs
-`read`, `indices:admin/get`, and `cluster:monitor/main`. The
-following example configures a role that can run SQL in the CLI
-for the `test` and `bort` indices:
-
-["source","yaml",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{sql-tests}/security/roles.yml[cli_jdbc]
---------------------------------------------------
-===============================

@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
@@ -26,19 +25,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StartRollupJobAction extends Action<StartRollupJobAction.Request, StartRollupJobAction.Response,
-        StartRollupJobAction.RequestBuilder> {
+public class StartRollupJobAction extends Action<StartRollupJobAction.Response> {
 
     public static final StartRollupJobAction INSTANCE = new StartRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/start";
 
     private StartRollupJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, INSTANCE);
     }
 
     @Override
@@ -100,7 +93,7 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Request, S
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         protected RequestBuilder(ElasticsearchClient client, StartRollupJobAction action) {
             super(client, action, new Request());

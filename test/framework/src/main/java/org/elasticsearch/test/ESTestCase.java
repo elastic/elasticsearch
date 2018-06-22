@@ -518,6 +518,19 @@ public abstract class ESTestCase extends LuceneTestCase {
         return (byte) random().nextInt();
     }
 
+    /**
+     * Helper method to create a byte array of a given length populated with random byte values
+     *
+     * @see #randomByte()
+     */
+    public static byte[] randomByteArrayOfLength(int size) {
+        byte[] bytes = new byte[size];
+        for (int i = 0; i < size; i++) {
+            bytes[i] = randomByte();
+        }
+        return bytes;
+    }
+
     public static short randomShort() {
         return (short) random().nextInt();
     }
@@ -645,20 +658,20 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomizedTest.randomRealisticUnicodeOfCodepointLength(codePoints);
     }
 
-    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull, boolean allowEmpty) {
+    public static String[] generateRandomStringArray(int maxArraySize, int stringSize, boolean allowNull, boolean allowEmpty) {
         if (allowNull && random().nextBoolean()) {
             return null;
         }
         int arraySize = randomIntBetween(allowEmpty ? 0 : 1, maxArraySize);
         String[] array = new String[arraySize];
         for (int i = 0; i < arraySize; i++) {
-            array[i] = RandomStrings.randomAsciiOfLength(random(), maxStringSize);
+            array[i] = RandomStrings.randomAsciiOfLength(random(), stringSize);
         }
         return array;
     }
 
-    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull) {
-        return generateRandomStringArray(maxArraySize, maxStringSize, allowNull, true);
+    public static String[] generateRandomStringArray(int maxArraySize, int stringSize, boolean allowNull) {
+        return generateRandomStringArray(maxArraySize, stringSize, allowNull, true);
     }
 
     private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m", "micros", "nanos"};

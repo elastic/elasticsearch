@@ -74,7 +74,6 @@ class PostStartBasicResponse extends AcknowledgedResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        readAcknowledged(in);
         status = in.readEnum(Status.class);
         acknowledgeMessage = in.readOptionalString();
         int size = in.readVInt();
@@ -94,7 +93,6 @@ class PostStartBasicResponse extends AcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeAcknowledged(out);
         out.writeEnum(status);
         out.writeOptionalString(acknowledgeMessage);
         out.writeVInt(acknowledgeMessages.size());

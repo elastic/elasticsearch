@@ -19,17 +19,22 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
-
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.fail;
 
 public class RequestTests extends RestClientTestCase {
@@ -99,39 +104,140 @@ public class RequestTests extends RestClientTestCase {
         final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
         final HttpEntity entity =
                 randomBoolean() ? new StringEntity(randomAsciiLettersOfLengthBetween(1, 100), ContentType.TEXT_PLAIN) : null;
-        Request request = new Request(method, endpoint);
 
+        Request request = new Request(method, endpoint);
         request.setEntity(entity);
         assertEquals(entity, request.getEntity());
     }
 
-    public void testSetHeaders() {
+    public void testSetJsonEntity() throws IOException {
+        final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
+        final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
+
+        Request request = new Request(method, endpoint);
+        assertNull(request.getEntity());
+
+        final String json = randomAsciiLettersOfLengthBetween(1, 100);
+        request.setJsonEntity(json);
+        assertEquals(ContentType.APPLICATION_JSON.toString(), request.getEntity().getContentType().getValue());
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        request.getEntity().writeTo(os);
+        assertEquals(json, new String(os.toByteArray(), ContentType.APPLICATION_JSON.getCharset()));
+    }
+
+    public void testSetOptions() {
         final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
         final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
         Request request = new Request(method, endpoint);
 
         try {
-            request.setHeaders((Header[]) null);
+            request.setOptions((RequestOptions) null);
             fail("expected failure");
         } catch (NullPointerException e) {
-            assertEquals("headers cannot be null", e.getMessage());
+            assertEquals("options cannot be null", e.getMessage());
         }
 
         try {
-            request.setHeaders(new Header [] {null});
+            request.setOptions((RequestOptions.Builder) null);
             fail("expected failure");
         } catch (NullPointerException e) {
-            assertEquals("header cannot be null", e.getMessage());
+            assertEquals("options cannot be null", e.getMessage());
         }
 
-        Header[] headers = new Header[between(0, 5)];
-        for (int i = 0; i < headers.length; i++) {
-            headers[i] = new BasicHeader(randomAsciiAlphanumOfLength(3), randomAsciiAlphanumOfLength(3));
-        }
-        request.setHeaders(headers);
-        assertArrayEquals(headers, request.getHeaders());
+        RequestOptions.Builder builder = RequestOptionsTests.randomBuilder();
+        request.setOptions(builder);
+        assertEquals(builder.build(), request.getOptions());
+
+        builder = RequestOptionsTests.randomBuilder();
+        RequestOptions options = builder.build();
+        request.setOptions(options);
+        assertSame(options, request.getOptions());
     }
 
-    // TODO equals and hashcode
+    public void testEqualsAndHashCode() {
+        Request request = randomRequest();
+        assertEquals(request, request);
 
+        Request copy = copy(request);
+        assertEquals(request, copy);
+        assertEquals(copy, request);
+        assertEquals(request.hashCode(), copy.hashCode());
+
+        Request mutant = mutate(request);
+        assertNotEquals(request, mutant);
+        assertNotEquals(mutant, request);
+    }
+
+    private static Request randomRequest() {
+        Request request = new Request(
+            randomFrom(new String[] {"GET", "PUT", "DELETE", "POST", "HEAD", "OPTIONS"}),
+            randomAsciiAlphanumOfLength(5));
+
+        int parameterCount = between(0, 5);
+        for (int i = 0; i < parameterCount; i++) {
+            request.addParameter(randomAsciiAlphanumOfLength(i), randomAsciiLettersOfLength(3));
+        }
+
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                request.setJsonEntity(randomAsciiAlphanumOfLength(10));
+            } else {
+                request.setEntity(randomFrom(new HttpEntity[] {
+                    new StringEntity(randomAsciiAlphanumOfLength(10), ContentType.APPLICATION_JSON),
+                    new NStringEntity(randomAsciiAlphanumOfLength(10), ContentType.APPLICATION_JSON),
+                    new ByteArrayEntity(randomBytesOfLength(40), ContentType.APPLICATION_JSON)
+                }));
+            }
+        }
+
+        if (randomBoolean()) {
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.setHttpAsyncResponseConsumerFactory(new HeapBufferedResponseConsumerFactory(1));
+            request.setOptions(options);
+        }
+
+        return request;
+    }
+
+    private static Request copy(Request request) {
+        Request copy = new Request(request.getMethod(), request.getEndpoint());
+        copyMutables(request, copy);
+        return copy;
+    }
+
+    private static Request mutate(Request request) {
+        if (randomBoolean()) {
+            // Mutate request or method but keep everything else constant
+            Request mutant = randomBoolean()
+                ? new Request(request.getMethod() + "m", request.getEndpoint())
+                : new Request(request.getMethod(), request.getEndpoint() + "m");
+            copyMutables(request, mutant);
+            return mutant;
+        }
+        Request mutant = copy(request);
+        int mutationType = between(0, 2);
+        switch (mutationType) {
+        case 0:
+            mutant.addParameter(randomAsciiAlphanumOfLength(mutant.getParameters().size() + 4), "extra");
+            return mutant;
+        case 1:
+            mutant.setJsonEntity("mutant"); // randomRequest can't produce this value
+            return mutant;
+        case 2:
+            RequestOptions.Builder options = mutant.getOptions().toBuilder();
+            options.addHeader("extra", "m");
+            mutant.setOptions(options);
+            return mutant;
+        default:
+            throw new UnsupportedOperationException("Unknown mutation type [" + mutationType + "]");
+        }
+    }
+
+    private static void copyMutables(Request from, Request to) {
+        for (Map.Entry<String, String> param : from.getParameters().entrySet()) {
+            to.addParameter(param.getKey(), param.getValue());
+        }
+        to.setEntity(from.getEntity());
+        to.setOptions(from.getOptions());
+    }
 }

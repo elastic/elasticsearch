@@ -1,0 +1,12 @@
+[[sql-syntax-show-columns]]
+=== SHOW COLUMNS
+
+.Synopsis
+[source, sql]
+----
+SHOW COLUMNS [ FROM | IN ] ? table 
+----
+
+.Description
+
+List the columns in table and their data type (and other attributes).

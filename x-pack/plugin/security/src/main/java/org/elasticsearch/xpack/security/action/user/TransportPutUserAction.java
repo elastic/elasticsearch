@@ -10,10 +10,8 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
@@ -29,10 +27,9 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
     private final NativeUsersStore usersStore;
 
     @Inject
-    public TransportPutUserAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver,
+    public TransportPutUserAction(Settings settings, ActionFilters actionFilters,
                                   NativeUsersStore usersStore, TransportService transportService) {
-        super(settings, PutUserAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutUserRequest::new);
+        super(settings, PutUserAction.NAME, transportService, actionFilters, PutUserRequest::new);
         this.usersStore = usersStore;
     }
 

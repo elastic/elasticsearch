@@ -14,7 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.plugin.CliFormatter;
 import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
-import org.elasticsearch.xpack.sql.plugin.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
@@ -80,7 +80,8 @@ public class CursorTests extends ESTestCase {
                 () -> {
                     SqlQueryResponse response = createRandomSqlResponse();
                     if (response.columns() != null && response.rows() != null) {
-                        return CliFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(), new CliFormatter(response));
+                        return CliFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(),
+                            new CliFormatter(response.columns(), response.rows()));
                     } else {
                         return ScrollCursorTests.randomScrollCursor();
                     }

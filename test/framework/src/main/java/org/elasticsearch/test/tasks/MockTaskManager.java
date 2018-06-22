@@ -57,7 +57,7 @@ public class MockTaskManager extends TaskManager {
                 } catch (Exception e) {
                     logger.warn(
                         (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to notify task manager listener about unregistering the task with id {}",
+                            "failed to notify task manager listener about registering the task with id {}",
                             task.getId()),
                         e);
                 }

@@ -213,7 +213,7 @@ minute during the weekend:
 
 {xpack} ships with a `elasticsearch-croneval` command line tool that you can use to verify that
 your cron expressions are valid and produce the expected results. This tool is
-provided in the `$ES_HOME/bin/x-pack` directory.
+provided in the `$ES_HOME/bin` directory.
 
 To verify a cron expression, simply pass it in as a parameter to `elasticsearch-croneval`:
 

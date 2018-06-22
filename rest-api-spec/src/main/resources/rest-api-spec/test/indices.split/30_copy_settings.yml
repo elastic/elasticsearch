@@ -1,8 +1,8 @@
 ---
 "Copy settings during split index":
   - skip:
-      version: " - 6.3.99"
-      reason:  copy_settings did not exist prior to 6.4.0
+      version: " - 6.9.99"
+      reason: expects warnings that pre-7.0.0 will not send
       features: "warnings"
 
   - do:
@@ -51,7 +51,8 @@
             index.number_of_shards: 2
             index.merge.scheduler.max_thread_count: 2
       warnings:
-        - "parameter [copy_settings] is deprecated but was [true]"
+        - "parameter [copy_settings] is deprecated and will be removed in 8.0.0"
+
 
   - do:
       cluster.health:
@@ -67,21 +68,18 @@
   - match: { copy-settings-target.settings.index.blocks.write: "true" }
   - match: { copy-settings-target.settings.index.routing.allocation.include._id: $master }
 
-  # now we do a actual shrink and do not copy settings
+  # now we do a actual shrink and copy settings (by default)
   - do:
       indices.split:
         index: "source"
-        target: "no-copy-settings-target"
+        target: "default-copy-settings-target"
         wait_for_active_shards: 1
         master_timeout: 10s
-        copy_settings: false
         body:
           settings:
             index.number_of_replicas: 0
             index.number_of_shards: 2
             index.merge.scheduler.max_thread_count: 2
-      warnings:
-        - "parameter [copy_settings] is deprecated but was [false]"
 
   - do:
       cluster.health:
@@ -89,10 +87,22 @@
 
   - do:
       indices.get_settings:
-        index: "no-copy-settings-target"
+        index: "default-copy-settings-target"
 
-  # only the request setting should be copied
-  - is_false: no-copy-settings-target.settings.index.merge.scheduler.max_merge_count
-  - match: { no-copy-settings-target.settings.index.merge.scheduler.max_thread_count: "2" }
-  - is_false: no-copy-settings-target.settings.index.blocks.write
-  - is_false: no-copy-settings-target.settings.index.routing.allocation.include._id
+  # settings should be copied
+  - match: { default-copy-settings-target.settings.index.merge.scheduler.max_merge_count: "4" }
+  - match: { default-copy-settings-target.settings.index.merge.scheduler.max_thread_count: "2" }
+  - match: { default-copy-settings-target.settings.index.blocks.write: "true" }
+  - match: { default-copy-settings-target.settings.index.routing.allocation.include._id: $master }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.split:
+        index: "source"
+        target: "explicit-no-copy-settings-target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        copy_settings: false
+        body:
+          settings:
+            index.number_of_replicas: 0

@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -39,7 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJobsStatsAction.Response, GetJobsStatsAction.RequestBuilder> {
+public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
 
     public static final GetJobsStatsAction INSTANCE = new GetJobsStatsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/stats/get";
@@ -51,11 +51,6 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
     private GetJobsStatsAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -144,7 +139,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         public RequestBuilder(ElasticsearchClient client, GetJobsStatsAction action) {
             super(client, action, new Request());
@@ -297,7 +292,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             this.jobsStats = jobsStats;
         }
 
-        public Response(List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException> nodeFailures,
+        public Response(List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException> nodeFailures,
                  QueryPage<JobStats> jobsStats) {
             super(taskFailures, nodeFailures);
             this.jobsStats = jobsStats;

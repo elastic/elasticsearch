@@ -50,6 +50,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -120,6 +121,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -554,10 +556,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 String blobName = "master.dat";
                 BytesArray bytes = new BytesArray(testBytes);
                 try (InputStream stream = bytes.streamInput()) {
-                    testContainer.writeBlob(blobName + "-temp", stream, bytes.length());
+                    testContainer.writeBlobAtomic(blobName, stream, bytes.length());
                 }
-                // Make sure that move is supported
-                testContainer.move(blobName + "-temp", blobName);
                 return seed;
             }
         } catch (IOException exp) {
@@ -773,18 +773,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private void writeAtomic(final String blobName, final BytesReference bytesRef) throws IOException {
-        final String tempBlobName = "pending-" + blobName + "-" + UUIDs.randomBase64UUID();
         try (InputStream stream = bytesRef.streamInput()) {
-            snapshotsBlobContainer.writeBlob(tempBlobName, stream, bytesRef.length());
-            snapshotsBlobContainer.move(tempBlobName, blobName);
-        } catch (IOException ex) {
-            // temporary blob creation or move failed - try cleaning up
-            try {
-                snapshotsBlobContainer.deleteBlob(tempBlobName);
-            } catch (IOException e) {
-                ex.addSuppressed(e);
-            }
-            throw ex;
+            snapshotsBlobContainer.writeBlobAtomic(blobName, stream, bytesRef.length());
         }
     }
 
@@ -817,7 +807,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
         Context context = new Context(snapshotId, version, indexId, shardId);
         BlobStoreIndexShardSnapshot snapshot = context.loadSnapshot();
-        return IndexShardSnapshotStatus.newDone(snapshot.startTime(), snapshot.time(), snapshot.numberOfFiles(), snapshot.totalSize());
+        return IndexShardSnapshotStatus.newDone(snapshot.startTime(), snapshot.time(),
+            snapshot.incrementalFileCount(), snapshot.totalFileCount(),
+            snapshot.incrementalSize(), snapshot.totalSize());
     }
 
     @Override
@@ -915,13 +907,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
             }
             // finalize the snapshot and rewrite the snapshot index with the next sequential snapshot index
-            finalize(newSnapshotsList, fileListGeneration + 1, blobs);
+            finalize(newSnapshotsList, fileListGeneration + 1, blobs, "snapshot deletion [" + snapshotId + "]");
         }
 
         /**
          * Loads information about shard snapshot
          */
-        public BlobStoreIndexShardSnapshot loadSnapshot() {
+        BlobStoreIndexShardSnapshot loadSnapshot() {
             try {
                 return indexShardSnapshotFormat(version).read(blobContainer, snapshotId.getUUID());
             } catch (IOException ex) {
@@ -930,54 +922,71 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         /**
-         * Removes all unreferenced files from the repository and writes new index file
+         * Writes a new index file for the shard and removes all unreferenced files from the repository.
          *
-         * We need to be really careful in handling index files in case of failures to make sure we have index file that
-         * points to files that were deleted.
+         * We need to be really careful in handling index files in case of failures to make sure we don't
+         * have index file that points to files that were deleted.
          *
-         *
-         * @param snapshots list of active snapshots in the container
+         * @param snapshots          list of active snapshots in the container
          * @param fileListGeneration the generation number of the snapshot index file
-         * @param blobs     list of blobs in the container
+         * @param blobs              list of blobs in the container
+         * @param reason             a reason explaining why the shard index file is written
          */
-        protected void finalize(List<SnapshotFiles> snapshots, int fileListGeneration, Map<String, BlobMetaData> blobs) {
-            BlobStoreIndexShardSnapshots newSnapshots = new BlobStoreIndexShardSnapshots(snapshots);
-            // delete old index files first
-            for (String blobName : blobs.keySet()) {
-                if (indexShardSnapshotsFormat.isTempBlobName(blobName) || blobName.startsWith(SNAPSHOT_INDEX_PREFIX)) {
-                    try {
-                        blobContainer.deleteBlob(blobName);
-                    } catch (IOException e) {
-                        // We cannot delete index file - this is fatal, we cannot continue, otherwise we might end up
-                        // with references to non-existing files
-                        throw new IndexShardSnapshotFailedException(shardId, "error deleting index file ["
-                            + blobName + "] during cleanup", e);
-                    }
-                }
-            }
+        protected void finalize(final List<SnapshotFiles> snapshots,
+                                final int fileListGeneration,
+                                final Map<String, BlobMetaData> blobs,
+                                final String reason) {
+            final String indexGeneration = Integer.toString(fileListGeneration);
+            final String currentIndexGen = indexShardSnapshotsFormat.blobName(indexGeneration);
 
-            // now go over all the blobs, and if they don't exist in a snapshot, delete them
-            for (String blobName : blobs.keySet()) {
-                // delete unused files
-                if (blobName.startsWith(DATA_BLOB_PREFIX)) {
-                    if (newSnapshots.findNameFile(BlobStoreIndexShardSnapshot.FileInfo.canonicalName(blobName)) == null) {
+            final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(snapshots);
+            try {
+                // Delete temporary index files first, as we might otherwise fail in the next step creating the new index file if an earlier
+                // attempt to write an index file with this generation failed mid-way after creating the temporary file.
+                for (final String blobName : blobs.keySet()) {
+                    if (FsBlobContainer.isTempBlobName(blobName)) {
                         try {
-                            blobContainer.deleteBlob(blobName);
+                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
                         } catch (IOException e) {
-                            // TODO: don't catch and let the user handle it?
-                            logger.debug(() -> new ParameterizedMessage("[{}] [{}] error deleting blob [{}] during cleanup", snapshotId, shardId, blobName), e);
+                            logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blob [{}] during finalization",
+                                snapshotId, shardId, blobName), e);
+                            throw e;
                         }
                     }
                 }
-            }
 
-            // If we deleted all snapshots - we don't need to create the index file
-            if (snapshots.size() > 0) {
-                try {
-                    indexShardSnapshotsFormat.writeAtomic(newSnapshots, blobContainer, Integer.toString(fileListGeneration));
-                } catch (IOException e) {
-                    throw new IndexShardSnapshotFailedException(shardId, "Failed to write file list", e);
+                // If we deleted all snapshots, we don't need to create a new index file
+                if (snapshots.size() > 0) {
+                    indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, blobContainer, indexGeneration);
                 }
+
+                // Delete old index files
+                for (final String blobName : blobs.keySet()) {
+                    if (blobName.startsWith(SNAPSHOT_INDEX_PREFIX)) {
+                        try {
+                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
+                        } catch (IOException e) {
+                            logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blob [{}] during finalization",
+                                snapshotId, shardId, blobName), e);
+                            throw e;
+                        }
+                    }
+                }
+
+                // Delete all blobs that don't exist in a snapshot
+                for (final String blobName : blobs.keySet()) {
+                    if (blobName.startsWith(DATA_BLOB_PREFIX) && (updatedSnapshots.findNameFile(canonicalName(blobName)) == null)) {
+                        try {
+                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
+                        } catch (IOException e) {
+                            logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete data blob [{}] during finalization",
+                                snapshotId, shardId, blobName), e);
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                String message = "Failed to finalize " + reason + " with shard index [" + currentIndexGen + "]";
+                throw new IndexShardSnapshotFailedException(shardId, message, e);
             }
         }
 
@@ -1003,7 +1012,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 if (!name.startsWith(DATA_BLOB_PREFIX)) {
                     continue;
                 }
-                name = BlobStoreIndexShardSnapshot.FileInfo.canonicalName(name);
+                name = canonicalName(name);
                 try {
                     long currentGen = Long.parseLong(name.substring(DATA_BLOB_PREFIX.length()), Character.MAX_RADIX);
                     if (currentGen > generation) {
@@ -1121,14 +1130,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = new ArrayList<>();
 
             store.incRef();
+            int indexIncrementalFileCount = 0;
+            int indexTotalNumberOfFiles = 0;
+            long indexIncrementalSize = 0;
+            long indexTotalFileCount = 0;
             try {
-                int indexNumberOfFiles = 0;
-                long indexTotalFilesSize = 0;
                 ArrayList<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new ArrayList<>();
                 final Store.MetadataSnapshot metadata;
                 // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
                 final Collection<String> fileNames;
                 try {
+                    logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId, snapshotId, snapshotIndexCommit);
                     metadata = store.getMetadata(snapshotIndexCommit);
                     fileNames = snapshotIndexCommit.getFileNames();
                 } catch (IOException e) {
@@ -1163,9 +1175,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             }
                         }
                     }
+
+                    indexTotalFileCount += md.length();
+                    indexTotalNumberOfFiles++;
+
                     if (existingFileInfo == null) {
-                        indexNumberOfFiles++;
-                        indexTotalFilesSize += md.length();
+                        indexIncrementalFileCount++;
+                        indexIncrementalSize += md.length();
                         // create a new FileInfo
                         BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(fileNameFromGeneration(++generation), md, chunkSize());
                         indexCommitPointFiles.add(snapshotFileInfo);
@@ -1175,7 +1191,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }
 
-                snapshotStatus.moveToStarted(startTime, indexNumberOfFiles, indexTotalFilesSize);
+                snapshotStatus.moveToStarted(startTime, indexIncrementalFileCount,
+                    indexTotalNumberOfFiles, indexIncrementalSize, indexTotalFileCount);
 
                 for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
                     try {
@@ -1198,8 +1215,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                                                         // snapshotStatus.startTime() is assigned on the same machine,
                                                                         // so it's safe to use with VLong
                                                                         System.currentTimeMillis() - lastSnapshotStatus.getStartTime(),
-                                                                        lastSnapshotStatus.getNumberOfFiles(),
-                                                                        lastSnapshotStatus.getTotalSize());
+                                                                        lastSnapshotStatus.getIncrementalFileCount(),
+                                                                        lastSnapshotStatus.getIncrementalSize()
+            );
 
             //TODO: The time stored in snapshot doesn't include cleanup time.
             logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
@@ -1217,16 +1235,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 newSnapshotsList.add(point);
             }
             // finalize the snapshot and rewrite the snapshot index with the next sequential snapshot index
-            finalize(newSnapshotsList, fileListGeneration + 1, blobs);
+            finalize(newSnapshotsList, fileListGeneration + 1, blobs, "snapshot creation [" + snapshotId + "]");
             snapshotStatus.moveToDone(System.currentTimeMillis());
 
         }
 
         /**
          * Snapshot individual file
-         * <p>
-         * This is asynchronous method. Upon completion of the operation latch is getting counted down and any failures are
-         * added to the {@code failures} list
          *
          * @param fileInfo file to be snapshotted
          */

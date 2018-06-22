@@ -26,6 +26,8 @@ import static org.mockito.Mockito.mock;
 
 public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
 
+    private boolean useInternalParser = randomBoolean();
+
     @Override
     protected JobUpdate createTestInstance() {
         JobUpdate.Builder update = new JobUpdate.Builder(randomAlphaOfLength(4));
@@ -51,10 +53,8 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
                 List<DetectionRule> detectionRules = null;
                 if (randomBoolean()) {
                     detectionRules = new ArrayList<>();
-                    Condition condition = new Condition(Operator.GT, "5");
                     detectionRules.add(new DetectionRule.Builder(
-                            Collections.singletonList(new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, condition, null)))
-                            .setTargetFieldName("foo").build());
+                            Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5))).build());
                 }
                 detectorUpdates.add(new JobUpdate.DetectorUpdate(i, detectorDescription, detectionRules));
             }
@@ -84,14 +84,17 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         if (randomBoolean()) {
             update.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
-        if (randomBoolean()) {
+        if (useInternalParser && randomBoolean()) {
             update.setModelSnapshotId(randomAlphaOfLength(10));
         }
-        if (randomBoolean()) {
+        if (useInternalParser && randomBoolean()) {
             update.setModelSnapshotMinVersion(Version.CURRENT);
         }
-        if (randomBoolean()) {
+        if (useInternalParser && randomBoolean()) {
             update.setEstablishedModelMemory(randomNonNegativeLong());
+        }
+        if (useInternalParser && randomBoolean()) {
+            update.setJobVersion(randomFrom(Version.CURRENT, Version.V_6_2_0, Version.V_6_1_0));
         }
 
         return update.build();
@@ -104,19 +107,21 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
 
     @Override
     protected JobUpdate doParseInstance(XContentParser parser) {
-        return JobUpdate.PARSER.apply(parser, null).build();
+        if (useInternalParser) {
+            return JobUpdate.INTERNAL_PARSER.apply(parser, null).build();
+        } else {
+            return JobUpdate.EXTERNAL_PARSER.apply(parser, null).build();
+        }
     }
 
     public void testMergeWithJob() {
         List<JobUpdate.DetectorUpdate> detectorUpdates = new ArrayList<>();
         List<DetectionRule> detectionRules1 = Collections.singletonList(new DetectionRule.Builder(
-                Collections.singletonList(new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, new Condition(Operator.GT, "5")
-                        , null)))
-                .setTargetFieldName("mlcategory").build());
+                Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5)))
+                .build());
         detectorUpdates.add(new JobUpdate.DetectorUpdate(0, "description-1", detectionRules1));
         List<DetectionRule> detectionRules2 = Collections.singletonList(new DetectionRule.Builder(Collections.singletonList(
-                new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, new Condition(Operator.GT, "5"), null)))
-                .setTargetFieldName("host").build());
+                new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5))).build());
         detectorUpdates.add(new JobUpdate.DetectorUpdate(1, "description-2", detectionRules2));
 
         ModelPlotConfig modelPlotConfig = new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10));
@@ -137,6 +142,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         updateBuilder.setCategorizationFilters(categorizationFilters);
         updateBuilder.setCustomSettings(customSettings);
         updateBuilder.setModelSnapshotId(randomAlphaOfLength(10));
+        updateBuilder.setJobVersion(Version.V_6_1_0);
         JobUpdate update = updateBuilder.build();
 
         Job.Builder jobBuilder = new Job.Builder("foo");
@@ -164,6 +170,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertEquals(update.getCategorizationFilters(), updatedJob.getAnalysisConfig().getCategorizationFilters());
         assertEquals(update.getCustomSettings(), updatedJob.getCustomSettings());
         assertEquals(update.getModelSnapshotId(), updatedJob.getModelSnapshotId());
+        assertEquals(update.getJobVersion(), updatedJob.getJobVersion());
         for (JobUpdate.DetectorUpdate detectorUpdate : update.getDetectorUpdates()) {
             assertNotNull(updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorDescription());
             assertEquals(detectorUpdate.getDescription(),

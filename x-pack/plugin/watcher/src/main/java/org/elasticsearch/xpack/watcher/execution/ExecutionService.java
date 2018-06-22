@@ -121,11 +121,25 @@ public class ExecutionService extends AbstractComponent {
     }
 
     /**
-     * Pause the execution of the watcher executor
+     * Pause the execution of the watcher executor, and empty the state.
+     * Pausing means, that no new watch executions will be done unless this pausing is explicitely unset.
+     * This is important when watcher is stopped, so that scheduled watches do not accidentally get executed.
+     * This should not be used when we need to reload watcher based on some cluster state changes, then just calling
+     * {@link #clearExecutionsAndQueue()} is the way to go
+     *
      * @return the number of tasks that have been removed
      */
     public int pause() {
         paused.set(true);
+        return clearExecutionsAndQueue();
+    }
+
+    /**
+     * Empty the currently queued tasks and wait for current executions to finish.
+     *
+     * @return the number of tasks that have been removed
+     */
+    public int clearExecutionsAndQueue() {
         int cancelledTaskCount = executor.queue().drainTo(new ArrayList<>());
         this.clearExecutions();
         return cancelledTaskCount;

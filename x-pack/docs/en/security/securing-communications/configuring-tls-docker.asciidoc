@@ -41,7 +41,7 @@ instances:
 `.env`:
 [source,yaml]
 ----
-CERTS_DIR=/usr/share/elasticsearch/config/x-pack/certificates <1>
+CERTS_DIR=/usr/share/elasticsearch/config/certificates <1>
 ELASTIC_PASSWORD=PleaseChangeMe <2>
 ----
 <1> The path, inside the Docker image, where certificates are expected to be found.
@@ -66,18 +66,18 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch-platinum:{version}
     command: >
       bash -c '
-        if [[ ! -d config/x-pack/certificates/certs ]]; then
-          mkdir config/x-pack/certificates/certs;
+        if [[ ! -d config/certificates/certs ]]; then
+          mkdir config/certificates/certs;
         fi;
         if [[ ! -f /local/certs/bundle.zip ]]; then
-          bin/elasticsearch-certgen --silent --in config/x-pack/certificates/instances.yml --out config/x-pack/certificates/certs/bundle.zip;
-          unzip config/x-pack/certificates/certs/bundle.zip -d config/x-pack/certificates/certs; <1>
+          bin/elasticsearch-certgen --silent --in config/certificates/instances.yml --out config/certificates/certs/bundle.zip;
+          unzip config/certificates/certs/bundle.zip -d config/certificates/certs; <1>
         fi;
-        chgrp -R 0 config/x-pack/certificates/certs
+        chgrp -R 0 config/certificates/certs
       '
     user: $\{UID:-1000\}
     working_dir: /usr/share/elasticsearch
-    volumes: ['.:/usr/share/elasticsearch/config/x-pack/certificates']
+    volumes: ['.:/usr/share/elasticsearch/config/certificates']
 ----
 
 <1> The new node certificates and CA certificate+key are placed under the local directory `certs`.
@@ -184,9 +184,9 @@ WARNING: Windows users not running PowerShell will need to remove `\` and join l
 ----
 docker exec es01 /bin/bash -c "bin/elasticsearch-setup-passwords \
 auto --batch \
--Expack.ssl.certificate=x-pack/certificates/es01/es01.crt \
--Expack.ssl.certificate_authorities=x-pack/certificates/ca/ca.crt \
--Expack.ssl.key=x-pack/certificates/es01/es01.key \
+-Expack.ssl.certificate=certificates/es01/es01.crt \
+-Expack.ssl.certificate_authorities=certificates/ca/ca.crt \
+-Expack.ssl.key=certificates/es01/es01.key \
 --url https://localhost:9200"
 ----
 --

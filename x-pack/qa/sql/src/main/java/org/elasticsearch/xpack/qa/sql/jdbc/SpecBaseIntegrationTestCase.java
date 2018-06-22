@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -49,7 +50,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     @Before
     public void setupTestDataIfNeeded() throws Exception {
-        if (client().performRequest("HEAD", "/test_emp").getStatusLine().getStatusCode() == 404) {
+        if (client().performRequest(new Request("HEAD", "/test_emp")).getStatusLine().getStatusCode() == 404) {
             DataLoader.loadDatasetIntoEs(client());
         }
     }
@@ -62,7 +63,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     @AfterClass
     public static void wipeTestData() throws IOException {
         try {
-            adminClient().performRequest("DELETE", "/*");
+            adminClient().performRequest(new Request("DELETE", "/*"));
         } catch (ResponseException e) {
             // 404 here just means we had no indexes
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {

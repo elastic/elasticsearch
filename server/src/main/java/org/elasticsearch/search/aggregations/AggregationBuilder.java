@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.slice.SliceBuilder;
 
 import java.io.IOException;
 import java.util.List;

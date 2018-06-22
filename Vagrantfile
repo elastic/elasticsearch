@@ -31,6 +31,9 @@ Vagrant.configure(2) do |config|
     # Give the box more memory and cpu because our tests are beasts!
     vbox.memory = Integer(ENV['VAGRANT_MEMORY'] || 8192)
     vbox.cpus = Integer(ENV['VAGRANT_CPUS'] || 4)
+
+    # see https://github.com/hashicorp/vagrant/issues/9524
+    vbox.customize ["modifyvm", :id, "--audio", "none"]
   end
 
   # Switch the default share for the project root from /vagrant to
@@ -97,15 +100,15 @@ Vagrant.configure(2) do |config|
       rpm_common config, box
     end
   end
-  'fedora-26'.tap do |box|
-    config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/fedora-26-x86_64'
-      dnf_common config, box
-    end
-  end
   'fedora-27'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/fedora-27-x86_64'
+      dnf_common config, box
+    end
+  end
+  'fedora-28'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/fedora-28-x86_64'
       dnf_common config, box
     end
   end
@@ -119,6 +122,26 @@ Vagrant.configure(2) do |config|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/sles-12-x86_64'
       sles_common config, box
+    end
+  end
+
+  windows_2012r2_box = ENV['VAGRANT_WINDOWS_2012R2_BOX']
+  if windows_2012r2_box && windows_2012r2_box.empty? == false
+    'windows-2012r2'.tap do |box|
+      config.vm.define box, define_opts do |config|
+        config.vm.box = windows_2012r2_box
+        windows_common config, box
+      end
+    end
+  end
+
+  windows_2016_box = ENV['VAGRANT_WINDOWS_2016_BOX']
+  if windows_2016_box && windows_2016_box.empty? == false
+    'windows-2016'.tap do |box|
+      config.vm.define box, define_opts do |config|
+        config.vm.box = windows_2016_box
+        windows_common config, box
+      end
     end
   end
 end
@@ -217,6 +240,7 @@ def linux_common(config,
 
   config.vm.provision 'markerfile', type: 'shell', inline: <<-SHELL
     touch /etc/is_vagrant_vm
+    touch /is_vagrant_vm # for consistency between linux and windows
   SHELL
 
   # This prevents leftovers from previous tests using the
@@ -351,5 +375,24 @@ Defaults   env_keep += "PACKAGING_ARCHIVES"
 Defaults   env_keep += "PACKAGING_TESTS"
 SUDOERS_VARS
     chmod 0440 /etc/sudoers.d/elasticsearch_vars
+  SHELL
+end
+
+def windows_common(config, name)
+  config.vm.provision 'markerfile', type: 'shell', inline: <<-SHELL
+    $ErrorActionPreference = "Stop"
+    New-Item C:/is_vagrant_vm -ItemType file -Force | Out-Null
+  SHELL
+
+  config.vm.provision 'set prompt', type: 'shell', inline: <<-SHELL
+    $ErrorActionPreference = "Stop"
+    $ps_prompt = 'function Prompt { "#{name}:$($ExecutionContext.SessionState.Path.CurrentLocation)>" }'
+    $ps_prompt | Out-File $PsHome/Microsoft.PowerShell_profile.ps1
+  SHELL
+
+  config.vm.provision 'set env variables', type: 'shell', inline: <<-SHELL
+    $ErrorActionPreference = "Stop"
+    [Environment]::SetEnvironmentVariable("PACKAGING_ARCHIVES", "C:/project/build/packaging/archives", "Machine")
+    [Environment]::SetEnvironmentVariable("PACKAGING_TESTS", "C:/project/build/packaging/tests", "Machine")
   SHELL
 end

@@ -7,6 +7,7 @@ package org.elasticsearch.test;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -42,9 +43,11 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
@@ -62,8 +65,7 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_S
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingSufficientToRead;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
@@ -162,24 +164,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     public static void destroyDefaultSettings() {
         SECURITY_DEFAULT_SETTINGS = null;
         customSecuritySettingsSource = null;
-        // Wait for the network threads to finish otherwise there is the possibility that one of
-        // the threads lingers and trips the thread leak detector
-        try {
-            GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (IllegalStateException e) {
-            if (e.getMessage().equals("thread was not started") == false) {
-                throw e;
-            }
-            // ignore since the thread was never started
-        }
-
-        try {
-            ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     @Rule
@@ -199,6 +183,35 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                     customSecuritySettingsSource =
                             new CustomSecuritySettingsSource(transportSSLEnabled(), createTempDir(), currentClusterScope);
                     break;
+            }
+        }
+    };
+
+    /**
+     * A JUnit class level rule that runs after the AfterClass method in {@link ESIntegTestCase},
+     * which stops the cluster. After the cluster is stopped, there are a few netty threads that
+     * can linger, so we wait for them to finish otherwise these lingering threads can intermittently
+     * trigger the thread leak detector
+     */
+    @ClassRule
+    public static final ExternalResource STOP_NETTY_RESOURCE = new ExternalResource() {
+        @Override
+        protected void after() {
+            try {
+                GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IllegalStateException e) {
+                if (e.getMessage().equals("thread was not started") == false) {
+                    throw e;
+                }
+                // ignore since the thread was never started
+            }
+
+            try {
+                ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
     };
@@ -470,7 +483,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().startObject();
                 assertTrue("security index mapping not sufficient to read:\n" +
                                 Strings.toString(clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject()),
-                        securityIndexMappingSufficientToRead(clusterState, logger));
+                    SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger,
+                        Version.CURRENT.minimumIndexCompatibilityVersion()::onOrBefore));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());
                 if (securityIndex != null) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);

@@ -58,7 +58,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -101,10 +100,12 @@ public abstract class TransportReplicationAction<
             Response extends ReplicationResponse
         > extends TransportAction<Request, Response> {
 
+    protected final ThreadPool threadPool;
     protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final ShardStateAction shardStateAction;
     protected final IndicesService indicesService;
+    protected final IndexNameExpressionResolver indexNameExpressionResolver;
     protected final TransportRequestOptions transportOptions;
     protected final String executor;
 
@@ -132,11 +133,13 @@ public abstract class TransportReplicationAction<
                                          IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
                                          Supplier<ReplicaRequest> replicaRequest, String executor,
                                          boolean syncGlobalCheckpointAfterOperation) {
-        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
+        super(settings, actionName, actionFilters, transportService.getTaskManager());
+        this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.shardStateAction = shardStateAction;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor;
 
         this.transportPrimaryAction = actionName + "[p]";

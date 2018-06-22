@@ -12,6 +12,7 @@ import joptsimple.OptionSpecBuilder;
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.PEMEncryptor;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.bouncycastle.openssl.jcajce.JcePEMEncryptorBuilder;
@@ -87,6 +88,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
     private static final String DEFAULT_CERT_ZIP = "certificate-bundle.zip";
     private static final String DEFAULT_CA_ZIP = "elastic-stack-ca.zip";
     private static final String DEFAULT_CA_P12 = "elastic-stack-ca.p12";
+    private static final BouncyCastleProvider BC_PROV = new BouncyCastleProvider();
 
     static final String DEFAULT_CERT_NAME = "instance";
 
@@ -334,7 +336,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             char[] passwordOption = getChars(caPasswordSpec.value(options));
 
             Map<Certificate, Key> keys = withPassword("CA (" + path + ")", passwordOption,
-                    terminal, password -> CertUtils.readPkcs12KeyPairs(path, password, a -> password, env));
+                    terminal, password -> CertParsingUtils.readPkcs12KeyPairs(path, password, a -> password));
 
             if (keys.size() != 1) {
                 throw new IllegalArgumentException("expected a single key in file [" + path.toAbsolutePath() + "] but found [" +
@@ -353,7 +355,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             String password = caPasswordSpec.value(options);
 
             final String resolvedCaCertPath = cert.toAbsolutePath().toString();
-            Certificate[] certificates = CertUtils.readCertificates(Collections.singletonList(resolvedCaCertPath), env);
+            Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(resolvedCaCertPath), env);
             if (certificates.length != 1) {
                 throw new IllegalArgumentException("expected a single certificate in file [" + resolvedCaCertPath + "] but found [" +
                         certificates.length + "]");
@@ -369,8 +371,8 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                 dn = AUTO_GEN_CA_DN;
             }
             X500Principal x500Principal = new X500Principal(dn);
-            KeyPair keyPair = CertUtils.generateKeyPair(getKeySize(options));
-            X509Certificate caCert = CertUtils.generateCACertificate(x500Principal, keyPair, getDays(options));
+            KeyPair keyPair = CertGenUtils.generateKeyPair(getKeySize(options));
+            X509Certificate caCert = CertGenUtils.generateCACertificate(x500Principal, keyPair, getDays(options));
 
             if (options.hasArgument(caPasswordSpec)) {
                 char[] password = getChars(caPasswordSpec.value(options));
@@ -612,10 +614,10 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         void generateAndWriteCsrs(Path output, int keySize, Collection<CertificateInformation> certInfo) throws Exception {
             fullyWriteZipFile(output, (outputStream, pemWriter) -> {
                 for (CertificateInformation certificateInformation : certInfo) {
-                    KeyPair keyPair = CertUtils.generateKeyPair(keySize);
+                    KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
                     GeneralNames sanList = getSubjectAlternativeNamesValue(certificateInformation.ipAddresses,
                             certificateInformation.dnsNames, certificateInformation.commonNames);
-                    PKCS10CertificationRequest csr = CertUtils.generateCSR(keyPair, certificateInformation.name.x500Principal, sanList);
+                    PKCS10CertificationRequest csr = CertGenUtils.generateCSR(keyPair, certificateInformation.name.x500Principal, sanList);
 
                     final String dirName = certificateInformation.name.filename + "/";
                     ZipEntry zipEntry = new ZipEntry(dirName);
@@ -819,8 +821,8 @@ public class CertificateTool extends LoggingAwareMultiCommand {
 
         private CertificateAndKey generateCertificateAndKey(CertificateInformation certificateInformation, CAInfo caInfo,
                                                             int keySize, int days) throws Exception {
-            KeyPair keyPair = CertUtils.generateKeyPair(keySize);
-            Certificate certificate = CertUtils.generateSignedCertificate(certificateInformation.name.x500Principal,
+            KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
+            Certificate certificate = CertGenUtils.generateSignedCertificate(certificateInformation.name.x500Principal,
                     getSubjectAlternativeNamesValue(certificateInformation.ipAddresses, certificateInformation.dnsNames,
                             certificateInformation.commonNames),
                     keyPair, caInfo.certAndKey.cert, caInfo.certAndKey.key, days);
@@ -916,7 +918,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
     }
 
     private static PEMEncryptor getEncrypter(char[] password) {
-        return new JcePEMEncryptorBuilder("DES-EDE3-CBC").setProvider(CertUtils.BC_PROV).build(password);
+        return new JcePEMEncryptorBuilder("DES-EDE3-CBC").setProvider(BC_PROV).build(password);
     }
 
     private static <T, E extends Exception> T withPassword(String description, char[] password, Terminal terminal,
@@ -1015,8 +1017,8 @@ public class CertificateTool extends LoggingAwareMultiCommand {
     private static PrivateKey readPrivateKey(Path path, char[] password, Terminal terminal)
             throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
-        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            return CertUtils.readPrivateKey(reader, () -> {
+        try {
+            return PemUtils.readPrivateKey(path, () -> {
                 if (password != null) {
                     return password;
                 }
@@ -1042,7 +1044,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         }
 
         for (String cn : commonNames) {
-            generalNameList.add(CertUtils.createCommonName(cn));
+            generalNameList.add(CertGenUtils.createCommonName(cn));
         }
 
         if (generalNameList.isEmpty()) {

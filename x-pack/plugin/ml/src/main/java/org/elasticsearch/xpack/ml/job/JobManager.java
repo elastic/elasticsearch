@@ -11,7 +11,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -67,6 +67,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
@@ -133,8 +134,7 @@ public class JobManager extends AbstractComponent {
      * @throws ResourceNotFoundException if no job matches {@code jobId}
      */
     public static Job getJobOrThrowIfUnknown(String jobId, ClusterState clusterState) {
-        MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
-        Job job = (mlMetadata == null) ? null : mlMetadata.getJobs().get(jobId);
+        Job job = MlMetadata.getMlMetadata(clusterState).getJobs().get(jobId);
         if (job == null) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
@@ -142,11 +142,7 @@ public class JobManager extends AbstractComponent {
     }
 
     private Set<String> expandJobIds(String expression, boolean allowNoJobs, ClusterState clusterState) {
-        MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
-        if (mlMetadata == null) {
-            mlMetadata = MlMetadata.EMPTY_METADATA;
-        }
-        return mlMetadata.expandJobIds(expression, allowNoJobs);
+        return MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
     }
 
     /**
@@ -160,7 +156,7 @@ public class JobManager extends AbstractComponent {
      */
     public QueryPage<Job> expandJobs(String expression, boolean allowNoJobs, ClusterState clusterState) {
         Set<String> expandedJobIds = expandJobIds(expression, allowNoJobs, clusterState);
-        MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         List<Job> jobs = new ArrayList<>();
         for (String expandedJobId : expandedJobIds) {
             jobs.add(mlMetadata.getJobs().get(expandedJobId));
@@ -184,12 +180,16 @@ public class JobManager extends AbstractComponent {
         request.getJobBuilder().validateCategorizationAnalyzer(analysisRegistry, environment);
 
         Job job = request.getJobBuilder().build(new Date());
+
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
             DEPRECATION_LOGGER.deprecated("Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
         }
 
-        MlMetadata currentMlMetadata = state.metaData().custom(MLMetadataField.TYPE);
-        if (currentMlMetadata != null && currentMlMetadata.getJobs().containsKey(job.getId())) {
+        // pre-flight check, not necessarily required, but avoids figuring this out while on the CS update thread
+        XPackPlugin.checkReadyForXPackCustomMetadata(state);
+
+        MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(state);
+        if (currentMlMetadata.getJobs().containsKey(job.getId())) {
             actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
             return;
         }
@@ -346,8 +346,8 @@ public class JobManager extends AbstractComponent {
                 }
 
                 @Override
-                public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-                    afterClusterStateUpdate(clusterChangedEvent.state(), request);
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    afterClusterStateUpdate(newState, request);
                     actionListener.onResponse(new PutJobAction.Response(updatedJob.get()));
                 }
             });
@@ -425,8 +425,13 @@ public class JobManager extends AbstractComponent {
 
     public void updateProcessOnCalendarChanged(List<String> calendarJobIds) {
         ClusterState clusterState = clusterService.state();
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+
+        List<String> existingJobsOrGroups =
+                calendarJobIds.stream().filter(mlMetadata::isGroupOrJob).collect(Collectors.toList());
+
         Set<String> expandedJobIds = new HashSet<>();
-        calendarJobIds.forEach(jobId -> expandedJobIds.addAll(expandJobIds(jobId, true, clusterState)));
+        existingJobsOrGroups.forEach(jobId -> expandedJobIds.addAll(expandJobIds(jobId, true, clusterState)));
         for (String jobId : expandedJobIds) {
             if (isJobOpen(clusterState, jobId)) {
                 updateJobProcessNotifier.submitJobUpdate(UpdateParams.scheduledEventsUpdate(jobId), ActionListener.wrap(
@@ -469,8 +474,8 @@ public class JobManager extends AbstractComponent {
                     }
 
                     @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        MlMetadata currentMlMetadata = currentState.metaData().custom(MLMetadataField.TYPE);
+                    public ClusterState execute(ClusterState currentState) {
+                        MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(currentState);
                         if (currentMlMetadata.getJobs().containsKey(jobId) == false) {
                             // We wouldn't have got here if the job never existed so
                             // the Job must have been deleted by another action.
@@ -560,11 +565,11 @@ public class JobManager extends AbstractComponent {
     }
 
     private static MlMetadata.Builder createMlMetadataBuilder(ClusterState currentState) {
-        MlMetadata currentMlMetadata = currentState.metaData().custom(MLMetadataField.TYPE);
-        return new MlMetadata.Builder(currentMlMetadata);
+        return new MlMetadata.Builder(MlMetadata.getMlMetadata(currentState));
     }
 
     private static ClusterState buildNewClusterState(ClusterState currentState, MlMetadata.Builder builder) {
+        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, builder.build()).build());
         return newState.build();

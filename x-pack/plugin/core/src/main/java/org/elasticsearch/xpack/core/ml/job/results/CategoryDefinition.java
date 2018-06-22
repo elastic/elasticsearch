@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,6 +35,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     public static final ParseField REGEX = new ParseField("regex");
     public static final ParseField MAX_MATCHING_LENGTH = new ParseField("max_matching_length");
     public static final ParseField EXAMPLES = new ParseField("examples");
+    public static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("categories");
@@ -51,6 +53,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         parser.declareString(CategoryDefinition::setRegex, REGEX);
         parser.declareLong(CategoryDefinition::setMaxMatchingLength, MAX_MATCHING_LENGTH);
         parser.declareStringArray(CategoryDefinition::setExamples, EXAMPLES);
+        parser.declareString(CategoryDefinition::setGrokPattern, GROK_PATTERN);
 
         return parser;
     }
@@ -61,6 +64,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     private String regex = "";
     private long maxMatchingLength = 0L;
     private final Set<String> examples;
+    private String grokPattern;
 
     public CategoryDefinition(String jobId) {
         this.jobId = jobId;
@@ -74,6 +78,9 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         regex = in.readString();
         maxMatchingLength = in.readLong();
         examples = new TreeSet<>(in.readList(StreamInput::readString));
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            grokPattern = in.readOptionalString();
+        }
     }
 
     @Override
@@ -84,6 +91,9 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         out.writeString(regex);
         out.writeLong(maxMatchingLength);
         out.writeStringList(new ArrayList<>(examples));
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            out.writeOptionalString(grokPattern);
+        }
     }
 
     public String getJobId() {
@@ -139,6 +149,14 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         examples.add(example);
     }
 
+    public String getGrokPattern() {
+        return grokPattern;
+    }
+
+    public void setGrokPattern(String grokPattern) {
+        this.grokPattern = grokPattern;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -148,6 +166,9 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         builder.field(REGEX.getPreferredName(), regex);
         builder.field(MAX_MATCHING_LENGTH.getPreferredName(), maxMatchingLength);
         builder.field(EXAMPLES.getPreferredName(), examples);
+        if (grokPattern != null) {
+            builder.field(GROK_PATTERN.getPreferredName(), grokPattern);
+        }
         builder.endObject();
         return builder;
     }
@@ -166,11 +187,12 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
                 && Objects.equals(this.terms, that.terms)
                 && Objects.equals(this.regex, that.regex)
                 && Objects.equals(this.maxMatchingLength, that.maxMatchingLength)
-                && Objects.equals(this.examples, that.examples);
+                && Objects.equals(this.examples, that.examples)
+                && Objects.equals(this.grokPattern, that.grokPattern);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, categoryId, terms, regex, maxMatchingLength, examples);
+        return Objects.hash(jobId, categoryId, terms, regex, maxMatchingLength, examples, grokPattern);
     }
 }

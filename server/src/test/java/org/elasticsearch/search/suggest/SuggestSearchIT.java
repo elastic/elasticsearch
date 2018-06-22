@@ -427,7 +427,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     public void testStopwordsOnlyPhraseSuggest() throws IOException {
         assertAcked(prepareCreate("test").addMapping("typ1", "body", "type=text,analyzer=stopwd").setSettings(
                 Settings.builder()
-                        .put("index.analysis.analyzer.stopwd.tokenizer", "whitespace")
+                        .put("index.analysis.analyzer.stopwd.tokenizer", "standard")
                         .putList("index.analysis.analyzer.stopwd.filter", "stop")
         ));
         ensureGreen();

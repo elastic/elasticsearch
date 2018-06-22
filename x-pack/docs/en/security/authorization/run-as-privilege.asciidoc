@@ -1,5 +1,6 @@
+[role="xpack"]
 [[run-as-privilege]]
-=== Submitting Requests on Behalf of Other Users
+=== Submitting requests on behalf of other users
 
 {security} supports a permission that enables an authenticated user to submit
 requests on behalf of other users. If your application already authenticates

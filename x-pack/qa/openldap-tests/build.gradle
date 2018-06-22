@@ -14,7 +14,7 @@ task openLdapFixture {
     dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", idpFixtureProject.up
 }
 
-String outputDir = "generated-resources/${project.name}"
+String outputDir = "${project.buildDir}/generated-resources/${project.name}"
 task copyIdpTrust(type: Copy) {
     from idpFixtureProject.file('src/main/resources/certs/idptrust.jks');
     into outputDir

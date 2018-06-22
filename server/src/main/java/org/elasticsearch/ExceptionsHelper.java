@@ -243,6 +243,35 @@ public final class ExceptionsHelper {
     }
 
     /**
+     * If the specified cause is an unrecoverable error, this method will rethrow the cause on a separate thread so that it can not be
+     * caught and bubbles up to the uncaught exception handler.
+     *
+     * @param throwable the throwable to test
+     */
+    public static void dieOnError(Throwable throwable) {
+        final Optional<Error> maybeError = ExceptionsHelper.maybeError(throwable, logger);
+        if (maybeError.isPresent()) {
+            /*
+             * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, Netty wraps too many
+             * invocations of user-code in try/catch blocks that swallow all throwables. This means that a rethrow here will not bubble up
+             * to where we want it to. So, we fork a thread and throw the exception from there where Netty can not get to it. We do not wrap
+             * the exception so as to not lose the original cause during exit.
+             */
+            try {
+                // try to log the current stack trace
+                final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
+                logger.error("fatal error\n{}", formatted);
+            } finally {
+                new Thread(
+                    () -> {
+                        throw maybeError.get();
+                    })
+                    .start();
+            }
+        }
+    }
+
+    /**
      * Deduplicate the failures by exception message and index.
      */
     public static ShardOperationFailedException[] groupBy(ShardOperationFailedException[] failures) {

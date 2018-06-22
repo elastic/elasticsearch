@@ -14,6 +14,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.junit.Before;
 
@@ -28,11 +30,11 @@ import static org.elasticsearch.xpack.sql.plugin.SqlTestUtils.randomFilterOrNull
 
 public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRequest> {
 
-    public AbstractSqlRequest.Mode testMode;
+    public Mode testMode;
 
     @Before
     public void setup() {
-        testMode = randomFrom(AbstractSqlRequest.Mode.values());
+        testMode = randomFrom(Mode.values());
     }
 
     @Override
@@ -63,11 +65,11 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
             List<SqlTypedParamValue> arr = new ArrayList<>(len);
             for (int i = 0; i < len; i++) {
                 @SuppressWarnings("unchecked") Supplier<SqlTypedParamValue> supplier = randomFrom(
-                        () -> new SqlTypedParamValue(randomBoolean(), DataType.BOOLEAN),
-                        () -> new SqlTypedParamValue(randomLong(), DataType.LONG),
-                        () -> new SqlTypedParamValue(randomDouble(), DataType.DOUBLE),
-                        () -> new SqlTypedParamValue(null, DataType.NULL),
-                        () -> new SqlTypedParamValue(randomAlphaOfLength(10), DataType.KEYWORD)
+                        () -> new SqlTypedParamValue(DataType.BOOLEAN, randomBoolean()),
+                        () -> new SqlTypedParamValue(DataType.LONG, randomLong()),
+                        () -> new SqlTypedParamValue(DataType.DOUBLE, randomDouble()),
+                        () -> new SqlTypedParamValue(DataType.NULL, null),
+                        () -> new SqlTypedParamValue(DataType.KEYWORD, randomAlphaOfLength(10))
                 );
                 arr.add(supplier.get());
             }
@@ -93,7 +95,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
     protected SqlQueryRequest mutateInstance(SqlQueryRequest instance) {
         @SuppressWarnings("unchecked")
         Consumer<SqlQueryRequest> mutator = randomFrom(
-                request -> request.mode(randomValueOtherThan(request.mode(), () -> randomFrom(AbstractSqlRequest.Mode.values()))),
+                request -> request.mode(randomValueOtherThan(request.mode(), () -> randomFrom(Mode.values()))),
                 request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
                 request -> request.params(randomValueOtherThan(request.params(), this::randomParameters)),
                 request -> request.timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomTimeZone)),

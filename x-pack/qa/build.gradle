@@ -28,5 +28,9 @@ gradle.projectsEvaluated {
       project.tasks.remove(assemble)
       project.build.dependsOn.remove('assemble')
     }
+    Task dependenciesInfo = project.tasks.findByName('dependenciesInfo')
+    if (dependenciesInfo) {
+      project.precommit.dependsOn.remove('dependenciesInfo')
+    }
   }
 }

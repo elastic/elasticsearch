@@ -35,7 +35,7 @@
        id: "non_existing"
 
   - do:
-      catch: request
+      catch: bad_request
       put_script:
         id: "1"
         context: "search"

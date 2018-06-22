@@ -19,13 +19,20 @@
 
 package org.elasticsearch.packaging;
 
-import org.junit.Test;
+import org.elasticsearch.packaging.test.OssTarTests;
+import org.elasticsearch.packaging.test.OssZipTests;
+import org.elasticsearch.packaging.test.DefaultTarTests;
+import org.elasticsearch.packaging.test.DefaultZipTests;
 
-/**
- * This class doesn't have any tests yet
- */
-public class PackagingTests {
+import org.junit.runner.RunWith;
+import org.junit.runners.Suite;
+import org.junit.runners.Suite.SuiteClasses;
 
-    @Test
-    public void testDummy() {}
-}
+@RunWith(Suite.class)
+@SuiteClasses({
+    DefaultTarTests.class,
+    DefaultZipTests.class,
+    OssTarTests.class,
+    OssZipTests.class
+})
+public class PackagingTests {}

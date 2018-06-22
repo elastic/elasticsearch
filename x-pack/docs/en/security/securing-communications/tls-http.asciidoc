@@ -40,9 +40,9 @@ This name should match the `keystore.path` value.
 [source, yaml]
 --------------------------------------------------
 xpack.security.http.ssl.enabled: true
-xpack.security.http.ssl.key:  /home/es/config/x-pack/node01.key <1>
-xpack.security.http.ssl.certificate: /home/es/config/x-pack/node01.crt <2>
-xpack.security.http.ssl.certificate_authorities: [ "/home/es/config/x-pack/ca.crt" ] <3>
+xpack.security.http.ssl.key:  /home/es/config/node01.key <1>
+xpack.security.http.ssl.certificate: /home/es/config/node01.crt <2>
+xpack.security.http.ssl.certificate_authorities: [ "/home/es/config/ca.crt" ] <3>
 --------------------------------------------------
 <1> The full path to the node key file. This must be a location within the
     {es} configuration directory.

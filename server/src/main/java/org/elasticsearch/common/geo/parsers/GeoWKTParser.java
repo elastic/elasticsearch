@@ -18,12 +18,9 @@
  */
 package org.elasticsearch.common.geo.parsers;
 
-import org.locationtech.jts.geom.Coordinate;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeType;
-
-import java.io.StringReader;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
@@ -37,9 +34,11 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
 import java.io.StreamTokenizer;
+import java.io.StringReader;
 import java.util.List;
 
 /**
@@ -77,8 +76,7 @@ public class GeoWKTParser {
     public static ShapeBuilder parseExpectedType(XContentParser parser, final GeoShapeType shapeType,
                                                  final GeoShapeFieldMapper shapeMapper)
             throws IOException, ElasticsearchParseException {
-        StringReader reader = new StringReader(parser.text());
-        try {
+        try (StringReader reader = new StringReader(parser.text())) {
             boolean ignoreZValue = (shapeMapper != null && shapeMapper.ignoreZValue().value() == true);
             // setup the tokenizer; configured to read words w/o numbers
             StreamTokenizer tokenizer = new StreamTokenizer(reader);
@@ -95,8 +93,6 @@ public class GeoWKTParser {
             ShapeBuilder builder = parseGeometry(tokenizer, shapeType, ignoreZValue);
             checkEOF(tokenizer);
             return builder;
-        } finally {
-            reader.close();
         }
     }
 

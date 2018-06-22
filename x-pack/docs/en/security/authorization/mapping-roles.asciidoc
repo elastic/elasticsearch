@@ -1,5 +1,6 @@
+[role="xpack"]
 [[mapping-roles]]
-=== Mapping Users and Groups to Roles
+=== Mapping users and groups to roles
 
 If you authenticate users with the `native` or `file` realms, you can manage
 role assignment by using the <<managing-native-users, User Management APIs>> or
@@ -24,29 +25,26 @@ you are able to map users to both API-managed roles and file-managed roles
 (and likewise for file-based role-mappings).
 
 [[mapping-roles-api]]
-==== Using the Role Mapping API
+==== Using the role mapping API
 
 You can define role-mappings through the
 {ref}/security-api-role-mapping.html[role mapping API].
 
 [[mapping-roles-file]]
-==== Using Role Mapping Files
+==== Using role mapping files
 
 To use file based role-mappings, you must configure the mappings in a YAML file
 and copy it to each node in the cluster. Tools like Puppet or Chef can help with
 this.
 
-By default, role mappings are stored in `ES_PATH_CONF/x-pack/role_mapping.yml`,
+By default, role mappings are stored in `ES_PATH_CONF/role_mapping.yml`,
 where `ES_PATH_CONF` is `ES_HOME/config` (zip/tar installations) or
 `/etc/elasticsearch` (package installations). To specify a different location,
-you configure the `files.role_mapping` realm settings in `elasticsearch.yml`.
-This setting enables you to use a different set of mappings for each realm type:
-
-|=====
-| `xpack.security.authc.ldap.files.role_mapping` | | | The location of the role mappings for LDAP realms.
-| `xpack.security.authc.active_directory.files.role_mapping` | | | The location of the role mappings for Active Directory realms.
-| `xpack.security.authc.pki.files.role_mapping` | | | The location of the role mappings for PKI realms.
-|=====
+you configure the `files.role_mapping` setting in the 
+{ref}/security-settings.html#ref-ad-settings[Active Directory], 
+{ref}/security-settings.html#ref-ldap-settings[LDAP], and 
+{ref}/security-settings.html#ref-pki-settings[PKI] realm settings in 
+`elasticsearch.yml`.
 
 Within the role mapping file, the security roles are keys and groups and users
 are values. The mappings can have a many-to-many relationship. When you map roles
@@ -59,10 +57,10 @@ You can change this default behavior by changing the
 this is a common setting in Elasticsearch, changing its value might effect other
 schedules in the system.
 
-==== Realm Specific Details
+==== Realm specific details
 [float]
 [[ldap-role-mapping]]
-===== Active Directory and LDAP Realms
+===== Active Directory and LDAP realms
 
 To specify users and groups in the role mappings, you use their
 _Distinguished Names_ (DNs). A DN is a string that uniquely identifies the user
@@ -116,7 +114,7 @@ PUT _xpack/security/role_mapping/basic_users
 
 [float]
 [[pki-role-mapping]]
-===== PKI Realms
+===== PKI realms
 
 PKI realms support mapping users to roles, but you cannot map groups as
 the PKI realm has no notion of a group.

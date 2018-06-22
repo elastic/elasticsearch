@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
@@ -50,12 +48,10 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
     private final Client client;
 
     @Inject
-    public TransportGetFiltersAction(Settings settings, ThreadPool threadPool,
-                                     TransportService transportService, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver,
-                                     Client client) {
-        super(settings, GetFiltersAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, GetFiltersAction.Request::new);
+    public TransportGetFiltersAction(Settings settings, TransportService transportService,
+                                     ActionFilters actionFilters, Client client) {
+        super(settings, GetFiltersAction.NAME, transportService, actionFilters,
+            GetFiltersAction.Request::new);
         this.client = client;
     }
 

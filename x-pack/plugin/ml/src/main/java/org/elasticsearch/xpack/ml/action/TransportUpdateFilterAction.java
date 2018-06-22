@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
@@ -54,10 +53,9 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
     private final JobManager jobManager;
 
     @Inject
-    public TransportUpdateFilterAction(Settings settings, ThreadPool threadPool,
-                                       TransportService transportService, ActionFilters actionFilters,
-                                       Client client, JobManager jobManager) {
-        super(settings, UpdateFilterAction.NAME, threadPool, transportService, actionFilters,
+    public TransportUpdateFilterAction(Settings settings, TransportService transportService, ActionFilters actionFilters, Client client,
+                                       JobManager jobManager) {
+        super(settings, UpdateFilterAction.NAME, transportService, actionFilters,
                 (Supplier<UpdateFilterAction.Request>) UpdateFilterAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;

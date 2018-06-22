@@ -45,6 +45,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -563,7 +564,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     class UnicastPingRequestHandler implements TransportRequestHandler<UnicastPingRequest> {
 
         @Override
-        public void messageReceived(UnicastPingRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(UnicastPingRequest request, TransportChannel channel, Task task) throws Exception {
             if (closed) {
                 throw new AlreadyClosedException("node is shutting down");
             }

@@ -338,7 +338,7 @@ public abstract class TransportTasksAction<
     class NodeTransportHandler implements TransportRequestHandler<NodeTaskRequest> {
 
         @Override
-        public void messageReceived(final NodeTaskRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
             nodeOperation(request, new ActionListener<NodeTasksResponse>() {
                 @Override
                 public void onResponse(

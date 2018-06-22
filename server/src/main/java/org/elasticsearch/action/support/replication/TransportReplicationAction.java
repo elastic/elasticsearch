@@ -273,22 +273,12 @@ public abstract class TransportReplicationAction<
                 }
             });
         }
-
-        @Override
-        public void messageReceived(Request request, TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required for this operation");
-        }
     }
 
     protected class PrimaryOperationTransportHandler implements TransportRequestHandler<ConcreteShardRequest<Request>> {
 
         public PrimaryOperationTransportHandler() {
 
-        }
-
-        @Override
-        public void messageReceived(final ConcreteShardRequest<Request> request, final TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required for this operation");
         }
 
         @Override
@@ -492,12 +482,6 @@ public abstract class TransportReplicationAction<
     }
 
     public class ReplicaOperationTransportHandler implements TransportRequestHandler<ConcreteReplicaRequest<ReplicaRequest>> {
-
-        @Override
-        public void messageReceived(
-                final ConcreteReplicaRequest<ReplicaRequest> replicaRequest, final TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required for this operation");
-        }
 
         @Override
         public void messageReceived(

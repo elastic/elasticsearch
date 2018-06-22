@@ -65,11 +65,6 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
     class TransportHandler implements TransportRequestHandler<Request> {
 
         @Override
-        public final void messageReceived(Request request, TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required for this operation");
-        }
-
-        @Override
         public final void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
             // We already got the task created on the network layer - no need to create it again on the transport layer
             execute(task, request, new ActionListener<Response>() {

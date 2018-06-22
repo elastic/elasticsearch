@@ -23,12 +23,22 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
+import org.elasticsearch.action.ingest.SimulateDocumentResult;
+import org.elasticsearch.action.ingest.SimulateDocumentVerboseResult;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.PipelineConfiguration;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class IngestClientIT extends ESRestHighLevelClientTestCase {
 
@@ -79,5 +89,94 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
         WritePipelineResponse response =
             execute(request, highLevelClient().ingest()::deletePipeline, highLevelClient().ingest()::deletePipelineAsync);
         assertTrue(response.isAcknowledged());
+    }
+
+    public void testSimulatePipeline() throws IOException {
+        testSimulatePipeline(false, false);
+    }
+
+    public void testSimulatePipelineWithFailure() throws IOException {
+        testSimulatePipeline(false, true);
+    }
+
+    public void testSimulatePipelineVerbose() throws IOException {
+        testSimulatePipeline(true, false);
+    }
+
+    public void testSimulatePipelineVerboseWithFailure() throws IOException {
+        testSimulatePipeline(true, true);
+    }
+
+    private void testSimulatePipeline(boolean isVerbose,
+                                      boolean isFailure) throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
+        String rankValue = isFailure ? "non-int" : Integer.toString(1234);
+        builder.startObject();
+        {
+            builder.field("pipeline");
+            buildRandomXContentPipeline(builder);
+            builder.startArray("docs");
+            {
+                builder.startObject()
+                    .field("_index", "index")
+                    .field("_type", "doc")
+                    .field("_id", "doc_" + 1)
+                    .startObject("_source").field("foo", "rab_" + 1).field("rank", rankValue).endObject()
+                    .endObject();
+            }
+            builder.endArray();
+        }
+        builder.endObject();
+
+        SimulatePipelineRequest request = new SimulatePipelineRequest(
+            BytesReference.bytes(builder),
+            builder.contentType()
+        );
+        request.setVerbose(isVerbose);
+        SimulatePipelineResponse response =
+            execute(request, highLevelClient().ingest()::simulatePipeline, highLevelClient().ingest()::simulatePipelineAsync);
+        List<SimulateDocumentResult> results = response.getResults();
+        assertEquals(1, results.size());
+        if (isVerbose) {
+            assertThat(results.get(0), instanceOf(SimulateDocumentVerboseResult.class));
+            SimulateDocumentVerboseResult verboseResult = (SimulateDocumentVerboseResult) results.get(0);
+            assertEquals(2, verboseResult.getProcessorResults().size());
+            if (isFailure) {
+                assertNotNull(verboseResult.getProcessorResults().get(1).getFailure());
+                assertThat(verboseResult.getProcessorResults().get(1).getFailure().getMessage(),
+                    containsString("unable to convert [non-int] to integer"));
+            } else {
+                assertEquals(
+                    verboseResult.getProcessorResults().get(0).getIngestDocument()
+                        .getFieldValue("foo", String.class),
+                    "bar"
+                );
+                assertEquals(
+                    Integer.valueOf(1234),
+                    verboseResult.getProcessorResults().get(1).getIngestDocument()
+                        .getFieldValue("rank", Integer.class)
+                );
+            }
+        } else {
+            assertThat(results.get(0), instanceOf(SimulateDocumentBaseResult.class));
+            SimulateDocumentBaseResult baseResult = (SimulateDocumentBaseResult)results.get(0);
+            if (isFailure) {
+                assertNotNull(baseResult.getFailure());
+                assertThat(baseResult.getFailure().getMessage(),
+                    containsString("unable to convert [non-int] to integer"));
+            } else {
+                assertNotNull(baseResult.getIngestDocument());
+                assertEquals(
+                    baseResult.getIngestDocument().getFieldValue("foo", String.class),
+                    "bar"
+                );
+                assertEquals(
+                    Integer.valueOf(1234),
+                    baseResult.getIngestDocument()
+                        .getFieldValue("rank", Integer.class)
+                );
+            }
+        }
     }
 }

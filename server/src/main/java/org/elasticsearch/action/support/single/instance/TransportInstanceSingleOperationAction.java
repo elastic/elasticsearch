@@ -244,7 +244,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     private class ShardTransportHandler implements TransportRequestHandler<Request> {
 
         @Override
-        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
             shardOperation(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {

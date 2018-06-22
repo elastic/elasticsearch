@@ -16,7 +16,7 @@ public interface CachingRealm {
     /**
      * @return The name of this realm.
      */
-    public String name();
+    String name();
 
     /**
      * Expires a single user from the cache identified by the String agument

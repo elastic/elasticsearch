@@ -50,6 +50,7 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class PkiRealmTests extends ESTestCase {
@@ -145,6 +146,7 @@ public class PkiRealmTests extends ESTestCase {
 
         final int numTimes = invalidate ? 2 : 1;
         verify(roleMapper, times(numTimes)).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        verifyNoMoreInteractions(roleMapper);
     }
 
     public void testCustomUsernamePattern() throws Exception {

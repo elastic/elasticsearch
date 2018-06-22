@@ -460,7 +460,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if (INDICES.equals(currentFieldName)) {
                         ArrayList<String> indicesArray = new ArrayList<>();
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             indicesArray.add(parser.text());
                         }
                         indices = Collections.unmodifiableList(indicesArray);
@@ -476,7 +476,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (SHARDS.equals(currentFieldName)) {
-                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
                                 token = parser.nextToken();

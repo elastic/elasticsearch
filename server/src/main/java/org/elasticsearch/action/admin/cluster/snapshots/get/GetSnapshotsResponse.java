@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -105,5 +106,18 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             }
         }
         return new GetSnapshotsResponse(snapshots);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetSnapshotsResponse that = (GetSnapshotsResponse) o;
+        return Objects.equals(snapshots, that.snapshots);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(snapshots);
     }
 }

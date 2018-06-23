@@ -168,6 +168,30 @@ This query produces a similar result:
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 13/"took" : $body.took/]
 
+[[ip-range]]
+==== IP Range
+
+In addition to the range format above, IP ranges can be provided in
+https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR] notation:
+
+[source,js]
+--------------------------------------------------
+PUT range_index/_mapping/_doc
+{
+  "properties": {
+    "ip_whitelist": {
+      "type": "ip_range"
+    }
+  }
+}
+
+PUT range_index/_doc/2
+{
+  "ip_whitelist" : "192.168.0.0/16"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:range_index]
 
 [[range-params]]
 ==== Parameters for range fields

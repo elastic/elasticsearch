@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class AzureRepositorySettingsTests extends ESTestCase {
 
@@ -45,7 +46,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             .put(settings)
             .build();
         return new AzureRepository(new RepositoryMetaData("foo", "azure", internalSettings),
-            TestEnvironment.newEnvironment(internalSettings), NamedXContentRegistry.EMPTY, null);
+            TestEnvironment.newEnvironment(internalSettings), NamedXContentRegistry.EMPTY, mock(AzureStorageService.class));
     }
 
 

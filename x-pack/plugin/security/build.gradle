@@ -52,12 +52,73 @@ dependencies {
     compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
     compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
     compile "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
-    compile 'com.google.guava:guava:19.0' 
+    compile 'com.google.guava:guava:19.0'
 
     testCompile 'org.elasticsearch:securemock:1.2'
     testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
     //testCompile "org.yaml:snakeyaml:${versions.snakeyaml}"
 
+    // Test dependencies for Kerberos (MiniKdc)
+    testCompile('commons-io:commons-io:2.5')
+    testCompile('org.apache.kerby:kerb-simplekdc:1.1.1')
+    testCompile('org.apache.kerby:kerb-client:1.1.1')
+    testCompile('org.apache.kerby:kerby-config:1.1.1')
+    testCompile('org.apache.kerby:kerb-core:1.1.1')
+    testCompile('org.apache.kerby:kerby-pkix:1.1.1')
+    testCompile('org.apache.kerby:kerby-asn1:1.1.1')
+    testCompile('org.apache.kerby:kerby-util:1.1.1')
+    testCompile('org.apache.kerby:kerb-common:1.1.1')
+    testCompile('org.apache.kerby:kerb-crypto:1.1.1')
+    testCompile('org.apache.kerby:kerb-util:1.1.1')
+    testCompile('org.apache.kerby:token-provider:1.1.1')
+    testCompile('com.nimbusds:nimbus-jose-jwt:4.41.2')
+    testCompile('net.jcip:jcip-annotations:1.0')
+    testCompile('org.apache.kerby:kerb-admin:1.1.1')
+    testCompile('org.apache.kerby:kerb-server:1.1.1')
+    testCompile('org.apache.kerby:kerb-identity:1.1.1')
+    testCompile('org.apache.kerby:kerby-xdr:1.1.1')
+
+    // LDAP backend support for SimpleKdcServer
+    testCompile('org.apache.kerby:kerby-backend:1.1.1')
+    testCompile('org.apache.kerby:ldap-backend:1.1.1')
+    testCompile('org.apache.kerby:kerb-identity:1.1.1')
+    testCompile('org.apache.directory.api:api-ldap-client-api:1.0.0')
+    testCompile('org.apache.directory.api:api-ldap-schema-data:1.0.0')
+    testCompile('org.apache.directory.api:api-ldap-codec-core:1.0.0')
+    testCompile('org.apache.directory.api:api-ldap-extras-aci:1.0.0')
+    testCompile('org.apache.directory.api:api-ldap-extras-codec:1.0.0')
+    testCompile('org.apache.directory.api:api-ldap-extras-codec-api:1.0.0')
+    testCompile('commons-pool:commons-pool:1.6')
+    testCompile('commons-collections:commons-collections:3.2')
+    testCompile('org.apache.mina:mina-core:2.0.17')
+    testCompile('org.apache.directory.api:api-util:1.0.1')
+    testCompile('org.apache.directory.api:api-i18n:1.0.1')
+    testCompile('org.apache.directory.api:api-ldap-model:1.0.1')
+    testCompile('org.apache.directory.api:api-asn1-api:1.0.1')
+    testCompile('org.apache.directory.api:api-asn1-ber:1.0.1')
+    testCompile('org.apache.servicemix.bundles:org.apache.servicemix.bundles.antlr:2.7.7_5')
+    testCompile('org.apache.directory.server:apacheds-core-api:2.0.0-M24')
+    testCompile('org.apache.directory.server:apacheds-i18n:2.0.0-M24')
+    testCompile('org.apache.directory.api:api-ldap-extras-util:1.0.0')
+    testCompile('net.sf.ehcache:ehcache:2.10.4')
+    testCompile('org.apache.directory.server:apacheds-kerberos-codec:2.0.0-M24')
+    testCompile('org.apache.directory.server:apacheds-protocol-ldap:2.0.0-M24')
+    testCompile('org.apache.directory.server:apacheds-protocol-shared:2.0.0-M24')
+    testCompile('org.apache.directory.jdbm:apacheds-jdbm1:2.0.0-M3')
+    testCompile('org.apache.directory.server:apacheds-jdbm-partition:2.0.0-M24')
+    testCompile('org.apache.directory.server:apacheds-xdbm-partition:2.0.0-M24')
+    testCompile('org.apache.directory.api:api-ldap-extras-sp:1.0.0')
+    testCompile('org.apache.directory.server:apacheds-test-framework:2.0.0-M24')
+    testCompile('org.apache.directory.server:apacheds-core-annotations:2.0.0-M24')
+    testCompile('org.apache.directory.server:apacheds-ldif-partition:2.0.0-M24')
+    testCompile('org.apache.directory.server:apacheds-mavibot-partition:2.0.0-M24')
+    testCompile('org.apache.directory.server:apacheds-protocol-kerberos:2.0.0-M24')
+    testCompile('org.apache.directory.server:apacheds-server-annotations:2.0.0-M24')
+    testCompile('org.apache.directory.api:api-ldap-codec-standalone:1.0.0')
+    testCompile('org.apache.directory.api:api-ldap-net-mina:1.0.0')
+    testCompile('org.apache.directory.server:ldap-client-test:2.0.0-M24')
+    testCompile('org.apache.directory.server:apacheds-interceptor-kerberos:2.0.0-M24')
+    testCompile('org.apache.directory.mavibot:mavibot:1.0.0-M8')
 }
 
 compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"

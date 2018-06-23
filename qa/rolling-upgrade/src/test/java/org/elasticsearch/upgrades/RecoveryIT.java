@@ -81,6 +81,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     assertThat("different history uuid found for shard on " + nodeID, historyUUID, equalTo(expectHistoryUUID));
                 }
             }
+        } else {
+            ensureGreen(index);
         }
     }
 

@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
-import java.util.function.Supplier;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
@@ -23,20 +21,22 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
+import java.util.function.Supplier;
+
 public class TransportDeleteUserAction extends HandledTransportAction<DeleteUserRequest, DeleteUserResponse> {
 
     private final NativeUsersStore usersStore;
 
     @Inject
-    public TransportDeleteUserAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportDeleteUserAction(Settings settings, ActionFilters actionFilters,
                                      NativeUsersStore usersStore, TransportService transportService) {
-        super(settings, DeleteUserAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, DeleteUserAction.NAME, transportService, actionFilters,
             (Supplier<DeleteUserRequest>) DeleteUserRequest::new);
         this.usersStore = usersStore;
     }
 
     @Override
-    protected void doExecute(DeleteUserRequest request, final ActionListener<DeleteUserResponse> listener) {
+    protected void doExecute(Task task, DeleteUserRequest request, final ActionListener<DeleteUserResponse> listener) {
         final String username = request.username();
         if (ClientReservedRealm.isReserved(username, settings)) {
             if (AnonymousUser.isAnonymousUsername(username, settings)) {

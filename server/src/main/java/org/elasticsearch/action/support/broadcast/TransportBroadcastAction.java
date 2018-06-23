@@ -58,10 +58,10 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
 
     final String transportShardAction;
 
-    protected TransportBroadcastAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
+    protected TransportBroadcastAction(Settings settings, String actionName, ClusterService clusterService,
                                        TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                        Supplier<Request> request, Supplier<ShardRequest> shardRequest, String shardExecutor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, request);
+        super(settings, actionName, transportService, actionFilters, request);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -73,11 +73,6 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new AsyncBroadcastAction(task, request, listener).start();
-    }
-
-    @Override
-    protected final void doExecute(Request request, ActionListener<Response> listener) {
-        throw new UnsupportedOperationException("the task parameter is required for this operation");
     }
 
     protected abstract Response newResponse(Request request, AtomicReferenceArray shardsResponses, ClusterState clusterState);
@@ -283,11 +278,6 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
         @Override
         public void messageReceived(ShardRequest request, TransportChannel channel, Task task) throws Exception {
             channel.sendResponse(shardOperation(request, task));
-        }
-
-        @Override
-        public final void messageReceived(final ShardRequest request, final TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required");
         }
     }
 }

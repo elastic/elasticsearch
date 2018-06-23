@@ -424,12 +424,9 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         UnblockTestTasksResponse, UnblockTestTaskResponse> {
 
         @Inject
-        public TransportUnblockTestTasksAction(Settings settings,ThreadPool threadPool, ClusterService
-            clusterService,
-                                               TransportService transportService) {
-            super(settings, UnblockTestTasksAction.NAME, threadPool, clusterService, transportService, new ActionFilters(new
-                HashSet<>()),
-                UnblockTestTasksRequest::new, UnblockTestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+        public TransportUnblockTestTasksAction(Settings settings, ClusterService clusterService, TransportService transportService) {
+            super(settings, UnblockTestTasksAction.NAME, clusterService, transportService, new ActionFilters(new HashSet<>()),
+                  UnblockTestTasksRequest::new, UnblockTestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         }
 
         @Override

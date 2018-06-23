@@ -4,6 +4,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
       index:
         index: .ml-meta
         type: doc
@@ -112,25 +113,25 @@ setup:
 "Test create filter api":
   - do:
       xpack.ml.put_filter:
-        filter_id: filter-foo2
+        filter_id: new-filter
         body:  >
           {
             "description": "A newly created filter",
             "items": ["abc", "xyz"]
           }
 
-  - match: { filter_id: filter-foo2 }
+  - match: { filter_id: new-filter }
   - match: { description: "A newly created filter" }
   - match: { items: ["abc", "xyz"]}
 
   - do:
       xpack.ml.get_filters:
-        filter_id: "filter-foo2"
+        filter_id: "new-filter"
 
   - match: { count:   1 }
   - match:
       filters.0:
-        filter_id: "filter-foo2"
+        filter_id: "new-filter"
         description: "A newly created filter"
         items: ["abc", "xyz"]
 
@@ -144,6 +145,65 @@ setup:
           {
             "filter_id": "body_id",
             "items": ["abc", "xyz"]
+          }
+
+---
+"Test update filter given no filter matches filter_id":
+  - do:
+      catch: missing
+      xpack.ml.update_filter:
+        filter_id: "missing_filter"
+        body:  >
+          {
+          }
+
+---
+"Test update filter":
+  - do:
+      xpack.ml.put_filter:
+        filter_id: "test_update_filter"
+        body:  >
+          {
+            "description": "old description",
+            "items": ["a", "b"]
+          }
+  - match: { filter_id: test_update_filter }
+
+  - do:
+      xpack.ml.update_filter:
+        filter_id: "test_update_filter"
+        body:  >
+          {
+            "description": "new description",
+            "add_items": ["c", "d"],
+            "remove_items": ["a"]
+          }
+  - match: { filter_id: test_update_filter }
+  - match: { description: "new description" }
+  - match: { items: ["b", "c", "d"] }
+
+  - do:
+      xpack.ml.get_filters:
+        filter_id: "test_update_filter"
+  - match:
+      filters.0:
+        filter_id: "test_update_filter"
+        description: "new description"
+        items: ["b", "c", "d"]
+
+  - do:
+      xpack.ml.delete_filter:
+        filter_id: test_update_filter
+
+---
+"Test update filter given remove item is not present":
+  - do:
+      catch: /Cannot remove item \[not present item\] as it is not present in filter \[filter-foo\]/
+      xpack.ml.update_filter:
+        filter_id: "filter-foo"
+        body:  >
+          {
+            "remove_items": ["not present item"]
           }
 
 ---

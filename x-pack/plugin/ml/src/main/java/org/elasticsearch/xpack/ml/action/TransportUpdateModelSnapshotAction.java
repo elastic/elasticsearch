@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -42,16 +42,17 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<U
     private final Client client;
 
     @Inject
-    public TransportUpdateModelSnapshotAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportUpdateModelSnapshotAction(Settings settings, TransportService transportService,
                                               ActionFilters actionFilters, JobProvider jobProvider, Client client) {
-        super(settings, UpdateModelSnapshotAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, UpdateModelSnapshotAction.NAME, transportService, actionFilters,
             UpdateModelSnapshotAction.Request::new);
         this.jobProvider = jobProvider;
         this.client = client;
     }
 
     @Override
-    protected void doExecute(UpdateModelSnapshotAction.Request request, ActionListener<UpdateModelSnapshotAction.Response> listener) {
+    protected void doExecute(Task task, UpdateModelSnapshotAction.Request request,
+                             ActionListener<UpdateModelSnapshotAction.Response> listener) {
         logger.debug("Received request to update model snapshot [{}] for job [{}]", request.getSnapshotId(), request.getJobId());
         jobProvider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), modelSnapshot -> {
             if (modelSnapshot == null) {

@@ -42,9 +42,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
 import static org.elasticsearch.client.RestClientTestUtil.randomOkStatusCode;
-import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -77,14 +75,15 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             httpServers[i] = httpServer;
             httpHosts[i] = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
         }
-        restClient = buildRestClient();
+        restClient = buildRestClient(NodeSelector.ANY);
     }
 
-    private static RestClient buildRestClient() {
+    private static RestClient buildRestClient(NodeSelector nodeSelector) {
         RestClientBuilder restClientBuilder = RestClient.builder(httpHosts);
         if (pathPrefix.length() > 0) {
             restClientBuilder.setPathPrefix((randomBoolean() ? "/" : "") + pathPrefixWithoutLeadingSlash);
         }
+        restClientBuilder.setNodeSelector(nodeSelector);
         return restClientBuilder.build();
     }
 
@@ -201,27 +200,28 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
      * test what happens after calling
      */
     public void testNodeSelector() throws IOException {
-        Request request = new Request("GET", "/200");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.setNodeSelector(firstPositionNodeSelector());
-        request.setOptions(options);
-        int rounds = between(1, 10);
-        for (int i = 0; i < rounds; i++) {
-            /*
-             * Run the request more than once to verify that the
-             * NodeSelector overrides the round robin behavior.
-             */
-            if (stoppedFirstHost) {
-                try {
-                    restClient.performRequest(request);
-                    fail("expected to fail to connect");
-                } catch (ConnectException e) {
-                    // This is different in windows and linux but this matches both.
-                    assertThat(e.getMessage(), startsWith("Connection refused"));
+        try (RestClient restClient = buildRestClient(firstPositionNodeSelector())) {
+            Request request = new Request("GET", "/200");
+            int rounds = between(1, 10);
+            for (int i = 0; i < rounds; i++) {
+                /*
+                 * Run the request more than once to verify that the
+                 * NodeSelector overrides the round robin behavior.
+                 */
+                if (stoppedFirstHost) {
+                    try {
+                        restClient.performRequest(request);
+                        fail("expected to fail to connect");
+                    } catch (ConnectException e) {
+                        // Windows isn't consistent here. Sometimes the message is even null!
+                        if (false == System.getProperty("os.name").startsWith("Windows")) {
+                            assertEquals("Connection refused", e.getMessage());
+                        }
+                    }
+                } else {
+                    Response response = restClient.performRequest(request);
+                    assertEquals(httpHosts[0], response.getHost());
                 }
-            } else {
-                Response response = restClient.performRequest(request);
-                assertEquals(httpHosts[0], response.getHost());
             }
         }
     }

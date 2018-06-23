@@ -37,6 +37,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -50,6 +51,8 @@ import java.util.function.Supplier;
 
 public abstract class TransportInstanceSingleOperationAction<Request extends InstanceShardOperationRequest<Request>, Response extends ActionResponse>
         extends HandledTransportAction<Request, Response> {
+
+    protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -60,7 +63,8 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     protected TransportInstanceSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool,
                                                      ClusterService clusterService, TransportService transportService,
                                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        super(settings, actionName, threadPool, transportService, actionFilters, request);
+        super(settings, actionName, transportService, actionFilters, request);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -70,7 +74,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     }
 
     @Override
-    protected void doExecute(Request request, ActionListener<Response> listener) {
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new AsyncSingleAction(request, listener).start();
     }
 
@@ -240,7 +244,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
     private class ShardTransportHandler implements TransportRequestHandler<Request> {
 
         @Override
-        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
             shardOperation(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {

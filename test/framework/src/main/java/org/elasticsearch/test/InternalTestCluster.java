@@ -1111,17 +1111,21 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    CommitStats commitStats = indexShard.commitStats();
-                    if (commitStats != null) { // null if the engine is closed or if the shard is recovering
+                    try {
+                        CommitStats commitStats = indexShard.commitStats();
                         String syncId = commitStats.getUserData().get(Engine.SYNC_COMMIT_ID);
                         if (syncId != null) {
                             long liveDocsOnShard = commitStats.getNumDocs();
                             if (docsOnShards.get(syncId) != null) {
-                                assertThat("sync id is equal but number of docs does not match on node " + nodeAndClient.name + ". expected " + docsOnShards.get(syncId) + " but got " + liveDocsOnShard, docsOnShards.get(syncId), equalTo(liveDocsOnShard));
+                                assertThat("sync id is equal but number of docs does not match on node "
+                                    + nodeAndClient.name + ". expected " + docsOnShards.get(syncId) + " but got "
+                                    + liveDocsOnShard, docsOnShards.get(syncId), equalTo(liveDocsOnShard));
                             } else {
                                 docsOnShards.put(syncId, liveDocsOnShard);
                             }
                         }
+                    } catch (AlreadyClosedException e) {
+                        // the engine is closed or if the shard is recovering
                     }
                 }
             }

@@ -21,7 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -88,15 +88,15 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Response> {
         private final PersistentTasksService persistentTasksService;
 
         @Inject
-        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+        public TransportAction(Settings settings, TransportService transportService,
                                ActionFilters actionFilters, Client client, PersistentTasksService persistentTasksService) {
-            super(settings, NAME, threadPool, transportService, actionFilters, Request::new);
+            super(settings, NAME, transportService, actionFilters, Request::new);
             this.client = client;
             this.persistentTasksService = persistentTasksService;
         }
 
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             client.admin().cluster().state(new ClusterStateRequest(), ActionListener.wrap(r -> {
                 IndexMetaData followIndexMetadata = r.getState().getMetaData().index(request.followIndex);
                 if (followIndexMetadata == null) {

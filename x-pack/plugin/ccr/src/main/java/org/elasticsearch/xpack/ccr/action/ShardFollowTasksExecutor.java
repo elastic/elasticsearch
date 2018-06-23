@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -430,10 +429,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             return new FilterClient(client) {
                 @Override
-                protected <
-                    Request extends ActionRequest,
-                    Response extends ActionResponse,
-                    RequestBuilder extends ActionRequestBuilder<Request, Response>>
+                protected <Request extends ActionRequest, Response extends ActionResponse>
                 void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
                     final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
                     try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {

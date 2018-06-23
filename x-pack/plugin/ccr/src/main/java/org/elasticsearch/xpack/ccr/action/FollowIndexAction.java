@@ -34,6 +34,7 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -172,6 +173,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final Client client;
+        private final ThreadPool threadPool;
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
         private final PersistentTasksService persistentTasksService;
@@ -181,8 +183,9 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
                                Client client, ClusterService clusterService, PersistentTasksService persistentTasksService,
                                IndicesService indicesService) {
-            super(settings, NAME, threadPool, transportService, actionFilters, Request::new);
+            super(settings, NAME, transportService, actionFilters, Request::new);
             this.client = client;
+            this.threadPool = threadPool;
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.persistentTasksService = persistentTasksService;
@@ -190,7 +193,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         }
 
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             ClusterState localClusterState = clusterService.state();
             IndexMetaData followIndexMetadata = localClusterState.getMetaData().index(request.followIndex);
 

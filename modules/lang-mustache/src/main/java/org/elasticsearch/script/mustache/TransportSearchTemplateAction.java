@@ -22,9 +22,9 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +38,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -50,29 +50,26 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     private static final String TEMPLATE_LANG = MustacheScriptEngine.NAME;
 
     private final ScriptService scriptService;
-    private final TransportSearchAction searchAction;
     private final NamedXContentRegistry xContentRegistry;
+    private final NodeClient client;
 
     @Inject
-    public TransportSearchTemplateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                         ActionFilters actionFilters,
-                                         ScriptService scriptService,
-                                         TransportSearchAction searchAction,
-                                         NamedXContentRegistry xContentRegistry) {
-        super(settings, SearchTemplateAction.NAME, threadPool, transportService, actionFilters,
-              (Supplier<SearchTemplateRequest>) SearchTemplateRequest::new);
+    public TransportSearchTemplateAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+                                         ScriptService scriptService, NamedXContentRegistry xContentRegistry, NodeClient client) {
+        super(settings, SearchTemplateAction.NAME, transportService, actionFilters,
+            (Supplier<SearchTemplateRequest>) SearchTemplateRequest::new);
         this.scriptService = scriptService;
-        this.searchAction = searchAction;
         this.xContentRegistry = xContentRegistry;
+        this.client = client;
     }
 
     @Override
-    protected void doExecute(SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
+    protected void doExecute(Task task, SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
         final SearchTemplateResponse response = new SearchTemplateResponse();
         try {
             SearchRequest searchRequest = convert(request, response, scriptService, xContentRegistry);
             if (searchRequest != null) {
-                searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
+                client.search(searchRequest, new ActionListener<SearchResponse>() {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
                         try {

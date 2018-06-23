@@ -30,9 +30,9 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
 
 
     @Inject
-    public TransportStopRollupAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportStopRollupAction(Settings settings, TransportService transportService,
                            ActionFilters actionFilters, ClusterService clusterService) {
-        super(settings, StopRollupJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(settings, StopRollupJobAction.NAME, clusterService, transportService, actionFilters,
             StopRollupJobAction.Request::new, StopRollupJobAction.Response::new, ThreadPool.Names.SAME);
     }
 

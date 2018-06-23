@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,9 +63,9 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
 
     @Inject
-    public TransportCancelTasksAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportCancelTasksAction(Settings settings, ClusterService clusterService,
                                       TransportService transportService, ActionFilters actionFilters) {
-        super(settings, CancelTasksAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(settings, CancelTasksAction.NAME, clusterService, transportService, actionFilters,
             CancelTasksRequest::new, CancelTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, BanParentTaskRequest::new, ThreadPool.Names.SAME, new
             BanParentRequestHandler());
@@ -285,7 +286,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
     class BanParentRequestHandler implements TransportRequestHandler<BanParentTaskRequest> {
         @Override
-        public void messageReceived(final BanParentTaskRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final BanParentTaskRequest request, final TransportChannel channel, Task task) throws Exception {
             if (request.ban) {
                 logger.debug("Received ban for the parent [{}] on the node [{}], reason: [{}]", request.parentTaskId,
                     clusterService.localNode().getId(), request.reason);

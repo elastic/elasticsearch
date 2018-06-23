@@ -20,11 +20,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
@@ -44,16 +44,16 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
     private final ClusterService clusterService;
 
     @Inject
-    public TransportDeleteFilterAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportDeleteFilterAction(Settings settings, TransportService transportService,
                                        ActionFilters actionFilters, ClusterService clusterService, Client client) {
-        super(settings, DeleteFilterAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, DeleteFilterAction.NAME, transportService, actionFilters,
             (Supplier<DeleteFilterAction.Request>) DeleteFilterAction.Request::new);
         this.clusterService = clusterService;
         this.client = client;
     }
 
     @Override
-    protected void doExecute(DeleteFilterAction.Request request, ActionListener<DeleteFilterAction.Response> listener) {
+    protected void doExecute(Task task, DeleteFilterAction.Request request, ActionListener<DeleteFilterAction.Response> listener) {
 
         final String filterId = request.getFilterId();
         ClusterState state = clusterService.state();

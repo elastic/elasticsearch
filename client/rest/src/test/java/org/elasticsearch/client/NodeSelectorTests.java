@@ -59,13 +59,14 @@ public class NodeSelectorTests extends RestClientTestCase {
         Collections.shuffle(nodes, getRandom());
         List<Node> expected = new ArrayList<>(nodes);
         expected.remove(masterOnly);
-        NodeSelector.NOT_MASTER_ONLY.select(nodes);
+        NodeSelector.SKIP_DEDICATED_MASTERS.select(nodes);
         assertEquals(expected, nodes);
     }
 
-    private Node dummyNode(boolean master, boolean data, boolean ingest) {
+    private static Node dummyNode(boolean master, boolean data, boolean ingest) {
         return new Node(new HttpHost("dummy"), Collections.<HttpHost>emptySet(),
                 randomAsciiAlphanumOfLength(5), randomAsciiAlphanumOfLength(5),
-                new Roles(master, data, ingest));
+                new Roles(master, data, ingest),
+                Collections.<String, List<String>>emptyMap());
     }
 }

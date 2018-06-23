@@ -84,7 +84,7 @@ public class DatafeedManagerTests extends ESTestCase {
         Job job = createDatafeedJob().build(new Date());
         mlMetadata.putJob(job, false);
         DatafeedConfig datafeed = createDatafeedConfig("datafeed_id", job.getId()).build();
-        mlMetadata.putDatafeed(datafeed, null);
+        mlMetadata.putDatafeed(datafeed, Collections.emptyMap());
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
@@ -378,7 +378,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onResponse(mock(PersistentTask.class));
             return null;
-        }).when(task).updatePersistentStatus(any(), any());
+        }).when(task).updatePersistentTaskState(any(), any());
         return task;
     }
 
@@ -394,7 +394,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onResponse(mock(PersistentTask.class));
             return null;
-        }).when(task).updatePersistentStatus(any(), any());
+        }).when(task).updatePersistentTaskState(any(), any());
         return task;
     }
 }

@@ -29,7 +29,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -77,6 +76,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static final Logger logger = ESLoggerFactory.getLogger(TransportShardBulkAction.class);
 
+    private final ThreadPool threadPool;
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
 
@@ -87,6 +87,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                     IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             indexNameExpressionResolver, BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE);
+        this.threadPool = threadPool;
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
     }

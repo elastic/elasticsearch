@@ -1,8 +1,6 @@
 [[search-aggregations-metrics-scripted-metric-aggregation]]
 === Scripted Metric Aggregation
 
-experimental[]
-
 A metric aggregation that executes using scripts to provide a metric output.
 
 Example:

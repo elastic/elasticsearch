@@ -54,7 +54,7 @@ public class RestClientTests extends RestClientTestCase {
     public void testCloseIsIdempotent() throws IOException {
         List<Node> nodes = singletonList(new Node(new HttpHost("localhost", 9200)));
         CloseableHttpAsyncClient closeableHttpAsyncClient = mock(CloseableHttpAsyncClient.class);
-        RestClient restClient = new RestClient(closeableHttpAsyncClient, 1_000, new Header[0], nodes, null, null);
+        RestClient restClient = new RestClient(closeableHttpAsyncClient, 1_000, new Header[0], nodes, null, null, null);
         restClient.close();
         verify(closeableHttpAsyncClient, times(1)).close();
         restClient.close();
@@ -341,9 +341,9 @@ public class RestClientTests extends RestClientTestCase {
     }
 
     public void testSelectHosts() throws IOException {
-        Node n1 = new Node(new HttpHost("1"), null, null, "1", null);
-        Node n2 = new Node(new HttpHost("2"), null, null, "2", null);
-        Node n3 = new Node(new HttpHost("3"), null, null, "3", null);
+        Node n1 = new Node(new HttpHost("1"), null, null, "1", null, null);
+        Node n2 = new Node(new HttpHost("2"), null, null, "2", null, null);
+        Node n3 = new Node(new HttpHost("3"), null, null, "3", null, null);
 
         NodeSelector not1 = new NodeSelector() {
             @Override
@@ -475,7 +475,7 @@ public class RestClientTests extends RestClientTestCase {
     private static RestClient createRestClient() {
         List<Node> nodes = Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
         return new RestClient(mock(CloseableHttpAsyncClient.class), randomLongBetween(1_000, 30_000),
-                new Header[] {}, nodes, null, null);
+                new Header[] {}, nodes, null, null, null);
     }
 
 

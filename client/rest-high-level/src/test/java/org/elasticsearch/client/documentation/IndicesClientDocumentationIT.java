@@ -51,10 +51,10 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -62,13 +62,18 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.GetAliasesResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.SyncedFlushResponse;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -79,6 +84,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 
@@ -87,6 +93,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -573,7 +580,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"));
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
             PutMappingRequest request = new PutMappingRequest("twitter");
             request.type("tweet");
@@ -586,7 +593,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "  }\n" +
                     "}", // <1>
                 XContentType.JSON);
-            PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+            PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
 
@@ -630,7 +637,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         final RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"));
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"), RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
             PutMappingRequest request = new PutMappingRequest("twitter");
             request.type("tweet");
@@ -643,7 +650,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "  }\n" +
                     "}", // <1>
                 XContentType.JSON);
-            PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+            PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
             assertTrue(putMappingResponse.isAcknowledged());
         }
 
@@ -1726,6 +1733,76 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    public void testGetAlias() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index").alias(new Alias("alias")),
+                    RequestOptions.DEFAULT);
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::get-alias-request
+            GetAliasesRequest request = new GetAliasesRequest();
+            GetAliasesRequest requestWithAlias = new GetAliasesRequest("alias1");
+            GetAliasesRequest requestWithAliases =
+                    new GetAliasesRequest(new String[]{"alias1", "alias2"});
+            // end::get-alias-request
+
+            // tag::get-alias-request-alias
+            request.aliases("alias"); // <1>
+            // end::get-alias-request-alias
+            // tag::get-alias-request-indices
+            request.indices("index"); // <1>
+            // end::get-alias-request-indices
+
+            // tag::get-alias-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::get-alias-request-indicesOptions
+
+            // tag::get-alias-request-local
+            request.local(true); // <1>
+            // end::get-alias-request-local
+
+            // tag::get-alias-execute
+            GetAliasesResponse response = client.indices().getAlias(request, RequestOptions.DEFAULT);
+            // end::get-alias-execute
+
+            // tag::get-alias-response
+            Map<String, Set<AliasMetaData>> aliases = response.getAliases(); // <1>
+            // end::get-alias-response
+
+            assertThat(response.getAliases().get("index").size(), equalTo(1));
+            assertThat(response.getAliases().get("index").iterator().next().alias(), equalTo("alias"));
+
+            // tag::get-alias-listener
+            ActionListener<GetAliasesResponse> listener =
+                    new ActionListener<GetAliasesResponse>() {
+                        @Override
+                        public void onResponse(GetAliasesResponse getAliasesResponse) {
+                            // <1>
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            // <2>
+                        }
+            };
+            // end::get-alias-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-alias-execute-async
+            client.indices().getAliasAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-alias-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testIndexPutSettings() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -2052,6 +2129,85 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // tag::get-templates-execute-async
         client.indices().getTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::get-templates-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testValidateQuery() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String index = "some_index";
+        createIndex(index, Settings.EMPTY);
+
+        // tag::validate-query-request
+        ValidateQueryRequest request = new ValidateQueryRequest(index); // <1>
+        // end::validate-query-request
+
+        // tag::validate-query-request-query
+        QueryBuilder builder = QueryBuilders
+            .boolQuery() // <1>
+            .must(QueryBuilders.queryStringQuery("*:*"))
+            .filter(QueryBuilders.termQuery("user", "kimchy"));
+        request.query(builder); // <2>
+        // end::validate-query-request-query
+
+        // tag::validate-query-request-explain
+        request.explain(true); // <1>
+        // end::validate-query-request-explain
+
+        // tag::validate-query-request-allShards
+        request.allShards(true); // <1>
+        // end::validate-query-request-allShards
+
+        // tag::validate-query-request-rewrite
+        request.rewrite(true); // <1>
+        // end::validate-query-request-rewrite
+
+        // tag::validate-query-execute
+        ValidateQueryResponse response = client.indices().validateQuery(request, RequestOptions.DEFAULT); // <1>
+        // end::validate-query-execute
+
+        // tag::validate-query-response
+        boolean isValid = response.isValid(); // <1>
+        int totalShards = response.getTotalShards(); // <2>
+        int successfulShards = response.getSuccessfulShards(); // <3>
+        int failedShards = response.getFailedShards(); // <4>
+        if (failedShards > 0) {
+            for(DefaultShardOperationFailedException failure: response.getShardFailures()) { // <5>
+                String failedIndex = failure.index(); // <6>
+                int shardId = failure.shardId(); // <7>
+                String reason = failure.reason(); // <8>
+            }
+        }
+        for(QueryExplanation explanation: response.getQueryExplanation()) { // <9>
+            String explanationIndex = explanation.getIndex(); // <10>
+            int shardId = explanation.getShard(); // <11>
+            String explanationString = explanation.getExplanation(); // <12>
+        }
+        // end::validate-query-response
+
+        // tag::validate-query-execute-listener
+        ActionListener<ValidateQueryResponse> listener =
+            new ActionListener<ValidateQueryResponse>() {
+                @Override
+                public void onResponse(ValidateQueryResponse validateQueryResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::validate-query-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::validate-query-execute-async
+        client.indices().validateQueryAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::validate-query-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

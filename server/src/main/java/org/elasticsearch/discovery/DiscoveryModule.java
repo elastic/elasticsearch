@@ -31,7 +31,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.single.SingleNodeDiscovery;
+import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.plugins.DiscoveryPlugin;
@@ -42,13 +44,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * A module for loading classes for node discovery.
@@ -57,8 +61,8 @@ public class DiscoveryModule {
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
         new Setting<>("discovery.type", "zen", Function.identity(), Property.NodeScope);
-    public static final Setting<Optional<String>> DISCOVERY_HOSTS_PROVIDER_SETTING =
-        new Setting<>("discovery.zen.hosts_provider", (String)null, Optional::ofNullable, Property.NodeScope);
+    public static final Setting<List<String>> DISCOVERY_HOSTS_PROVIDER_SETTING =
+        Setting.listSetting("discovery.zen.hosts_provider", Collections.emptyList(), Function.identity(), Property.NodeScope);
 
     private final Discovery discovery;
 
@@ -66,9 +70,9 @@ public class DiscoveryModule {
                            NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService, MasterService masterService,
                            ClusterApplier clusterApplier, ClusterSettings clusterSettings, List<DiscoveryPlugin> plugins,
                            AllocationService allocationService) {
-        final UnicastHostsProvider hostsProvider;
         final Collection<BiConsumer<DiscoveryNode,ClusterState>> joinValidators = new ArrayList<>();
-        Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
+        final Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
+        hostProviders.put("settings", () -> new SettingsBasedHostsProvider(settings, transportService));
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getZenHostsProviders(transportService, networkService).entrySet().forEach(entry -> {
                 if (hostProviders.put(entry.getKey(), entry.getValue()) != null) {
@@ -80,16 +84,31 @@ public class DiscoveryModule {
                 joinValidators.add(joinValidator);
             }
         }
-        Optional<String> hostsProviderName = DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
-        if (hostsProviderName.isPresent()) {
-            Supplier<UnicastHostsProvider> hostsProviderSupplier = hostProviders.get(hostsProviderName.get());
-            if (hostsProviderSupplier == null) {
-                throw new IllegalArgumentException("Unknown zen hosts provider [" + hostsProviderName.get() + "]");
-            }
-            hostsProvider = Objects.requireNonNull(hostsProviderSupplier.get());
-        } else {
-            hostsProvider = Collections::emptyList;
+        List<String> hostsProviderNames = DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
+        // for bwc purposes, add settings provider even if not explicitly specified
+        if (hostsProviderNames.contains("settings") == false) {
+            List<String> extendedHostsProviderNames = new ArrayList<>();
+            extendedHostsProviderNames.add("settings");
+            extendedHostsProviderNames.addAll(hostsProviderNames);
+            hostsProviderNames = extendedHostsProviderNames;
         }
+
+        final Set<String> missingProviderNames = new HashSet<>(hostsProviderNames);
+        missingProviderNames.removeAll(hostProviders.keySet());
+        if (missingProviderNames.isEmpty() == false) {
+            throw new IllegalArgumentException("Unknown zen hosts providers " + missingProviderNames);
+        }
+
+        List<UnicastHostsProvider> filteredHostsProviders = hostsProviderNames.stream()
+            .map(hostProviders::get).map(Supplier::get).collect(Collectors.toList());
+
+        final UnicastHostsProvider hostsProvider = hostsResolver -> {
+            final List<TransportAddress> addresses = new ArrayList<>();
+            for (UnicastHostsProvider provider : filteredHostsProviders) {
+                addresses.addAll(provider.buildDynamicHosts(hostsResolver));
+            }
+            return Collections.unmodifiableList(addresses);
+        };
 
         Map<String, Supplier<Discovery>> discoveryTypes = new HashMap<>();
         discoveryTypes.put("zen",

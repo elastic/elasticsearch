@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -188,12 +189,12 @@ public class RestHighLevelClientTests extends ESTestCase {
 
         {
             ActionRequestValidationException actualException = expectThrows(ActionRequestValidationException.class,
-                    () -> restHighLevelClient.performRequest(request, null, null, null));
+                    () -> restHighLevelClient.performRequest(request, null, RequestOptions.DEFAULT, null, null));
             assertSame(validationException, actualException);
         }
         {
             TrackingActionListener trackingActionListener = new TrackingActionListener();
-            restHighLevelClient.performRequestAsync(request, null, null, trackingActionListener, null);
+            restHighLevelClient.performRequestAsync(request, null, RequestOptions.DEFAULT, null, trackingActionListener, null);
             assertSame(validationException, trackingActionListener.exception.get());
         }
     }
@@ -307,13 +308,13 @@ public class RestHighLevelClientTests extends ESTestCase {
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         when(restClient.performRequest(any(Request.class))).thenReturn(mockResponse);
         {
-            Integer result = restHighLevelClient.performRequest(mainRequest, requestConverter,
+            Integer result = restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                     response -> response.getStatusLine().getStatusCode(), Collections.emptySet());
             assertEquals(restStatus.getStatus(), result.intValue());
         }
         {
             IOException ioe = expectThrows(IOException.class, () -> restHighLevelClient.performRequest(mainRequest,
-                    requestConverter, response -> {throw new IllegalStateException();}, Collections.emptySet()));
+                    requestConverter, RequestOptions.DEFAULT, response -> {throw new IllegalStateException();}, Collections.emptySet()));
             assertEquals("Unable to parse response body for Response{requestLine=GET / http/1.1, host=http://localhost:9200, " +
                     "response=http/1.1 " + restStatus.getStatus() + " " + restStatus.name() + "}", ioe.getMessage());
         }
@@ -328,7 +329,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
-                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                         response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
         assertEquals(responseException.getMessage(), elasticsearchException.getMessage());
         assertEquals(restStatus, elasticsearchException.status());
@@ -346,7 +347,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
-                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                         response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
         assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
         assertEquals(restStatus, elasticsearchException.status());
@@ -363,7 +364,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
-                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                         response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
         assertEquals("Unable to parse response body", elasticsearchException.getMessage());
         assertEquals(restStatus, elasticsearchException.status());
@@ -381,7 +382,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
-                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                         response -> response.getStatusLine().getStatusCode(), Collections.emptySet()));
         assertEquals("Unable to parse response body", elasticsearchException.getMessage());
         assertEquals(restStatus, elasticsearchException.status());
@@ -397,7 +398,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         //although we got an exception, we turn it into a successful response because the status code was provided among ignores
-        assertEquals(Integer.valueOf(404), restHighLevelClient.performRequest(mainRequest, requestConverter,
+        assertEquals(Integer.valueOf(404), restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                 response -> response.getStatusLine().getStatusCode(), Collections.singleton(404)));
     }
 
@@ -409,7 +410,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
-                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                         response -> {throw new IllegalStateException();}, Collections.singleton(404)));
         assertEquals(RestStatus.NOT_FOUND, elasticsearchException.status());
         assertSame(responseException, elasticsearchException.getCause());
@@ -426,7 +427,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class,
-                () -> restHighLevelClient.performRequest(mainRequest, requestConverter,
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT,
                         response -> {throw new IllegalStateException();}, Collections.singleton(404)));
         assertEquals(RestStatus.NOT_FOUND, elasticsearchException.status());
         assertSame(responseException, elasticsearchException.getSuppressed()[0]);
@@ -607,7 +608,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(7, namedXContents.size());
+        assertEquals(8, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -625,9 +626,10 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(PrecisionAtK.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
-        assertEquals(Integer.valueOf(2), categories.get(MetricDetail.class));
+        assertEquals(Integer.valueOf(3), categories.get(MetricDetail.class));
         assertTrue(names.contains(PrecisionAtK.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
+        assertTrue(names.contains(DiscountedCumulativeGain.NAME));
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {

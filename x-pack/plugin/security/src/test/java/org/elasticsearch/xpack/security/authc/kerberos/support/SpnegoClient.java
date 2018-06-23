@@ -94,13 +94,13 @@ class SpnegoClient implements AutoCloseable {
     }
 
     /**
-     * GSSContext initiator side handling, initiates sec context and returns the
+     * GSSContext initiator side handling, initiates context establishment and returns the
      * base64 encoded token to be sent to server.
      *
      * @return Base64 encoded token
      * @throws PrivilegedActionException
      */
-    String getBase64TicketForSpnegoHeader() throws PrivilegedActionException {
+    String getBase64EncodedTokenForSpnegoHeader() throws PrivilegedActionException {
         final byte[] outToken = KerberosTestCase.doAsWrapper(loginContext.getSubject(),
                 (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(new byte[0], 0, 0));
         return Base64.getEncoder().encodeToString(outToken);

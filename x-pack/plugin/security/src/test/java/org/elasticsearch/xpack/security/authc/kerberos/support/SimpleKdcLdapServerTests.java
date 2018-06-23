@@ -53,7 +53,7 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
         final String clientUserName = randomFrom(clientUserNames);
         try (SpnegoClient spnegoClient =
                 new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()), principalName(serviceUserName));) {
-            final String base64KerbToken = spnegoClient.getBase64TicketForSpnegoHeader();
+            final String base64KerbToken = spnegoClient.getBase64EncodedTokenForSpnegoHeader();
             assertThat(base64KerbToken, is(notNullValue()));
             final KerberosAuthenticationToken kerbAuthnToken = new KerberosAuthenticationToken(Base64.getDecoder().decode(base64KerbToken));
 

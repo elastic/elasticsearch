@@ -89,7 +89,7 @@ public class KerberosTicketValidator {
             loginContext = serviceLogin(keytabPath.toString(), krbDebug);
             GSSCredential serviceCreds = createCredentials(gssManager, loginContext.getSubject());
             gssContext = gssManager.createContext(serviceCreds);
-            final String base64OutToken = base64Encode(acceptSecContext(decodedToken, gssContext, loginContext.getSubject()));
+            final String base64OutToken = encodeToString(acceptSecContext(decodedToken, gssContext, loginContext.getSubject()));
             LOGGER.trace("validateTicket isGSSContextEstablished = {}, username = {}, outToken = {}", gssContext.isEstablished(),
                     gssContext.getSrcName().toString(), base64OutToken);
             return new Tuple<>(gssContext.isEstablished() ? gssContext.getSrcName().toString() : null, base64OutToken);
@@ -107,7 +107,14 @@ public class KerberosTicketValidator {
         }
     }
 
-    private String base64Encode(final byte[] outToken) {
+    /**
+     * Encodes the specified byte array using base64 encoding scheme
+     *
+     * @param outToken byte array to be encoded
+     * @return String containing base64 encoded characters. returns {@code null} if
+     *         outToken is null or empty.
+     */
+    private String encodeToString(final byte[] outToken) {
         if (outToken != null && outToken.length > 0) {
             return Base64.getEncoder().encodeToString(outToken);
         }

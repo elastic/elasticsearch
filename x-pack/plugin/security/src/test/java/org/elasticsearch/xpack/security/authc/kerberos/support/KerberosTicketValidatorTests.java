@@ -36,7 +36,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         final String clientUserName = randomFrom(clientUserNames);
         try (SpnegoClient spnegoClient =
                 new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()), principalName("differentServer"));) {
-            final String base64KerbToken = spnegoClient.getBase64TicketForSpnegoHeader();
+            final String base64KerbToken = spnegoClient.getBase64EncodedTokenForSpnegoHeader();
             assertThat(base64KerbToken, is(notNullValue()));
 
             final Environment env = TestEnvironment.newEnvironment(globalSettings);
@@ -63,7 +63,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         final String clientUserName = randomFrom(clientUserNames);
         try (SpnegoClient spnegoClient = new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()),
                 principalName(randomFrom(serviceUserNames)));) {
-            final String base64KerbToken = spnegoClient.getBase64TicketForSpnegoHeader();
+            final String base64KerbToken = spnegoClient.getBase64EncodedTokenForSpnegoHeader();
             assertThat(base64KerbToken, is(notNullValue()));
 
             final Path ktabPath = writeKeyTab(workDir.resolve("invalid.keytab"), "not - a - valid - key - tab");
@@ -81,7 +81,7 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
         final String clientUserName = randomFrom(clientUserNames);
         try (SpnegoClient spnegoClient = new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()),
                 principalName(randomFrom(serviceUserNames)));) {
-            final String base64KerbToken = spnegoClient.getBase64TicketForSpnegoHeader();
+            final String base64KerbToken = spnegoClient.getBase64EncodedTokenForSpnegoHeader();
             assertThat(base64KerbToken, is(notNullValue()));
 
             final Environment env = TestEnvironment.newEnvironment(globalSettings);

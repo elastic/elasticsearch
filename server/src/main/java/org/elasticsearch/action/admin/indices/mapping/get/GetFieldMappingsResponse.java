@@ -20,13 +20,17 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
 
@@ -34,12 +38,44 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /** Response object for {@link GetFieldMappingsRequest} API */
 public class GetFieldMappingsResponse extends ActionResponse implements ToXContentFragment {
+
+    private static final ParseField MAPPINGS = new ParseField("mappings");
+
+    private static final ObjectParser<Map<String, Map<String, FieldMappingMetaData>>, String> PARSER =
+        new ObjectParser<>(MAPPINGS.getPreferredName(), true, HashMap::new);
+
+    static {
+        PARSER.declareField((p, typeMappings, index) -> {
+            p.nextToken();
+            while (p.currentToken() == XContentParser.Token.FIELD_NAME) {
+                final String typeName = p.currentName();
+
+                if (p.nextToken() == XContentParser.Token.START_OBJECT) {
+                    final Map<String, FieldMappingMetaData> typeMapping = new HashMap<>();
+                    typeMappings.put(typeName, typeMapping);
+
+                    while (p.nextToken() == XContentParser.Token.FIELD_NAME) {
+                        final String fieldName = p.currentName();
+                        final FieldMappingMetaData fieldMappingMetaData = FieldMappingMetaData.fromXContent(p);
+                        typeMapping.put(fieldName, fieldMappingMetaData);
+                    }
+                } else {
+                    p.skipChildren();
+                }
+                p.nextToken();
+            }
+        }, MAPPINGS, ObjectParser.ValueType.OBJECT);
+    }
 
     private Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = emptyMap();
 
@@ -77,7 +113,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (Map.Entry<String, Map<String, Map<String, FieldMappingMetaData>>> indexEntry : mappings.entrySet()) {
             builder.startObject(indexEntry.getKey());
-            builder.startObject("mappings");
+            builder.startObject(MAPPINGS.getPreferredName());
             for (Map.Entry<String, Map<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
                 builder.startObject(typeEntry.getKey());
                 for (Map.Entry<String, FieldMappingMetaData> fieldEntry : typeEntry.getValue().entrySet()) {
@@ -93,8 +129,45 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         return builder;
     }
 
+    public static GetFieldMappingsResponse fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+
+        final Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = new HashMap<>();
+        if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+            while (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                final String index = parser.currentName();
+
+                final Map<String, Map<String, FieldMappingMetaData>> typeMappings = PARSER.parse(parser, index);
+                mappings.put(index, typeMappings);
+
+                parser.nextToken();
+            }
+        }
+
+        return new GetFieldMappingsResponse(mappings);
+    }
+
     public static class FieldMappingMetaData implements ToXContentFragment {
         public static final FieldMappingMetaData NULL = new FieldMappingMetaData("", BytesArray.EMPTY);
+
+        private static final ParseField FULL_NAME = new ParseField("full_name");
+        private static final ParseField MAPPING = new ParseField("mapping");
+
+        private static final ConstructingObjectParser<FieldMappingMetaData, String> PARSER =
+            new ConstructingObjectParser<>("field_mapping_meta_data", true,
+                a -> new FieldMappingMetaData((String)a[0], (BytesReference)a[1])
+            );
+
+        static {
+            PARSER.declareField(optionalConstructorArg(),
+                (p, c) -> p.text(), FULL_NAME, ObjectParser.ValueType.STRING);
+            PARSER.declareField(optionalConstructorArg(),
+                (p, c) -> {
+                    final XContentBuilder jsonBuilder = jsonBuilder().copyCurrentStructure(p);
+                    final BytesReference bytes = BytesReference.bytes(jsonBuilder);
+                    return bytes;
+                }, MAPPING, ObjectParser.ValueType.OBJECT);
+        }
 
         private String fullName;
         private BytesReference source;
@@ -122,17 +195,40 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             return source;
         }
 
+        public static FieldMappingMetaData fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("full_name", fullName);
+            builder.field(FULL_NAME.getPreferredName(), fullName);
             if (params.paramAsBoolean("pretty", false)) {
                 builder.field("mapping", sourceAsMap());
             } else {
                 try (InputStream stream = source.streamInput()) {
-                    builder.rawField("mapping", stream, XContentType.JSON);
+                    builder.rawField(MAPPING.getPreferredName(), stream, XContentType.JSON);
                 }
             }
             return builder;
+        }
+
+        @Override
+        public String toString() {
+            return "FieldMappingMetaData{fullName='" + fullName + '\'' + ", source=" + source + '}';
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof FieldMappingMetaData)) return false;
+            FieldMappingMetaData that = (FieldMappingMetaData) o;
+            return Objects.equals(fullName, that.fullName) &&
+                Objects.equals(source, that.source);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(fullName, source);
         }
     }
 
@@ -178,4 +274,25 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             }
         }
     }
+
+    @Override
+    public String toString() {
+        return "GetFieldMappingsResponse{" +
+            "mappings=" + mappings +
+            '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof GetFieldMappingsResponse)) return false;
+        GetFieldMappingsResponse that = (GetFieldMappingsResponse) o;
+        return Objects.equals(mappings, that.mappings);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(mappings);
+    }
+
 }

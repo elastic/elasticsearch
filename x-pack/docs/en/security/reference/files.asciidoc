@@ -3,7 +3,7 @@
 
 The {security} uses the following files:
 
-* `CONFIG_DIR/x-pack/roles.yml` defines the roles in use on the cluster
+* `CONFIG_DIR/roles.yml` defines the roles in use on the cluster
   (read more <<roles-management-file, here>>).
 
 * `CONFIG_DIR/elasticsearch-users` defines the users and their hashed passwords for
@@ -12,12 +12,12 @@ The {security} uses the following files:
 * `CONFIG_DIR/elasticsearch-users_roles` defines the user roles assignment for the
   the <<file-realm, `file` realm>>.
 
-* `CONFIG_DIR/x-pack/role_mapping.yml` defines the role assignments for a
+* `CONFIG_DIR/role_mapping.yml` defines the role assignments for a
   Distinguished Name (DN) to a role. This allows for LDAP and Active Directory
   groups and users and PKI users to be mapped to roles (read more
   <<mapping-roles, here>>).
 
-* `CONFIG_DIR/x-pack/log4j2.properties` contains audit information (read more
+* `CONFIG_DIR/log4j2.properties` contains audit information (read more
   <<logging-file, here>>).
 
 [[security-files-location]]

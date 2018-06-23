@@ -29,8 +29,17 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
@@ -38,23 +47,31 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -63,7 +80,9 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -80,7 +99,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -95,6 +116,17 @@ final class RequestConverters {
 
     private RequestConverters() {
         // Contains only status utility methods
+    }
+
+    static Request cancelTasks(CancelTasksRequest cancelTasksRequest) {
+        Request request = new Request(HttpPost.METHOD_NAME, "/_tasks/_cancel");
+        Params params = new Params(request);
+        params.withTimeout(cancelTasksRequest.getTimeout())
+            .withTaskId(cancelTasksRequest.getTaskId())
+            .withNodes(cancelTasksRequest.getNodes())
+            .withParentTaskId(cancelTasksRequest.getParentTaskId())
+            .withActions(cancelTasksRequest.getActions());
+        return request;
     }
 
     static Request delete(DeleteRequest deleteRequest) {
@@ -185,6 +217,19 @@ final class RequestConverters {
         return request;
     }
 
+    static Request getMappings(GetMappingsRequest getMappingsRequest) throws IOException {
+        String[] indices = getMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.indices();
+        String[] types = getMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.types();
+
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint(indices, "_mapping", types));
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(getMappingsRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(getMappingsRequest.indicesOptions());
+        parameters.withLocal(getMappingsRequest.local());
+        return request;
+    }
+
     static Request refresh(RefreshRequest refreshRequest) {
         String[] indices = refreshRequest.indices() == null ? Strings.EMPTY_ARRAY : refreshRequest.indices();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint(indices, "_refresh"));
@@ -202,6 +247,14 @@ final class RequestConverters {
         parameters.withIndicesOptions(flushRequest.indicesOptions());
         parameters.putParam("wait_if_ongoing", Boolean.toString(flushRequest.waitIfOngoing()));
         parameters.putParam("force", Boolean.toString(flushRequest.force()));
+        return request;
+    }
+
+    static Request flushSynced(SyncedFlushRequest syncedFlushRequest) {
+        String[] indices = syncedFlushRequest.indices() == null ? Strings.EMPTY_ARRAY : syncedFlushRequest.indices();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(indices, "_flush/synced"));
+        Params parameters = new Params(request);
+        parameters.withIndicesOptions(syncedFlushRequest.indicesOptions());
         return request;
     }
 
@@ -458,6 +511,15 @@ final class RequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchRequest.types(), "_search"));
 
         Params params = new Params(request);
+        addSearchRequestParams(params, searchRequest);
+
+        if (searchRequest.source() != null) {
+            request.setEntity(createEntity(searchRequest.source(), REQUEST_BODY_CONTENT_TYPE));
+        }
+        return request;
+    }
+
+    private static void addSearchRequestParams(Params params, SearchRequest searchRequest) {
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         params.withRouting(searchRequest.routing());
         params.withPreference(searchRequest.preference());
@@ -473,11 +535,6 @@ final class RequestConverters {
         if (searchRequest.scroll() != null) {
             params.putParam("scroll", searchRequest.scroll().keepAlive());
         }
-
-        if (searchRequest.source() != null) {
-            request.setEntity(createEntity(searchRequest.source(), REQUEST_BODY_CONTENT_TYPE));
-        }
-        return request;
     }
 
     static Request searchScroll(SearchScrollRequest searchScrollRequest) throws IOException {
@@ -504,6 +561,24 @@ final class RequestConverters {
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
         request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        return request;
+    }
+
+    static Request searchTemplate(SearchTemplateRequest searchTemplateRequest) throws IOException {
+        Request request;
+
+        if (searchTemplateRequest.isSimulate()) {
+            request = new Request(HttpGet.METHOD_NAME, "_render/template");
+        } else {
+            SearchRequest searchRequest = searchTemplateRequest.getRequest();
+            String endpoint = endpoint(searchRequest.indices(), searchRequest.types(), "_search/template");
+            request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+            Params params = new Params(request);
+            addSearchRequestParams(params, searchRequest);
+        }
+
+        request.setEntity(createEntity(searchTemplateRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -582,6 +657,85 @@ final class RequestConverters {
         return request;
     }
 
+    static Request getPipeline(GetPipelineRequest getPipelineRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ingest/pipeline")
+            .addCommaSeparatedPathParts(getPipelineRequest.getIds())
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(getPipelineRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request putPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ingest/pipeline")
+            .addPathPart(putPipelineRequest.getId())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withTimeout(putPipelineRequest.timeout());
+        parameters.withMasterTimeout(putPipelineRequest.masterNodeTimeout());
+
+        request.setEntity(createEntity(putPipelineRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deletePipeline(DeletePipelineRequest deletePipelineRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ingest/pipeline")
+            .addPathPart(deletePipelineRequest.getId())
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withTimeout(deletePipelineRequest.timeout());
+        parameters.withMasterTimeout(deletePipelineRequest.masterNodeTimeout());
+
+        return request;
+    }
+
+    static Request listTasks(ListTasksRequest listTaskRequest) {
+        if (listTaskRequest.getTaskId() != null && listTaskRequest.getTaskId().isSet()) {
+            throw new IllegalArgumentException("TaskId cannot be used for list tasks request");
+        }
+        Request request  = new Request(HttpGet.METHOD_NAME, "/_tasks");
+        Params params = new Params(request);
+        params.withTimeout(listTaskRequest.getTimeout())
+            .withDetailed(listTaskRequest.getDetailed())
+            .withWaitForCompletion(listTaskRequest.getWaitForCompletion())
+            .withParentTaskId(listTaskRequest.getParentTaskId())
+            .withNodes(listTaskRequest.getNodes())
+            .withActions(listTaskRequest.getActions())
+            .putParam("group_by", "none");
+        return request;
+    }
+
+    static Request clusterHealth(ClusterHealthRequest healthRequest) {
+        String[] indices = healthRequest.indices() == null ? Strings.EMPTY_ARRAY : healthRequest.indices();
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_cluster/health")
+            .addCommaSeparatedPathParts(indices)
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        new Params(request)
+            .withWaitForStatus(healthRequest.waitForStatus())
+            .withWaitForNoRelocatingShards(healthRequest.waitForNoRelocatingShards())
+            .withWaitForNoInitializingShards(healthRequest.waitForNoInitializingShards())
+            .withWaitForActiveShards(healthRequest.waitForActiveShards(), ActiveShardCount.NONE)
+            .withWaitForNodes(healthRequest.waitForNodes())
+            .withWaitForEvents(healthRequest.waitForEvents())
+            .withTimeout(healthRequest.timeout())
+            .withMasterTimeout(healthRequest.masterNodeTimeout())
+            .withLocal(healthRequest.local())
+            .withLevel(healthRequest.level());
+        return request;
+    }
+
     static Request rollover(RolloverRequest rolloverRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart(rolloverRequest.getAlias()).addPathPartAsIs("_rollover")
                 .addPathPart(rolloverRequest.getNewIndexName()).build();
@@ -599,7 +753,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request getSettings(GetSettingsRequest getSettingsRequest) throws IOException {
+    static Request getSettings(GetSettingsRequest getSettingsRequest) {
         String[] indices = getSettingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getSettingsRequest.indices();
         String[] names = getSettingsRequest.names() == null ? Strings.EMPTY_ARRAY : getSettingsRequest.names();
 
@@ -656,6 +810,54 @@ final class RequestConverters {
         return request;
     }
 
+    static Request createRepository(PutRepositoryRequest putRepositoryRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPart("_snapshot").addPathPart(putRepositoryRequest.name()).build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(putRepositoryRequest.masterNodeTimeout());
+        parameters.withTimeout(putRepositoryRequest.timeout());
+        parameters.withVerify(putRepositoryRequest.verify());
+
+        request.setEntity(createEntity(putRepositoryRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteRepository(DeleteRepositoryRequest deleteRepositoryRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot").addPathPart(deleteRepositoryRequest.name()).build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(deleteRepositoryRequest.masterNodeTimeout());
+        parameters.withTimeout(deleteRepositoryRequest.timeout());
+        return request;
+    }
+
+    static Request verifyRepository(VerifyRepositoryRequest verifyRepositoryRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(verifyRepositoryRequest.name())
+            .addPathPartAsIs("_verify")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(verifyRepositoryRequest.masterNodeTimeout());
+        parameters.withTimeout(verifyRepositoryRequest.timeout());
+        return request;
+    }
+
+    static Request deleteSnapshot(DeleteSnapshotRequest deleteSnapshotRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(deleteSnapshotRequest.repository())
+            .addPathPart(deleteSnapshotRequest.snapshot())
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(deleteSnapshotRequest.masterNodeTimeout());
+        return request;
+    }
+
     static Request putTemplate(PutIndexTemplateRequest putIndexTemplateRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_template").addPathPart(putIndexTemplateRequest.name()).build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -668,6 +870,72 @@ final class RequestConverters {
             params.putParam("cause", putIndexTemplateRequest.cause());
         }
         request.setEntity(createEntity(putIndexTemplateRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request validateQuery(ValidateQueryRequest validateQueryRequest) throws IOException {
+        String[] indices = validateQueryRequest.indices() == null ? Strings.EMPTY_ARRAY : validateQueryRequest.indices();
+        String[] types = validateQueryRequest.types() == null || indices.length <= 0 ? Strings.EMPTY_ARRAY : validateQueryRequest.types();
+        String endpoint = endpoint(indices, types, "_validate/query");
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withIndicesOptions(validateQueryRequest.indicesOptions());
+        params.putParam("explain", Boolean.toString(validateQueryRequest.explain()));
+        params.putParam("all_shards", Boolean.toString(validateQueryRequest.allShards()));
+        params.putParam("rewrite", Boolean.toString(validateQueryRequest.rewrite()));
+        request.setEntity(createEntity(validateQueryRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request simulatePipeline(SimulatePipelineRequest simulatePipelineRequest) throws IOException {
+        EndpointBuilder builder = new EndpointBuilder().addPathPartAsIs("_ingest/pipeline");
+        if (simulatePipelineRequest.getId() != null && !simulatePipelineRequest.getId().isEmpty()) {
+            builder.addPathPart(simulatePipelineRequest.getId());
+        }
+        builder.addPathPartAsIs("_simulate");
+        String endpoint = builder.build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.putParam("verbose", Boolean.toString(simulatePipelineRequest.isVerbose()));
+        request.setEntity(createEntity(simulatePipelineRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getAlias(GetAliasesRequest getAliasesRequest) {
+        String[] indices = getAliasesRequest.indices() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.indices();
+        String[] aliases = getAliasesRequest.aliases() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.aliases();
+        String endpoint = endpoint(indices, "_alias", aliases);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withIndicesOptions(getAliasesRequest.indicesOptions());
+        params.withLocal(getAliasesRequest.local());
+        return request;
+    }
+
+    static Request getTemplates(GetIndexTemplatesRequest getIndexTemplatesRequest) throws IOException {
+        String[] names = getIndexTemplatesRequest.names();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_template").addCommaSeparatedPathParts(names).build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withLocal(getIndexTemplatesRequest.local());
+        params.withMasterTimeout(getIndexTemplatesRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withMasterTimeout(getStoredScriptRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request deleteScript(DeleteStoredScriptRequest deleteStoredScriptRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(deleteStoredScriptRequest.id()).build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withTimeout(deleteStoredScriptRequest.timeout());
+        params.withMasterTimeout(deleteStoredScriptRequest.masterNodeTimeout());
         return request;
     }
 
@@ -841,7 +1109,11 @@ final class RequestConverters {
         }
 
         Params withWaitForActiveShards(ActiveShardCount activeShardCount) {
-            if (activeShardCount != null && activeShardCount != ActiveShardCount.DEFAULT) {
+            return withWaitForActiveShards(activeShardCount, ActiveShardCount.DEFAULT);
+        }
+
+        Params withWaitForActiveShards(ActiveShardCount activeShardCount, ActiveShardCount defaultActiveShardCount) {
+            if (activeShardCount != null && activeShardCount != defaultActiveShardCount) {
                 return putParam("wait_for_active_shards", activeShardCount.toString().toLowerCase(Locale.ROOT));
             }
             return this;
@@ -891,6 +1163,91 @@ final class RequestConverters {
         Params withPreserveExisting(boolean preserveExisting) {
             if (preserveExisting) {
                 return putParam("preserve_existing", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withDetailed(boolean detailed) {
+            if (detailed) {
+                return putParam("detailed", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withWaitForCompletion(boolean waitForCompletion) {
+            if (waitForCompletion) {
+                return putParam("wait_for_completion", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withNodes(String[] nodes) {
+            if (nodes != null && nodes.length > 0) {
+                return putParam("nodes", String.join(",", nodes));
+            }
+            return this;
+        }
+
+        Params withActions(String[] actions) {
+            if (actions != null && actions.length > 0) {
+                return putParam("actions", String.join(",", actions));
+            }
+            return this;
+        }
+
+        Params withTaskId(TaskId taskId) {
+            if (taskId != null && taskId.isSet()) {
+                return putParam("task_id", taskId.toString());
+            }
+            return this;
+        }
+
+        Params withParentTaskId(TaskId parentTaskId) {
+            if (parentTaskId != null && parentTaskId.isSet()) {
+                return putParam("parent_task_id", parentTaskId.toString());
+            }
+            return this;
+        }
+
+        Params withVerify(boolean verify) {
+            if (verify) {
+                return putParam("verify", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withWaitForStatus(ClusterHealthStatus status) {
+            if (status != null) {
+                return putParam("wait_for_status", status.name().toLowerCase(Locale.ROOT));
+            }
+            return this;
+        }
+
+        Params withWaitForNoRelocatingShards(boolean waitNoRelocatingShards) {
+            if (waitNoRelocatingShards) {
+                return putParam("wait_for_no_relocating_shards", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withWaitForNoInitializingShards(boolean waitNoInitShards) {
+            if (waitNoInitShards) {
+                return putParam("wait_for_no_initializing_shards", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withWaitForNodes(String waitForNodes) {
+            return putParam("wait_for_nodes", waitForNodes);
+        }
+
+        Params withLevel(ClusterHealthRequest.Level level) {
+            return putParam("level", level.name().toLowerCase(Locale.ROOT));
+        }
+
+        Params withWaitForEvents(Priority waitForEvents) {
+            if (waitForEvents != null) {
+                return putParam("wait_for_events", waitForEvents.name().toLowerCase(Locale.ROOT));
             }
             return this;
         }

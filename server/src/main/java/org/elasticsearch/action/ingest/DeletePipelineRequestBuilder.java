@@ -22,7 +22,7 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class DeletePipelineRequestBuilder extends ActionRequestBuilder<DeletePipelineRequest, WritePipelineResponse, DeletePipelineRequestBuilder> {
+public class DeletePipelineRequestBuilder extends ActionRequestBuilder<DeletePipelineRequest, WritePipelineResponse> {
 
     public DeletePipelineRequestBuilder(ElasticsearchClient client, DeletePipelineAction action) {
         super(client, action, new DeletePipelineRequest());

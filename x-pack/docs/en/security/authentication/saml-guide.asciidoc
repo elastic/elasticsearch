@@ -1,6 +1,7 @@
+[role="xpack"]
 [[saml-guide]]
 
-== Configuring SAML single-sign-on on the Elastic Stack
+== Configuring SAML single-sign-on on the {stack}
 
 The Elastic Stack supports SAML single-sign-on (SSO) into {kib}, using {es} as
 a backend service. In SAML terminology, the Elastic Stack is operating as a
@@ -21,6 +22,7 @@ the primary (or sole) authentication method for users of that {kib} instance.
 Once you enable SAML authentication in {kib} it will affect all users who try
 to login. The <<saml-kibana>> section provides more detail about how this works.
 
+[[saml-guide-idp]]
 === The identity provider
 
 The Elastic Stack supports the SAML 2.0 _Web Browser SSO_ and the SAML
@@ -69,6 +71,7 @@ For `<LogoutRequest>` messages, the message itself must be signed, and the
 signature should be provided as a URL parameter, as required by the HTTP-Redirect
 binding.
 
+[[saml-guide-authentication]]
 === Configure {es} for SAML authentication
 
 There are five configuration steps to enable SAML authentication in {es}:
@@ -189,7 +192,7 @@ attribute.groups:: See <<saml-attribute-mapping>>.
 When a user connects to {kib} through your Identity Provider, the Identity
 Provider will supply a SAML Assertion about the user. The assertion will contain
 an _Authentication Statement_ indicating that the user has successfully
-authenticated to the IdP and one ore more _Attribute Statements_ that will
+authenticated to the IdP and one or more _Attribute Statements_ that will
 include _Attributes_ for the user.
 
 These attributes may include such things as:
@@ -210,7 +213,7 @@ customise the URIs and their associated value.
 logged in, and they can be used for role mapping (below).
 
 In order for these attributes to be useful, {es} and the IdP need to have a
-common via for the names of the attributes. This is done manually, by
+common value for the names of the attributes. This is done manually, by
 configuring the IdP and the {security} SAML realm to use the same URI name for
 each logical user attribute.
 

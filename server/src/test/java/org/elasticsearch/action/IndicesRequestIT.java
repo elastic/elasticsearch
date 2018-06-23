@@ -779,11 +779,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
                 }
                 requestHandler.messageReceived(request, channel, task);
             }
-
-            @Override
-            public void messageReceived(T request, TransportChannel channel) throws Exception {
-                messageReceived(request, channel, null);
-            }
         }
     }
 }

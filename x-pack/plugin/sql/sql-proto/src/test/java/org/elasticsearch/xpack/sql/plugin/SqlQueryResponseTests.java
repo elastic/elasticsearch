@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 
 import java.io.IOException;
 import java.sql.JDBCType;
@@ -114,6 +115,8 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
 
     @Override
     protected SqlQueryResponse doParseInstance(XContentParser parser) {
-        return SqlQueryResponse.fromXContent(parser);
+        org.elasticsearch.xpack.sql.proto.SqlQueryResponse response =
+            org.elasticsearch.xpack.sql.proto.SqlQueryResponse.fromXContent(parser);
+        return new SqlQueryResponse(response.cursor(), response.columns(), response.rows());
     }
 }

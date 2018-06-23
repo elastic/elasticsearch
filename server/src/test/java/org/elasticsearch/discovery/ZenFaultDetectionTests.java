@@ -175,17 +175,19 @@ public class ZenFaultDetectionTests extends ESTestCase {
         final Settings pingSettings = Settings.builder()
             .put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
             .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m").build();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(buildNodesForA(true)).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong())
+            .nodes(buildNodesForA(true)).build();
         NodesFaultDetection nodesFDA = new NodesFaultDetection(Settings.builder().put(settingsA).put(pingSettings).build(),
-            threadPool, serviceA, clusterState.getClusterName());
+            threadPool, serviceA, () -> clusterState, clusterState.getClusterName());
         nodesFDA.setLocalNode(nodeA);
         NodesFaultDetection nodesFDB = new NodesFaultDetection(Settings.builder().put(settingsB).put(pingSettings).build(),
-            threadPool, serviceB, clusterState.getClusterName());
+            threadPool, serviceB, () -> clusterState, clusterState.getClusterName());
         nodesFDB.setLocalNode(nodeB);
         final CountDownLatch pingSent = new CountDownLatch(1);
         nodesFDB.addListener(new NodesFaultDetection.Listener() {
             @Override
             public void onPingReceived(NodesFaultDetection.PingRequest pingRequest) {
+                assertThat(pingRequest.clusterStateVersion(), equalTo(clusterState.version()));
                 pingSent.countDown();
             }
         });

@@ -1,5 +1,6 @@
+[role="xpack"]
 [[ml-rare-functions]]
-=== Rare Functions
+=== Rare functions
 
 The rare functions detect values that occur rarely in time or rarely for a
 population.
@@ -54,6 +55,7 @@ For more information about those properties, see
   "by_field_name" : "status"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `rare` function in a detector in your job, it detects values
 that are rare in time. It models status codes that occur over time and detects
@@ -69,6 +71,7 @@ status codes in a web access log that have never (or rarely) occurred before.
   "over_field_name" : "clientip"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `rare` function in a detector in your job, it detects values
 that are rare in a population. It models status code and client IP interactions
@@ -111,6 +114,7 @@ For more information about those properties, see
   "over_field_name" : "clientip"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 If you use this `freq_rare` function in a detector in your job, it
 detects values that are frequently rare in a population. It models URI paths and

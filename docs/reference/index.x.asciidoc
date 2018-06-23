@@ -1,12 +1,1 @@
-[[elasticsearch-reference]]
-= Elasticsearch Reference
-
-:include-xpack:         true
-:es-test-dir:           {docdir}/../src/test
-:plugins-examples-dir:  {docdir}/../../plugins/examples
-:xes-repo-dir:          {docdir}/../../x-pack/docs/{lang}
-:es-repo-dir:           {docdir}
-
-
-include::../Versions.asciidoc[]
-include::{xes-repo-dir}/index.asciidoc[]
+include::index.asciidoc[]

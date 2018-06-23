@@ -50,7 +50,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -70,7 +69,6 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
@@ -98,6 +96,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.ml.job.categorization.GrokPatternCreator;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 
@@ -477,7 +476,7 @@ public class JobProvider {
                                     Consumer<Exception> errorHandler) {
         BytesReference source = hit.getSourceRef();
         try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             return objectParser.apply(parser, null);
         } catch (IOException e) {
@@ -486,7 +485,7 @@ public class JobProvider {
         }
     }
 
-    private <T, U> T parseGetHit(GetResponse getResponse, BiFunction<XContentParser, U, T> objectParser, 
+    private <T, U> T parseGetHit(GetResponse getResponse, BiFunction<XContentParser, U, T> objectParser,
                                  Consumer<Exception> errorHandler) {
         BytesReference source = getResponse.getSourceAsBytesRef();
 
@@ -528,7 +527,7 @@ public class JobProvider {
                     for (SearchHit hit : hits.getHits()) {
                         BytesReference source = hit.getSourceRef();
                         try (InputStream stream = source.streamInput();
-                             XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
+                             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
                             results.add(bucket);
@@ -626,10 +625,11 @@ public class JobProvider {
      * Get a page of {@linkplain CategoryDefinition}s for the given <code>jobId</code>.
      * Uses a supplied client, so may run as the currently authenticated user
      * @param jobId the job id
+     * @param augment Should the category definition be augmented with a Grok pattern?
      * @param from  Skip the first N categories. This parameter is for paging
      * @param size  Take only this number of categories
      */
-    public void categoryDefinitions(String jobId, Long categoryId, Integer from, Integer size,
+    public void categoryDefinitions(String jobId, Long categoryId, boolean augment, Integer from, Integer size,
                                     Consumer<QueryPage<CategoryDefinition>> handler,
                                     Consumer<Exception> errorHandler, Client client) {
         if (categoryId != null && (from != null || size != null)) {
@@ -660,9 +660,12 @@ public class JobProvider {
                     for (SearchHit hit : hits) {
                         BytesReference source = hit.getSourceRef();
                         try (InputStream stream = source.streamInput();
-                             XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
+                             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             CategoryDefinition categoryDefinition = CategoryDefinition.LENIENT_PARSER.apply(parser, null);
+                            if (augment) {
+                                augmentWithGrokPattern(categoryDefinition);
+                            }
                             results.add(categoryDefinition);
                         } catch (IOException e) {
                             throw new ElasticsearchParseException("failed to parse category definition", e);
@@ -672,6 +675,17 @@ public class JobProvider {
                             new QueryPage<>(results, searchResponse.getHits().getTotalHits(), CategoryDefinition.RESULTS_FIELD);
                     handler.accept(result);
                 }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetCategoriesAction.NAME))), client::search);
+    }
+
+    void augmentWithGrokPattern(CategoryDefinition categoryDefinition) {
+        List<String> examples = categoryDefinition.getExamples();
+        String regex = categoryDefinition.getRegex();
+        if (examples.isEmpty() || regex.isEmpty()) {
+            categoryDefinition.setGrokPattern("");
+        } else {
+            categoryDefinition.setGrokPattern(GrokPatternCreator.findBestGrokMatchFromExamples(categoryDefinition.getJobId(),
+                regex, examples));
+        }
     }
 
     /**
@@ -695,7 +709,7 @@ public class JobProvider {
                     for (SearchHit hit : searchResponse.getHits().getHits()) {
                         BytesReference source = hit.getSourceRef();
                         try (InputStream stream = source.streamInput();
-                             XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
+                             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             results.add(AnomalyRecord.LENIENT_PARSER.apply(parser, null));
                         } catch (IOException e) {
@@ -744,7 +758,7 @@ public class JobProvider {
                     for (SearchHit hit : response.getHits().getHits()) {
                         BytesReference source = hit.getSourceRef();
                         try (InputStream stream = source.streamInput();
-                             XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
+                             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             influencers.add(Influencer.LENIENT_PARSER.apply(parser, null));
                         } catch (IOException e) {
@@ -889,7 +903,7 @@ public class JobProvider {
         for (SearchHit hit : searchResponse.getHits().getHits()) {
             BytesReference source = hit.getSourceRef();
             try (InputStream stream = source.streamInput();
-                 XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
+                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                          .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                 ModelPlot modelPlot = ModelPlot.LENIENT_PARSER.apply(parser, null);
                 results.add(modelPlot);
@@ -1098,7 +1112,7 @@ public class JobProvider {
                 result -> handler.accept(result.result), errorHandler, () -> null);
     }
 
-    public void updateCalendar(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove, MlMetadata mlMetadata,
+    public void updateCalendar(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove,
                                Consumer<Calendar> handler, Consumer<Exception> errorHandler) {
 
         ActionListener<Calendar> getCalendarListener = ActionListener.wrap(
@@ -1217,10 +1231,8 @@ public class JobProvider {
                         BytesReference docSource = getDocResponse.getSourceAsBytesRef();
 
                         try (InputStream stream = docSource.streamInput();
-                             XContentParser parser =
-                                     XContentFactory.xContent(XContentHelper.xContentType(docSource))
-                                             .createParser(NamedXContentRegistry.EMPTY,
-                                                     LoggingDeprecationHandler.INSTANCE, stream)) {
+                             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                                             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             Calendar calendar = Calendar.LENIENT_PARSER.apply(parser, null).build();
                             listener.onResponse(calendar);
                         }

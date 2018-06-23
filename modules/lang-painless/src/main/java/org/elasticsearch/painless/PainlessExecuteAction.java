@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,7 +48,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -62,19 +61,13 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request, PainlessExecuteAction.Response,
-    PainlessExecuteAction.RequestBuilder> {
+public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response> {
 
     static final PainlessExecuteAction INSTANCE = new PainlessExecuteAction();
     private static final String NAME = "cluster:admin/scripts/painless/execute";
 
     private PainlessExecuteAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client);
     }
 
     @Override
@@ -201,7 +194,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
 
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());
@@ -287,14 +280,13 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Request,
         private final ScriptService scriptService;
 
         @Inject
-        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ScriptService scriptService) {
-            super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
+        public TransportAction(Settings settings, TransportService transportService,
+                               ActionFilters actionFilters, ScriptService scriptService) {
+            super(settings, NAME, transportService, actionFilters, Request::new);
             this.scriptService = scriptService;
         }
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             switch (request.context) {
                 case PAINLESS_TEST:
                     PainlessTestScript.Factory factory = scriptService.compile(request.script, PainlessTestScript.CONTEXT);

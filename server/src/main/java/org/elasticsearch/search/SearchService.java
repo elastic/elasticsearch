@@ -21,7 +21,6 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -92,8 +92,8 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -646,20 +646,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
 
     public boolean freeContext(long id) {
-        final SearchContext context = removeContext(id);
-        if (context != null) {
-            assert context.refCount() > 0 : " refCount must be > 0: " + context.refCount();
-            try {
+        try (SearchContext context = removeContext(id)) {
+            if (context != null) {
+                assert context.refCount() > 0 : " refCount must be > 0: " + context.refCount();
                 context.indexShard().getSearchOperationListener().onFreeContext(context);
                 if (context.scrollContext() != null) {
                     context.indexShard().getSearchOperationListener().onFreeScrollContext(context);
                 }
-            } finally {
-                context.close();
+                return true;
             }
-            return true;
+            return false;
         }
-        return false;
     }
 
     public void freeAllScrollContexts() {

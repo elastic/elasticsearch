@@ -24,7 +24,7 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.plugin.MetaPluginBuildPlugin
+
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
 import org.gradle.api.AntBuilder
@@ -842,19 +842,15 @@ class ClusterFormationTasks {
     }
 
     static void verifyProjectHasBuildPlugin(String name, Version version, Project project, Project pluginProject) {
-        if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false && pluginProject.plugins.hasPlugin(MetaPluginBuildPlugin) == false) {
+        if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
             throw new GradleException("Task [${name}] cannot add plugin [${pluginProject.path}] with version [${version}] to project's " +
-                    "[${project.path}] dependencies: the plugin is not an esplugin or es_meta_plugin")
+                    "[${project.path}] dependencies: the plugin is not an esplugin")
         }
     }
 
-    /** Find the plugin name in the given project, whether a regular plugin or meta plugin. */
+    /** Find the plugin name in the given project. */
     static String findPluginName(Project pluginProject) {
         PluginPropertiesExtension extension = pluginProject.extensions.findByName('esplugin')
-        if (extension != null) {
-            return extension.name
-        } else {
-            return pluginProject.extensions.findByName('es_meta_plugin').name
-        }
+        return extension.name
     }
 }

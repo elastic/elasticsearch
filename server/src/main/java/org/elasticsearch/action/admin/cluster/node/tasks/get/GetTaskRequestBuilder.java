@@ -27,7 +27,7 @@ import org.elasticsearch.tasks.TaskId;
 /**
  * Builder for the request to retrieve the list of tasks running on the specified nodes
  */
-public class GetTaskRequestBuilder extends ActionRequestBuilder<GetTaskRequest, GetTaskResponse, GetTaskRequestBuilder> {
+public class GetTaskRequestBuilder extends ActionRequestBuilder<GetTaskRequest, GetTaskResponse> {
     public GetTaskRequestBuilder(ElasticsearchClient client, GetTaskAction action) {
         super(client, action, new GetTaskRequest());
     }

@@ -235,8 +235,8 @@ The output from the above is:
   "timed_out": false,
   "took": $body.took,
   "_shards": {
-    "total": 5,
-    "successful": 5,
+    "total": 1,
+    "successful": 1,
     "skipped" : 0,
     "failed": 0
   },

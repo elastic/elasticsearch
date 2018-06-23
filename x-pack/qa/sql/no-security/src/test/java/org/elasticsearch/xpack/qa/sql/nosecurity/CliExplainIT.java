@@ -103,7 +103,10 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(readLine(), startsWith("    \"excludes\" : [ ]"));
         assertThat(readLine(), startsWith("  },"));
         assertThat(readLine(), startsWith("  \"docvalue_fields\" : ["));
-        assertThat(readLine(), startsWith("    \"i\""));
+        assertThat(readLine(), startsWith("    {"));
+        assertThat(readLine(), startsWith("      \"field\" : \"i\""));
+        assertThat(readLine(), startsWith("      \"format\" : \"use_field_mapping\""));
+        assertThat(readLine(), startsWith("    }"));
         assertThat(readLine(), startsWith("  ],"));
         assertThat(readLine(), startsWith("  \"sort\" : ["));
         assertThat(readLine(), startsWith("    {"));

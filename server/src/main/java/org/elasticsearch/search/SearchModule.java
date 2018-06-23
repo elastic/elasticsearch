@@ -99,7 +99,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -220,6 +219,8 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersM
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovFnPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovFnPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -252,7 +253,6 @@ import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -514,6 +514,11 @@ public class SearchModule {
                 SerialDiffPipelineAggregationBuilder::new,
                 SerialDiffPipelineAggregator::new,
                 SerialDiffPipelineAggregationBuilder::parse));
+        registerPipelineAggregation(new PipelineAggregationSpec(
+            MovFnPipelineAggregationBuilder.NAME,
+            MovFnPipelineAggregationBuilder::new,
+            MovFnPipelineAggregator::new,
+            MovFnPipelineAggregationBuilder::parse));
 
         registerFromPlugin(plugins, SearchPlugin::getPipelineAggregations, this::registerPipelineAggregation);
     }
@@ -638,6 +643,7 @@ public class SearchModule {
         registerValueFormat(DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH);
         registerValueFormat(DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP);
         registerValueFormat(DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
+        registerValueFormat(DocValueFormat.BINARY.getWriteableName(), in -> DocValueFormat.BINARY);
     }
 
     /**

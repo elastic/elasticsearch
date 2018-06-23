@@ -37,6 +37,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -45,6 +46,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
@@ -543,9 +545,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (customs.isEmpty() == false) {
-            throw new IllegalArgumentException("Custom data type is no longer supported in index template [" + customs + "]");
-        }
         builder.field("index_patterns", indexPatterns);
         builder.field("order", order);
         if (version != null) {
@@ -558,8 +557,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
         builder.startObject("mappings");
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(entry.getValue()), false).v2();
-            builder.field(entry.getKey(), mapping);
+            builder.field(entry.getKey());
+            XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entry.getValue());
+            builder.copyCurrentStructure(parser);
         }
         builder.endObject();
 
@@ -568,6 +569,11 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             alias.toXContent(builder, params);
         }
         builder.endObject();
+
+        for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
+            builder.field(entry.getKey(), entry.getValue(), params);
+        }
+
         return builder;
     }
 }

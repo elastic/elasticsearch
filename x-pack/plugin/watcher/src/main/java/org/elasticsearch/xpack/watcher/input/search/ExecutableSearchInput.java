@@ -20,10 +20,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.watcher.WatcherClientHelper;
 import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
@@ -71,8 +71,8 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
         }
 
         SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
-        final SearchResponse response = WatcherClientHelper.execute(ctx.watch(), client,
-                () -> client.search(searchRequest).actionGet(timeout));
+        final SearchResponse response = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN,
+                client, () -> client.search(searchRequest).actionGet(timeout));
 
         if (logger.isDebugEnabled()) {
             logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits());

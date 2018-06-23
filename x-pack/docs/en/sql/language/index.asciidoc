@@ -1,9 +1,0 @@
-[[sql-spec]]
-== SQL Language
-
-This chapter describes the SQL syntax and data types supported in X-Pack.
-As a general rule, the syntax tries to adhere as much as possible to ANSI SQL to make the transition seamless.
-
-include::data-types.asciidoc[]
-include::syntax.asciidoc[]
-include::reserved.asciidoc[]

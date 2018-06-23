@@ -24,6 +24,8 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public abstract class InternalPercentilesTestCase<T extends InternalAggregation & Percentiles> extends AbstractPercentilesTestCase<T> {
 
     @Override
@@ -48,5 +50,11 @@ public abstract class InternalPercentilesTestCase<T extends InternalAggregation 
             percents[i] = randomCdfValues.get(i);
         }
         return percents;
+    }
+
+    @Override
+    protected void assertPercentile(T agg, Double value) {
+        assertThat(agg.percentile(value), equalTo(Double.NaN));
+        assertThat(agg.percentileAsString(value), equalTo("NaN"));
     }
 }

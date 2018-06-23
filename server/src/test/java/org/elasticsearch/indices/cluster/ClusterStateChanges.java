@@ -87,6 +87,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -98,7 +99,6 @@ import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -230,6 +230,15 @@ public class ClusterStateChanges extends AbstractComponent {
 
     public ClusterState addNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(joinTaskExecutor, clusterState, nodes);
+    }
+
+    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
+        List<DiscoveryNode> joinNodes = new ArrayList<>();
+        joinNodes.add(NodeJoinController.BECOME_MASTER_TASK);
+        joinNodes.add(NodeJoinController.FINISH_ELECTION_TASK);
+        joinNodes.addAll(nodes);
+
+        return runTasks(joinTaskExecutor, clusterState, joinNodes);
     }
 
     public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {

@@ -43,7 +43,6 @@ import org.elasticsearch.indices.IndicesRequestCache;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -152,7 +151,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexModule.INDEX_STORE_TYPE_SETTING,
         IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
         IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
-        IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
         FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
         EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,

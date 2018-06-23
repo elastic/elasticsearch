@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -20,12 +19,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.joda.time.DateTime;
@@ -56,6 +55,7 @@ import static org.joda.time.DateTimeZone.UTC;
  */
 public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequest, PutWatchResponse> {
 
+    private final ThreadPool threadPool;
     private final Clock clock;
     private final WatchParser parser;
     private final Client client;
@@ -64,10 +64,9 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
 
     @Inject
     public TransportPutWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, Clock clock, XPackLicenseState licenseState,
-                                   WatchParser parser, Client client) {
-        super(settings, PutWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
-                licenseState, PutWatchRequest::new);
+                                   Clock clock, XPackLicenseState licenseState, WatchParser parser, Client client) {
+        super(settings, PutWatchAction.NAME, transportService, actionFilters, licenseState, PutWatchRequest::new);
+        this.threadPool = threadPool;
         this.clock = clock;
         this.parser = parser;
         this.client = client;
@@ -83,7 +82,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
 
             // ensure we only filter for the allowed headers
             Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                    .filter(e -> Watcher.HEADER_FILTERS.contains(e.getKey()))
+                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             watch.status().setHeaders(filteredHeaders);
 

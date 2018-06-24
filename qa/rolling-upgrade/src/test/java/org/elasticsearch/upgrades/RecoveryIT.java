@@ -28,6 +28,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -52,7 +53,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class RecoveryIT extends AbstractRollingTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31291")
+    @TestLogging("_root:DEBUG")
     public void testHistoryUUIDIsGenerated() throws Exception {
         final String index = "index_history_uuid";
         if (CLUSTER_TYPE == ClusterType.OLD) {

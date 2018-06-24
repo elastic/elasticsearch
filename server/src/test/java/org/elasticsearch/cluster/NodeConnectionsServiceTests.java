@@ -45,7 +45,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -131,6 +130,43 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         assertConnectedExactlyToNodes(event.state());
     }
 
+    public void testDoesNotReconnectToKnownNodesOnNewClusterState() {
+        List<DiscoveryNode> nodes = generateNodes();
+        NodeConnectionsService service = new NodeConnectionsService(Settings.EMPTY, threadPool, transportService);
+
+        final ClusterState state1 = clusterStateFromNodes(randomSubsetOf(nodes));
+        final ClusterState state2 = clusterStateFromNodes(randomSubsetOf(nodes));
+
+        service.connectToNodes(state1.nodes());
+
+        final Set<DiscoveryNode> disconnectedNodes = new HashSet<>(randomSubsetOf(nodes));
+        for (final DiscoveryNode node : disconnectedNodes) {
+            transport.disconnectFromNode(node);
+        }
+
+        service.connectToNodes(state2.nodes());
+
+        final Set<DiscoveryNode> expectedNodes = new HashSet<>(nodes.size());
+        state1.nodes().forEach(expectedNodes::add);
+        disconnectedNodes.forEach(expectedNodes::remove);
+        for (final DiscoveryNode discoveryNode : state2.nodes()) {
+            if (state1.nodes().get(discoveryNode.getId()) == null) {
+                // Only expect to be connected to _new_ nodes in state2.
+                expectedNodes.add(discoveryNode);
+            }
+        }
+
+        assertConnected(expectedNodes);
+        assertThat(transport.connectedNodes.size(), equalTo(expectedNodes.size()));
+
+        service.new ConnectionChecker().run();
+
+        state1.nodes().forEach(expectedNodes::add);
+
+        assertConnected(expectedNodes);
+        assertThat(transport.connectedNodes.size(), equalTo(expectedNodes.size()));
+    }
+
     private void assertConnectedExactlyToNodes(ClusterState state) {
         assertConnected(state.nodes());
         assertThat(transport.connectedNodes.size(), equalTo(state.nodes().getSize()));
@@ -139,12 +175,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     private void assertConnected(Iterable<DiscoveryNode> nodes) {
         for (DiscoveryNode node : nodes) {
             assertTrue("not connected to " + node, transport.connectedNodes.contains(node));
-        }
-    }
-
-    private void assertNotConnected(Iterable<DiscoveryNode> nodes) {
-        for (DiscoveryNode node : nodes) {
-            assertFalse("still connected to " + node, transport.connectedNodes.contains(node));
         }
     }
 
@@ -190,7 +220,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
+        public TransportAddress[] addressesFromString(String address, int perAddressLimit) {
             return new TransportAddress[0];
         }
 
@@ -226,19 +256,19 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
                 @Override
                 public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                    throws IOException, TransportException {
+                    throws TransportException {
 
                 }
 
                 @Override
-                public void close() throws IOException {
+                public void close() {
 
                 }
             };
         }
 
         @Override
-        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
             return getConnection(node);
         }
 

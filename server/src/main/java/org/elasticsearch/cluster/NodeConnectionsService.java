@@ -83,8 +83,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         for (final DiscoveryNode node : discoveryNodes) {
             final boolean connected;
             try (Releasable ignored = nodeLocks.acquire(node)) {
-                nodes.putIfAbsent(node, 0);
-                connected = transportService.nodeConnected(node);
+                connected = (nodes.putIfAbsent(node, 0) != null);
             }
             if (connected) {
                 latch.countDown();

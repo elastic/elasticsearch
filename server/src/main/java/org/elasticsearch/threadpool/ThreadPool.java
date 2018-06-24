@@ -79,6 +79,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         public static final String FORCE_MERGE = "force_merge";
         public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
+        public static final String CONNECT = "connect";
     }
 
     public enum ThreadPoolType {
@@ -135,6 +136,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         map.put(Names.FORCE_MERGE, ThreadPoolType.FIXED);
         map.put(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING);
         map.put(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING);
+        map.put(Names.CONNECT, ThreadPoolType.SCALING);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -186,6 +188,8 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         builders.put(Names.FETCH_SHARD_STARTED, new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
         builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1));
         builders.put(Names.FETCH_SHARD_STORE, new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
+        builders.put(Names.CONNECT, new ScalingExecutorBuilder(Names.CONNECT, 1,
+            boundedBy(10 * availableProcessors, 10, 100), TimeValue.timeValueSeconds(10)));
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {
                 throw new IllegalArgumentException("builder with name [" + builder.name() + "] already exists");

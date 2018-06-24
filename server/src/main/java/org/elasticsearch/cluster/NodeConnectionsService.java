@@ -90,7 +90,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 latch.countDown();
             } else {
                 // spawn to another thread to do in parallel
-                threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
+                threadPool.executor(ThreadPool.Names.CONNECT).execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
                         // both errors and rejections are logged here. the service
@@ -185,14 +185,14 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         @Override
         public void onAfter() {
             if (lifecycle.started()) {
-                backgroundFuture = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, this);
+                backgroundFuture = threadPool.schedule(reconnectInterval, ThreadPool.Names.CONNECT, this);
             }
         }
     }
 
     @Override
     protected void doStart() {
-        backgroundFuture = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ConnectionChecker());
+        backgroundFuture = threadPool.schedule(reconnectInterval, ThreadPool.Names.CONNECT, new ConnectionChecker());
     }
 
     @Override

@@ -23,8 +23,8 @@ esplugin {
 }
 
 versions << [
-  'tika': '1.17',
-  'pdfbox': '2.0.8',
+  'tika': '1.18',
+  'pdfbox': '2.0.9',
   'bouncycastle': '1.55',
   'poi': '3.17',
   'mime4j': '0.8.1'
@@ -33,9 +33,10 @@ versions << [
 dependencies {
   // mandatory for tika
   compile "org.apache.tika:tika-core:${versions.tika}"
+  // build against Jackson 2.9.5, but still works on our current version
   compile "org.apache.tika:tika-parsers:${versions.tika}"
-  compile 'org.tukaani:xz:1.6'
-  compile 'commons-io:commons-io:2.5'
+  compile 'org.tukaani:xz:1.8'
+  compile 'commons-io:commons-io:2.6'
   compile "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
@@ -62,7 +63,7 @@ dependencies {
   // MS Office
   compile "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  compile 'org.apache.commons:commons-compress:1.14'
+  compile 'org.apache.commons:commons-compress:1.16.1'
   // Outlook documents
   compile "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   compile "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
@@ -118,6 +119,10 @@ thirdPartyAudit.excludes = [
   'com.drew.metadata.jpeg.JpegDirectory',
   'com.github.junrar.Archive',
   'com.github.junrar.rarfile.FileHeader',
+  'com.github.luben.zstd.ZstdInputStream',
+  'com.github.luben.zstd.ZstdOutputStream',
+  'com.github.openjson.JSONArray',
+  'com.github.openjson.JSONObject',
   'com.google.common.reflect.TypeToken',
   'com.google.gson.Gson',
   'com.googlecode.mp4parser.DataSource',
@@ -531,6 +536,7 @@ thirdPartyAudit.excludes = [
   'org.apache.commons.exec.PumpStreamHandler',
   'org.apache.commons.exec.environment.EnvironmentUtils',
   'org.apache.commons.lang.StringUtils',
+  'org.apache.commons.lang.SystemUtils',
   'org.apache.ctakes.typesystem.type.refsem.UmlsConcept',
   'org.apache.ctakes.typesystem.type.textsem.IdentifiedAnnotation',
   'org.apache.cxf.jaxrs.client.WebClient',
@@ -635,8 +641,6 @@ thirdPartyAudit.excludes = [
   'org.etsi.uri.x01903.v13.impl.UnsignedSignaturePropertiesTypeImpl$1SignatureTimeStampList',
   'org.etsi.uri.x01903.v14.ValidationDataType$Factory',
   'org.etsi.uri.x01903.v14.ValidationDataType',
-  'org.json.JSONArray',
-  'org.json.JSONObject',
   'org.json.simple.JSONArray',
   'org.json.simple.JSONObject',
   'org.json.simple.parser.JSONParser',

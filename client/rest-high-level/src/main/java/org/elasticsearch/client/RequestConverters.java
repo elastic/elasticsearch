@@ -877,7 +877,7 @@ final class RequestConverters {
 
         Params parameters = new Params(request);
         parameters.withMasterTimeout(snapshotsStatusRequest.masterNodeTimeout());
-        parameters.putParam("ignore_unavailable", Boolean.toString(snapshotsStatusRequest.ignoreUnavailable()));
+        parameters.withIgnoreUnavailable(snapshotsStatusRequest.ignoreUnavailable());
         return request;
     }
 
@@ -1155,7 +1155,7 @@ final class RequestConverters {
         }
 
         Params withIndicesOptions(IndicesOptions indicesOptions) {
-            putParam("ignore_unavailable", Boolean.toString(indicesOptions.ignoreUnavailable()));
+            withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
             putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
             String expandWildcards;
             if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
@@ -1171,6 +1171,13 @@ final class RequestConverters {
                 expandWildcards = joiner.toString();
             }
             putParam("expand_wildcards", expandWildcards);
+            return this;
+        }
+
+        Params withIgnoreUnavailable(boolean ignoreUnavailable) {
+            if (ignoreUnavailable) {
+                putParam("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+            }
             return this;
         }
 

@@ -55,12 +55,6 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
             highLevelClient().snapshot()::createRepositoryAsync);
     }
 
-    private Response createTestSnapshot(String repository, String snapshot) throws IOException {
-        Request createSnapshot = new Request("put", String.format(Locale.ROOT, "_snapshot/%s/%s", repository, snapshot));
-        createSnapshot.addParameter("wait_for_completion", "true");
-        return highLevelClient().getLowLevelClient().performRequest(createSnapshot);
-    }
-
     private Response createTestSnapshot(String repository, String snapshot, String index) throws IOException {
         Request createSnapshot = new Request("put", String.format(Locale.ROOT, "_snapshot/%s/%s", repository, snapshot));
         createSnapshot.addParameter("wait_for_completion", "true");
@@ -132,33 +126,40 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testSnapshotsStatus() throws IOException {
-        PutRepositoryResponse putRepositoryResponse = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
+        String testRepository = "test";
+        String testSnapshot = "snapshot";
+        String testIndex = "test_index";
+
+        PutRepositoryResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
-        createIndex("test_index", Settings.EMPTY);
+        createIndex(testIndex, Settings.EMPTY);
 
-        Response snapshotResponse = createTestSnapshot("test", "snapshot", "test_index");
+        Response snapshotResponse = createTestSnapshot(testRepository, testSnapshot, testIndex);
         assertEquals(2, snapshotResponse.getHttpResponse().getStatusLine().getStatusCode() / 100);
 
         SnapshotsStatusRequest request = new SnapshotsStatusRequest();
-        request.repository("test");
-        request.snapshots(new String[]{"snapshot"});
+        request.repository(testRepository);
+        request.snapshots(new String[]{testSnapshot});
         SnapshotsStatusResponse response = execute(request, highLevelClient().snapshot()::snapshotsStatus,
             highLevelClient().snapshot()::snapshotsStatusAsync);
         assertThat(response.getSnapshots().size(), equalTo(1));
-        assertThat(response.getSnapshots().get(0).getSnapshot().getRepository(), equalTo("test"));
-        assertThat(response.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo("snapshot"));
-        assertThat(response.getSnapshots().get(0).getIndices().containsKey("test_index"), is(true));
+        assertThat(response.getSnapshots().get(0).getSnapshot().getRepository(), equalTo(testRepository));
+        assertThat(response.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo(testSnapshot));
+        assertThat(response.getSnapshots().get(0).getIndices().containsKey(testIndex), is(true));
     }
 
     public void testDeleteSnapshot() throws IOException {
         String repository = "test_repository";
         String snapshot = "test_snapshot";
+        String index = "test_index";
 
         PutRepositoryResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
-        Response putSnapshotResponse = createTestSnapshot(repository, snapshot);
+        createIndex(index, Settings.EMPTY);
+
+        Response putSnapshotResponse = createTestSnapshot(repository, snapshot, index);
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
         assertEquals(200, putSnapshotResponse.getStatusLine().getStatusCode());
 

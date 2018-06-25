@@ -52,6 +52,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -450,6 +451,61 @@ public class RequestConvertersTests extends ESTestCase {
         endpoint.add("_mapping");
         if (type != null) {
             endpoint.add(type);
+        }
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+    }
+
+    public void testGetFieldMapping() throws IOException {
+        GetFieldMappingsRequest getFieldMappingsRequest = new GetFieldMappingsRequest();
+
+        String[] indices = Strings.EMPTY_ARRAY;
+        if (randomBoolean()) {
+            indices = randomIndicesNames(0, 5);
+            getFieldMappingsRequest.indices(indices);
+        } else if (randomBoolean()) {
+            getFieldMappingsRequest.indices((String[]) null);
+        }
+
+        String type = null;
+        if (randomBoolean()) {
+            type = randomAlphaOfLengthBetween(3, 10);
+            getFieldMappingsRequest.types(type);
+        } else if (randomBoolean()) {
+            getFieldMappingsRequest.types((String[]) null);
+        }
+
+        String[] fields = null;
+        if (randomBoolean()) {
+            fields = new String[randomIntBetween(1, 5)];
+            for (int i = 0; i < fields.length; i++) {
+                fields[i] = randomAlphaOfLengthBetween(3, 10);
+            }
+            getFieldMappingsRequest.fields(fields);
+        } else if (randomBoolean()) {
+            getFieldMappingsRequest.fields((String[]) null);
+        }
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        setRandomIndicesOptions(getFieldMappingsRequest::indicesOptions, getFieldMappingsRequest::indicesOptions, expectedParams);
+        setRandomLocal(getFieldMappingsRequest::local, expectedParams);
+
+        Request request = RequestConverters.getFieldMapping(getFieldMappingsRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        endpoint.add("_mapping");
+        if (type != null) {
+            endpoint.add(type);
+        }
+        endpoint.add("field");
+        if (fields != null) {
+            endpoint.add(String.join(",", fields));
         }
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
 
@@ -2268,14 +2324,18 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
+    private static void setRandomLocal(Consumer<Boolean> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean local = randomBoolean();
-            request.local(local);
+            setter.accept(local);
             if (local) {
                 expectedParams.put("local", String.valueOf(local));
             }
         }
+    }
+
+    private static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
+        setRandomLocal(request::local, expectedParams);
     }
 
     private static void setRandomTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {

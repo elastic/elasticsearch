@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
@@ -62,7 +63,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
     }
 
     @Override
-    protected void doExecute(UpdateFilterAction.Request request, ActionListener<PutFilterAction.Response> listener) {
+    protected void doExecute(Task task, UpdateFilterAction.Request request, ActionListener<PutFilterAction.Response> listener) {
         ActionListener<FilterWithVersion> filterListener = ActionListener.wrap(filterWithVersion -> {
             updateFilter(filterWithVersion, request, listener);
         }, listener::onFailure);

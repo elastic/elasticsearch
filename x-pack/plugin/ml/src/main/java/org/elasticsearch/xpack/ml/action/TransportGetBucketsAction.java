@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
@@ -36,7 +37,7 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
     }
 
     @Override
-    protected void doExecute(GetBucketsAction.Request request, ActionListener<GetBucketsAction.Response> listener) {
+    protected void doExecute(Task task, GetBucketsAction.Request request, ActionListener<GetBucketsAction.Response> listener) {
         jobManager.getJobOrThrowIfUnknown(request.getJobId());
 
         BucketsQueryBuilder query =

@@ -149,9 +149,7 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
         params.put("pretty", "true");
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("index").setTypes("type").setFields("field1", "obj.subfield").get();
         XContentBuilder responseBuilder = XContentFactory.jsonBuilder().prettyPrint();
-        responseBuilder.startObject();
         response.toXContent(responseBuilder, new ToXContent.MapParams(params));
-        responseBuilder.endObject();
         String responseStrings = Strings.toString(responseBuilder);
 
 
@@ -163,9 +161,7 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
 
         response = client().admin().indices().prepareGetFieldMappings("index").setTypes("type").setFields("field1", "obj.subfield").get();
         responseBuilder = XContentFactory.jsonBuilder().prettyPrint().lfAtEnd();
-        responseBuilder.startObject();
         response.toXContent(responseBuilder, new ToXContent.MapParams(params));
-        responseBuilder.endObject();
         responseStrings = Strings.toString(responseBuilder);
 
         prettyJsonBuilder = XContentFactory.jsonBuilder().prettyPrint();

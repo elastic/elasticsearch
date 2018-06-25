@@ -123,11 +123,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         requestFilterChain.proceed(task, actionName, request, listener);
     }
 
-    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        doExecute(request, listener);
-    }
-
-    protected abstract void doExecute(Request request, ActionListener<Response> listener);
+    protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);
 
     private static class RequestFilterChain<Request extends ActionRequest, Response extends ActionResponse>
             implements ActionFilterChain<Request, Response> {

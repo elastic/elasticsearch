@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
@@ -29,7 +30,7 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
     }
 
     @Override
-    protected void doExecute(final PutRoleRequest request, final ActionListener<PutRoleResponse> listener) {
+    protected void doExecute(Task task, final PutRoleRequest request, final ActionListener<PutRoleResponse> listener) {
         final String name = request.roleDescriptor().getName();
         if (ReservedRolesStore.isReserved(name)) {
             listener.onFailure(new IllegalArgumentException("role [" + name + "] is reserved and cannot be modified."));

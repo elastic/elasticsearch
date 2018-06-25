@@ -39,6 +39,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestMainAction;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -84,7 +85,7 @@ public class ActionModuleTests extends ESTestCase {
             }
 
             @Override
-            protected void doExecute(FakeRequest request, ActionListener<ActionResponse> listener) {
+            protected void doExecute(Task task, FakeRequest request, ActionListener<ActionResponse> listener) {
             }
         }
         class FakeAction extends Action<ActionResponse> {

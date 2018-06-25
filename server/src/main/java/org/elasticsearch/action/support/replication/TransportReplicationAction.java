@@ -164,11 +164,6 @@ public abstract class TransportReplicationAction<
     }
 
     @Override
-    protected final void doExecute(Request request, ActionListener<Response> listener) {
-        throw new UnsupportedOperationException("the task parameter is required for this operation");
-    }
-
-    @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new ReroutePhase((ReplicationTask) task, request, listener).run();
     }

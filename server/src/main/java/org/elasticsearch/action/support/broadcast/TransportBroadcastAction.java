@@ -75,11 +75,6 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
         new AsyncBroadcastAction(task, request, listener).start();
     }
 
-    @Override
-    protected final void doExecute(Request request, ActionListener<Response> listener) {
-        throw new UnsupportedOperationException("the task parameter is required for this operation");
-    }
-
     protected abstract Response newResponse(Request request, AtomicReferenceArray shardsResponses, ClusterState clusterState);
 
     protected abstract ShardRequest newShardRequest(int numShards, ShardRouting shard, Request request);

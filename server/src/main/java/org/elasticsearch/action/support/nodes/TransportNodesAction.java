@@ -78,12 +78,6 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
     }
 
     @Override
-    protected final void doExecute(NodesRequest request, ActionListener<NodesResponse> listener) {
-        logger.warn("attempt to execute a transport nodes operation without a task");
-        throw new UnsupportedOperationException("task parameter is required for this operation");
-    }
-
-    @Override
     protected void doExecute(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
         new AsyncAction(task, request, listener).start();
     }

@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
@@ -56,7 +57,7 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
     }
 
     @Override
-    protected void doExecute(GetFiltersAction.Request request, ActionListener<GetFiltersAction.Response> listener) {
+    protected void doExecute(Task task, GetFiltersAction.Request request, ActionListener<GetFiltersAction.Response> listener) {
         final String filterId = request.getFilterId();
         if (!Strings.isNullOrEmpty(filterId)) {
             getFilter(filterId, listener);

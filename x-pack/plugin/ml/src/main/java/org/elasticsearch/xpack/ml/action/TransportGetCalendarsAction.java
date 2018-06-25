@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
@@ -33,7 +34,7 @@ public class TransportGetCalendarsAction extends HandledTransportAction<GetCalen
     }
 
     @Override
-    protected void doExecute(GetCalendarsAction.Request request, ActionListener<GetCalendarsAction.Response> listener) {
+    protected void doExecute(Task task, GetCalendarsAction.Request request, ActionListener<GetCalendarsAction.Response> listener) {
         final String calendarId = request.getCalendarId();
         if (request.getCalendarId() != null && GetCalendarsAction.Request.ALL.equals(request.getCalendarId()) == false) {
             getCalendar(calendarId, listener);

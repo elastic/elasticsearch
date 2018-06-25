@@ -91,7 +91,7 @@ public class AppendProcessorTests extends ESTestCase {
             appendProcessor = createAppendProcessor(field, values);
         }
         appendProcessor.execute(ingestDocument);
-        List list = ingestDocument.getFieldValue(field, List.class);
+        List<?> list = ingestDocument.getFieldValue(field, List.class);
         assertThat(list, not(sameInstance(values)));
         assertThat(list, equalTo(values));
     }
@@ -115,7 +115,7 @@ public class AppendProcessorTests extends ESTestCase {
             appendProcessor = createAppendProcessor(field, values);
         }
         appendProcessor.execute(ingestDocument);
-        List fieldValue = ingestDocument.getFieldValue(field, List.class);
+        List<?> fieldValue = ingestDocument.getFieldValue(field, List.class);
         assertThat(fieldValue.size(), equalTo(values.size() + 1));
         assertThat(fieldValue.get(0), equalTo(initialValue));
         for (int i = 1; i < values.size() + 1; i++) {
@@ -144,7 +144,7 @@ public class AppendProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Object initialValue = ingestDocument.getSourceAndMetadata().get(randomMetaData.getFieldName());
         appendProcessor.execute(ingestDocument);
-        List list = ingestDocument.getFieldValue(randomMetaData.getFieldName(), List.class);
+        List<?> list = ingestDocument.getFieldValue(randomMetaData.getFieldName(), List.class);
         if (initialValue == null) {
             assertThat(list, equalTo(values));
         } else {

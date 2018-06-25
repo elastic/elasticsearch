@@ -159,6 +159,7 @@ final class TikaImpl {
         perms.add(new SecurityPermission("putProviderProperty.BC"));
         perms.add(new SecurityPermission("insertProvider"));
         perms.add(new ReflectPermission("suppressAccessChecks"));
+        perms.add(new RuntimePermission("accessClassInPackage.sun.java2d.cmm.kcms"));
         // xmlbeans, use by POI, needs to get the context classloader
         perms.add(new RuntimePermission("getClassLoader"));
         // ZipFile needs accessDeclaredMembers on JDK 10; cf. https://bugs.openjdk.java.net/browse/JDK-8187485

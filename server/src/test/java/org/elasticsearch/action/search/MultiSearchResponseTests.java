@@ -40,9 +40,11 @@ public class MultiSearchResponseTests extends ESTestCase {
             MultiSearchResponse expected = createTestInstance();
             XContentType xContentType = randomFrom(XContentType.values());
             BytesReference shuffled = toShuffledXContent(expected, xContentType, ToXContent.EMPTY_PARAMS, false);
-            XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled);
-            MultiSearchResponse actual = MultiSearchResponse.fromXContext(parser);
-            assertThat(parser.nextToken(), nullValue());
+            MultiSearchResponse actual;
+            try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
+                actual = MultiSearchResponse.fromXContext(parser);
+                assertThat(parser.nextToken(), nullValue());
+            }
 
             assertThat(actual.getTook(), equalTo(expected.getTook()));
             assertThat(actual.getResponses().length, equalTo(expected.getResponses().length));

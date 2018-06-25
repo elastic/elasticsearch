@@ -349,7 +349,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         Repository previous = repositories.get(repositoryMetaData.name());
         if (previous != null) {
             RepositoryMetaData previousMetadata = previous.getMetadata();
-            if (!previousMetadata.type().equals(repositoryMetaData.type()) && previousMetadata.settings().equals(repositoryMetaData.settings())) {
+            if (previousMetadata.equals(repositoryMetaData)) {
                 // Previous version is the same as this one - ignore it
                 return false;
             }

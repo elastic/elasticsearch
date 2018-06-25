@@ -846,7 +846,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     public static final class NumberFieldType extends SimpleMappedFieldType {
 
-        NumberType type;
+        private final NumberType type;
 
         public NumberFieldType(NumberType type) {
             super();
@@ -856,7 +856,7 @@ public class NumberFieldMapper extends FieldMapper {
             setOmitNorms(true);
         }
 
-        NumberFieldType(NumberFieldType other) {
+        private NumberFieldType(NumberFieldType other) {
             super(other);
             this.type = other.type;
         }
@@ -935,6 +935,20 @@ public class NumberFieldMapper extends FieldMapper {
             } else {
                 return new DocValueFormat.Decimal(format);
             }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (super.equals(o) == false) {
+                return false;
+            }
+            NumberFieldType that = (NumberFieldType) o;
+            return type == that.type;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), type);
         }
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -27,12 +28,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -1820,6 +1823,43 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         RangeQueryBuilder range = new RangeQueryBuilder("int_range").relation("intersects").from(Integer.MIN_VALUE).to(Integer.MAX_VALUE);
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 1);
+    }
+
+    public void testNestedQueryWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("section")
+                            .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("distance")
+                                    .field("type", "long")
+                                .endObject()
+                                .startObject("route_length_miles")
+                                    .field("type", "alias")
+                                    .field("path", "section.distance")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("index").addMapping("_doc", mapping));
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startObject("section")
+                .field("distance", 42)
+            .endObject()
+        .endObject();
+
+        index("index", "_doc", "1", source);
+        refresh();
+
+        QueryBuilder nestedQuery = QueryBuilders.nestedQuery("section",
+            QueryBuilders.termQuery("section.route_length_miles", 42),
+            ScoreMode.Max);
+        SearchResponse searchResponse = client().prepareSearch("index").setQuery(nestedQuery).get();
         assertHitCount(searchResponse, 1);
     }
 }

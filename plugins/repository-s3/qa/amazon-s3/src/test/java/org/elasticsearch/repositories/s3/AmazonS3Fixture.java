@@ -56,9 +56,10 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     /**
      * Creates a {@link AmazonS3Fixture}
      */
-    private AmazonS3Fixture(final String workingDir, final String bucket) {
+    private AmazonS3Fixture(final String workingDir, final String permanentBucketName, final String temporaryBucketName) {
         super(workingDir);
-        this.buckets.put(bucket, new Bucket(bucket));
+        this.buckets.put(permanentBucketName, new Bucket(permanentBucketName));
+        this.buckets.put(temporaryBucketName, new Bucket(temporaryBucketName));
         this.handlers = defaultHandlers(buckets);
     }
 
@@ -68,7 +69,8 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         if (handler != null) {
             final String authorization = request.getHeader("Authorization");
             if (authorization == null
-                || (authorization.length() > 0 && authorization.contains("s3_integration_test_access_key") == false)) {
+                || (authorization.length() > 0 && authorization.contains("s3_integration_test_permanent_access_key") == false
+                && authorization.contains("s3_integration_test_temporary_access_key") == false)) {
                 return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Access Denied", "");
             }
             return handler.handle(request);
@@ -77,11 +79,12 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     }
 
     public static void main(final String[] args) throws Exception {
-        if (args == null || args.length != 2) {
-            throw new IllegalArgumentException("AmazonS3Fixture <working directory> <bucket>");
+        if (args == null || args.length != 3) {
+            throw new IllegalArgumentException(
+                "AmazonS3Fixture <working directory> <bucket for permanent creds> <bucket for temporary creds>");
         }
 
-        final AmazonS3Fixture fixture = new AmazonS3Fixture(args[0], args[1]);
+        final AmazonS3Fixture fixture = new AmazonS3Fixture(args[0], args[1], args[2]);
         fixture.listen();
     }
 

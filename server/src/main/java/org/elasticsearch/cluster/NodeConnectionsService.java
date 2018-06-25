@@ -81,13 +81,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     public void connectToNodes(DiscoveryNodes discoveryNodes) {
         CountDownLatch latch = new CountDownLatch(discoveryNodes.getSize());
         for (final DiscoveryNode node : discoveryNodes) {
-            final boolean connected;
+            final boolean shouldConnect;
             try (Releasable ignored = nodeLocks.acquire(node)) {
-                connected = (nodes.putIfAbsent(node, 0) != null);
+                shouldConnect = nodes.putIfAbsent(node, 0) == null;
             }
-            if (connected) {
-                latch.countDown();
-            } else {
+            if (shouldConnect) {
                 // spawn to another thread to do in parallel
                 threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
                     @Override
@@ -111,6 +109,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                         latch.countDown();
                     }
                 });
+            } else {
+                latch.countDown();
             }
         }
         try {

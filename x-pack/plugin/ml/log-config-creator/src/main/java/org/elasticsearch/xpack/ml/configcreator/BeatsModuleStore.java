@@ -15,15 +15,13 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -31,19 +29,6 @@ import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 import static org.elasticsearch.common.xcontent.yaml.YamlXContent.yamlXContent;
 
 public final class BeatsModuleStore {
-
-    private static final Set<String> BROAD_MATCH_FORMATS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-        "apache2", "system"
-    )));
-    private static final Map<String, String> FORMAT_ABBREVIATIONS;
-    static {
-        Map<String, String> formatAbbreviations = new HashMap<>();
-        formatAbbreviations.put("apache2", "apache");
-        formatAbbreviations.put("mongodb", "mongo");
-        formatAbbreviations.put("mysql", "my");
-        formatAbbreviations.put("postgresql", "pg");
-        FORMAT_ABBREVIATIONS = Collections.unmodifiableMap(formatAbbreviations);
-    }
 
     private final List<BeatsModule> beatsModules;
 
@@ -76,26 +61,12 @@ public final class BeatsModuleStore {
 
         try {
             Files.find(moduleDir, 3, (path, attrs) -> path.getFileName().toString().equals("manifest.yml"))
-                .forEach(path -> considerModule(path, beatsModules, sampleFileName));
+                .forEach(path -> parseModule(path, beatsModules, sampleFileName));
         } catch (UncheckedIOException e) {
             throw e.getCause();
         }
 
         return beatsModules;
-    }
-
-    static void considerModule(Path manifestPath, List<BeatsModule> beatsModules, String sampleFileName) {
-        String moduleName = manifestPath.getName(manifestPath.getNameCount() - 3).toString();
-
-        // Ignore specialist modules that have no connection to the sample file name
-        if (BROAD_MATCH_FORMATS.contains(moduleName) == false && sampleFileName.contains(moduleName) == false) {
-            String abbreviation = FORMAT_ABBREVIATIONS.get(moduleName);
-            if (abbreviation == null || sampleFileName.contains(abbreviation) == false) {
-                return;
-            }
-        }
-
-        parseModule(manifestPath, beatsModules, sampleFileName);
     }
 
     static void parseModule(Path manifestPath, List<BeatsModule> beatsModules, String sampleFileName) {
@@ -107,51 +78,148 @@ public final class BeatsModuleStore {
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, Files.newInputStream(manifestPath))) {
 
                 Map<String, Object> manifestContent = parser.map();
-                if (manifestContent.containsKey("input") && manifestContent.containsKey("ingest_pipeline")) {
-                    // The manifest should list a file containing the "inputs" section of the filebeat config, plus an ingest pipeline
-                    // definition.  The files may contain variables to be substituted.  For the time being the only substitutions we make
-                    // are:
-                    // 1. "{{.format}}" in the ingest pipeline file name with "plain".
-                    // 2. "{{$path}}" in the filebeat config with the path to the sample file that was provided.
-                    // 3. "{< if .convert_timezone >}" is taken to be true.
-                    // 4. "{{ _ingest.on_failure_message }}" is preserved.
-                    // Other variables are simply removed.
-                    String inputDefinition;
-                    try (Stream<String> strm = Files.lines(manifestPath.getParent().resolve(manifestContent.get("input").toString()))) {
-                        inputDefinition = strm.flatMap(line -> {
-                            if (line.contains("{{$path}}")) {
-                                return Stream.of("  " + line.replace("{{$path}}", "'" + sampleFileName + "'"));
-                            } else if (line.contains("{{")) {
-                                return Stream.empty();
-                            } else if (line.startsWith("type: ")){
-                                return Stream.of("- " + line);
-                            } else {
-                                return Stream.of("  " + line);
-                            }
-                        }).collect(Collectors.joining("\n"));
-                    }
-                    String ingestPipeline;
-                    String ingestPipelineFileName = manifestContent.get("ingest_pipeline").toString().replace("{{.format}}", "plain");
-                    try (Stream<String> strm = Files.lines(manifestPath.getParent().resolve(ingestPipelineFileName))) {
-                        ingestPipeline = strm.flatMap(line -> {
-                            if (line.contains("{< if .convert_timezone >}\"timezone\": \"{{ beat.timezone }}\",{< end >}")) {
-                                return Stream.of(line.replace("{< if .convert_timezone >}\"timezone\": \"{{ beat.timezone }}\",{< end >}",
-                                    "\"timezone\": \"{{ beat.timezone }}\","));
-                            } else if (line.contains("{{") && line.contains("{{ _ingest.on_failure_message }}") == false) {
-                                return Stream.empty();
-                            } else {
-                                return Stream.of(line);
-                            }
-                        }).collect(Collectors.joining("\n"));
-                    }
-                    if (inputDefinition.contains("- type: log\n") && ingestPipeline.contains("\"grok\"")) {
-                        beatsModules.add(new BeatsModule(moduleName, fileType, inputDefinition, ingestPipeline));
+                if (manifestContent.containsKey("var") && manifestContent.containsKey("input") &&
+                    manifestContent.containsKey("ingest_pipeline")) {
+                    // The "var" section of the manifest will list the paths of files that it expects to work on by default.
+                    // We'll only use it if the name of the sample file looks like a file from one of the default paths.
+                    if (varsMatchSampleFileName(manifestContent.get("var"), sampleFileName)) {
+                        // The manifest should also list a file containing the "inputs" section of the filebeat config,
+                        // plus a file containing an ingest pipeline definition.
+                        String inputDefinition = parseInputDefinition(manifestPath, manifestContent.get("input"), sampleFileName);
+                        String ingestPipeline = parseIngestPipeline(manifestPath, manifestContent.get("ingest_pipeline"));
+                        if (inputDefinition.contains("- type: log\n") && ingestPipeline.contains("\"grok\"")) {
+                            beatsModules.add(new BeatsModule(moduleName, fileType, inputDefinition, ingestPipeline));
+                        }
                     }
                 }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * This is an example of what we're trying to match against:
+     *
+     * var:
+     *   - name: format
+     *     default: plain
+     *   - name: paths
+     *     default:
+     *       - /var/log/logstash/logstash-{{.format}}*.log
+     *     os.windows:
+     *       - c:/programdata/logstash/logs/logstash-{{.format}}*.log
+     */
+    @SuppressWarnings("unchecked")
+    private static boolean varsMatchSampleFileName(Object varSection, String sampleFileName) {
+
+        if (varSection instanceof List) {
+
+            for (Object o : (List<Object>) varSection) {
+                if (o instanceof Map) {
+                    if (pathsMatchSampleFileNameWithoutPath((Map<String, Object>) o, sampleFileName.replaceFirst(".*[/\\\\]", ""))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * This is an example of what we're trying to match against:
+     *
+     * name: paths
+     * default:
+     *   - /var/log/logstash/logstash-{{.format}}*.log
+     * os.windows:
+     *   - c:/programdata/logstash/logs/logstash-{{.format}}*.log
+     */
+    @SuppressWarnings("unchecked")
+    private static boolean pathsMatchSampleFileNameWithoutPath(Map<String, Object> pathsSection, String sampleFileNameWithoutPath) {
+
+        if ("paths".equals(pathsSection.get("name"))) {
+
+            for (Map.Entry<String, Object> entry : pathsSection.entrySet()) {
+                if (entry.getKey().equals("name")){
+                    continue;
+                }
+
+                if (entry.getValue() instanceof List) {
+                    List<Object> paths = (List<Object>) entry.getValue();
+                    for (Object path : paths) {
+                        if (pathMatchesSampleFileNameWithoutPath(path.toString(), sampleFileNameWithoutPath)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @param path All directories are stripped, to convert it to a file name.  Then variables are replaced with
+     *             <code>*</code> so that they will match anything.  Finally it is converted from a file glob into
+     *             a regex by replacing <code>*</code> and <code>?</code> with <code>.*</code> and <code>.</code>.
+     * @param sampleFileNameWithoutPath The file to match against.  This must already have had any directories
+     *                                  stripped such that it is a simple file name.
+     * @return Does the regex created from {@code path} match any substring of {@code sampleFileNameWithoutPath}?
+     */
+    static boolean pathMatchesSampleFileNameWithoutPath(String path, String sampleFileNameWithoutPath) {
+        String fileNamePattern = path.replaceFirst(".*[/\\\\]", "").replaceAll("\\{\\{[^}]*}}", "*").replace(".", "\\.")
+            .replaceAll("\\*+", ".*").replace('?', '.');
+        return Pattern.compile(fileNamePattern).matcher(sampleFileNameWithoutPath).find();
+    }
+
+    /**
+     * Given a module manifest, parse the input definition, making adjustments so that it can be
+     * incorporated into a complete filebeat config.
+     * - "type" is prefixed with a dash to turn it into a list.
+     * - "{{$path}}" in the filebeat config is replaced with the path to the sample file that was provided.
+     * - Other lines containing variables are removed.
+     */
+    private static String parseInputDefinition(Path manifestPath, Object inputSection, String sampleFileName) throws IOException {
+        String inputDefinition;
+        try (Stream<String> strm = Files.lines(manifestPath.getParent().resolve(inputSection.toString()))) {
+            inputDefinition = strm.flatMap(line -> {
+                if (line.contains("{{$path}}")) {
+                    return Stream.of("  " + line.replace("{{$path}}", "'" + sampleFileName + "'"));
+                } else if (line.contains("{{")) {
+                    return Stream.empty();
+                } else if (line.startsWith("type: ")){
+                    return Stream.of("- " + line);
+                } else {
+                    return Stream.of("  " + line);
+                }
+            }).collect(Collectors.joining("\n"));
+        }
+        return inputDefinition;
+    }
+
+    /**
+     * Given a module manifest, parse the ingest pipeline definition, making a few simplifying adjustments
+     * - "{{.format}}" is replaced with "plain".
+     * - "{< if .convert_timezone >}" is taken to be true.
+     * - "{{ _ingest.on_failure_message }}" is preserved.
+     * - Other lines containing variables are removed.
+     */
+    private static String parseIngestPipeline(Path manifestPath, Object ingestPipelineSection) throws IOException {
+        String ingestPipeline;
+        String ingestPipelineFileName = ingestPipelineSection.toString().replace("{{.format}}", "plain");
+        try (Stream<String> strm = Files.lines(manifestPath.getParent().resolve(ingestPipelineFileName))) {
+            ingestPipeline = strm.flatMap(line -> {
+                if (line.contains("{< if .convert_timezone >}\"timezone\": \"{{ beat.timezone }}\",{< end >}")) {
+                    return Stream.of(line.replace("{< if .convert_timezone >}\"timezone\": \"{{ beat.timezone }}\",{< end >}",
+                        "\"timezone\": \"{{ beat.timezone }}\","));
+                } else if (line.contains("{{") && line.contains("{{ _ingest.on_failure_message }}") == false) {
+                    return Stream.empty();
+                } else {
+                    return Stream.of(line);
+                }
+            }).collect(Collectors.joining("\n"));
+        }
+        return ingestPipeline;
     }
 
     public static class BeatsModule {

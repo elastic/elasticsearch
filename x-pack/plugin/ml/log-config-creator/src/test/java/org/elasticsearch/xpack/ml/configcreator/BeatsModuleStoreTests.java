@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 
 public class BeatsModuleStoreTests extends LogConfigCreatorTestCase {
@@ -430,13 +430,13 @@ public class BeatsModuleStoreTests extends LogConfigCreatorTestCase {
 
     public void testPopulateModuleData() throws IOException {
 
-        List<BeatsModule> beatsModules = BeatsModuleStore.populateModuleData(moduleDir, "my_dir/my_log.log");
+        List<BeatsModule> beatsModules = BeatsModuleStore.populateModuleData(moduleDir, "my_dir/error_log.log");
 
-        assertEquals(4, beatsModules.size());
+        assertEquals(1, beatsModules.size());
         Set<String> moduleNames = beatsModules.stream().map(beatsModule -> beatsModule.moduleName).collect(Collectors.toSet());
-        assertThat(moduleNames, containsInAnyOrder("apache2", "system"));
+        assertThat(moduleNames, contains("apache2"));
         Set<String> fileTypes = beatsModules.stream().map(beatsModule -> beatsModule.fileType).collect(Collectors.toSet());
-        assertThat(fileTypes, containsInAnyOrder("access", "auth", "error", "syslog"));
+        assertThat(fileTypes, contains("error"));
     }
 
     public void testFindMatchingModuleGivenRepoAvailable() throws IOException {
@@ -460,5 +460,14 @@ public class BeatsModuleStoreTests extends LogConfigCreatorTestCase {
         beatsModuleStore = new BeatsModuleStore(createTempDir().resolve("module"), "logs/www-access.log");
 
         assertNull(beatsModuleStore.findMatchingModule(APACHE2_ACCESS_LOG_SAMPLE));
+    }
+
+    public void testPathMatchesSampleFileNameWithoutPath() {
+        assertTrue(BeatsModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/error.log", "error.log"));
+        assertFalse(BeatsModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/error.log", "err.log"));
+        assertTrue(BeatsModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/error.log", "my-error.log"));
+        assertTrue(BeatsModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/{{something}}.log", "my-error.log"));
+        assertFalse(BeatsModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/{{something}}.log", "my-log"));
+        assertTrue(BeatsModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/{{host}}.{{user}}.log", "mbp.dave.log"));
     }
 }

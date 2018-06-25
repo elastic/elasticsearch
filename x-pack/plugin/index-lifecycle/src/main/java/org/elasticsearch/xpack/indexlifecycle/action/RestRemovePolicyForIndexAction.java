@@ -13,7 +13,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RemovePolicyForIndexAction;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
 
 import java.io.IOException;
 
@@ -21,8 +20,8 @@ public class RestRemovePolicyForIndexAction extends BaseRestHandler {
 
     public RestRemovePolicyForIndexAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "_" + IndexLifecycle.NAME + "/remove_policy", this);
-        controller.registerHandler(RestRequest.Method.PUT, "{index}/_" + IndexLifecycle.NAME + "/remove_policy", this);
+        controller.registerHandler(RestRequest.Method.DELETE, "_lifecycle", this);
+        controller.registerHandler(RestRequest.Method.DELETE, "{index}/_lifecycle", this);
     }
 
     @Override

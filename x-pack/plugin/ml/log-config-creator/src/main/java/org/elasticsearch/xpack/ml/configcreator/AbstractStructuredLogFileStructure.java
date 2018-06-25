@@ -49,7 +49,7 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
         for (Map.Entry<String, ?> entry : sampleRecords.get(0).entrySet()) {
             Object value = entry.getValue();
             if (value != null) {
-                TimestampMatch match = TimestampFormatFinder.findFirstMatch(value.toString());
+                TimestampMatch match = TimestampFormatFinder.findFirstFullMatch(value.toString());
                 if (match != null) {
                     Tuple<String, TimestampMatch> firstSampleMatch = new Tuple<>(entry.getKey(), match);
                     // If there's only one sample then the first match is the time field

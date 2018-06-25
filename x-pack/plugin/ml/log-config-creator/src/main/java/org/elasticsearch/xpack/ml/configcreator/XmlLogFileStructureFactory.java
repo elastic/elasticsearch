@@ -103,7 +103,8 @@ public class XmlLogFileStructureFactory implements LogFileStructureFactory {
                     xmlReader.close();
                 }
             } catch (IOException | XMLStreamException e) {
-                terminal.println(Verbosity.VERBOSE, "Not XML because there was a parsing exception: [" + e.getMessage() + "]");
+                terminal.println(Verbosity.VERBOSE, "Not XML because there was a parsing exception: [" +
+                    e.getMessage().replaceAll("\\s?\r?\n\\s?", " ") + "]");
                 return false;
             }
         }

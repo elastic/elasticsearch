@@ -47,7 +47,8 @@ public class JsonLogFileStructureFactory implements LogFileStructureFactory {
             }
             return true;
         } catch (IOException | IllegalStateException e) {
-            terminal.println(Verbosity.VERBOSE, "Not JSON because there was a parsing exception: [" + e.getMessage() + "]");
+            terminal.println(Verbosity.VERBOSE, "Not JSON because there was a parsing exception: [" +
+                e.getMessage().replaceAll("\\s?\r?\n\\s?", " ") + "]");
             return false;
         }
     }

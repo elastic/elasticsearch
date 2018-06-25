@@ -30,8 +30,8 @@ import java.util.stream.Collectors;
  */
 public final class GrokPatternCreator {
 
-    private static final Pattern PUNCTUATION_OR_SPACE = Pattern.compile("[\"'`‘’“”#@%=\\\\/|~:;,<>()\\[\\]{}«»^$*¿?¡!§¶ \t\n]");
-    private static final Pattern NEEDS_ESCAPING = Pattern.compile("[\\\\|()\\[\\]{}^$*?]");
+    private static final String PUNCTUATION_OR_SPACE = "\"'`‘’“”#@%=\\/|~:;,<>()[]{}«»^$*¿?¡!§¶ \t\n";
+    private static final String NEEDS_ESCAPING = "\\|()[]{}^$*?";
 
     private static final String PREFACE = "preface";
     private static final String VALUE = "value";
@@ -205,12 +205,11 @@ public final class GrokPatternCreator {
         boolean wildcardRequired = true;
         for (int i = 0; i < driver.length(); ++i) {
             char ch = driver.charAt(i);
-            String chAsString = String.valueOf(ch);
-            if (PUNCTUATION_OR_SPACE.matcher(chAsString).matches() && others.stream().allMatch(other -> other.indexOf(ch) >= 0)) {
+            if (PUNCTUATION_OR_SPACE.indexOf(ch) >= 0 && others.stream().allMatch(other -> other.indexOf(ch) >= 0)) {
                 if (wildcardRequired && others.stream().anyMatch(other -> other.indexOf(ch) > 0)) {
                     overallPatternBuilder.append(".*?");
                 }
-                if (NEEDS_ESCAPING.matcher(chAsString).matches()) {
+                if (NEEDS_ESCAPING.indexOf(ch) >= 0) {
                     overallPatternBuilder.append('\\');
                 }
                 overallPatternBuilder.append(ch);
@@ -237,11 +236,10 @@ public final class GrokPatternCreator {
 
         for (int i = 0; i < driver.length(); ++i) {
             char ch = driver.charAt(i);
-            String chAsString = String.valueOf(ch);
             int driverIndex = i;
-            if (PUNCTUATION_OR_SPACE.matcher(chAsString).matches() &&
+            if (PUNCTUATION_OR_SPACE.indexOf(ch) >= 0 &&
                 others.stream().allMatch(other -> other.length() > driverIndex && other.charAt(driverIndex) == ch)) {
-                if (NEEDS_ESCAPING.matcher(chAsString).matches()) {
+                if (NEEDS_ESCAPING.indexOf(ch) >= 0) {
                     overallPatternBuilder.append('\\');
                 }
                 overallPatternBuilder.append(ch);

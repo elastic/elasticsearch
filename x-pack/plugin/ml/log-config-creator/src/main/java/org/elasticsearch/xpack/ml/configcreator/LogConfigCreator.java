@@ -29,7 +29,7 @@ public class LogConfigCreator extends Command {
         exit(new LogConfigCreator().main(args, Terminal.DEFAULT));
     }
 
-    LogConfigCreator() {
+    private LogConfigCreator() {
         super("Log config creator", () -> {});
         parser.acceptsAll(Arrays.asList("o", "output"), "output directory (default .)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("i", "index"), "index for logstash direct from file config (default test)").withRequiredArg();

@@ -189,11 +189,11 @@ public abstract class AbstractLogFileStructure {
         TimestampMatch timestampMatch = null;
         for (String fieldValue : fieldValues) {
             if (timestampMatch == null) {
-                timestampMatch = TimestampFormatFinder.findFirstMatch(fieldValue);
+                timestampMatch = TimestampFormatFinder.findFirstFullMatch(fieldValue);
                 if (timestampMatch == null) {
                     break;
                 }
-            } else if (TimestampFormatFinder.findFirstMatch(fieldValue, timestampMatch.candidateIndex) != timestampMatch) {
+            } else if (TimestampFormatFinder.findFirstFullMatch(fieldValue, timestampMatch.candidateIndex) != timestampMatch) {
                 break;
             }
         }

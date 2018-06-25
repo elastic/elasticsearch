@@ -27,6 +27,19 @@ public final class TimestampFormatFinder {
     private static final char DEFAULT_FRACTIONAL_SECOND_SEPARATOR = ',';
 
     /**
+     * The timestamp patterns are complex and it can be slow to prove they do not
+     * match anywhere in a long message.  Many of the timestamps have similar and
+     * will never be found in a string if simpler sub-patterns do not exist in the
+     * string.  These sub-patterns can be used to quickly rule out multiple complex
+     * patterns.
+     */
+    private static final List<Pattern> QUICK_RULE_OUT_PATTERNS = Arrays.asList(
+        Pattern.compile("\\b\\d{4}-\\d{2}-\\d{2} "),
+        Pattern.compile("\\d \\d{2}:\\d{2}\\b"),
+        Pattern.compile(" \\d{2}:\\d{2}:\\d{2} ")
+    );
+
+    /**
      * The first match in this list will be chosen, so it needs to be ordered
      * such that more generic patterns come after more specific patterns.
      */
@@ -36,64 +49,71 @@ public final class TimestampFormatFinder {
         // be recognised as that with the timezone missed off if ISO8601 is checked first
         new CandidateTimestampFormat("YYYY-MM-dd HH:mm:ss,SSS Z", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}",
             "\\b20\\d{2}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9} (?:Z|[+-]%{HOUR}%{MINUTE})\\b",
-            "TOMCAT_DATESTAMP"),
+            "TOMCAT_DATESTAMP", Arrays.asList(0, 1)),
         // The Elasticsearch ISO8601 parser requires a literal T between the date and time, so
         // longhand formats are needed if there's a space instead
         new CandidateTimestampFormat("YYYY-MM-dd HH:mm:ss,SSSZ", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}",
             "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9}(?:Z|[+-]%{HOUR}%{MINUTE})\\b",
-            "TIMESTAMP_ISO8601"),
+            "TIMESTAMP_ISO8601", Arrays.asList(0, 1)),
         new CandidateTimestampFormat("YYYY-MM-dd HH:mm:ss,SSSZZ", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}",
             "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9}[+-]%{HOUR}:%{MINUTE}\\b",
-            "TIMESTAMP_ISO8601"),
+            "TIMESTAMP_ISO8601", Arrays.asList(0, 1)),
         new CandidateTimestampFormat("YYYY-MM-dd HH:mm:ss,SSS", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}",
-            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9}\\b", "TIMESTAMP_ISO8601"),
+            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9}\\b", "TIMESTAMP_ISO8601",
+            Arrays.asList(0, 1)),
         new CandidateTimestampFormat("YYYY-MM-dd HH:mm:ssZ", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}",
-            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)(?:Z|[+-]%{HOUR}%{MINUTE})\\b", "TIMESTAMP_ISO8601"),
+            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)(?:Z|[+-]%{HOUR}%{MINUTE})\\b", "TIMESTAMP_ISO8601",
+            Arrays.asList(0, 1)),
         new CandidateTimestampFormat("YYYY-MM-dd HH:mm:ssZZ", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}",
-            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[+-]%{HOUR}:%{MINUTE}\\b", "TIMESTAMP_ISO8601"),
+            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[+-]%{HOUR}:%{MINUTE}\\b", "TIMESTAMP_ISO8601",
+            Arrays.asList(0, 1)),
         new CandidateTimestampFormat("YYYY-MM-dd HH:mm:ss", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}",
-            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)\\b", "TIMESTAMP_ISO8601"),
+            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)\\b", "TIMESTAMP_ISO8601",
+            Arrays.asList(0, 1)),
         new CandidateTimestampFormat("ISO8601", "\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", "\\b%{TIMESTAMP_ISO8601}\\b",
             "TIMESTAMP_ISO8601"),
         new CandidateTimestampFormat("EEE MMM dd YYYY HH:mm:ss zzz",
             "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2} ",
-            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) %{TZ}\\b", "DATESTAMP_RFC822"),
+            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) %{TZ}\\b", "DATESTAMP_RFC822", Arrays.asList(1, 2)),
         new CandidateTimestampFormat("EEE MMM dd YYYY HH:mm zzz", "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{4} \\d{2}:\\d{2} ",
-            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE} %{TZ}\\b", "DATESTAMP_RFC822"),
+            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE} %{TZ}\\b", "DATESTAMP_RFC822", Collections.singletonList(1)),
         new CandidateTimestampFormat("EEE, dd MMM YYYY HH:mm:ss ZZ",
             "\\b[A-Z]\\S{2,8}, \\d{1,2} [A-Z]\\S{2,8} \\d{4} \\d{2}:\\d{2}:\\d{2} ",
             "\\b%{DAY}, %{MONTHDAY} %{MONTH} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) (?:Z|[+-]%{HOUR}:%{MINUTE})\\b",
-            "DATESTAMP_RFC2822"),
+            "DATESTAMP_RFC2822", Arrays.asList(1, 2)),
         new CandidateTimestampFormat("EEE, dd MMM YYYY HH:mm:ss Z",
             "\\b[A-Z]\\S{2,8}, \\d{1,2} [A-Z]\\S{2,8} \\d{4} \\d{2}:\\d{2}:\\d{2} ",
             "\\b%{DAY}, %{MONTHDAY} %{MONTH} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) (?:Z|[+-]%{HOUR}%{MINUTE})\\b",
-            "DATESTAMP_RFC2822"),
+            "DATESTAMP_RFC2822", Arrays.asList(1, 2)),
         new CandidateTimestampFormat("EEE, dd MMM YYYY HH:mm ZZ", "\\b[A-Z]\\S{2,8}, \\d{1,2} [A-Z]\\S{2,8} \\d{4} \\d{2}:\\d{2} ",
-            "\\b%{DAY}, %{MONTHDAY} %{MONTH} %{YEAR} %{HOUR}:%{MINUTE} (?:Z|[+-]%{HOUR}:%{MINUTE})\\b", "DATESTAMP_RFC2822"),
+            "\\b%{DAY}, %{MONTHDAY} %{MONTH} %{YEAR} %{HOUR}:%{MINUTE} (?:Z|[+-]%{HOUR}:%{MINUTE})\\b", "DATESTAMP_RFC2822",
+            Collections.singletonList(1)),
         new CandidateTimestampFormat("EEE, dd MMM YYYY HH:mm Z", "\\b[A-Z]\\S{2,8}, \\d{1,2} [A-Z]\\S{2,8} \\d{4} \\d{2}:\\d{2} ",
-            "\\b%{DAY}, %{MONTHDAY} %{MONTH} %{YEAR} %{HOUR}:%{MINUTE} (?:Z|[+-]%{HOUR}%{MINUTE})\\b", "DATESTAMP_RFC2822"),
+            "\\b%{DAY}, %{MONTHDAY} %{MONTH} %{YEAR} %{HOUR}:%{MINUTE} (?:Z|[+-]%{HOUR}%{MINUTE})\\b", "DATESTAMP_RFC2822",
+            Collections.singletonList(1)),
         new CandidateTimestampFormat("EEE MMM dd HH:mm:ss zzz YYYY",
             "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2} [A-Z]{3,4} \\d{4}\\b",
-            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) %{TZ} %{YEAR}\\b", "DATESTAMP_OTHER"),
+            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) %{TZ} %{YEAR}\\b", "DATESTAMP_OTHER",
+            Arrays.asList(1, 2)),
         new CandidateTimestampFormat("EEE MMM dd HH:mm zzz YYYY",
             "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2} [A-Z]{3,4} \\d{4}\\b",
-            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE} %{TZ} %{YEAR}\\b", "DATESTAMP_OTHER"),
+            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE} %{TZ} %{YEAR}\\b", "DATESTAMP_OTHER", Collections.singletonList(1)),
         new CandidateTimestampFormat("YYYYMMddHHmmss", "\\b\\d{14}\\b",
             "\\b20\\d{2}%{MONTHNUM2}(?:(?:0[1-9])|(?:[12][0-9])|(?:3[01]))(?:2[0123]|[01][0-9])%{MINUTE}(?:[0-5][0-9]|60)\\b",
             "DATESTAMP_EVENTLOG"),
         new CandidateTimestampFormat("EEE MMM dd HH:mm:ss YYYY",
             "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b",
-            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) %{YEAR}\\b", "HTTPDERROR_DATE"),
+            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) %{YEAR}\\b", "HTTPDERROR_DATE", Arrays.asList(1, 2)),
         new CandidateTimestampFormat(Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
             "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b", "%{MONTH} +%{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)\\b",
-            "SYSLOGTIMESTAMP"),
+            "SYSLOGTIMESTAMP", Collections.singletonList(1)),
         new CandidateTimestampFormat("dd/MMM/YYYY:HH:mm:ss Z", "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ",
             "\\b%{MONTHDAY}/%{MONTH}/%{YEAR}:%{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) [+-]?%{HOUR}%{MINUTE}\\b", "HTTPDATE"),
         new CandidateTimestampFormat("MMM dd, YYYY K:mm:ss a", "\\b[A-Z]\\S{2,8} \\d{1,2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
             "%{MONTH} %{MONTHDAY}, 20\\d{2} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) (?:AM|PM)\\b", "CATALINA_DATESTAMP"),
         new CandidateTimestampFormat(Arrays.asList("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"),
             "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
-            "%{MONTH} +%{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)\\b", "CISCOTIMESTAMP"),
+            "%{MONTH} +%{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)\\b", "CISCOTIMESTAMP", Collections.singletonList(1)),
         new CandidateTimestampFormat("UNIX_MS", "\\b\\d{13}\\b", "\\b\\d{13}\\b", "POSINT"),
         new CandidateTimestampFormat("UNIX", "\\b\\d{10}\\.\\d{3,9}\\b", "\\b\\d{10}\\.(?:\\d{3}){1,3}\\b", "NUMBER"),
         new CandidateTimestampFormat("UNIX", "\\b\\d{10}\\b", "\\b\\d{10}\\b", "POSINT"),
@@ -108,14 +128,27 @@ public final class TimestampFormatFinder {
     }
 
     public static TimestampMatch findFirstMatch(String text, int ignoreCandidates) {
+        Boolean[] quickRuleoutMatches = new Boolean[QUICK_RULE_OUT_PATTERNS.size()];
         int index = ignoreCandidates;
         for (CandidateTimestampFormat candidate : ORDERED_CANDIDATE_FORMATS.subList(ignoreCandidates, ORDERED_CANDIDATE_FORMATS.size())) {
-            Map<String, Object> captures = candidate.strictSearchGrok.captures(text);
-            if (captures != null) {
-                String preface = captures.getOrDefault(PREFACE, "").toString();
-                String epilogue = captures.getOrDefault(EPILOGUE, "").toString();
-                return makeTimestampMatch(candidate, index, preface, text.substring(preface.length(), text.length() - epilogue.length()),
-                    epilogue);
+            boolean quicklyRuledOut = false;
+            for (Integer quickRuleOutIndex : candidate.quickRuleOutIndices) {
+                if (quickRuleoutMatches[quickRuleOutIndex] == null) {
+                    quickRuleoutMatches[quickRuleOutIndex] = QUICK_RULE_OUT_PATTERNS.get(quickRuleOutIndex).matcher(text).find();
+                }
+                if (quickRuleoutMatches[quickRuleOutIndex] == false) {
+                    quicklyRuledOut = true;
+                    break;
+                }
+            }
+            if (quicklyRuledOut == false) {
+                Map<String, Object> captures = candidate.strictSearchGrok.captures(text);
+                if (captures != null) {
+                    String preface = captures.getOrDefault(PREFACE, "").toString();
+                    String epilogue = captures.getOrDefault(EPILOGUE, "").toString();
+                    return makeTimestampMatch(candidate, index, preface, text.substring(preface.length(),
+                        text.length() - epilogue.length()), epilogue);
+                }
             }
             ++index;
         }
@@ -250,12 +283,23 @@ public final class TimestampFormatFinder {
         final Grok strictSearchGrok;
         final Grok strictFullMatchGrok;
         final String standardGrokPatternName;
+        final List<Integer> quickRuleOutIndices;
 
         CandidateTimestampFormat(String dateFormat, String simpleRegex, String strictGrokPattern, String standardGrokPatternName) {
             this(Collections.singletonList(dateFormat), simpleRegex, strictGrokPattern, standardGrokPatternName);
         }
 
+        CandidateTimestampFormat(String dateFormat, String simpleRegex, String strictGrokPattern, String standardGrokPatternName,
+                                 List<Integer> quickRuleOutIndices) {
+            this(Collections.singletonList(dateFormat), simpleRegex, strictGrokPattern, standardGrokPatternName, quickRuleOutIndices);
+        }
+
         CandidateTimestampFormat(List<String> dateFormats, String simpleRegex, String strictGrokPattern, String standardGrokPatternName) {
+            this(dateFormats, simpleRegex, strictGrokPattern, standardGrokPatternName, Collections.emptyList());
+        }
+
+        CandidateTimestampFormat(List<String> dateFormats, String simpleRegex, String strictGrokPattern, String standardGrokPatternName,
+                                 List<Integer> quickRuleOutIndices) {
             this.dateFormats = dateFormats;
             this.simplePattern = Pattern.compile(simpleRegex, Pattern.MULTILINE);
             // The (?m) here has the Ruby meaning, which is equivalent to (?s) in Java
@@ -263,6 +307,9 @@ public final class TimestampFormatFinder {
                 "%{GREEDYDATA:" + EPILOGUE + "}");
             this.strictFullMatchGrok = new Grok(Grok.getBuiltinPatterns(), strictGrokPattern);
             this.standardGrokPatternName = standardGrokPatternName;
+            assert quickRuleOutIndices.stream()
+                .noneMatch(quickRuleOutIndex -> quickRuleOutIndex < 0 || quickRuleOutIndex >= QUICK_RULE_OUT_PATTERNS.size());
+            this.quickRuleOutIndices = quickRuleOutIndices;
         }
     }
 }

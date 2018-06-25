@@ -37,39 +37,32 @@ import java.util.function.Supplier;
  */
 public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse>
         extends TransportAction<Request, Response> {
-    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService,
-                                     ActionFilters actionFilters,
-                                     Supplier<Request> request) {
-        this(settings, actionName, true, threadPool, transportService, actionFilters, request);
+    protected HandledTransportAction(Settings settings, String actionName, TransportService transportService,
+                                     ActionFilters actionFilters, Supplier<Request> request) {
+        this(settings, actionName, true, transportService, actionFilters, request);
     }
 
-    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService,
+    protected HandledTransportAction(Settings settings, String actionName, TransportService transportService,
                                      ActionFilters actionFilters, Writeable.Reader<Request> requestReader) {
-        this(settings, actionName, true, threadPool, transportService, actionFilters, requestReader);
+        this(settings, actionName, true, transportService, actionFilters, requestReader);
     }
 
-    protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker, ThreadPool threadPool,
-                                     TransportService transportService, ActionFilters actionFilters,
-                                     Supplier<Request> request) {
-        super(settings, actionName, threadPool, actionFilters, transportService.getTaskManager());
+    protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
+                                     TransportService transportService, ActionFilters actionFilters, Supplier<Request> request) {
+        super(settings, actionName, actionFilters, transportService.getTaskManager());
         transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, false, canTripCircuitBreaker,
             new TransportHandler());
     }
 
-    protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker, ThreadPool threadPool,
+    protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
                                      TransportService transportService, ActionFilters actionFilters,
                                      Writeable.Reader<Request> requestReader) {
-        super(settings, actionName, threadPool, actionFilters, transportService.getTaskManager());
+        super(settings, actionName, actionFilters, transportService.getTaskManager());
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, false, canTripCircuitBreaker, requestReader,
             new TransportHandler());
     }
 
     class TransportHandler implements TransportRequestHandler<Request> {
-
-        @Override
-        public final void messageReceived(Request request, TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required for this operation");
-        }
 
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {

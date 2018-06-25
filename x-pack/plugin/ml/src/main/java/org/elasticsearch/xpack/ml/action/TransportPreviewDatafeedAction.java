@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -36,20 +37,22 @@ import java.util.stream.Collectors;
 
 public class TransportPreviewDatafeedAction extends HandledTransportAction<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response> {
 
+    private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
 
     @Inject
     public TransportPreviewDatafeedAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                           ActionFilters actionFilters, Client client, ClusterService clusterService) {
-        super(settings, PreviewDatafeedAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, PreviewDatafeedAction.NAME, transportService, actionFilters,
             (Supplier<PreviewDatafeedAction.Request>) PreviewDatafeedAction.Request::new);
+        this.threadPool = threadPool;
         this.client = client;
         this.clusterService = clusterService;
     }
 
     @Override
-    protected void doExecute(PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
+    protected void doExecute(Task task, PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
         DatafeedConfig datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
         if (datafeed == null) {

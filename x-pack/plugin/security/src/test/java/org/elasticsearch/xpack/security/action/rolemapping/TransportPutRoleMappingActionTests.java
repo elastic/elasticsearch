@@ -5,24 +5,24 @@
  */
 package org.elasticsearch.xpack.security.action.rolemapping;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
+import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.junit.Before;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,8 +42,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         store = mock(NativeRoleMappingStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        action = new TransportPutRoleMappingAction(Settings.EMPTY, mock(ThreadPool.class),
-                mock(ActionFilters.class), transportService, store);
+        action = new TransportPutRoleMappingAction(Settings.EMPTY, mock(ActionFilters.class), transportService, store);
 
         requestRef = new AtomicReference<>(null);
 
@@ -86,7 +85,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         request.setMetadata(metadata);
         request.setEnabled(true);
         final PlainActionFuture<PutRoleMappingResponse> future = new PlainActionFuture<>();
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
         return future.get();
     }
 }

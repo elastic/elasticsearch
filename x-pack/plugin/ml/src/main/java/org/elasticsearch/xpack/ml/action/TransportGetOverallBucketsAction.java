@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
@@ -56,6 +57,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     private static final String EARLIEST_TIME = "earliest_time";
     private static final String LATEST_TIME = "latest_time";
 
+    private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
     private final JobManager jobManager;
@@ -64,15 +66,17 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     public TransportGetOverallBucketsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                             ActionFilters actionFilters, ClusterService clusterService,
                                             JobManager jobManager, Client client) {
-        super(settings, GetOverallBucketsAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, GetOverallBucketsAction.NAME, transportService, actionFilters,
             (Supplier<GetOverallBucketsAction.Request>) GetOverallBucketsAction.Request::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
         this.jobManager = jobManager;
     }
 
     @Override
-    protected void doExecute(GetOverallBucketsAction.Request request, ActionListener<GetOverallBucketsAction.Response> listener) {
+    protected void doExecute(Task task, GetOverallBucketsAction.Request request,
+                             ActionListener<GetOverallBucketsAction.Response> listener) {
         QueryPage<Job> jobsPage = jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), clusterService.state());
         if (jobsPage.count() == 0) {
             listener.onResponse(new GetOverallBucketsAction.Response());

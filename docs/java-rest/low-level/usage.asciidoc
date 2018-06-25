@@ -198,6 +198,16 @@ need to be taken. Used internally when sniffing on failure is enabled.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-node-selector]
+--------------------------------------------------
+<1> Set the node selector to be used to filter the nodes the client will send
+requests to among the ones that are set to the client itself. This is useful
+for instance to prevent sending requests to dedicated master nodes when
+sniffing is enabled. By default the client sends requests to every configured
+node.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-request-config-callback]
 --------------------------------------------------
 <1> Set a callback that allows to modify the default request configuration
@@ -283,8 +293,7 @@ instance and share it between all requests:
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-options-singleton]
 --------------------------------------------------
 <1> Add any headers needed by all requests.
-<2> Set a `NodeSelector`.
-<3> Customize the response consumer.
+<2> Customize the response consumer.
 
 `addHeader` is for headers that are required for authorization or to work with
 a proxy in front of Elasticsearch. There is no need to set the `Content-Type`
@@ -314,15 +323,6 @@ adds an extra header:
 --------------------------------------------------
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-options-customize-header]
 --------------------------------------------------
-
-Or you can send requests to nodes with a particular attribute:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-options-customize-attribute]
---------------------------------------------------
-<1> Replace the node selector with one that selects nodes on a particular rack.
-
 
 ==== Multiple parallel asynchronous actions
 

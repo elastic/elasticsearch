@@ -403,24 +403,53 @@ public class JobManager extends AbstractComponent {
         return buildNewClusterState(currentState, builder);
     }
 
-    public void updateProcessOnFilterChanged(MlFilter filter) {
+    public void notifyFilterChanged(MlFilter filter, Set<String> addedItems, Set<String> removedItems) {
+        if (addedItems.isEmpty() && removedItems.isEmpty()) {
+            return;
+        }
+
         ClusterState clusterState = clusterService.state();
         QueryPage<Job> jobs = expandJobs("*", true, clusterService.state());
         for (Job job : jobs.results()) {
-            if (isJobOpen(clusterState, job.getId())) {
-                Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
-                if (jobFilters.contains(filter.getId())) {
-                    updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(job.getId(), filter), ActionListener.wrap(
-                            isUpdated -> {
-                                if (isUpdated) {
-                                    auditor.info(job.getId(),
-                                            Messages.getMessage(Messages.JOB_AUDIT_FILTER_UPDATED_ON_PROCESS, filter.getId()));
-                                }
-                            }, e -> {}
-                    ));
+            Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
+            if (jobFilters.contains(filter.getId())) {
+                if (isJobOpen(clusterState, job.getId())) {
+                    updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(job.getId(), filter),
+                            ActionListener.wrap(isUpdated -> {
+                                auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
+                            }, e -> {}));
+                } else {
+                    auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
                 }
             }
         }
+    }
+
+    private void auditFilterChanges(String jobId, String filterId, Set<String> addedItems, Set<String> removedItems) {
+        StringBuilder auditMsg = new StringBuilder("Filter [");
+        auditMsg.append(filterId);
+        auditMsg.append("] has been modified; ");
+
+        if (addedItems.isEmpty() == false) {
+            auditMsg.append("added items: ");
+            appendCommaSeparatedSet(addedItems, auditMsg);
+            if (removedItems.isEmpty() == false) {
+                auditMsg.append(", ");
+            }
+        }
+
+        if (removedItems.isEmpty() == false) {
+            auditMsg.append("removed items: ");
+            appendCommaSeparatedSet(removedItems, auditMsg);
+        }
+
+        auditor.info(jobId, auditMsg.toString());
+    }
+
+    private static void appendCommaSeparatedSet(Set<String> items, StringBuilder sb) {
+        sb.append("[");
+        Strings.collectionToDelimitedString(items, ", ", "'", "'", sb);
+        sb.append("]");
     }
 
     public void updateProcessOnCalendarChanged(List<String> calendarJobIds) {

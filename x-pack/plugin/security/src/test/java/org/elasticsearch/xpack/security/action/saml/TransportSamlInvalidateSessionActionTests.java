@@ -42,6 +42,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -168,8 +169,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         final TransportService transportService = new TransportService(Settings.EMPTY, null, null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final Realms realms = mock(Realms.class);
-        action = new TransportSamlInvalidateSessionAction(settings, threadPool, transportService,
-                mock(ActionFilters.class),tokenService, realms);
+        action = new TransportSamlInvalidateSessionAction(settings, transportService, mock(ActionFilters.class),tokenService, realms);
 
         final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         final Environment env = TestEnvironment.newEnvironment(settings);
@@ -241,7 +241,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         request.setRealmName(samlRealm.name());
         request.setQueryString("SAMLRequest=foo");
         final PlainActionFuture<SamlInvalidateSessionResponse> future = new PlainActionFuture<>();
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
         final SamlInvalidateSessionResponse response = future.get();
         assertThat(response, notNullValue());
         assertThat(response.getCount(), equalTo(2));

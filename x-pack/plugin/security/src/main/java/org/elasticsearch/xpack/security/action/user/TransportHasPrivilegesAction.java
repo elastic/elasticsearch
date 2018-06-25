@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -50,6 +51,7 @@ import java.util.stream.Collectors;
  */
 public class TransportHasPrivilegesAction extends HandledTransportAction<HasPrivilegesRequest, HasPrivilegesResponse> {
 
+    private final ThreadPool threadPool;
     private final AuthorizationService authorizationService;
     private final NativePrivilegeStore privilegeStore;
 
@@ -57,13 +59,14 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     public TransportHasPrivilegesAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                         ActionFilters actionFilters, AuthorizationService authorizationService,
                                         NativePrivilegeStore privilegeStore) {
-        super(settings, HasPrivilegesAction.NAME, threadPool, transportService, actionFilters, HasPrivilegesRequest::new);
+        super(settings, HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new);
+        this.threadPool = threadPool;
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
     }
 
     @Override
-    protected void doExecute(HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
+    protected void doExecute(Task task, HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
         final String username = request.username();
 
         final User user = Authentication.getAuthentication(threadPool.getThreadContext()).getUser();

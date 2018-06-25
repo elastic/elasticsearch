@@ -84,10 +84,10 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     private static final Logger logger = Loggers.getLogger(RollupSearchAction.class);
 
     @Inject
-    public TransportRollupSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportRollupSearchAction(Settings settings, TransportService transportService,
                                  ActionFilters actionFilters, Client client, NamedWriteableRegistry registry, BigArrays bigArrays,
                                  ScriptService scriptService, ClusterService clusterService) {
-        super(settings, RollupSearchAction.NAME, threadPool, actionFilters, transportService.getTaskManager());
+        super(settings, RollupSearchAction.NAME, actionFilters, transportService.getTaskManager());
         this.client = client;
         this.registry = registry;
         this.bigArrays = bigArrays;
@@ -99,7 +99,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     }
 
     @Override
-    protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
+    protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         RollupSearchContext rollupSearchContext = separateIndices(request.indices(),
                 clusterService.state().getMetaData().indices());
 
@@ -398,11 +398,6 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     }
 
     class TransportHandler implements TransportRequestHandler<SearchRequest> {
-
-        @Override
-        public final void messageReceived(SearchRequest request, TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required for this operation");
-        }
 
         @Override
         public final void messageReceived(final SearchRequest request, final TransportChannel channel, Task task) throws Exception {

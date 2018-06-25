@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionSnapshot;
@@ -54,10 +53,10 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
     private final Client client;
 
     @Inject
-    public TransportAckWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportAckWatchAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
                                    Clock clock, XPackLicenseState licenseState, WatchParser parser, ExecutionService executionService,
                                    Client client) {
-        super(settings, AckWatchAction.NAME, transportService, threadPool, actionFilters, licenseState, AckWatchRequest::new);
+        super(settings, AckWatchAction.NAME, transportService, actionFilters, licenseState, AckWatchRequest::new);
         this.clock = clock;
         this.parser = parser;
         this.executionService = executionService;

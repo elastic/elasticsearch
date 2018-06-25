@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.mock.orig.Mockito;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -120,7 +121,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 .build());
         request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
 
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
@@ -157,7 +158,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 .build());
         request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
 
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
@@ -283,7 +284,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         );
 
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
 
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
@@ -464,7 +465,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         request.indexPrivileges(indicesPrivileges);
         request.applicationPrivileges(appPrivileges);
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
         return response;

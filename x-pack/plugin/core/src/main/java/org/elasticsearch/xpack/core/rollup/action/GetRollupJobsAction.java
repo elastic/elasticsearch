@@ -35,7 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class GetRollupJobsAction extends Action<GetRollupJobsAction.Request, GetRollupJobsAction.Response> {
+public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
     public static final GetRollupJobsAction INSTANCE = new GetRollupJobsAction();
     public static final String NAME = "cluster:monitor/xpack/rollup/get";

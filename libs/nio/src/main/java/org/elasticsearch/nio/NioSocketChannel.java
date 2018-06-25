@@ -20,6 +20,7 @@
 package org.elasticsearch.nio;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -27,15 +28,19 @@ import java.util.function.BiConsumer;
 
 public class NioSocketChannel extends NioChannel {
 
-    private final InetSocketAddress remoteAddress;
     private final AtomicBoolean contextSet = new AtomicBoolean(false);
     private final SocketChannel socketChannel;
+    private final InetSocketAddress remoteAddress;
+    private volatile InetSocketAddress localAddress;
     private SocketChannelContext context;
 
-    public NioSocketChannel(SocketChannel socketChannel) throws IOException {
-        super(socketChannel);
+    public NioSocketChannel(SocketChannel socketChannel) {
         this.socketChannel = socketChannel;
-        this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
+        try {
+            this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     public void setContext(SocketChannelContext context) {
@@ -44,6 +49,14 @@ public class NioSocketChannel extends NioChannel {
         } else {
             throw new IllegalStateException("Context on this channel were already set. It should only be once.");
         }
+    }
+
+    @Override
+    public InetSocketAddress getLocalAddress() {
+        if (localAddress == null) {
+            localAddress = (InetSocketAddress) socketChannel.socket().getLocalSocketAddress();
+        }
+        return localAddress;
     }
 
     @Override

@@ -6,16 +6,15 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import java.nio.CharBuffer;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Base64;
@@ -286,7 +285,7 @@ public enum Hasher {
         @Override
         public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
-            if (!hashStr.startsWith(SHA1_PREFIX)) {
+            if (hashStr.startsWith(SHA1_PREFIX) == false) {
                 return false;
             }
             byte[] textBytes = CharArrays.toUtf8Bytes(text.getChars());
@@ -310,7 +309,7 @@ public enum Hasher {
         @Override
         public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
-            if (!hashStr.startsWith(MD5_PREFIX)) {
+            if (hashStr.startsWith(MD5_PREFIX) == false) {
                 return false;
             }
             hashStr = hashStr.substring(MD5_PREFIX.length());
@@ -326,29 +325,30 @@ public enum Hasher {
         public char[] hash(SecureString text) {
             MessageDigest md = MessageDigests.sha256();
             md.update(CharArrays.toUtf8Bytes(text.getChars()));
-            char[] salt = SaltProvider.salt(8);
-            md.update(CharArrays.toUtf8Bytes(salt));
+            byte[] salt = generateSalt(8);
+            md.update(salt);
             String hash = Base64.getEncoder().encodeToString(md.digest());
-            char[] result = new char[SSHA256_PREFIX.length() + salt.length + hash.length()];
+            char[] result = new char[SSHA256_PREFIX.length() + 12 + hash.length()];
             System.arraycopy(SSHA256_PREFIX.toCharArray(), 0, result, 0, SSHA256_PREFIX.length());
-            System.arraycopy(salt, 0, result, SSHA256_PREFIX.length(), salt.length);
-            System.arraycopy(hash.toCharArray(), 0, result, SSHA256_PREFIX.length() + salt.length, hash.length());
+            System.arraycopy(Base64.getEncoder().encodeToString(salt).toCharArray(), 0, result, SSHA256_PREFIX.length(), 12);
+            System.arraycopy(hash.toCharArray(), 0, result, SSHA256_PREFIX.length() + 12, hash.length());
             return result;
         }
 
         @Override
         public boolean verify(SecureString text, char[] hash) {
             String hashStr = new String(hash);
-            if (!hashStr.startsWith(SSHA256_PREFIX)) {
+            if (hashStr.startsWith(SSHA256_PREFIX) == false) {
                 return false;
             }
             hashStr = hashStr.substring(SSHA256_PREFIX.length());
             char[] saltAndHash = hashStr.toCharArray();
             MessageDigest md = MessageDigests.sha256();
             md.update(CharArrays.toUtf8Bytes(text.getChars()));
-            md.update(new String(saltAndHash, 0, 8).getBytes(StandardCharsets.UTF_8));
+            // Base64 string length : (4*(n/3)) rounded up to the next multiple of 4 because of padding, 12 for 8 bytes
+            md.update(Base64.getDecoder().decode(new String(saltAndHash, 0, 12)));
             String computedHash = Base64.getEncoder().encodeToString(md.digest());
-            return CharArrays.constantTimeEquals(computedHash, new String(saltAndHash, 8, saltAndHash.length - 8));
+            return CharArrays.constantTimeEquals(computedHash, new String(saltAndHash, 12, saltAndHash.length - 12));
         }
     },
 
@@ -370,6 +370,7 @@ public enum Hasher {
     private static final String SSHA256_PREFIX = "{SSHA256}";
     private static final String PBKDF2_PREFIX = "{PBKDF2}";
     private static final int PBKDF2_DEFAULT_COST = 10000;
+    private static final int PBKDF2_KEY_LENGTH = 256;
 
     public static Hasher resolve(String name) {
         switch (name.toLowerCase(Locale.ROOT)) {
@@ -425,6 +426,17 @@ public enum Hasher {
         }
     }
 
+    /**
+     * Returns a {@link Hasher} instance that can be used to verify the {@code hash} by inspecting the
+     * hash prefix and determining the algorithm used for its generation.
+     * The default BCRYPT and PBKDF2 Hashers are used for verifying all the hashes of these algorithm
+     * families, instead of the specific instances for the given cost factor, as the cost factor is
+     * deduced from the hash and all {@link Hasher} share the same {@link #verifyPbkdf2Hash(SecureString, char[]) verifyPbkdf2Hash}
+     * and {@link #verifyBcryptHash(SecureString, char[]) verifyBcryptHash} methods respectively.
+     *
+     * @param hash the char array from which the hashing algorithm is to be deduced
+     * @return the hasher that can be used for validation
+     */
     public static Hasher resolveFromHash(char[] hash) {
         String hashString = new String(hash);
         if (hashString.startsWith(BCRYPT_PREFIX)) {
@@ -442,6 +454,15 @@ public enum Hasher {
         }
     }
 
+    /**
+     * Verifies that the cryptographic hash of {@code data} is the same as {@code hash}. The
+     * hashing algorithm and its parameters(cost factor-iterations, salt) are deduced from the
+     * hash itself. The {@code hash} char array is not cleared after verification.
+     *
+     * @param data the SecureString to be hashed and verified
+     * @param hash the char array with the hash against which the string is verified
+     * @return true if the hash corresponds to the data, false otherwise
+     */
     public static boolean verifyHash(SecureString data, char[] hash) {
         try {
             final Hasher hasher = resolveFromHash(hash);
@@ -454,16 +475,16 @@ public enum Hasher {
 
     private static char[] getPbkdf2Hash(SecureString data, int cost) {
         try {
-            // Base64 string length : ((4*n/3)+3) rounded up to the next multiple of 4 because of padding = 44
-            CharBuffer result = CharBuffer.allocate(PBKDF2_PREFIX.length() + String.valueOf(cost).length() + 2 + 32 + 44);
+            // Base64 string length : (4*(n/3)) rounded up to the next multiple of 4 because of padding, i.e. 44 for 32 bytes
+            CharBuffer result = CharBuffer.allocate(PBKDF2_PREFIX.length() + String.valueOf(cost).length() + 2 + 44 + 44);
             result.put(PBKDF2_PREFIX);
             result.put(String.valueOf(cost));
             result.put("$");
-            char[] salt = SaltProvider.salt(32);  // 32 characters for 64 bytes
-            result.put(salt);
+            byte[] salt = generateSalt(32);
+            result.put(Base64.getEncoder().encodeToString(salt));
             result.put("$");
             SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
-            PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), CharArrays.toUtf8Bytes(salt), cost, 256);
+            PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), salt, cost, 256);
             result.put(Base64.getEncoder().encodeToString(secretKeyFactory.generateSecret(keySpec).getEncoded()));
             return result.array();
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
@@ -472,35 +493,46 @@ public enum Hasher {
     }
 
     private static boolean verifyPbkdf2Hash(SecureString data, char[] hash) {
+        // Base64 string length : (4*(n/3)) rounded up to the next multiple of 4 because of padding,  i.e. 44 for 32 bytes
+        final int tokenLength = 44;
+        char[] hashChars = new char[tokenLength];
+        char[] saltChars = new char[tokenLength];
         try {
-            String hashStr = new String(hash);
-            if (!hashStr.startsWith(PBKDF2_PREFIX)) {
+            if (CharArrays.charsBeginsWith(PBKDF2_PREFIX, hash) == false) {
                 return false;
             }
-            hashStr = hashStr.replace(PBKDF2_PREFIX, "");
-            String[] tokens = hashStr.split("\\$");
-            if (tokens.length != 3) {
-                return false;
-            }
-            int cost = Integer.parseInt(tokens[0]);
-            String salt = tokens[1];
+            hashChars = Arrays.copyOfRange(hash, hash.length - tokenLength, hash.length);
+            saltChars = Arrays.copyOfRange(hash, hash.length - (2 * tokenLength + 1), hash.length - (tokenLength + 1));
+            int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, PBKDF2_PREFIX.length(), hash.length - (2 * tokenLength + 2))));
             SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
-            PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), salt.getBytes(StandardCharsets.UTF_8), cost, 256);
-            String pwdHash = Base64.getEncoder().encodeToString(secretKeyFactory.generateSecret(keySpec).getEncoded());
-            return CharArrays.constantTimeEquals(pwdHash, tokens[2]);
+            PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), Base64.getDecoder().decode(CharArrays.toUtf8Bytes(saltChars)),
+                cost, PBKDF2_KEY_LENGTH);
+            char[] computedPwdHash = CharArrays.utf8BytesToChars(Base64.getEncoder()
+                .encode(secretKeyFactory.generateSecret(keySpec).getEncoded()));
+            boolean result = CharArrays.constantTimeEquals(computedPwdHash, hashChars);
+            Arrays.fill(computedPwdHash, '\u0000');
+            return result;
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
             throw new ElasticsearchException("Can't use PBKDF2 for password hashing", e);
+        } finally {
+            Arrays.fill(hashChars, '\u0000');
+            Arrays.fill(saltChars, '\u0000');
         }
     }
 
     private static boolean verifyBcryptHash(SecureString text, char[] hash) {
         String hashStr = new String(hash);
-        if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+        if (hashStr.startsWith(BCRYPT_PREFIX) == false) {
             return false;
         }
         return BCrypt.checkpw(text, hashStr);
     }
 
+    /**
+     * Returns a list of lower case String identifiers for the Hashing algorithm and parameter
+     * combinations that can be used for password hashing. The identifiers can be used to get
+     * an instance of the appropriate {@link Hasher} by using {@link #resolve(String) resolve()}
+     */
     public static List<String> getAvailableAlgoStoredHash() {
         return Arrays.stream(Hasher.values()).map(Hasher::name).map(name -> name.toLowerCase(Locale.ROOT))
             .filter(name -> (name.startsWith("pbkdf2") || name.startsWith("bcrypt")))
@@ -511,27 +543,14 @@ public enum Hasher {
 
     public abstract boolean verify(SecureString data, char[] hash);
 
-
-    static final class SaltProvider {
-
-        private SaltProvider() {
-            throw new IllegalStateException("Utility class should not be instantiated");
-        }
-
-        static final char[] ALPHABET = new char[]{
-            '.', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D',
-            'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
-            'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
-            'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'
-        };
-
-        public static char[] salt(int length) {
-            Random random = Randomness.get();
-            char[] salt = new char[length];
-            for (int i = 0; i < length; i++) {
-                salt[i] = ALPHABET[(random.nextInt(ALPHABET.length))];
-            }
-            return salt;
-        }
+    /**
+     * Generates an array of {@code length} random bytes using {@link java.security.SecureRandom}
+     */
+    private static byte[] generateSalt(int length) {
+        Random random = new SecureRandom();
+        byte[] salt = new byte[length];
+        random.nextBytes(salt);
+        return salt;
     }
+
 }

@@ -44,8 +44,6 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
     private static String[] usernames;
 
-
-
     @BeforeClass
     public static void init() throws Exception {
         usernames = new String[randomIntBetween(5, 10)];

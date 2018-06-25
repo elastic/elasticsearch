@@ -27,7 +27,6 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
 
-
     // can't add a second test method, because each test run creates a new instance of this class and that will will result
     // in a new random value:
     private final int numberOfRoles = scaledRandomIntBetween(3, 99);

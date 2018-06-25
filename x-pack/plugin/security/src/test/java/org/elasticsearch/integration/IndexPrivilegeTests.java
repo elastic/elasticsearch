@@ -114,8 +114,8 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt",
-            "bcrypt9")).hash(new SecureString("passwd".toCharArray())));
+        final String usersPasswdHashed = new String(Hasher.resolve(
+            randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(new SecureString("passwd".toCharArray())));
 
         return super.configUsers() +
             "admin:" + usersPasswdHashed + "\n" +

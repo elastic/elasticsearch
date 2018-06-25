@@ -61,14 +61,9 @@ public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
 
     @Override
     public String configUsersRoles() {
-
         return super.configUsersRoles() +
                 "my_kibana_user:kibana_user\n" +
                 "kibana_user:kibana_user";
-    }
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     public void testFieldMappings() throws Exception {

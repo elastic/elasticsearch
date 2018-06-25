@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
@@ -20,7 +19,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
 
@@ -112,16 +110,8 @@ public class XPackSettings {
         DEFAULT_CIPHERS = ciphers;
     }
 
-    /*
-     * Do not allow insecure hashing algorithms to be used for password hashing
-     */
-    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
-        SecurityField.setting("authc.password_hashing.algorithm"), "bcrypt", Function.identity(), (v, s) -> {
-        if (Hasher.getAvailableAlgoStoredHash().contains(v) == false) {
-            throw new IllegalArgumentException("Invalid algorithm: "+ v +". Only pbkdf2 or bcrypt family algorithms can be used for " +
-                "password hashing.");
-        }
-    }, Setting.Property.NodeScope);
+    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = Setting.simpleString(
+        "xpack.security.authc.password_hashing.algorithm", "bcrypt", Setting.Property.NodeScope);
 
     public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1", "TLSv1");
     public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;

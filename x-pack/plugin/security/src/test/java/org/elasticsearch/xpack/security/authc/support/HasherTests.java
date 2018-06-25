@@ -86,30 +86,30 @@ public class HasherTests extends ESTestCase {
     }
 
     public void testResolveFromHash() {
-        assertThat(Hasher.resolveFromHash("$2a$10$1oZj.8KmlwiCy4DWKvDH3OU0Ko4WRF4FknyvCh3j/ZtaRCNYA6Xzm".toCharArray()), sameInstance
-            (Hasher.BCRYPT));
-        assertThat(Hasher.resolveFromHash("$2a$04$GwJtIQiGMHASEYphMiCpjeZh1cDyYC5U.DKfNKa4i/y0IbOvc2LiG".toCharArray()), sameInstance
-            (Hasher.BCRYPT));
-        assertThat(Hasher.resolveFromHash("$2a$05$xLmwSB7Nw7PcqP.6hXdc4eUZbT.4.iAZ3CTPzSaUibrrYjC6Vwq1m".toCharArray()), sameInstance
-            (Hasher.BCRYPT));
-        assertThat(Hasher.resolveFromHash("$2a$06$WQX1MALAjVOhR2YKmLcHYed2oROzBl3OZPtvq3FkVZYwm9X2LVKYm".toCharArray()), sameInstance
-            (Hasher.BCRYPT));
-        assertThat(Hasher.resolveFromHash("$2a$07$Satxnu2fCvwYXpHIk8A2sO2uwROrsV7WrNiRJPq1oXEl5lc9FE.7S".toCharArray()), sameInstance
-            (Hasher.BCRYPT));
-        assertThat(Hasher.resolveFromHash("$2a$08$LLfkTt2C9TUl5sDtgqmE3uRw9nHt748d3eMSGfbFYgQQQhjbXHFo2".toCharArray()), sameInstance
-            (Hasher.BCRYPT));
-        assertThat(Hasher.resolveFromHash("$2a$09$.VCWA3yFVdd6gfI526TUrufb4TvxMuhW0jIuMfhd4/fy1Ak/zrSFe".toCharArray()), sameInstance
-            (Hasher.BCRYPT));
-        assertThat(Hasher.resolveFromHash("$2a$10$OEiXFrUUY02Nm7YsEgzFuuJ3yO3HAYzJUU7omseluy28s7FYaictu".toCharArray()), sameInstance
-            (Hasher.BCRYPT));
-        assertThat(Hasher.resolveFromHash("$2a$11$Ya53LCozFlKABu05xsAbj.9xmrczyuAY/fTvxKkDiHOJc5GYcaNRy".toCharArray()), sameInstance
-            (Hasher.BCRYPT));
-        assertThat(Hasher.resolveFromHash("$2a$12$oUW2hiWBHYwbJamWi6YDPeKS2NBCvD4GR50zh9QZCcgssNFcbpg/a".toCharArray()), sameInstance
-            (Hasher.BCRYPT));
-        assertThat(Hasher.resolveFromHash("$2a$13$0PDx6mxKK4bLSgpc5H6eaeylWub7UFghjxV03lFYSz4WS4slDT30q".toCharArray()), sameInstance
-            (Hasher.BCRYPT));
-        assertThat(Hasher.resolveFromHash("$2a$14$lFyXmX7p9/FHr7W4nxTnfuCkjAoBHv6awQlv8jlKZ/YCMI65i38e6".toCharArray()), sameInstance
-            (Hasher.BCRYPT));
+        assertThat(Hasher.resolveFromHash("$2a$10$1oZj.8KmlwiCy4DWKvDH3OU0Ko4WRF4FknyvCh3j/ZtaRCNYA6Xzm".toCharArray()),
+            sameInstance(Hasher.BCRYPT));
+        assertThat(Hasher.resolveFromHash("$2a$04$GwJtIQiGMHASEYphMiCpjeZh1cDyYC5U.DKfNKa4i/y0IbOvc2LiG".toCharArray()),
+            sameInstance(Hasher.BCRYPT));
+        assertThat(Hasher.resolveFromHash("$2a$05$xLmwSB7Nw7PcqP.6hXdc4eUZbT.4.iAZ3CTPzSaUibrrYjC6Vwq1m".toCharArray()),
+            sameInstance(Hasher.BCRYPT));
+        assertThat(Hasher.resolveFromHash("$2a$06$WQX1MALAjVOhR2YKmLcHYed2oROzBl3OZPtvq3FkVZYwm9X2LVKYm".toCharArray()),
+            sameInstance(Hasher.BCRYPT));
+        assertThat(Hasher.resolveFromHash("$2a$07$Satxnu2fCvwYXpHIk8A2sO2uwROrsV7WrNiRJPq1oXEl5lc9FE.7S".toCharArray()),
+            sameInstance(Hasher.BCRYPT));
+        assertThat(Hasher.resolveFromHash("$2a$08$LLfkTt2C9TUl5sDtgqmE3uRw9nHt748d3eMSGfbFYgQQQhjbXHFo2".toCharArray()),
+            sameInstance(Hasher.BCRYPT));
+        assertThat(Hasher.resolveFromHash("$2a$09$.VCWA3yFVdd6gfI526TUrufb4TvxMuhW0jIuMfhd4/fy1Ak/zrSFe".toCharArray()),
+            sameInstance(Hasher.BCRYPT));
+        assertThat(Hasher.resolveFromHash("$2a$10$OEiXFrUUY02Nm7YsEgzFuuJ3yO3HAYzJUU7omseluy28s7FYaictu".toCharArray()),
+            sameInstance(Hasher.BCRYPT));
+        assertThat(Hasher.resolveFromHash("$2a$11$Ya53LCozFlKABu05xsAbj.9xmrczyuAY/fTvxKkDiHOJc5GYcaNRy".toCharArray()),
+            sameInstance(Hasher.BCRYPT));
+        assertThat(Hasher.resolveFromHash("$2a$12$oUW2hiWBHYwbJamWi6YDPeKS2NBCvD4GR50zh9QZCcgssNFcbpg/a".toCharArray()),
+            sameInstance(Hasher.BCRYPT));
+        assertThat(Hasher.resolveFromHash("$2a$13$0PDx6mxKK4bLSgpc5H6eaeylWub7UFghjxV03lFYSz4WS4slDT30q".toCharArray()),
+            sameInstance(Hasher.BCRYPT));
+        assertThat(Hasher.resolveFromHash("$2a$14$lFyXmX7p9/FHr7W4nxTnfuCkjAoBHv6awQlv8jlKZ/YCMI65i38e6".toCharArray()),
+            sameInstance(Hasher.BCRYPT));
         assertThat(Hasher.resolveFromHash("{PBKDF2}10000$IoqTZ/Mazky3nmaMr2sb4HZKxcPE3.ap$3FLAeH690WnfqObrA/2P8UZHnTofFqvqpbb9XZ3PaLs="
             .toCharArray()), sameInstance(Hasher.PBKDF2));
         assertThat(Hasher.resolveFromHash("{PBKDF2}1000$S3CJH450PGQQJ9m8hmDHhMzcFyLO971X$eTFoAKRGp7AdRsJ0RDXFESjtSPBr/lwi7SlbzFv+yEU="
@@ -131,8 +131,7 @@ public class HasherTests extends ESTestCase {
             .toCharArray()), sameInstance
             (Hasher.PBKDF2));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            Hasher.resolveFromHash("{GBGN}cGR8S2vr3FuFuOpQitR"
-                .toCharArray());
+            Hasher.resolveFromHash("{GBGN}cGR8S2vr3FuFuOpQitR".toCharArray());
         });
         assertThat(e.getMessage(), containsString("unknown hash format for hash"));
     }

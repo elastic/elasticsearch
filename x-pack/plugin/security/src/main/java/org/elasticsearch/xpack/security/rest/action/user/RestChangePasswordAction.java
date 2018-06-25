@@ -34,8 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestChangePasswordAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
     private final SecurityContext securityContext;
-    private final Hasher passwordHasher = Hasher.resolve(XPackSettings
-        .PASSWORD_HASHING_ALGORITHM.get(settings));
+    private final Hasher passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
 
     public RestChangePasswordAction(Settings settings, RestController controller, SecurityContext securityContext,
                                     XPackLicenseState licenseState) {

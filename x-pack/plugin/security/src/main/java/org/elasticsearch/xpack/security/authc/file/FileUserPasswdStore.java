@@ -89,7 +89,7 @@ public class FileUserPasswdStore {
     }
 
     public boolean userExists(String username) {
-        return users != null && users.containsKey(username);
+        return users.containsKey(username);
     }
 
     public static Path resolveFile(Environment env) {

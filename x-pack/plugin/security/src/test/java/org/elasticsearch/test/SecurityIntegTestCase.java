@@ -78,7 +78,7 @@ import static org.hamcrest.core.IsCollectionContaining.hasItem;
  */
 public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
-    protected static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;
+    private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;
     protected static SecureString BOOTSTRAP_PASSWORD = null;
 
     /**

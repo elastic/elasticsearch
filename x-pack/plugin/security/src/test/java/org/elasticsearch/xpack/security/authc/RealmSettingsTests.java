@@ -259,7 +259,7 @@ public class RealmSettingsTests extends ESTestCase {
                 .put("enabled", true);
         if (withCacheSettings) {
             builder.put("cache.ttl", randomPositiveTimeValue())
-                    .put("cache.max_users", randomIntBetween(1_000, 1_000_000))
+                .put("cache.max_users", randomIntBetween(1_000, 1_000_000))
                 .put("cache.hash_algo", randomFrom(CACHE_HASHING_ALGOS));
         }
         return builder;

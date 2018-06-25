@@ -49,8 +49,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().
-            hash(new SecureString("test123".toCharArray())));
+        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(new SecureString("test123".toCharArray())));
         return "admin:" + usersPasswdHashed + "\n" +
             "client:" + usersPasswdHashed + "\n" +
             "user:" + usersPasswdHashed + "\n";

@@ -56,8 +56,8 @@ public class TransportChangePasswordActionTests extends ESTestCase {
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(anonymousUser.principal());
-        request.passwordHash(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).
-            hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+        request.passwordHash(Hasher.resolve(
+            randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ChangePasswordResponse> responseRef = new AtomicReference<>();
@@ -87,8 +87,8 @@ public class TransportChangePasswordActionTests extends ESTestCase {
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
-        request.passwordHash(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).
-            hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+        request.passwordHash(Hasher.resolve(
+            randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ChangePasswordResponse> responseRef = new AtomicReference<>();
@@ -154,8 +154,8 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         ChangePasswordRequest request = new ChangePasswordRequest();
         request.username(user.principal());
-        request.passwordHash(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"))
-            .hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+        request.passwordHash(Hasher.resolve(
+            randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Exception e = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException(), new RuntimeException());
         doAnswer(new Answer() {
             public Void answer(InvocationOnMock invocation) {

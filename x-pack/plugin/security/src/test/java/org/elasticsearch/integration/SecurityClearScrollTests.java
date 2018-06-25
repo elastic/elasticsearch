@@ -37,8 +37,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().
-            hash(new SecureString("change_me".toCharArray())));
+        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(new SecureString("change_me".toCharArray())));
         return super.configUsers() +
             "allowed_user:" + usersPasswdHashed + "\n" +
             "denied_user:" + usersPasswdHashed + "\n";

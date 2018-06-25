@@ -87,6 +87,9 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         return new FieldTypeLookup(fullName, aliases);
     }
 
+    /**
+     * Checks that the new field type is valid.
+     */
     private void validateField(MappedFieldType existingFieldType,
                                MappedFieldType newFieldType,
                                CopyOnWriteHashMap<String, String> aliasToConcreteName) {
@@ -106,6 +109,12 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         }
     }
 
+    /**
+     * Checks that the new field alias is valid.
+     *
+     * Note that this method assumes that new concrete fields have already been processed, so that it
+     * can verify that an alias refers to an existing concrete field.
+     */
     private void validateAlias(String aliasName,
                                String path,
                                CopyOnWriteHashMap<String, String> aliasToConcreteName,

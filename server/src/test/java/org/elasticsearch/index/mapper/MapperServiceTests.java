@@ -267,8 +267,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> mapperService.merge("type", mappingUpdate, MergeReason.MAPPING_UPDATE));
-        assertEquals("Invalid [path] value [nested.field] for field alias [alias]: an alias" +
-            " must have the same nested scope as its target.", e.getMessage());
+        assertThat(e.getMessage(), containsString("Invalid [path] value [nested.field] for field alias [alias]"));
     }
 
     public void testForbidMultipleTypes() throws IOException {

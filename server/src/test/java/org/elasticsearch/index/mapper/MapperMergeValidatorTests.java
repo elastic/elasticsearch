@@ -77,8 +77,11 @@ public class MapperMergeValidatorTests extends ESTestCase {
                 singletonList(aliasMapper),
                 Collections.singletonMap("nested", objectMapper),
                 new FieldTypeLookup()));
-        assertEquals("Invalid [path] value [nested.field] for field alias [alias]: " +
-            "an alias must have the same nested scope as its target.", e.getMessage());
+
+        String expectedMessage = "Invalid [path] value [nested.field] for field alias [alias]: " +
+            "an alias must have the same nested scope as its target. The alias is not nested, " +
+            "but the target's nested scope is [nested].";
+        assertEquals(expectedMessage, e.getMessage());
     }
 
     public void testFieldAliasWithDifferentNestedScopes() {
@@ -93,8 +96,12 @@ public class MapperMergeValidatorTests extends ESTestCase {
                 singletonList(aliasMapper),
                 fullPathObjectMappers,
                 new FieldTypeLookup()));
-        assertEquals("Invalid [path] value [nested1.field] for field alias [nested2.alias]: " +
-            "an alias must have the same nested scope as its target.", e.getMessage());
+
+
+        String expectedMessage = "Invalid [path] value [nested1.field] for field alias [nested2.alias]: " +
+            "an alias must have the same nested scope as its target. The alias's nested scope is [nested2], " +
+            "but the target's nested scope is [nested1].";
+        assertEquals(expectedMessage, e.getMessage());
     }
 
     private static ObjectMapper createObjectMapper(String name) {

@@ -27,7 +27,23 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
-public class MapperMergeValidator {
+/**
+ * A utility class that helps validate certain aspects of a mappings update.
+ */
+class MapperMergeValidator {
+
+    /**
+     * Validates the overall structure of the mapping addition, including whether
+     * duplicate fields are present, and if the provided fields have already been
+     * defined with a different data type.
+     *
+     * @param type The mapping type, for use in error messages.
+     * @param objectMappers The newly added object mappers.
+     * @param fieldMappers The newly added field mappers.
+     * @param fieldAliasMappers The newly added field alias mappers.
+     * @param fullPathObjectMappers All object mappers, indexed by their full path.
+     * @param fieldTypes All field and field alias mappers, collected into a lookup structure.
+     */
     public static void validateMapperStructure(String type,
                                                Collection<ObjectMapper> objectMappers,
                                                Collection<FieldMapper> fieldMappers,
@@ -97,6 +113,11 @@ public class MapperMergeValidator {
     /**
      * Verifies that each field reference, e.g. the value of copy_to or the target
      * of a field alias, corresponds to a valid part of the mapping.
+     *
+     * @param fieldMappers The newly added field mappers.
+     * @param fieldAliasMappers The newly added field alias mappers.
+     * @param fullPathObjectMappers All object mappers, indexed by their full path.
+     * @param fieldTypes All field and field alias mappers, collected into a lookup structure.
      */
     public static void validateFieldReferences(List<FieldMapper> fieldMappers,
                                                List<FieldAliasMapper> fieldAliasMappers,
@@ -142,9 +163,18 @@ public class MapperMergeValidator {
 
             String aliasScope = getNestedScope(aliasName, fullPathObjectMappers);
             String pathScope = getNestedScope(path, fullPathObjectMappers);
+
             if (!Objects.equals(aliasScope, pathScope)) {
-                throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
-                    aliasName + "]: an alias must have the same nested scope as its target.");
+                StringBuilder message = new StringBuilder("Invalid [path] value [" + path + "] for field alias [" +
+                    aliasName + "]: an alias must have the same nested scope as its target. ");
+                message.append(aliasScope == null
+                    ? "The alias is not nested"
+                    : "The alias's nested scope is [" + aliasScope + "]");
+                message.append(", but ");
+                message.append(pathScope == null
+                    ? "the target is not nested."
+                    : "the target's nested scope is [" + pathScope + "].");
+                throw new IllegalArgumentException(message.toString());
             }
         }
     }

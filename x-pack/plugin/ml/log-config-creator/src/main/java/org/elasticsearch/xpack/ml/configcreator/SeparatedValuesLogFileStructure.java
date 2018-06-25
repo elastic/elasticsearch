@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 import org.supercsv.exception.SuperCsvException;
@@ -364,7 +365,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         return e.getMessage().startsWith("unexpected end of file while reading quoted column") == false;
     }
 
-    void createConfigs() {
+    void createConfigs() throws UserException {
         Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
         mappings = guessMappings(sampleRecords);
 
@@ -427,7 +428,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
     }
 
     @Override
-    public synchronized void writeConfigs(Path directory) throws IOException {
+    public synchronized void writeConfigs(Path directory) throws Exception {
         if (mappings == null) {
             createConfigs();
         }

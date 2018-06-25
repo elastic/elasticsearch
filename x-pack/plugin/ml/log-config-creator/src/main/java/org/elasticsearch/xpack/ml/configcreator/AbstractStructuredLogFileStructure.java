@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 
@@ -106,19 +108,23 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
             makeLogstashTimezoneSetting(isFromFilebeat), copyFilter);
     }
 
-    protected SortedMap<String, String> guessMappings(List<Map<String, ?>> sampleRecords) {
+    protected SortedMap<String, String> guessMappings(List<Map<String, ?>> sampleRecords) throws UserException {
 
         SortedMap<String, String> mappings = new TreeMap<>();
 
         if (sampleRecords != null) {
 
-            for (Map<String, ?> sampleRecord : sampleRecords) {
-                for (String fieldName : sampleRecord.keySet()) {
-                    mappings.computeIfAbsent(fieldName, key -> guessMapping(fieldName, sampleRecords.stream().flatMap(record -> {
-                        Object fieldValue = record.get(fieldName);
-                        return (fieldValue == null) ? Stream.empty() : Stream.of(fieldValue);
-                    }).collect(Collectors.toList())));
+            try {
+                for (Map<String, ?> sampleRecord : sampleRecords) {
+                    for (String fieldName : sampleRecord.keySet()) {
+                        mappings.computeIfAbsent(fieldName, key -> guessMapping(fieldName, sampleRecords.stream().flatMap(record -> {
+                            Object fieldValue = record.get(fieldName);
+                            return (fieldValue == null) ? Stream.empty() : Stream.of(fieldValue);
+                        }).collect(Collectors.toList())));
+                    }
                 }
+            } catch (RuntimeException e) {
+                throw new UserException(ExitCodes.DATA_ERROR, e.getMessage(), e);
             }
         }
 

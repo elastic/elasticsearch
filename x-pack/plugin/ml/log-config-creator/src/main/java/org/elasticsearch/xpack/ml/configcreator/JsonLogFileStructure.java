@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.configcreator;
 
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -135,7 +136,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
         createPreambleComment(Arrays.stream(sampleLines).limit(2).collect(Collectors.joining("\n", "", "\n")));
     }
 
-    void createConfigs() {
+    void createConfigs() throws UserException {
         Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
         mappings = guessMappings(sampleRecords);
 
@@ -182,7 +183,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
     }
 
     @Override
-    public synchronized void writeConfigs(Path directory) throws IOException {
+    public synchronized void writeConfigs(Path directory) throws Exception {
         if (mappings == null) {
             createConfigs();
         }

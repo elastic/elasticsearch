@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.configcreator;
 
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 import org.w3c.dom.Document;
@@ -171,7 +172,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         }
     }
 
-    void createConfigs() {
+    void createConfigs() throws UserException {
         Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
         mappings = guessMappings(sampleRecords);
 
@@ -202,7 +203,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
     }
 
     @Override
-    public synchronized void writeConfigs(Path directory) throws IOException {
+    public synchronized void writeConfigs(Path directory) throws Exception {
         if (mappings == null) {
             createConfigs();
         }

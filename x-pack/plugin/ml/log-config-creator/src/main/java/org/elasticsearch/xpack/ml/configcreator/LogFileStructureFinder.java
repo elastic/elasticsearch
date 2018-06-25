@@ -7,8 +7,10 @@ package org.elasticsearch.xpack.ml.configcreator;
 
 import com.ibm.icu.text.CharsetDetector;
 import com.ibm.icu.text.CharsetMatch;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.cli.UserException;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -113,28 +115,36 @@ public final class LogFileStructureFinder {
         CharsetDetector charsetDetector = new CharsetDetector().setText(inputStream);
         CharsetMatch[] charsetMatches = charsetDetector.detectAll();
 
-        // If the input is pure ASCII then many single byte character sets will match.  We want to favour
-        // UTF-8 in this case, as it avoids putting a bold declaration of a dubious character set choice
-        // in the config files.
-        Optional<CharsetMatch> utf8CharsetMatch = Arrays.stream(charsetMatches)
-            .filter(charsetMatch -> StandardCharsets.UTF_8.name().equals(charsetMatch.getName())).findFirst();
-        if (utf8CharsetMatch.isPresent()) {
-            inputStream.mark(BUFFER_SIZE);
-            byte[] workspace = new byte[BUFFER_SIZE];
-            int remainingLength = BUFFER_SIZE;
-            boolean pureAsciiSoFar = true;
-            do {
-                int bytesRead = inputStream.read(workspace, 0, remainingLength);
-                if (bytesRead <= 0) {
-                    break;
+        // Determine some extra characteristics of the input to compenstate for some deficiencies of ICU4J
+        boolean pureAscii = true;
+        boolean containsZeroBytes = false;
+        inputStream.mark(BUFFER_SIZE);
+        byte[] workspace = new byte[BUFFER_SIZE];
+        int remainingLength = BUFFER_SIZE;
+        do {
+            int bytesRead = inputStream.read(workspace, 0, remainingLength);
+            if (bytesRead <= 0) {
+                break;
+            }
+            for (int i = 0; i < bytesRead && containsZeroBytes == false; ++i) {
+                if (workspace[i] == 0) {
+                    containsZeroBytes = true;
+                    pureAscii = false;
+                } else {
+                    pureAscii = pureAscii && workspace[i] > 0 && workspace[i] < 128;
                 }
-                Arrays.sort(workspace, 0, bytesRead);
-                pureAsciiSoFar = workspace[0] > 0 && workspace[bytesRead - 1] < 128;
-                remainingLength -= bytesRead;
-            } while (pureAsciiSoFar && remainingLength > 0);
-            inputStream.reset();
+            }
+            remainingLength -= bytesRead;
+        } while (containsZeroBytes == false && remainingLength > 0);
+        inputStream.reset();
 
-            if (pureAsciiSoFar) {
+        if (pureAscii) {
+            // If the input is pure ASCII then many single byte character sets will match.  We want to favour
+            // UTF-8 in this case, as it avoids putting a bold declaration of a dubious character set choice
+            // in the config files.
+            Optional<CharsetMatch> utf8CharsetMatch = Arrays.stream(charsetMatches)
+                .filter(charsetMatch -> StandardCharsets.UTF_8.name().equals(charsetMatch.getName())).findFirst();
+            if (utf8CharsetMatch.isPresent()) {
                 terminal.println(Verbosity.VERBOSE, "Using character encoding [" + StandardCharsets.UTF_8.name() +
                     "], which matched the input with [" + utf8CharsetMatch.get().getConfidence() + "%] confidence - first [" +
                     (BUFFER_SIZE / 1024) + "kB] of input was pure ASCII");
@@ -142,13 +152,30 @@ public final class LogFileStructureFinder {
             }
         }
 
-        // Input wasn't pure ASCII, so use the best matching character set that's supported by both Java and Go
+        // Input wasn't pure ASCII, so use the best matching character set that's supported by both Java and Go.
+        // Additionally, if the input contains zero bytes then avoid single byte character sets, as ICU4J will
+        // suggest these for binary files but then
         for (CharsetMatch charsetMatch : charsetMatches) {
             String name = charsetMatch.getName();
             if (Charset.isSupported(name) && FILEBEAT_SUPPORTED_ENCODINGS.contains(name.toLowerCase(Locale.ROOT))) {
-                terminal.println(Verbosity.VERBOSE, "Using character encoding [" + name +
-                    "], which matched the input with [" + charsetMatch.getConfidence() + "%] confidence");
-                return charsetMatch;
+
+                // This extra test is to avoid trying to read binary files as text.  Running the log config
+                // deduction algorithms on binary files is very slow as the binary files generally appear to
+                // have very long lines.
+                boolean spaceEncodingContainsZeroByte = false;
+                byte[] spaceBytes = " ".getBytes(name);
+                for (int i = 0; i < spaceBytes.length && spaceEncodingContainsZeroByte == false; ++i) {
+                    spaceEncodingContainsZeroByte = (spaceBytes[i] == 0);
+                }
+                if (containsZeroBytes && spaceEncodingContainsZeroByte == false) {
+                    terminal.println(Verbosity.VERBOSE, "Character encoding [" + name + "] matched the input with [" +
+                        charsetMatch.getConfidence() + "%] confidence but was rejected as the input contains zero bytes and the [" + name +
+                        "] encoding does not");
+                } else {
+                    terminal.println(Verbosity.VERBOSE, "Using character encoding [" + name +
+                        "], which matched the input with [" + charsetMatch.getConfidence() + "%] confidence");
+                    return charsetMatch;
+                }
             } else {
                 terminal.println(Verbosity.VERBOSE, "Character encoding [" + name + "] matched the input with [" +
                     charsetMatch.getConfidence() + "%] confidence but was rejected as it is not supported by [" +
@@ -156,7 +183,8 @@ public final class LogFileStructureFinder {
             }
         }
 
-        throw new Exception("Could not determine a usable character encoding for the input");
+        throw new UserException(ExitCodes.DATA_ERROR, "Could not determine a usable character encoding for the input" +
+            (containsZeroBytes ? " - could it be binary data?" : ""));
     }
 
     LogFileStructure makeBestStructure(String sample, String charsetName) throws Exception {
@@ -166,7 +194,7 @@ public final class LogFileStructureFinder {
                 return factory.createFromSample(sampleFileName, indexName, typeName, logstashFileTimezone, sample, charsetName);
             }
         }
-        throw new Exception("Input did not match any known formats");
+        throw new UserException(ExitCodes.DATA_ERROR, "Input did not match any known formats");
     }
 
     private String sampleFile(Reader reader, int minLines, int maxLines) throws IOException {

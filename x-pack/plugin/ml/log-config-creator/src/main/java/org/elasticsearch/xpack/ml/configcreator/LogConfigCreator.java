@@ -87,7 +87,7 @@ public class LogConfigCreator extends Command {
                 file.toAbsolutePath().normalize().toString(), indexName, typeName, timezone);
             structureFinder.findLogFileConfigs(Files.newInputStream(file), outputDirectory);
         } catch (IOException e) {
-            throw new UserException(ExitCodes.IO_ERROR, "Cannot determine format of file [" + file + "]: " + e.getMessage());
+            throw new UserException(ExitCodes.DATA_ERROR, "Cannot determine format of file [" + file + "]: " + e.getMessage());
         }
     }
 

@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ml.configcreator.BeatsModuleStore.BeatsModule;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
@@ -161,14 +163,14 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         return ingestPipelineFromFilebeatConfig;
     }
 
-    void createConfigs() throws Exception {
+    void createConfigs() throws UserException {
 
         String[] sampleLines = sample.split("\n");
         Tuple<TimestampMatch, Set<String>> bestTimestamp = mostCommonTimestamp(sampleLines);
         if (bestTimestamp == null) {
             // Is it appropriate to treat a file that is neither structured nor has
             // a regular pattern of timestamps as a log file?  Probably not...
-            throw new Exception("Could not find a timestamp in the log sample provided");
+            throw new UserException(ExitCodes.DATA_ERROR, "Could not find a timestamp in the log sample provided");
         }
 
         terminal.println(Verbosity.VERBOSE, "Most common timestamp format is [" + bestTimestamp.v1() + "]");

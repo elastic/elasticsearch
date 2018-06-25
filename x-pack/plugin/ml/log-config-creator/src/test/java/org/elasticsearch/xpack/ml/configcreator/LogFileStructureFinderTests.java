@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.configcreator;
 
 import com.ibm.icu.text.CharsetMatch;
+import org.elasticsearch.cli.UserException;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -15,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class LogFileStructureFinderTests extends LogConfigCreatorTestCase {
@@ -31,6 +33,24 @@ public class LogFileStructureFinderTests extends LogConfigCreatorTestCase {
         for (Charset charset : Arrays.asList(StandardCharsets.UTF_8, StandardCharsets.UTF_16LE, StandardCharsets.UTF_16BE)) {
             CharsetMatch charsetMatch = structureFinder.findCharset(new ByteArrayInputStream(TEXT_SAMPLE.getBytes(charset)));
             assertEquals(charset.name(), charsetMatch.getName());
+        }
+    }
+
+    public void testFindCharsetGivenBinary() throws Exception {
+
+        // This input should never match a single byte character set.  ICU4J will sometimes decide
+        // that it matches a double byte character set, hence the two assertion branches.
+        int size = 1000;
+        byte[] binaryBytes = randomByteArrayOfLength(size);
+        for (int i = 0; i < 10; ++i) {
+            binaryBytes[randomIntBetween(0, size - 1)] = 0;
+        }
+
+        try {
+            CharsetMatch charsetMatch = structureFinder.findCharset(new ByteArrayInputStream(binaryBytes));
+            assertThat(charsetMatch.getName(), startsWith("UTF-16"));
+        } catch (UserException e) {
+            assertEquals("Could not determine a usable character encoding for the input - could it be binary data?", e.getMessage());
         }
     }
 

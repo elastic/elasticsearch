@@ -19,7 +19,13 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -30,11 +36,11 @@ import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.internal.SearchContext;
@@ -42,6 +48,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
+import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -237,5 +244,62 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
 
         assertEquals(json, "ki", ((PrefixQueryBuilder) parsed.innerQuery()).value());
         assertEquals(json, 1.08, parsed.innerQuery().boost(), 0.0001);
+    }
+
+    public void testDefaultMaxRewriteBuilder() throws Exception {
+        Query query = QueryBuilders.spanMultiTermQueryBuilder(QueryBuilders.prefixQuery("foo", "b")).
+            toQuery(createShardContext());
+
+        if (query instanceof SpanBoostQuery) {
+            query = ((SpanBoostQuery)query).getQuery();
+        }
+
+        assertTrue(query instanceof SpanMultiTermQueryWrapper);
+        if (query instanceof SpanMultiTermQueryWrapper) {
+            MultiTermQuery.RewriteMethod rewriteMethod = ((SpanMultiTermQueryWrapper)query).getRewriteMethod();
+            assertTrue(rewriteMethod instanceof SpanMultiTermQueryBuilder.TopTermSpanBooleanQueryRewriteWithMaxClause);
+        }
+    }
+
+    public void testTermExpansionExceptionOnSpanFailure() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                for (int i = 0; i < 3; i++) {
+                    iw.addDocument(singleton(new TextField("body", "foo bar" + Integer.toString(i), Field.Store.NO)));
+                }
+                try (IndexReader reader = iw.getReader()) {
+                    int origBoolMaxClauseCount = BooleanQuery.getMaxClauseCount();
+                    BooleanQuery.setMaxClauseCount(1);
+                    try {
+                        QueryBuilder queryBuilder = new SpanMultiTermQueryBuilder(
+                            QueryBuilders.prefixQuery("body", "bar")
+                        );
+                        Query query = queryBuilder.toQuery(createShardContext(reader));
+                        RuntimeException exc = expectThrows(RuntimeException.class, () -> query.rewrite(reader));
+                        assertThat(exc.getMessage(), containsString("maxClauseCount"));
+
+                    } finally {
+                        BooleanQuery.setMaxClauseCount(origBoolMaxClauseCount);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testTopNMultiTermsRewriteInsideSpan() throws Exception {
+        Query query = QueryBuilders.spanMultiTermQueryBuilder(
+            QueryBuilders.prefixQuery("foo", "b").rewrite("top_terms_boost_2000")
+        ).toQuery(createShardContext());
+
+        if (query instanceof SpanBoostQuery) {
+            query = ((SpanBoostQuery)query).getQuery();
+        }
+
+        assertTrue(query instanceof SpanMultiTermQueryWrapper);
+        if (query instanceof SpanMultiTermQueryWrapper) {
+            MultiTermQuery.RewriteMethod rewriteMethod = ((SpanMultiTermQueryWrapper)query).getRewriteMethod();
+            assertFalse(rewriteMethod instanceof SpanMultiTermQueryBuilder.TopTermSpanBooleanQueryRewriteWithMaxClause);
+        }
+
     }
 }

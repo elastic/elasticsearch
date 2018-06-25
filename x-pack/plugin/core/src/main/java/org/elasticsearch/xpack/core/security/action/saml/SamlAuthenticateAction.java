@@ -6,12 +6,11 @@
 package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for authenticating using SAML assertions
  */
-public final class SamlAuthenticateAction extends Action<SamlAuthenticateRequest, SamlAuthenticateResponse> {
+public final class SamlAuthenticateAction extends Action<SamlAuthenticateResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/saml/authenticate";
     public static final SamlAuthenticateAction INSTANCE = new SamlAuthenticateAction();

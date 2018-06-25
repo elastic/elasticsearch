@@ -10,6 +10,7 @@ dependencies {
 forbiddenApisMain.enabled = true
 
 dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false
 
 jarHell.enabled = false
 

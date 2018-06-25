@@ -19,10 +19,8 @@
 
 package org.elasticsearch.indices.mapping;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -151,9 +149,7 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
         params.put("pretty", "true");
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("index").setTypes("type").setFields("field1", "obj.subfield").get();
         XContentBuilder responseBuilder = XContentFactory.jsonBuilder().prettyPrint();
-        responseBuilder.startObject();
         response.toXContent(responseBuilder, new ToXContent.MapParams(params));
-        responseBuilder.endObject();
         String responseStrings = Strings.toString(responseBuilder);
 
 
@@ -165,9 +161,7 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
 
         response = client().admin().indices().prepareGetFieldMappings("index").setTypes("type").setFields("field1", "obj.subfield").get();
         responseBuilder = XContentFactory.jsonBuilder().prettyPrint().lfAtEnd();
-        responseBuilder.startObject();
         response.toXContent(responseBuilder, new ToXContent.MapParams(params));
-        responseBuilder.endObject();
         responseStrings = Strings.toString(responseBuilder);
 
         prettyJsonBuilder = XContentFactory.jsonBuilder().prettyPrint();

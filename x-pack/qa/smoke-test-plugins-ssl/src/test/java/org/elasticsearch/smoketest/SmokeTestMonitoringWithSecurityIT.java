@@ -95,7 +95,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     public void testHTTPExporterWithSSL() throws Exception {
         // Ensures that the exporter is actually on
         assertBusy(() -> assertThat("[_http] exporter is not defined", getMonitoringUsageExportersDefined(), is(true)));
-        
+
         // Checks that the monitoring index templates have been installed
         assertBusy(() -> {
             GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(MONITORING_PATTERN).get();

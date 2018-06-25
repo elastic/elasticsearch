@@ -5,7 +5,7 @@
 <titleabbrev>Get {dfeed-cap} Statistics</titleabbrev>
 ++++
 
-This API enables you to retrieve usage information for {dfeeds}.
+Retrieves usage information for {dfeeds}.
 
 
 ==== Request

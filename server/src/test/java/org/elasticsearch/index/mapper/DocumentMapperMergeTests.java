@@ -56,11 +56,11 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
 
         DocumentMapper merged = stage1.merge(stage2.mapping());
         // stage1 mapping should not have been modified
-        assertThat(stage1.mappers().smartNameFieldMapper("age"), nullValue());
-        assertThat(stage1.mappers().smartNameFieldMapper("obj1.prop1"), nullValue());
+        assertThat(stage1.mappers().getMapper("age"), nullValue());
+        assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
-        assertThat(merged.mappers().smartNameFieldMapper("age"), notNullValue());
-        assertThat(merged.mappers().smartNameFieldMapper("obj1.prop1"), notNullValue());
+        assertThat(merged.mappers().getMapper("age"), notNullValue());
+        assertThat(merged.mappers().getMapper("obj1.prop1"), notNullValue());
     }
 
     public void testMergeObjectDynamic() throws Exception {

@@ -53,9 +53,23 @@ subprojects {
   description = "Elasticsearch subproject ${project.path}"
 }
 
+apply plugin: 'nebula.info-scm'
+String licenseCommit
+if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
+  licenseCommit = scminfo.change ?: "master" // leniency for non git builds
+} else {
+  licenseCommit = "v${version}"
+}
+String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
+
 subprojects {
+  // Default to the apache license
   project.ext.licenseName = 'The Apache Software License, Version 2.0'
   project.ext.licenseUrl = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+
+  // But stick the Elastic license url in project.ext so we can get it if we need to switch to it
+  project.ext.elasticLicenseUrl = elasticLicenseUrl
+
   // we only use maven publish to add tasks for pom generation
   plugins.withType(MavenPublishPlugin).whenPluginAdded {
     publishing {
@@ -131,7 +145,7 @@ task verifyVersions {
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
         xml = new XmlParser().parse(s)
     }
-    Set<Version> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d\.\d\.\d/ }.collect { Version.fromString(it) })
+    Set<Version> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }.collect { Version.fromString(it) })
 
     // Limit the known versions to those that should be index compatible, and are not future versions
     knownVersions = knownVersions.findAll { it.major >= bwcVersions.currentVersion.major - 1 && it.before(VersionProperties.elasticsearch) }
@@ -205,9 +219,9 @@ subprojects {
     "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':server',
-    "org.elasticsearch:elasticsearch-cli:${version}": ':server:cli',
-    "org.elasticsearch:elasticsearch-core:${version}": ':libs:elasticsearch-core',
-    "org.elasticsearch:elasticsearch-nio:${version}": ':libs:elasticsearch-nio',
+    "org.elasticsearch:elasticsearch-cli:${version}": ':libs:cli',
+    "org.elasticsearch:elasticsearch-core:${version}": ':libs:core',
+    "org.elasticsearch:elasticsearch-nio:${version}": ':libs:nio',
     "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
     "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',
     "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
@@ -543,7 +557,7 @@ subprojects { project ->
   }
 }
 
-/* Remove assemble on all qa projects because we don't need to publish
+/* Remove assemble/dependenciesInfo on all qa projects because we don't need to publish
  * artifacts for them. */
 gradle.projectsEvaluated {
   subprojects {
@@ -552,6 +566,11 @@ gradle.projectsEvaluated {
       if (assemble) {
         project.tasks.remove(assemble)
         project.build.dependsOn.remove('assemble')
+      }
+      Task dependenciesInfo = project.tasks.findByName('dependenciesInfo')
+      if (dependenciesInfo) {
+        project.tasks.remove(dependenciesInfo)
+        project.precommit.dependsOn.remove('dependenciesInfo')
       }
     }
   }

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.common.io.stream.AbstractWriteableEnumTestCase;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.suggest.SortBy;
 
 import java.io.IOException;

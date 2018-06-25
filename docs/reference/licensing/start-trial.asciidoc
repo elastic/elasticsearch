@@ -1,0 +1,58 @@
+[role="xpack"]
+[testenv="basic"]
+[[start-trial]]
+=== Start Trial API
+
+This API starts a 30-day trial license.
+
+[float]
+==== Request
+
+`POST _xpack/license/start_trial`
+
+[float]
+==== Description
+
+The `start trial` API enables you to upgrade from a basic license to a 30-day
+trial license, which gives access to all {xpack} features.
+
+NOTE: You are allowed to initiate a trial license only if your cluster has not
+already activated a trial license for the current major X-Pack version. For
+example, if you have already activated a trial for v6.0, you cannot start a new
+trial until v7.0. You can, however, contact `info@elastic.co` to request an
+extended trial license.
+
+To check the status of your trial license, use the following API:
+<<get-trial-status>>. 
+
+For more information about the different types of licenses, see
+https://www.elastic.co/subscriptions.
+
+==== Authorization
+
+You must have `manage` cluster privileges to use this API.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+
+[float]
+==== Examples
+
+The following example starts a 30-day trial license. The acknowledge
+parameter is required as you are initiating a license that will expire.
+
+[source,js]
+------------------------------------------------------------
+POST _xpack/license/start_trial?acknowledge=true
+------------------------------------------------------------
+// CONSOLE
+// TEST[skip:license testing issues]
+
+Example response:
+[source,js]
+------------------------------------------------------------
+{
+  "trial_was_started": true,
+  "acknowledged": true
+}
+------------------------------------------------------------
+// NOTCONSOLE

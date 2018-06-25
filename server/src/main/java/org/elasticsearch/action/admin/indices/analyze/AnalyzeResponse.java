@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -136,7 +137,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         }
 
         public static AnalyzeToken readAnalyzeToken(XContentParser parser) throws IOException {
-            //ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
             String field = null;
             String term = "";
             int position = -1;
@@ -257,13 +258,24 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             parser.nextToken();
         }
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
-        String fieldName = parser.currentName();
+        String fieldName = null;
         List<AnalyzeToken> tokens = null;
-        if (Fields.TOKENS.equals(fieldName)) {
-            tokens = readTokenList(parser);
+        DetailAnalyzeResponse dar = null;
+        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                fieldName = parser.currentName();
+                if (Fields.TOKENS.equals(fieldName)) {
+                    tokens = readTokenList(parser);
+                }
+                else if (Fields.DETAIL.equals(fieldName)) {
+                    dar = DetailAnalyzeResponse.fromXContent(parser);
+                }
+                else {
+                    throw new ParsingException(parser.getTokenLocation(), "Unexpected field name [" + fieldName + "] in AnalyzeResponse");
+                }
+            }
         }
-        return new AnalyzeResponse(tokens, null);
+        return new AnalyzeResponse(tokens, dar);
     }
 
     private static List<AnalyzeToken> readTokenList(XContentParser parser) throws IOException {

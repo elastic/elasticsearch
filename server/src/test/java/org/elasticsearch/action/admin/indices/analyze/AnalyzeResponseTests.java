@@ -19,11 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -46,9 +50,19 @@ public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<Ana
 
     @Override
     protected AnalyzeResponse createTestInstance() {
-        List<AnalyzeResponse.AnalyzeToken> tokens = new ArrayList<>();
-        tokens.add(new AnalyzeResponse.AnalyzeToken("one", 0, 0, 3, 1, "<ALPHANUM>", Collections.emptyMap()));
-        tokens.add(new AnalyzeResponse.AnalyzeToken("two", 1, 4, 7, 1, "<ALPHANUM>", Collections.emptyMap()));
-        return new AnalyzeResponse(tokens, null);
+        AnalyzeResponse.AnalyzeToken[] tokens = new AnalyzeResponse.AnalyzeToken[]{
+            new AnalyzeResponse.AnalyzeToken("one", 0, 0, 3, 1, "<ALPHANUM>", Collections.emptyMap()),
+            new AnalyzeResponse.AnalyzeToken("two", 1, 4, 7, 1, "<ALPHANUM>", Collections.emptyMap())
+        };
+        DetailAnalyzeResponse dar = new DetailAnalyzeResponse();
+        dar.charfilters(new DetailAnalyzeResponse.CharFilteredText[]{
+            new DetailAnalyzeResponse.CharFilteredText("my_charfilter", new String[]{"one two"})
+        });
+        dar.tokenizer(new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenizer", tokens));
+        dar.tokenfilters(new DetailAnalyzeResponse.AnalyzeTokenList[]{
+            new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenfilter_1", tokens),
+            new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenfilter_2", tokens)
+        });
+        return new AnalyzeResponse(Arrays.asList(tokens), dar);
     }
 }

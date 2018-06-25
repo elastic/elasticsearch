@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.analyze;
 
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,12 +28,38 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 
 public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
 
     DetailAnalyzeResponse() {
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DetailAnalyzeResponse that = (DetailAnalyzeResponse) o;
+        return customAnalyzer == that.customAnalyzer &&
+            Objects.equals(analyzer, that.analyzer) &&
+            Arrays.equals(charfilters, that.charfilters) &&
+            Objects.equals(tokenizer, that.tokenizer) &&
+            Arrays.equals(tokenfilters, that.tokenfilters);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(customAnalyzer, analyzer, tokenizer);
+        result = 31 * result + Arrays.hashCode(charfilters);
+        result = 31 * result + Arrays.hashCode(tokenfilters);
+        return result;
     }
 
     private boolean customAnalyzer = false;
@@ -66,6 +93,7 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
     }
 
     public DetailAnalyzeResponse analyzer(AnalyzeTokenList analyzer) {
+        this.customAnalyzer = false;
         this.analyzer = analyzer;
         return this;
     }
@@ -75,6 +103,7 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
     }
 
     public DetailAnalyzeResponse charfilters(CharFilteredText[] charfilters) {
+        this.customAnalyzer = true;
         this.charfilters = charfilters;
         return this;
     }
@@ -84,6 +113,7 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
     }
 
     public DetailAnalyzeResponse tokenizer(AnalyzeTokenList tokenizer) {
+        this.customAnalyzer = true;
         this.tokenizer = tokenizer;
         return this;
     }
@@ -93,6 +123,7 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
     }
 
     public DetailAnalyzeResponse tokenfilters(AnalyzeTokenList[] tokenfilters) {
+        this.customAnalyzer = true;
         this.tokenfilters = tokenfilters;
         return this;
     }
@@ -129,6 +160,46 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
             builder.endArray();
         }
         return builder;
+    }
+
+    public static DetailAnalyzeResponse fromXContent(XContentParser parser) throws IOException {
+        String currentName = null;
+        boolean customAnalyzer = false;
+        AnalyzeTokenList analyzer = null;
+        CharFilteredText[] charFilteredText = null;
+        AnalyzeTokenList tokenizer = null;
+        AnalyzeTokenList[] tokenfilters = null;
+        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentName = parser.currentName();
+            }
+            else if (Fields.CUSTOM_ANALYZER.equals(currentName)) {
+                customAnalyzer = parser.booleanValue();
+            }
+            else if (Fields.ANALYZER.equals(currentName)) {
+                analyzer = AnalyzeTokenList.fromXContent(parser);
+            }
+            else if (Fields.CHARFILTERS.equals(currentName)) {
+                List<CharFilteredText> charfilters = new ArrayList<>();
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    charfilters.add(CharFilteredText.fromXContent(parser));
+                }
+                charFilteredText = charfilters.toArray(new CharFilteredText[0]);
+            }
+            else if (Fields.TOKENIZER.equals(currentName)) {
+                tokenizer = AnalyzeTokenList.fromXContent(parser);
+            }
+            else if (Fields.TOKENFILTERS.equals(currentName)) {
+                List<AnalyzeTokenList> filters = new ArrayList<>();
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    filters.add(AnalyzeTokenList.fromXContent(parser));
+                }
+                tokenfilters = filters.toArray(new AnalyzeTokenList[0]);
+            }
+        }
+        return new DetailAnalyzeResponse(customAnalyzer, analyzer, charFilteredText, tokenizer, tokenfilters);
     }
 
     static final class Fields {
@@ -195,6 +266,22 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         private String name;
         private AnalyzeResponse.AnalyzeToken[] tokens;
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AnalyzeTokenList that = (AnalyzeTokenList) o;
+            return Objects.equals(name, that.name) &&
+                Arrays.equals(tokens, that.tokens);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(name);
+            result = 31 * result + Arrays.hashCode(tokens);
+            return result;
+        }
+
         AnalyzeTokenList() {
         }
 
@@ -233,6 +320,29 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
             toXContentWithoutObject(builder, params);
             builder.endObject();
             return builder;
+        }
+
+        public static AnalyzeTokenList fromXContent(XContentParser parser) throws IOException {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+            String name = null;
+            List<AnalyzeResponse.AnalyzeToken> tokens = new ArrayList<>();
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                    // parser.nextToken();
+                    String field = parser.currentName();
+                    if (Fields.NAME.equals(field)) {
+                        parser.nextToken();
+                        name = parser.text();
+                    }
+                    else if (AnalyzeResponse.Fields.TOKENS.equals(field)) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            tokens.add(AnalyzeResponse.AnalyzeToken.readAnalyzeToken(parser));
+                        }
+                    }
+                }
+            }
+            return new AnalyzeTokenList(name, tokens.toArray(new AnalyzeResponse.AnalyzeToken[0]));
         }
 
         @Override
@@ -293,6 +403,28 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
             return builder;
         }
 
+        public static CharFilteredText fromXContent(XContentParser parser) throws IOException {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+            String name = null;
+            List<String> texts = new ArrayList<>();
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                    if (Fields.NAME.equals(parser.currentName())) {
+                        parser.nextToken();
+                        name = parser.text();
+                    }
+                    else if (Fields.FILTERED_TEXT.equals(parser.currentName())) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            texts.add(parser.text());
+                        }
+                    }
+                }
+            }
+            //XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            return new CharFilteredText(name, texts.toArray(new String[0]));
+        }
+
         public static CharFilteredText readCharFilteredText(StreamInput in) throws IOException {
             CharFilteredText text = new CharFilteredText();
             text.readFrom(in);
@@ -309,6 +441,22 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             out.writeStringArray(texts);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            CharFilteredText that = (CharFilteredText) o;
+            return Objects.equals(name, that.name) &&
+                Arrays.equals(texts, that.texts);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(name);
+            result = 31 * result + Arrays.hashCode(texts);
+            return result;
         }
     }
 }

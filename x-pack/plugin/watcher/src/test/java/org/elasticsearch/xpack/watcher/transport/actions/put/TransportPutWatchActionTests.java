@@ -167,6 +167,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
     public void testWatchesAreTriggeredOnMasterWhenNotDistributed() throws Exception {
         PutWatchRequest putWatchRequest = new PutWatchRequest();
         putWatchRequest.setId("_id");
+        putWatchRequest.setVersion(randomLongBetween(1, 100));
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("my_cluster"))
             .nodes(DiscoveryNodes.builder()

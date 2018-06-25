@@ -474,7 +474,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Index resolveIfAbsent(DocWriteRequest<?> request) {
             Index concreteIndex = indices.get(request.index());
             if (concreteIndex == null) {
-                concreteIndex = indexNameExpressionResolver.concreteSingleIndex(state, request);
+                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
                 indices.put(request.index(), concreteIndex);
             }
             return concreteIndex;

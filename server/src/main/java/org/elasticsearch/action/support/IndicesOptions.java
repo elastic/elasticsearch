@@ -77,8 +77,7 @@ public class IndicesOptions {
         IGNORE_ALIASES,
         ALLOW_NO_INDICES,
         FORBID_ALIASES_TO_MULTIPLE_INDICES,
-        FORBID_CLOSED_INDICES,
-        REQUIRE_ALIASES_TO_WRITE_INDEX;
+        FORBID_CLOSED_INDICES;
 
         public static final EnumSet<Option> NONE = EnumSet.noneOf(Option.class);
     }
@@ -93,9 +92,6 @@ public class IndicesOptions {
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES), EnumSet.of(WildcardStates.OPEN));
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED =
         new IndicesOptions(EnumSet.of(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES, Option.FORBID_CLOSED_INDICES),
-            EnumSet.noneOf(WildcardStates.class));
-    public static final IndicesOptions STRICT_ALIAS_TO_WRITE_INDEX_NO_EXPAND_FORBID_CLOSED =
-        new IndicesOptions(EnumSet.of(Option.REQUIRE_ALIASES_TO_WRITE_INDEX, Option.FORBID_CLOSED_INDICES),
             EnumSet.noneOf(WildcardStates.class));
 
     private final EnumSet<Option> options;
@@ -233,13 +229,6 @@ public class IndicesOptions {
         // true is default here, for bw comp we keep the first 16 values
         // in the array same as before + the default value for the new flag
         return options.contains(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES) == false;
-    }
-
-    /**
-     * @return whether aliases pointing to a write index should resolve to that index
-     */
-    public boolean requireAliasesToWriteIndex() {
-        return options.contains(Option.REQUIRE_ALIASES_TO_WRITE_INDEX);
     }
 
     /**
@@ -387,14 +376,6 @@ public class IndicesOptions {
     }
 
     /**
-     * @return indices option that requires each specified index or alias to exist, doesn't expand wildcards and
-     * throws error if any of the aliases resolves to multiple indices with none specified as a write-index
-     */
-    public static IndicesOptions strictAliasToWriteIndexNoExpandForbidClosed() {
-        return STRICT_ALIAS_TO_WRITE_INDEX_NO_EXPAND_FORBID_CLOSED;
-    }
-
-    /**
      * @return indices options that ignores unavailable indices, expands wildcards only to open indices and
      *         allows that no indices are resolved from wildcard expressions (not returning an error).
      */
@@ -432,7 +413,6 @@ public class IndicesOptions {
                 ", allow_aliases_to_multiple_indices=" + allowAliasesToMultipleIndices() +
                 ", forbid_closed_indices=" + forbidClosedIndices() +
                 ", ignore_aliases=" + ignoreAliases() +
-                ", require_aliases_to_write_index=" + requireAliasesToWriteIndex() +
                 ']';
     }
 }

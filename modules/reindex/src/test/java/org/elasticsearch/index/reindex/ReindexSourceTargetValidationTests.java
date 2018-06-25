@@ -46,13 +46,15 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class ReindexSourceTargetValidationTests extends ESTestCase {
     private static final ClusterState STATE = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()
-                .put(index("target", "target_alias", "target_multi"), true)
-                .put(index("target2", "target_multi"), true)
-                .put(index("foo"), true)
-                .put(index("bar"), true)
-                .put(index("baz"), true)
-                .put(index("source", "source_multi"), true)
-                .put(index("source2", "source_multi"), true)).build();
+                .put(index("target", false, "target_alias", "target_multi"), true)
+                .put(index("target2", false, "target_multi"), true)
+                .put(index("target3", true, "target_multi_with_write"), true)
+                .put(index("target4", false, "target_multi_with_write"), true)
+                .put(index("foo", false), true)
+                .put(index("bar", false), true)
+                .put(index("baz", false), true)
+                .put(index("source", false, "source_multi"), true)
+                .put(index("source2", false, "source_multi"), true)).build();
     private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = new IndexNameExpressionResolver(Settings.EMPTY);
     private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), INDEX_NAME_EXPRESSION_RESOLVER);
@@ -80,7 +82,11 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
 
     public void testTargetIsAlias() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> succeeds("target_multi", "foo"));
-        assertThat(e.getMessage(), containsString("Alias [target_multi] points to multiple indices"));
+        assertThat(e.getMessage(), containsString("Alias [target_multi] has more than one indices associated with it [["));
+        // The index names can come in either order
+        assertThat(e.getMessage(), containsString("target"));
+        assertThat(e.getMessage(), containsString("target2"));
+        succeeds("target_multi_with_write", "foo"); // should this be allowed?
     }
 
     public void testRemoteInfoSkipsValidation() {
@@ -106,7 +112,7 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
                 INDEX_NAME_EXPRESSION_RESOLVER, AUTO_CREATE_INDEX, STATE);
     }
 
-    private static IndexMetaData index(String name, String... aliases) {
+    private static IndexMetaData index(String name, boolean isWriteIndex, String... aliases) {
         IndexMetaData.Builder builder = IndexMetaData.builder(name).settings(Settings.builder()
                 .put("index.version.created", Version.CURRENT.id)
                 .put("index.number_of_shards", 1)

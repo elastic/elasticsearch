@@ -103,11 +103,11 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         return concreteIndexNames(context, indexExpressions);
     }
 
-     /**
+    /**
      * Translates the provided index expression into actual concrete indices, properly deduplicated.
      *
-     * @param state             the cluster state containing all the data to resolve to expressions to concrete indices
-     * @param options           defines how the aliases or indices need to be resolved to concrete indices
+     * @param state                 the cluster state containing all the data to resolve to expressions to concrete indices
+     * @param options               defines how the aliases or indices need to be resolved to concrete indices
      * @param indexExpressions  expressions that can be resolved to alias or index names.
      * @return the resolved concrete indices based on the cluster state, indices options and index expressions
      * @throws IndexNotFoundException if one of the index expressions is pointing to a missing index or alias and the
@@ -117,7 +117,26 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * indices options in the context don't allow such a case.
      */
     public Index[] concreteIndices(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        Context context = new Context(state, options);
+        Context context = new Context(state, options, false, false);
+        return concreteIndices(context, indexExpressions);
+    }
+
+     /**
+     * Translates the provided index expression into actual concrete indices, properly deduplicated.
+     *
+     * @param state                 the cluster state containing all the data to resolve to expressions to concrete indices
+     * @param options               defines how the aliases or indices need to be resolved to concrete indices
+     * @param resolveToWriteIndex   defines whether to require that aliases resolve to their respective write indices
+     * @param indexExpressions  expressions that can be resolved to alias or index names.
+     * @return the resolved concrete indices based on the cluster state, indices options and index expressions
+     * @throws IndexNotFoundException if one of the index expressions is pointing to a missing index or alias and the
+     * provided indices options in the context don't allow such a case, or if the final result of the indices resolution
+     * contains no indices and the indices options in the context don't allow such a case.
+     * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
+     * indices options in the context don't allow such a case.
+     */
+    public Index[] concreteIndices(ClusterState state, IndicesOptions options, boolean resolveToWriteIndex, String... indexExpressions) {
+        Context context = new Context(state, options, false, resolveToWriteIndex);
         return concreteIndices(context, indexExpressions);
     }
 
@@ -195,7 +214,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
 
             Collection<IndexMetaData> resolvedIndices = aliasOrIndex.getIndices();
 
-            if (aliasOrIndex.isAlias() && options.requireAliasesToWriteIndex()) {
+            if (aliasOrIndex.isAlias() && context.isResolveToWriteIndex()) {
                 AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
                 IndexMetaData writeIndex = alias.getWriteIndex();
                 if (writeIndex == null) {
@@ -270,6 +289,24 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     }
 
     /**
+     * Utility method that allows to resolve an index expression to its corresponding single write index.
+     *
+     * @param state             the cluster state containing all the data to resolve to expression to a concrete index
+     * @param request           The request that defines how the an alias or an index need to be resolved to a concrete index
+     *                          and the expression that can be resolved to an alias or an index name.
+     * @throws IllegalArgumentException if the index resolution does not lead to an index, or leads to more than one index
+     * @return the write index obtained as a result of the index resolution
+     */
+    public Index concreteWriteIndex(ClusterState state, IndicesRequest request) {
+        String indexExpression = request.indices() != null && request.indices().length > 0 ? request.indices()[0] : null;
+        Index[] indices = concreteIndices(state, request.indicesOptions(), true, indexExpression);
+        if (indices.length != 1) {
+            throw new IllegalArgumentException("unable to return a single index as the index and options provided got resolved to multiple indices");
+        }
+        return indices[0];
+    }
+
+    /**
      * @return whether the specified alias or index exists. If the alias or index contains datemath then that is resolved too.
      */
     public boolean hasIndexOrAlias(String aliasOrIndex, ClusterState state) {
@@ -306,7 +343,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                                  String... expressions) {
         // expand the aliases wildcard
         List<String> resolvedExpressions = expressions != null ? Arrays.asList(expressions) : Collections.emptyList();
-        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), true);
+        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), true, false);
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
         }
@@ -526,24 +563,26 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         private final IndicesOptions options;
         private final long startTime;
         private final boolean preserveAliases;
+        private final boolean resolveToWriteIndex;
 
         Context(ClusterState state, IndicesOptions options) {
             this(state, options, System.currentTimeMillis());
         }
 
-        Context(ClusterState state, IndicesOptions options, boolean preserveAliases) {
-            this(state, options, System.currentTimeMillis(), preserveAliases);
+        Context(ClusterState state, IndicesOptions options, boolean preserveAliases, boolean resolveToWriteIndex) {
+            this(state, options, System.currentTimeMillis(), preserveAliases, resolveToWriteIndex);
         }
 
         Context(ClusterState state, IndicesOptions options, long startTime) {
-           this(state, options, startTime, false);
+           this(state, options, startTime, false, false);
         }
 
-        Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases) {
+        Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases, boolean resolveToWriteIndex) {
             this.state = state;
             this.options = options;
             this.startTime = startTime;
             this.preserveAliases = preserveAliases;
+            this.resolveToWriteIndex = resolveToWriteIndex;
         }
 
         public ClusterState getState() {
@@ -565,6 +604,15 @@ public class IndexNameExpressionResolver extends AbstractComponent {
          */
         boolean isPreserveAliases() {
             return preserveAliases;
+        }
+
+        /**
+         * This is used to require that aliases resolve to their write-index. It is currently not used in conjunction
+         * with <code>preserveAliases</code>.
+         */
+
+        boolean isResolveToWriteIndex() {
+            return resolveToWriteIndex;
         }
     }
 

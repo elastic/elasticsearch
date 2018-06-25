@@ -53,12 +53,20 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     /** Request handlers for the requests made by the S3 client **/
     private final PathTrie<RequestHandler> handlers;
 
+    private final String permanentBucketName;
+    private final String temporaryBucketName;
+
     /**
      * Creates a {@link AmazonS3Fixture}
+     * @param permanentBucketName The name of the bucket that should be accessible using permanent (2-part) credentials.
+     * @param temporaryBucketName The name of the bucket that should be accessible using temporary (3-part) credentials.
      */
-    private AmazonS3Fixture(final String workingDir, final String bucket) {
+    private AmazonS3Fixture(final String workingDir, final String permanentBucketName, final String temporaryBucketName) {
         super(workingDir);
-        this.buckets.put(bucket, new Bucket(bucket));
+        this.permanentBucketName = permanentBucketName;
+        this.buckets.put(permanentBucketName, new Bucket(permanentBucketName));
+        this.temporaryBucketName = temporaryBucketName;
+        this.buckets.put(temporaryBucketName, new Bucket(temporaryBucketName));
         this.handlers = defaultHandlers(buckets);
     }
 
@@ -77,11 +85,11 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     }
 
     public static void main(final String[] args) throws Exception {
-        if (args == null || args.length != 2) {
-            throw new IllegalArgumentException("AmazonS3Fixture <working directory> <bucket>");
+        if (args == null || args.length != 3) {
+            throw new IllegalArgumentException("AmazonS3Fixture <working directory> <permanent bucket> <temporary bucket>");
         }
 
-        final AmazonS3Fixture fixture = new AmazonS3Fixture(args[0], args[1]);
+        final AmazonS3Fixture fixture = new AmazonS3Fixture(args[0], args[1], args[2]);
         fixture.listen();
     }
 

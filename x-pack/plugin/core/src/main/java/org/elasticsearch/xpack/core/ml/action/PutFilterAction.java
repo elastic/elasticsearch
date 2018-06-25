@@ -9,7 +9,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -115,10 +115,53 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
-        public Response() {
-            super(true);
+        private MlFilter filter;
+
+        Response() {
+        }
+
+        public Response(MlFilter filter) {
+            this.filter = filter;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            filter = new MlFilter(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            filter.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return filter.toXContent(builder, params);
+        }
+
+        public MlFilter getFilter() {
+            return filter;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(filter);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            Response other = (Response) obj;
+            return Objects.equals(filter, other.filter);
         }
     }
 }

@@ -114,6 +114,6 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_sql_action";
+        return "xpack_sql_query_action";
     }
 }

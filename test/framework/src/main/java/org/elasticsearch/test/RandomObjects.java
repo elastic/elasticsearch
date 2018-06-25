@@ -175,7 +175,7 @@ public final class RandomObjects {
     public static BytesReference randomSource(Random random, XContentType xContentType, int minNumFields) {
         try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
             builder.startObject();
-            addFields(random, builder, minNumFields, 0, 0);
+            addFields(random, builder, minNumFields, 0);
             builder.endObject();
             return BytesReference.bytes(builder);
         } catch(IOException e) {
@@ -185,21 +185,14 @@ public final class RandomObjects {
 
     /**
      * Randomly adds fields, objects, or arrays to the provided builder. The maximum depth is 5.
-     * @return Returns the number of fields in the document
      */
-    private static int addFields(Random random, XContentBuilder builder, int minNumFields, int currentDepth,
-                                 int currentFields) throws IOException {
-        int maxTotalFields = 200;
-        int maxFields = Math.max(minNumFields, 10 - (currentFields * 10)/maxTotalFields); // Map to range 0-10
-        int numFields = randomIntBetween(random, minNumFields, maxFields);
-        int maxDepth = 5 - (currentFields * 5)/maxTotalFields; // Map to range 0-5
-        currentFields += numFields;
+    private static void addFields(Random random, XContentBuilder builder, int minNumFields, int currentDepth) throws IOException {
+        int numFields = randomIntBetween(random, minNumFields, 5);
         for (int i = 0; i < numFields; i++) {
-            if (currentDepth < maxDepth && random.nextBoolean()) {
+            if (currentDepth < 5 && random.nextInt(100) >= 70) {
                 if (random.nextBoolean()) {
                     builder.startObject(RandomStrings.randomAsciiOfLengthBetween(random, 6, 10));
-                    currentFields =
-                        addFields(random, builder, minNumFields, currentDepth + 1, currentFields);
+                    addFields(random, builder, minNumFields, currentDepth + 1);
                     builder.endObject();
                 } else {
                     builder.startArray(RandomStrings.randomAsciiOfLengthBetween(random, 6, 10));
@@ -212,8 +205,7 @@ public final class RandomObjects {
                     for (int j = 0; j < numElements; j++) {
                         if (object) {
                             builder.startObject();
-                            currentFields =
-                                addFields(random, builder, minNumFields, 5, currentFields);
+                            addFields(random, builder, minNumFields, 5);
                             builder.endObject();
                         } else {
                             builder.value(randomFieldValue(random, dataType));
@@ -223,10 +215,9 @@ public final class RandomObjects {
                 }
             } else {
                 builder.field(RandomStrings.randomAsciiOfLengthBetween(random, 6, 10),
-                    randomFieldValue(random, randomDataType(random)));
+                        randomFieldValue(random, randomDataType(random)));
             }
         }
-        return currentFields;
     }
 
     private static int randomDataType(Random random) {

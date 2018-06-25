@@ -29,7 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 public abstract class ReplicationRequestBuilder<Request extends ReplicationRequest<Request>, Response extends ActionResponse, RequestBuilder extends ReplicationRequestBuilder<Request, Response, RequestBuilder>>
         extends ActionRequestBuilder<Request, Response> {
 
-    protected ReplicationRequestBuilder(ElasticsearchClient client, Action<Request, Response> action, Request request) {
+    protected ReplicationRequestBuilder(ElasticsearchClient client, Action<Response> action, Request request) {
         super(client, action, request);
     }
 

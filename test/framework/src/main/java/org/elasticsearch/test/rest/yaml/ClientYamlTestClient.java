@@ -26,18 +26,22 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
@@ -58,21 +62,24 @@ public class ClientYamlTestClient {
     private static final ContentType YAML_CONTENT_TYPE = ContentType.create("application/yaml");
 
     private final ClientYamlSuiteRestSpec restSpec;
-    protected final RestClient restClient;
+    protected final Map<NodeSelector, RestClient> restClients = new HashMap<>();
     private final Version esVersion;
     private final Version masterVersion;
+    private final CheckedConsumer<RestClientBuilder, IOException> clientBuilderConsumer;
 
     public ClientYamlTestClient(
             final ClientYamlSuiteRestSpec restSpec,
             final RestClient restClient,
             final List<HttpHost> hosts,
             final Version esVersion,
-            final Version masterVersion) throws IOException {
+            final Version masterVersion,
+            final CheckedConsumer<RestClientBuilder, IOException> clientBuilderConsumer) {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
-        this.restClient = restClient;
+        this.restClients.put(NodeSelector.ANY, restClient);
         this.esVersion = esVersion;
         this.masterVersion = masterVersion;
+        this.clientBuilderConsumer = clientBuilderConsumer;
     }
 
     public Version getEsVersion() {
@@ -172,30 +179,43 @@ public class ClientYamlTestClient {
             requestPath = finalPath.toString();
         }
 
-
-
         logger.debug("calling api [{}]", apiName);
         Request request = new Request(requestMethod, requestPath);
         for (Map.Entry<String, String> param : queryStringParams.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());
         }
         request.setEntity(entity);
-        setOptions(request, headers, nodeSelector);
+        setOptions(request, headers);
+
         try {
-            Response response = restClient.performRequest(request);
+            Response response = getRestClient(nodeSelector).performRequest(request);
             return new ClientYamlTestResponse(response);
         } catch(ResponseException e) {
             throw new ClientYamlTestResponseException(e);
         }
     }
 
-    protected static void setOptions(Request request, Map<String, String> headers, NodeSelector nodeSelector) {
+    protected RestClient getRestClient(NodeSelector nodeSelector) {
+        //lazily build a new client in case we need to point to some specific node
+        return restClients.computeIfAbsent(nodeSelector, selector -> {
+            RestClient anyClient = restClients.get(NodeSelector.ANY);
+            RestClientBuilder builder = RestClient.builder(anyClient.getNodes().toArray(new Node[0]));
+            try {
+                clientBuilderConsumer.accept(builder);
+            } catch(IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            builder.setNodeSelector(nodeSelector);
+            return builder.build();
+        });
+    }
+
+    protected static void setOptions(Request request, Map<String, String> headers) {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         for (Map.Entry<String, String> header : headers.entrySet()) {
             logger.debug("Adding header {} with value {}", header.getKey(), header.getValue());
             options.addHeader(header.getKey(), header.getValue());
         }
-        options.setNodeSelector(nodeSelector);
         request.setOptions(options);
     }
 

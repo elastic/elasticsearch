@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.action.Action;
 
-public class SqlQueryAction extends Action<SqlQueryRequest, SqlQueryResponse> {
+public class SqlQueryAction extends Action<SqlQueryResponse> {
 
     public static final SqlQueryAction INSTANCE = new SqlQueryAction();
     public static final String NAME = "indices:data/read/sql";

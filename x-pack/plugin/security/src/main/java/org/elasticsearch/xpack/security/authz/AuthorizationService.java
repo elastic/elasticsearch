@@ -403,7 +403,7 @@ public class AuthorizationService extends AbstractComponent {
     }
 
     private static String getAction(BulkItemRequest item) {
-        final DocWriteRequest docWriteRequest = item.request();
+        final DocWriteRequest<?> docWriteRequest = item.request();
         switch (docWriteRequest.opType()) {
             case INDEX:
             case CREATE:

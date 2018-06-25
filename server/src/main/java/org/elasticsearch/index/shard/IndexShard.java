@@ -29,6 +29,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
@@ -299,7 +300,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
         if (IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.get(settings)) {
-            cachingPolicy = QueryCachingPolicy.ALWAYS_CACHE;
+            cachingPolicy = new QueryCachingPolicy() {
+                @Override
+                public void onUse(Query query) {
+
+                }
+                @Override
+                public boolean shouldCache(Query query) {
+                    return true;
+                }
+            };
         } else {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
@@ -858,21 +868,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * @return {@link CommitStats} if engine is open, otherwise null
+     * @return {@link CommitStats}
+     * @throws AlreadyClosedException if shard is closed
      */
-    @Nullable
     public CommitStats commitStats() {
-        Engine engine = getEngineOrNull();
-        return engine == null ? null : engine.commitStats();
+        return getEngine().commitStats();
     }
 
     /**
-     * @return {@link SeqNoStats} if engine is open, otherwise null
+     * @return {@link SeqNoStats}
+     * @throws AlreadyClosedException if shard is closed
      */
-    @Nullable
     public SeqNoStats seqNoStats() {
-        Engine engine = getEngineOrNull();
-        return engine == null ? null : engine.getSeqNoStats(replicationTracker.getGlobalCheckpoint());
+        return getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
     }
 
     public IndexingStats indexingStats(String... types) {
@@ -902,8 +910,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return store.stats();
         } catch (IOException e) {
             throw new ElasticsearchException("io exception while building 'store stats'", e);
-        } catch (AlreadyClosedException ex) {
-            return null; // already closed
         }
     }
 

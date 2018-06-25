@@ -21,7 +21,6 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.AccessCondition;
 import com.microsoft.azure.storage.CloudStorageAccount;
-import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicy;
@@ -36,164 +35,133 @@ import com.microsoft.azure.storage.blob.CloudBlockBlob;
 import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
 import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.repositories.RepositoryException;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.InvalidKeyException;
 import java.nio.file.FileAlreadyExistsException;
-import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
+
+import static java.util.Collections.emptyMap;
 
 public class AzureStorageServiceImpl extends AbstractComponent implements AzureStorageService {
 
-    final Map<String, AzureStorageSettings> storageSettings;
-    final Map<String, CloudBlobClient> clients;
+    // 'package' for testing
+    volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
 
-    public AzureStorageServiceImpl(Settings settings, Map<String, AzureStorageSettings> storageSettings) {
+    public AzureStorageServiceImpl(Settings settings) {
         super(settings);
-        if (storageSettings.isEmpty()) {
-            // If someone did not register any settings, they basically can't use the plugin
-            throw new IllegalArgumentException("If you want to use an azure repository, you need to define a client configuration.");
-        }
-        this.storageSettings = storageSettings;
-        this.clients = createClients(storageSettings);
+        // eagerly load client settings so that secure settings are read
+        final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
+        refreshAndClearCache(clientsSettings);
     }
 
-    private Map<String, CloudBlobClient> createClients(final Map<String, AzureStorageSettings> storageSettings) {
-        final Map<String, CloudBlobClient> clients = new HashMap<>();
-        for (Map.Entry<String, AzureStorageSettings> azureStorageEntry : storageSettings.entrySet()) {
-            final String clientName = azureStorageEntry.getKey();
-            final AzureStorageSettings clientSettings = azureStorageEntry.getValue();
-            try {
-                logger.trace("creating new Azure storage client with name [{}]", clientName);
-                String storageConnectionString =
-                    "DefaultEndpointsProtocol=https;"
-                        + "AccountName=" + clientSettings.getAccount() + ";"
-                        + "AccountKey=" + clientSettings.getKey();
-
-                final String endpointSuffix = clientSettings.getEndpointSuffix();
-                if (Strings.hasLength(endpointSuffix)) {
-                    storageConnectionString += ";EndpointSuffix=" + endpointSuffix;
-                }
-                // Retrieve storage account from connection-string.
-                CloudStorageAccount storageAccount = CloudStorageAccount.parse(storageConnectionString);
-
-                // Create the blob client.
-                CloudBlobClient client = storageAccount.createCloudBlobClient();
-
-                // Register the client
-                clients.put(clientSettings.getAccount(), client);
-            } catch (Exception e) {
-                logger.error(() -> new ParameterizedMessage("Can not create azure storage client [{}]", clientName), e);
-            }
-        }
-        return Collections.unmodifiableMap(clients);
-    }
-
-    CloudBlobClient getSelectedClient(String clientName, LocationMode mode) {
-        logger.trace("selecting a client named [{}], mode [{}]", clientName, mode.name());
-        AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
+    @Override
+    public Tuple<CloudBlobClient, Supplier<OperationContext>> client(String clientName) {
+        final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
         if (azureStorageSettings == null) {
-            throw new IllegalArgumentException("Unable to find client with name [" + clientName + "]");
+            throw new SettingsException("Unable to find client with name [" + clientName + "]");
         }
-
-        CloudBlobClient client = this.clients.get(azureStorageSettings.getAccount());
-        if (client == null) {
-            throw new IllegalArgumentException("No account defined for client with name [" + clientName + "]");
+        try {
+            return new Tuple<>(buildClient(azureStorageSettings), () -> buildOperationContext(azureStorageSettings));
+        } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
+            throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
         }
+    }
 
-        // NOTE: for now, just set the location mode in case it is different;
-        // only one mode per storage clientName can be active at a time
-        client.getDefaultRequestOptions().setLocationMode(mode);
-
-        // Set timeout option if the user sets cloud.azure.storage.timeout or cloud.azure.storage.xxx.timeout (it's negative by default)
-        if (azureStorageSettings.getTimeout().getSeconds() > 0) {
-            try {
-                int timeout = (int) azureStorageSettings.getTimeout().getMillis();
-                client.getDefaultRequestOptions().setTimeoutIntervalInMs(timeout);
-            } catch (ClassCastException e) {
-                throw new IllegalArgumentException("Can not convert [" + azureStorageSettings.getTimeout() +
-                    "]. It can not be longer than 2,147,483,647ms.");
+    protected CloudBlobClient buildClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
+        final CloudBlobClient client = createClient(azureStorageSettings);
+        // Set timeout option if the user sets cloud.azure.storage.timeout or
+        // cloud.azure.storage.xxx.timeout (it's negative by default)
+        final long timeout = azureStorageSettings.getTimeout().getMillis();
+        if (timeout > 0) {
+            if (timeout > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("Timeout [" + azureStorageSettings.getTimeout() + "] exceeds 2,147,483,647ms.");
             }
+            client.getDefaultRequestOptions().setTimeoutIntervalInMs((int) timeout);
         }
-
         // We define a default exponential retry policy
-        client.getDefaultRequestOptions().setRetryPolicyFactory(
-            new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries()));
-
+        client.getDefaultRequestOptions()
+                .setRetryPolicyFactory(new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries()));
+        client.getDefaultRequestOptions().setLocationMode(azureStorageSettings.getLocationMode());
         return client;
     }
 
-    private OperationContext generateOperationContext(String clientName) {
-        OperationContext context = new OperationContext();
-        AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
+    protected CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
+        final String connectionString = azureStorageSettings.buildConnectionString();
+        return CloudStorageAccount.parse(connectionString).createCloudBlobClient();
+    }
 
-        if (azureStorageSettings.getProxy() != null) {
-            context.setProxy(azureStorageSettings.getProxy());
-        }
-
+    protected OperationContext buildOperationContext(AzureStorageSettings azureStorageSettings) {
+        final OperationContext context = new OperationContext();
+        context.setProxy(azureStorageSettings.getProxy());
         return context;
     }
 
     @Override
-    public boolean doesContainerExist(String account, LocationMode mode, String container) {
-        try {
-            CloudBlobClient client = this.getSelectedClient(account, mode);
-            CloudBlobContainer blobContainer = client.getContainerReference(container);
-            return SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, generateOperationContext(account)));
-        } catch (Exception e) {
-            logger.error("can not access container [{}]", container);
-        }
-        return false;
+    public Map<String, AzureStorageSettings> refreshAndClearCache(Map<String, AzureStorageSettings> clientsSettings) {
+        final Map<String, AzureStorageSettings> prevSettings = this.storageSettings;
+        this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
+        // clients are built lazily by {@link client(String)}
+        return prevSettings;
     }
 
     @Override
-    public void removeContainer(String account, LocationMode mode, String container) throws URISyntaxException, StorageException {
-        CloudBlobClient client = this.getSelectedClient(account, mode);
-        CloudBlobContainer blobContainer = client.getContainerReference(container);
-        logger.trace("removing container [{}]", container);
-        SocketAccess.doPrivilegedException(() -> blobContainer.deleteIfExists(null, null, generateOperationContext(account)));
+    public boolean doesContainerExist(String account, String container) throws URISyntaxException, StorageException {
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
+        final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
+        return SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, client.v2().get()));
     }
 
     @Override
-    public void createContainer(String account, LocationMode mode, String container) throws URISyntaxException, StorageException {
+    public void removeContainer(String account, String container) throws URISyntaxException, StorageException {
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
+        final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
+        logger.trace(() -> new ParameterizedMessage("removing container [{}]", container));
+        SocketAccess.doPrivilegedException(() -> blobContainer.deleteIfExists(null, null, client.v2().get()));
+    }
+
+    @Override
+    public void createContainer(String account, String container) throws URISyntaxException, StorageException {
         try {
-            CloudBlobClient client = this.getSelectedClient(account, mode);
-            CloudBlobContainer blobContainer = client.getContainerReference(container);
-            logger.trace("creating container [{}]", container);
-            SocketAccess.doPrivilegedException(() -> blobContainer.createIfNotExists(null, null, generateOperationContext(account)));
-        } catch (IllegalArgumentException e) {
-            logger.trace((Supplier<?>) () -> new ParameterizedMessage("fails creating container [{}]", container), e);
+            final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
+            final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
+            logger.trace(() -> new ParameterizedMessage("creating container [{}]", container));
+            SocketAccess.doPrivilegedException(() -> blobContainer.createIfNotExists(null, null, client.v2().get()));
+        } catch (final IllegalArgumentException e) {
+            logger.trace(() -> new ParameterizedMessage("failed creating container [{}]", container), e);
             throw new RepositoryException(container, e.getMessage(), e);
         }
     }
 
     @Override
-    public void deleteFiles(String account, LocationMode mode, String container, String path) throws URISyntaxException, StorageException {
-        logger.trace("delete files container [{}], path [{}]", container, path);
-
-        // Container name must be lower case.
-        CloudBlobClient client = this.getSelectedClient(account, mode);
-        CloudBlobContainer blobContainer = client.getContainerReference(container);
+    public void deleteFiles(String account, String container, String path) throws URISyntaxException, StorageException {
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
+        // container name must be lower case.
+        final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
+        logger.trace(() -> new ParameterizedMessage("delete files container [{}], path [{}]", container, path));
         SocketAccess.doPrivilegedVoidException(() -> {
             if (blobContainer.exists()) {
-                // We list the blobs using a flat blob listing mode
-                for (ListBlobItem blobItem : blobContainer.listBlobs(path, true, EnumSet.noneOf(BlobListingDetails.class), null,
-                    generateOperationContext(account))) {
-                    String blobName = blobNameFromUri(blobItem.getUri());
-                    logger.trace("removing blob [{}] full URI was [{}]", blobName, blobItem.getUri());
-                    deleteBlob(account, mode, container, blobName);
+                // list the blobs using a flat blob listing mode
+                for (final ListBlobItem blobItem : blobContainer.listBlobs(path, true, EnumSet.noneOf(BlobListingDetails.class), null,
+                        client.v2().get())) {
+                    final String blobName = blobNameFromUri(blobItem.getUri());
+                    logger.trace(() -> new ParameterizedMessage("removing blob [{}] full URI was [{}]", blobName, blobItem.getUri()));
+                    // don't call {@code #deleteBlob}, use the same client
+                    final CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blobName);
+                    azureBlob.delete(DeleteSnapshotsOption.NONE, null, null, client.v2().get());
                 }
             }
         });
@@ -205,85 +173,82 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
      * @param uri URI to parse
      * @return The blob name relative to the container
      */
-    public static String blobNameFromUri(URI uri) {
-        String path = uri.getPath();
-
+    static String blobNameFromUri(URI uri) {
+        final String path = uri.getPath();
         // We remove the container name from the path
         // The 3 magic number cames from the fact if path is /container/path/to/myfile
         // First occurrence is empty "/"
         // Second occurrence is "container
         // Last part contains "path/to/myfile" which is what we want to get
-        String[] splits = path.split("/", 3);
-
+        final String[] splits = path.split("/", 3);
         // We return the remaining end of the string
         return splits[2];
     }
 
     @Override
-    public boolean blobExists(String account, LocationMode mode, String container, String blob)
-        throws URISyntaxException, StorageException {
+    public boolean blobExists(String account, String container, String blob)
+            throws URISyntaxException, StorageException {
         // Container name must be lower case.
-        CloudBlobClient client = this.getSelectedClient(account, mode);
-        CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, generateOperationContext(account)))) {
-            CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
-            return SocketAccess.doPrivilegedException(() -> azureBlob.exists(null, null, generateOperationContext(account)));
-        }
-
-        return false;
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
+        final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
+        return SocketAccess.doPrivilegedException(() -> {
+            if (blobContainer.exists(null, null, client.v2().get())) {
+                final CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
+                return azureBlob.exists(null, null, client.v2().get());
+            }
+            return false;
+        });
     }
 
     @Override
-    public void deleteBlob(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException {
-        logger.trace("delete blob for container [{}], blob [{}]", container, blob);
-
+    public void deleteBlob(String account, String container, String blob) throws URISyntaxException, StorageException {
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         // Container name must be lower case.
-        CloudBlobClient client = this.getSelectedClient(account, mode);
-        CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, generateOperationContext(account)))) {
-            logger.trace("container [{}]: blob [{}] found. removing.", container, blob);
-            CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
-            SocketAccess.doPrivilegedVoidException(() -> azureBlob.delete(DeleteSnapshotsOption.NONE, null, null,
-                generateOperationContext(account)));
-        }
+        final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
+        logger.trace(() -> new ParameterizedMessage("delete blob for container [{}], blob [{}]", container, blob));
+        SocketAccess.doPrivilegedVoidException(() -> {
+            if (blobContainer.exists(null, null, client.v2().get())) {
+                final CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
+                logger.trace(() -> new ParameterizedMessage("container [{}]: blob [{}] found. removing.", container, blob));
+                azureBlob.delete(DeleteSnapshotsOption.NONE, null, null, client.v2().get());
+            }
+        });
     }
 
     @Override
-    public InputStream getInputStream(String account, LocationMode mode, String container, String blob) throws URISyntaxException,
+    public InputStream getInputStream(String account, String container, String blob) throws URISyntaxException,
         StorageException {
-        logger.trace("reading container [{}], blob [{}]", container, blob);
-        CloudBlobClient client = this.getSelectedClient(account, mode);
-        CloudBlockBlob blockBlobReference = client.getContainerReference(container).getBlockBlobReference(blob);
-        BlobInputStream is = SocketAccess.doPrivilegedException(() ->
-            blockBlobReference.openInputStream(null, null, generateOperationContext(account)));
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
+        final CloudBlockBlob blockBlobReference = client.v1().getContainerReference(container).getBlockBlobReference(blob);
+        logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
+        final BlobInputStream is = SocketAccess.doPrivilegedException(() ->
+        blockBlobReference.openInputStream(null, null, client.v2().get()));
         return AzureStorageService.giveSocketPermissionsToStream(is);
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix)
+    public Map<String, BlobMetaData> listBlobsByPrefix(String account, String container, String keyPath, String prefix)
         throws URISyntaxException, StorageException {
         // NOTE: this should be here: if (prefix == null) prefix = "";
         // however, this is really inefficient since deleteBlobsByPrefix enumerates everything and
         // then does a prefix match on the result; it should just call listBlobsByPrefix with the prefix!
-
-        logger.debug("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix);
-        MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
-        EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
-        CloudBlobClient client = this.getSelectedClient(account, mode);
-        CloudBlobContainer blobContainer = client.getContainerReference(container);
+        final MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
+        final EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
+        final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
+        logger.trace(() -> new ParameterizedMessage("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix));
         SocketAccess.doPrivilegedVoidException(() -> {
             if (blobContainer.exists()) {
-                for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix == null ? "" : prefix), false,
-                    enumBlobListingDetails, null, generateOperationContext(account))) {
-                    URI uri = blobItem.getUri();
-                    logger.trace("blob url [{}]", uri);
-
+                for (final ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix == null ? "" : prefix), false,
+                        enumBlobListingDetails, null, client.v2().get())) {
+                    final URI uri = blobItem.getUri();
+                    logger.trace(() -> new ParameterizedMessage("blob url [{}]", uri));
                     // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
                     // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
-                    String blobPath = uri.getPath().substring(1 + container.length() + 1);
-                    BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
-                    String name = blobPath.substring(keyPath.length());
-                    logger.trace("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength());
+                    final String blobPath = uri.getPath().substring(1 + container.length() + 1);
+                    final BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
+                    final String name = blobPath.substring(keyPath.length());
+                    logger.trace(() -> new ParameterizedMessage("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength()));
                     blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
                 }
             }
@@ -292,22 +257,23 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     }
 
     @Override
-    public void writeBlob(String account, LocationMode mode, String container, String blobName, InputStream inputStream, long blobSize)
+    public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize)
         throws URISyntaxException, StorageException, FileAlreadyExistsException {
-        logger.trace("writeBlob({}, stream, {})", blobName, blobSize);
-        CloudBlobClient client = this.getSelectedClient(account, mode);
-        CloudBlobContainer blobContainer = client.getContainerReference(container);
-        CloudBlockBlob blob = blobContainer.getBlockBlobReference(blobName);
+        logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
+        final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
+        final CloudBlockBlob blob = blobContainer.getBlockBlobReference(blobName);
         try {
             SocketAccess.doPrivilegedVoidException(() -> blob.upload(inputStream, blobSize, AccessCondition.generateIfNotExistsCondition(),
-                null, generateOperationContext(account)));
-        } catch (StorageException se) {
+                  null, client.v2().get()));
+        } catch (final StorageException se) {
             if (se.getHttpStatusCode() == HttpURLConnection.HTTP_CONFLICT &&
                 StorageErrorCodeStrings.BLOB_ALREADY_EXISTS.equals(se.getErrorCode())) {
                 throw new FileAlreadyExistsException(blobName, null, se.getMessage());
             }
             throw se;
         }
-        logger.trace("writeBlob({}, stream, {}) - done", blobName, blobSize);
+        logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {}) - done", blobName, blobSize));
     }
+
 }

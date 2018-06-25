@@ -91,7 +91,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
             if (handler != null) {
                 final String bucket = request.getParam("bucket");
                 if (bucket != null && permittedBucket.equals(bucket) == false) {
-                    // allow a null bucket to support bucket-free APIs like ListBuckets?
+                    // allow a null bucket to support bucket-free APIs
                     return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad bucket", "");
                 }
                 return handler.handle(request);

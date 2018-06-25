@@ -53,7 +53,11 @@ public class ScriptModule {
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
             TemplateScript.CONTEXT,
-            MovingFunctionScript.CONTEXT
+            MovingFunctionScript.CONTEXT,
+            ScriptedMetricAggContexts.InitScript.CONTEXT,
+            ScriptedMetricAggContexts.MapScript.CONTEXT,
+            ScriptedMetricAggContexts.CombineScript.CONTEXT,
+            ScriptedMetricAggContexts.ReduceScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 

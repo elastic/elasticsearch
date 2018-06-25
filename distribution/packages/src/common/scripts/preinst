@@ -9,6 +9,18 @@
 #       $1=1       : indicates an new install
 #       $1=2       : indicates an upgrade
 
+# Check for these at preinst time due to failures in postinst if they do not exist
+if [ -x "$JAVA_HOME/bin/java" ]; then
+    JAVA="$JAVA_HOME/bin/java"
+else
+    JAVA=`which java`
+fi
+
+if [ -z "$JAVA" ]; then
+    echo "could not find java; set JAVA_HOME or ensure java is in PATH"
+    exit 1
+fi
+
 case "$1" in
 
     # Debian ####################################################

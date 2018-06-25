@@ -93,7 +93,6 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
 
                 if (isUpdate) {
                     UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
-                    updateRequest.docAsUpsert(isUpdate == false);
                     updateRequest.version(request.getVersion());
                     updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                     updateRequest.doc(builder);

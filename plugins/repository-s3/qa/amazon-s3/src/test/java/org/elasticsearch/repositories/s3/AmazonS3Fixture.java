@@ -75,10 +75,30 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         final RequestHandler handler = handlers.retrieve(request.getMethod() + " " + request.getPath(), request.getParameters());
         if (handler != null) {
             final String authorization = request.getHeader("Authorization");
-            if (authorization == null
-                || (authorization.length() > 0 && authorization.contains("s3_integration_test_access_key") == false)) {
-                return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Access Denied", "");
+
+            final String permittedBucket;
+            if (authorization.contains("s3_integration_test_permanent_access_key")) {
+                final String sessionToken = request.getHeader("x-amz-security-token");
+                if (sessionToken != null) {
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Unexpected session token", "");
+                }
+                permittedBucket = permanentBucketName;
+            } else if (authorization.contains("s3_integration_test_temporary_access_key")) {
+                final String sessionToken = request.getHeader("x-amz-security-token");
+                if (sessionToken.equals("s3_integration_test_temporary_session_token") == false) {
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
+                }
+                permittedBucket = temporaryBucketName;
+            } else {
+                return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad access key", "");
             }
+
+            final String bucket = request.getParam("bucket");
+            if (bucket != null && permittedBucket.equals(bucket) == false) {
+                // allow a null bucket to support bucket-free APIs like ListBuckets?
+                return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad bucket", "");
+            }
+
             return handler.handle(request);
         }
         return null;

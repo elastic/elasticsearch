@@ -42,10 +42,13 @@ import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
@@ -67,13 +70,15 @@ import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, ExtensiblePlugin {
+public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, ExtensiblePlugin, RepositoryPlugin {
 
     private static Logger logger = ESLoggerFactory.getLogger(XPackPlugin.class);
     private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
@@ -338,6 +343,11 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         default Optional<String> getRequiredFeature() {
             return XPackClientPlugin.X_PACK_FEATURE;
         }
+    }
+
+    @Override
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        return Collections.singletonMap("source", SourceOnlySnapshotRepository.newFactory());
     }
 
 }

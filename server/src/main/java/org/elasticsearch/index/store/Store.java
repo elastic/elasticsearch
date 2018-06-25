@@ -155,12 +155,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public Store(ShardId shardId, IndexSettings indexSettings, DirectoryService directoryService, ShardLock shardLock) throws IOException {
         this(shardId, indexSettings, directoryService, shardLock, OnClose.EMPTY);
     }
-
     public Store(ShardId shardId, IndexSettings indexSettings, DirectoryService directoryService, ShardLock shardLock,
+                 OnClose onClose) throws IOException {
+        this(shardId, indexSettings, directoryService.newDirectory(), shardLock, onClose);
+    }
+
+    public Store(ShardId shardId, IndexSettings indexSettings, Directory dir, ShardLock shardLock,
                  OnClose onClose) throws IOException {
         super(shardId, indexSettings);
         final Settings settings = indexSettings.getSettings();
-        Directory dir = directoryService.newDirectory();
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
         ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(dir, refreshInterval);

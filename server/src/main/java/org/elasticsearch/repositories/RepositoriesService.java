@@ -398,7 +398,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                 "repository type [" + repositoryMetaData.type() + "] does not exist");
         }
         try {
-            Repository repository = factory.create(repositoryMetaData);
+            Repository repository = factory.create(repositoryMetaData, typesRegistry::get);
             repository.start();
             return repository;
         } catch (Exception e) {

@@ -1,13 +1,7 @@
 package com.carrotsearch.gradle.junit4
 
 import com.carrotsearch.ant.tasks.junit4.JUnit4
-import org.gradle.api.AntBuilder
-import org.gradle.api.GradleException
-import org.gradle.api.InvalidUserDataException
-import org.gradle.api.Plugin
-import org.gradle.api.Project
-import org.gradle.api.Task
-import org.gradle.api.UnknownTaskException
+import org.gradle.api.*
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.TaskProvider
@@ -31,7 +25,7 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         // https://github.com/elastic/elasticsearch/issues/31324
         if (sanityCheckConfigured.getAndSet(true) == false) {
             project.rootProject.getGradle().getTaskGraph().whenReady {
-                def nonConforming = project.getGradle().getTaskGraph().allTasks
+                List<Task> nonConforming = project.getGradle().getTaskGraph().allTasks
                         .findAll { it.name == "test" }
                         .findAll { (it instanceof RandomizedTestingTask) == false}
                         .collect { "${it.path} -> ${it.class}" }
@@ -83,9 +77,6 @@ class RandomizedTestingPlugin implements Plugin<Project> {
             return
         }
         Test oldTestTask = oldTestProvider.get()
-        tasks.remove(oldTestTask)
-        // there's no way to remove the provider form the task collection, but since we realize the task above, this is
-        // sufficient.
 
         // we still have to use replace here despite the remove above because the task container knows about the provider
         // by the same name

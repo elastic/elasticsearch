@@ -1,0 +1,22 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-syntax-describe-table]]
+=== DESCRIBE TABLE
+
+.Synopsis
+[source, sql]
+----
+DESCRIBE table
+----
+
+or 
+
+[source, sql]
+----
+DESC table
+----
+
+
+.Description
+
+`DESC` and `DESCRIBE` are aliases to <<sql-syntax-show-columns>>.

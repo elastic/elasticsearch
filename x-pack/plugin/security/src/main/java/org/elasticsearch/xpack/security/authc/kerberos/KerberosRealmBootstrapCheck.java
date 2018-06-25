@@ -34,8 +34,8 @@ public class KerberosRealmBootstrapCheck implements BootstrapCheck {
         for (final String name : realmsSettings.names()) {
             final Settings realmSettings = realmsSettings.getAsSettings(name);
             final String type = realmSettings.get("type");
-            if (Strings.isNullOrEmpty(type)) {
-                continue;
+            if (Strings.hasText(type) == false) {
+                return BootstrapCheckResult.failure("missing realm type for [" + name + "] realm");
             }
             if (KerberosRealmSettings.TYPE.equals(type)) {
                 if (isKerberosRealmConfigured) {

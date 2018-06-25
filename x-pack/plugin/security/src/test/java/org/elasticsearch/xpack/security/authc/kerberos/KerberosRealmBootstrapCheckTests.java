@@ -30,9 +30,8 @@ public class KerberosRealmBootstrapCheckTests extends ESTestCase {
         final Settings settings1 = buildKerberosRealmSettings("kerb1", false, tempDir);
         final Settings settings2 = buildKerberosRealmSettings("kerb2", false, tempDir);
         final Settings settings3 = realm("pki1", PkiRealmSettings.TYPE, Settings.builder()).build();
-        final Settings settings4 = realm("na1", null, Settings.builder()).build();
         final Settings settings =
-                Settings.builder().put("path.home", tempDir).put(settings1).put(settings2).put(settings3).put(settings4).build();
+                Settings.builder().put("path.home", tempDir).put(settings1).put(settings2).put(settings3).build();
         final BootstrapContext context = new BootstrapContext(settings, null);
         final KerberosRealmBootstrapCheck kerbRealmBootstrapCheck =
                 new KerberosRealmBootstrapCheck(TestEnvironment.newEnvironment(settings));
@@ -55,6 +54,22 @@ public class KerberosRealmBootstrapCheckTests extends ESTestCase {
         assertThat(result.isFailure(), is(true));
         assertThat(result.getMessage(),
                 equalTo("configured service key tab file [" + tempDir.resolve("kerb1.keytab").toString() + "] does not exist"));
+    }
+
+    public void testBootstrapCheckFailsForMissingRealmType() throws IOException {
+        final Path tempDir = createTempDir();
+        final String name = "kerb1";
+        final Settings settings1 = buildKerberosRealmSettings("kerb1", false, tempDir);
+        final Settings settings2 = realm(name, randomFrom("", "    "), Settings.builder()).build();
+        final Settings settings =
+                Settings.builder().put("path.home", tempDir).put(settings1).put(settings2).build();
+        final BootstrapContext context = new BootstrapContext(settings, null);
+        final KerberosRealmBootstrapCheck kerbRealmBootstrapCheck =
+                new KerberosRealmBootstrapCheck(TestEnvironment.newEnvironment(settings));
+        final BootstrapCheck.BootstrapCheckResult result = kerbRealmBootstrapCheck.check(context);
+        assertThat(result, is(notNullValue()));
+        assertThat(result.isFailure(), is(true));
+        assertThat(result.getMessage(), equalTo("missing realm type for [" + name + "] realm"));
     }
 
     public void testBootstrapCheckSucceedsForCorrectConfiguration() throws IOException {

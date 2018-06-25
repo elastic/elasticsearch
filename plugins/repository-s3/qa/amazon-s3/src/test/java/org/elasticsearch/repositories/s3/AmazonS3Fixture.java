@@ -52,12 +52,17 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
 
     /** Request handlers for the requests made by the S3 client **/
     private final PathTrie<RequestHandler> handlers;
+    private final String permanentBucketName;
+    private final String temporaryBucketName;
 
     /**
      * Creates a {@link AmazonS3Fixture}
      */
     private AmazonS3Fixture(final String workingDir, final String permanentBucketName, final String temporaryBucketName) {
         super(workingDir);
+        this.permanentBucketName = permanentBucketName;
+        this.temporaryBucketName = temporaryBucketName;
+
         this.buckets.put(permanentBucketName, new Bucket(permanentBucketName));
         this.buckets.put(temporaryBucketName, new Bucket(temporaryBucketName));
         this.handlers = defaultHandlers(buckets);
@@ -74,7 +79,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
                 if (sessionToken != null) {
                     return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Unexpected session token", "");
                 }
-                permittedBucket = "permanent_bucket_test";
+                permittedBucket = permanentBucketName;
             } else if (authorization.contains("s3_integration_test_temporary_access_key")) {
                 final String sessionToken = request.getHeader("x-amz-security-token");
                 if (sessionToken == null) {
@@ -83,7 +88,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
                 if (sessionToken.equals("s3_integration_test_temporary_session_token") == false) {
                     return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
                 }
-                permittedBucket = "temporary_bucket_test";
+                permittedBucket = temporaryBucketName;
             } else {
                 return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad access key", "");
             }

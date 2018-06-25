@@ -60,8 +60,6 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     public RestGetAliasesAction(final Settings settings, final RestController controller) {
         super(settings);
-        controller.registerHandler(GET, "/_alias", this);
-        controller.registerHandler(GET, "/_aliases", this);
         controller.registerHandler(GET, "/_alias/{name}", this);
         controller.registerHandler(HEAD, "/_alias/{name}", this);
         controller.registerHandler(GET, "/{index}/_alias", this);

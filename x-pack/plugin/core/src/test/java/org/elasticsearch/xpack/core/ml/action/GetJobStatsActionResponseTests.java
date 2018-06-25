@@ -56,7 +56,7 @@ public class GetJobStatsActionResponseTests extends AbstractStreamableTestCase<R
             if (randomBoolean()) {
                 openTime = parseTimeValue(randomPositiveTimeValue(), "open_time-Test");
             }
-            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, jobState, node, explanation, openTime);
+            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, null, jobState, node, explanation, openTime);
             jobStatsList.add(jobStats);
         }
 

@@ -3,7 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.utils;
+package org.elasticsearch.xpack.ml.stats;
+
+import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,6 +24,9 @@ public class StatsAccumulator {
     private double total;
     private Double min;
     private Double max;
+    
+    public StatsAccumulator() {
+    }
 
     public void add(double value) {
         count++;
@@ -54,4 +59,17 @@ public class StatsAccumulator {
         map.put(TOTAL, getTotal());
         return map;
     }
+    
+    private StatsAccumulator(long count, double total, double min, double max) {
+        this.count = count;
+        this.total = total;
+        this.min = min;
+        this.max = max;
+    }
+    
+    public static StatsAccumulator fromStatsAggregation(Stats statsAggregation) {
+        return new StatsAccumulator(statsAggregation.getCount(), statsAggregation.getSum(), statsAggregation.getMin(),
+                statsAggregation.getMax());
+    }
 }
+

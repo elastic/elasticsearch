@@ -32,8 +32,8 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
+import org.elasticsearch.xpack.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
-import org.elasticsearch.xpack.ml.utils.StatsAccumulator;
 
 import java.io.IOException;
 import java.util.Arrays;

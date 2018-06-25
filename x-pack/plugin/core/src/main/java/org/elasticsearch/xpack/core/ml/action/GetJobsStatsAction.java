@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.core.ml.action.util.ForecastStats;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -154,6 +155,8 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
             @Nullable
             private ModelSizeStats modelSizeStats;
             @Nullable
+            private ForecastStats forecastStats;
+            @Nullable
             private TimeValue openTime;
             private JobState state;
             @Nullable
@@ -161,11 +164,12 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
             @Nullable
             private String assignmentExplanation;
 
-            public JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, JobState state,
+            public JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, @Nullable ForecastStats forecastStats, JobState state,
                      @Nullable  DiscoveryNode node, @Nullable String assignmentExplanation, @Nullable TimeValue opentime) {
                 this.jobId = Objects.requireNonNull(jobId);
                 this.dataCounts = Objects.requireNonNull(dataCounts);
                 this.modelSizeStats = modelSizeStats;
+                this.forecastStats = forecastStats;
                 this.state = Objects.requireNonNull(state);
                 this.node = node;
                 this.assignmentExplanation = assignmentExplanation;
@@ -192,6 +196,10 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
 
             public ModelSizeStats getModelSizeStats() {
                 return modelSizeStats;
+            }
+            
+            public ForecastStats getForecastStats() {
+                return forecastStats;
             }
 
             public JobState getState() {
@@ -226,6 +234,10 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
                 if (modelSizeStats != null) {
                     builder.field(MODEL_SIZE_STATS, modelSizeStats);
                 }
+                if (forecastStats != null) {
+                    builder.field("forecast", forecastStats);
+                }
+                
                 builder.field(STATE, state.toString());
                 if (node != null) {
                     builder.startObject(NODE);

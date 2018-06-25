@@ -17,9 +17,8 @@
  * under the License.
  */
 
-import java.nio.file.Files
 
-import org.gradle.util.GradleVersion
+import java.nio.file.Files
 
 plugins {
   id 'java-gradle-plugin'
@@ -148,9 +147,6 @@ if (project != rootProject) {
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
 
-  // test for elasticsearch.build tries to run with ES...
-  test.enabled = false
-
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false
 
@@ -162,6 +158,6 @@ if (project != rootProject) {
 
   namingConventions {
     testClass = 'org.elasticsearch.gradle.GradleUnitTestCase'
-    integTestClass = 'org.elasticsearch.gradle.GradleIntegrationTests'
+    integTestClass = 'org.elasticsearch.gradle.GradleIntegrationTestCase'
   }
 }

@@ -36,6 +36,7 @@ fields in the payload:
   }
 }
 -------------------------------------
+// NOTCONSOLE
 
 See <<input-simple>> for more details.
 
@@ -74,6 +75,7 @@ For example, the following `search` input loads the latest VIX quote:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> Will resolve to today's daily quotes index
 
 See <<input-search>> for more details.
@@ -105,7 +107,7 @@ Amsterdam using http://openweathermap.org/appid[OpenWeatherMap] online service:
   }
 }
 --------------------------------------------------
-
+// NOTCONSOLE
 See <<input-http>> for more details.
 
 [[chaining-inputs]]
@@ -146,7 +148,7 @@ returned any hits:
     "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
   },
 --------------------------------------------------
-
+// NOTCONSOLE
 See <<condition-compare>> for more details.
 
 ==== Powerful Comparison Logic with the Script Condition
@@ -176,7 +178,7 @@ VIX quote loaded by the `http` input is either greater than 5% or lower than -5%
   }
 }
 --------------------------------------------------
-
+// NOTCONSOLE
 See <<condition-script>> for more details.
 
 [[using-transforms]]
@@ -231,6 +233,7 @@ attaches the payload data to the message:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The id of the action
 <2> The action type, in this case it's an `email` action
 
@@ -261,6 +264,7 @@ creates a new issue in GitHub
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> `<owner>` is the owner of the GitHub repo and `<repo>` is the name of the repo.
 <2> The username that creates the issue
 <3> The password of that user

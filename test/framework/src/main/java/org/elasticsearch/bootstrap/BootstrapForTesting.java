@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.Booleans;
@@ -175,7 +176,7 @@ public class BootstrapForTesting {
     /** Add the codebase url of the given classname to the codebases map, if the class exists. */
     private static void addClassCodebase(Map<String, URL> codebases, String name, String classname) {
         try {
-            Class clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
+            Class<?> clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
             if (codebases.put(name, clazz.getProtectionDomain().getCodeSource().getLocation()) != null) {
                 throw new IllegalStateException("Already added " + name + " codebase for testing");
             }

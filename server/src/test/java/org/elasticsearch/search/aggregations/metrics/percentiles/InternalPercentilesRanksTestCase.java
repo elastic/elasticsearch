@@ -22,6 +22,8 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public abstract class InternalPercentilesRanksTestCase<T extends InternalAggregation & PercentileRanks>
         extends AbstractPercentilesTestCase<T> {
 
@@ -38,5 +40,11 @@ public abstract class InternalPercentilesRanksTestCase<T extends InternalAggrega
 
         Class<? extends ParsedPercentiles> parsedClass = implementationClass();
         assertTrue(parsedClass != null && parsedClass.isInstance(parsedAggregation));
+    }
+
+    @Override
+    protected void assertPercentile(T agg, Double value) {
+        assertThat(agg.percent(value), equalTo(Double.NaN));
+        assertThat(agg.percentAsString(value), equalTo("NaN"));
     }
 }

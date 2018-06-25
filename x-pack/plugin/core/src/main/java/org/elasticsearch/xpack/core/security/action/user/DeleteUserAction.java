@@ -10,7 +10,7 @@ import org.elasticsearch.action.Action;
 /**
  * Action for deleting a native user.
  */
-public class DeleteUserAction extends Action<DeleteUserRequest, DeleteUserResponse> {
+public class DeleteUserAction extends Action<DeleteUserResponse> {
 
     public static final DeleteUserAction INSTANCE = new DeleteUserAction();
     public static final String NAME = "cluster:admin/xpack/security/user/delete";

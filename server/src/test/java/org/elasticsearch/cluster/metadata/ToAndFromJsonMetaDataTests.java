@@ -132,7 +132,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                         .putMapping("mapping1", MAPPING_SOURCE1)
                         .putMapping("mapping2", MAPPING_SOURCE2)
                         .putAlias(newAliasMetaDataBuilder("alias1").filter(ALIAS_FILTER1))
-                        .putAlias(newAliasMetaDataBuilder("alias2").writeIndex(randomBoolean() ? null : randomBoolean()))
+                        .putAlias(newAliasMetaDataBuilder("alias3").writeIndex(randomBoolean() ? null : randomBoolean()))
                         .putAlias(newAliasMetaDataBuilder("alias4").filter(ALIAS_FILTER2)))
                 .put(IndexTemplateMetaData.builder("foo")
                         .patterns(Collections.singletonList("bar"))
@@ -287,10 +287,10 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
         assertThat(indexMetaData.getAliases().size(), equalTo(3));
         assertThat(indexMetaData.getAliases().get("alias1").alias(), equalTo("alias1"));
         assertThat(indexMetaData.getAliases().get("alias1").filter().string(), equalTo(ALIAS_FILTER1));
-        assertThat(indexMetaData.getAliases().get("alias2").alias(), equalTo("alias2"));
-        assertThat(indexMetaData.getAliases().get("alias2").filter(), nullValue());
-        assertThat(indexMetaData.getAliases().get("alias2").writeIndex(),
-            equalTo(metaData.index("test12").getAliases().get("alias2").writeIndex()));
+        assertThat(indexMetaData.getAliases().get("alias3").alias(), equalTo("alias3"));
+        assertThat(indexMetaData.getAliases().get("alias3").filter(), nullValue());
+        assertThat(indexMetaData.getAliases().get("alias3").writeIndex(),
+            equalTo(metaData.index("test12").getAliases().get("alias3").writeIndex()));
         assertThat(indexMetaData.getAliases().get("alias4").alias(), equalTo("alias4"));
         assertThat(indexMetaData.getAliases().get("alias4").filter().string(), equalTo(ALIAS_FILTER2));
 

@@ -26,11 +26,11 @@ import java.util.Objects;
 
 public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse> {
 
-    protected final Action<Request, Response> action;
+    protected final Action<Response> action;
     protected final Request request;
     protected final ElasticsearchClient client;
 
-    protected ActionRequestBuilder(ElasticsearchClient client, Action<Request, Response> action, Request request) {
+    protected ActionRequestBuilder(ElasticsearchClient client, Action<Response> action, Request request) {
         Objects.requireNonNull(action, "action must not be null");
         this.action = action;
         this.request = request;

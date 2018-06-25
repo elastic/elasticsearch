@@ -45,7 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.discovery.zen.UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 
 /**
  * A alternative zen discovery which allows using mocks for things like pings, as well as
@@ -84,7 +84,7 @@ public class TestZenDiscovery extends ZenDiscovery {
             final Supplier<UnicastHostsProvider> supplier;
             if (USE_MOCK_PINGS.get(settings)) {
                 // we have to return something in order for the unicast host provider setting to resolve to something. It will never be used
-                supplier = () -> () -> {
+                supplier = () -> hostsResolver -> {
                     throw new UnsupportedOperationException();
                 };
             } else {

@@ -79,6 +79,16 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(true));
 
+        licenseState =
+            new XPackLicenseState(Settings.builder().put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), true).build());
+        assertThat(licenseState.isAuthAllowed(), is(true));
+        assertThat(licenseState.isIpFilteringAllowed(), is(true));
+        assertThat(licenseState.isAuditingAllowed(), is(true));
+        assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
+        assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(true));
+        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
+        assertThat(licenseState.isCustomRoleProvidersAllowed(), is(true));
+
         licenseState = new XPackLicenseState(Settings.EMPTY);
         assertThat(licenseState.isAuthAllowed(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(true));

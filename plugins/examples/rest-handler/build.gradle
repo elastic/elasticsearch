@@ -30,10 +30,9 @@ test.enabled = false
 
 task exampleFixture(type: org.elasticsearch.gradle.test.AntFixture) {
   dependsOn testClasses
+  env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
   executable = new File(project.runtimeJavaHome, 'bin/java')
-  args '-cp', "${ -> project.sourceSets.test.runtimeClasspath.asPath }",
-          'org.elasticsearch.example.resthandler.ExampleFixture',
-          baseDir, 'TEST'
+  args 'org.elasticsearch.example.resthandler.ExampleFixture', baseDir, 'TEST'
 }
 
 integTestCluster {

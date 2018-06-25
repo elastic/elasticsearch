@@ -50,10 +50,11 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     }
 
     @Override
-    protected PrimaryResult shardOperationOnPrimary(ShardFlushRequest shardRequest, IndexShard primary) {
+    protected PrimaryResult<ShardFlushRequest, ReplicationResponse> shardOperationOnPrimary(ShardFlushRequest shardRequest,
+            IndexShard primary) {
         primary.flush(shardRequest.getRequest());
         logger.trace("{} flush request executed on primary", primary.shardId());
-        return new PrimaryResult(shardRequest, new ReplicationResponse());
+        return new PrimaryResult<ShardFlushRequest, ReplicationResponse>(shardRequest, new ReplicationResponse());
     }
 
     @Override

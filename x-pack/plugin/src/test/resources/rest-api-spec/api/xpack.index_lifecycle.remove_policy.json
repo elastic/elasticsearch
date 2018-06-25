@@ -1,10 +1,10 @@
 {
   "xpack.index_lifecycle.remove_policy": {
     "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
-    "methods": [ "PUT" ],
+    "methods": [ "DELETE" ],
     "url": {
-      "path": "/{index}/_index_lifecycle/remove_policy",
-      "paths": ["/{index}/_index_lifecycle/remove_policy", "/_index_lifecycle/remove_policy"],
+      "path": "/{index}/_lifecycle",
+      "paths": ["/{index}/_lifecycle", "/_lifecycle"],
       "parts": {
         "index": {
           "type" : "string",

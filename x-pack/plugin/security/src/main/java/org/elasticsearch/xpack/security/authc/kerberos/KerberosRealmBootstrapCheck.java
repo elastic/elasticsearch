@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSetting
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * This class is used to perform bootstrap checks for kerberos realm.
@@ -29,10 +31,11 @@ public class KerberosRealmBootstrapCheck implements BootstrapCheck {
 
     @Override
     public BootstrapCheckResult check(final BootstrapContext context) {
-        final Settings realmsSettings = RealmSettings.get(context.settings);
+        final Map<String, Settings> realmsSettings = RealmSettings.getRealmSettings(context.settings);
         boolean isKerberosRealmConfigured = false;
-        for (final String name : realmsSettings.names()) {
-            final Settings realmSettings = realmsSettings.getAsSettings(name);
+        for (final Entry<String, Settings> entry : realmsSettings.entrySet()) {
+            final String name = entry.getKey();
+            final Settings realmSettings = entry.getValue();
             final String type = realmSettings.get("type");
             if (Strings.hasText(type) == false) {
                 return BootstrapCheckResult.failure("missing realm type for [" + name + "] realm");

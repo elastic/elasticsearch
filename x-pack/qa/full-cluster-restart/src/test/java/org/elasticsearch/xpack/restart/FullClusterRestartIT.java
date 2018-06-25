@@ -317,12 +317,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
             Map<String, Object> clusterHealthResponse = toMap(client().performRequest(clusterHealthRequest));
             assertThat(clusterHealthResponse.get("timed_out"), equalTo(Boolean.FALSE));
 
-            assertBusy(() -> {
-                final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/rollup-job-test");
-                Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
-                assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-            });
-
             assertRollUpJob("rollup-job-test");
         }
     }
@@ -532,6 +526,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     private void assertRollUpJob(final String rollupJob) throws Exception {
         final Matcher<?> expectedStates = anyOf(equalTo("indexing"), equalTo("started"));
+        waitForRollUpJob(rollupJob, expectedStates);
 
         // check that the rollup job is started using the RollUp API
         final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
@@ -556,15 +551,19 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertThat(ObjectPath.eval("id", rollupJobTask), equalTo("rollup-job-test"));
 
         // Persistent task state field has been renamed in 6.4.0 from "status" to "state"
-        final String stateFieldName = oldClusterVersion.before(Version.V_6_4_0) ? "status" : "state";
+        final String stateFieldName = (runningAgainstOldCluster && oldClusterVersion.before(Version.V_6_4_0)) ? "status" : "state";
 
         final String jobStateField = "task.xpack/rollup/job." + stateFieldName + ".job_state";
-        try {
-            assertThat(ObjectPath.eval(jobStateField, rollupJobTask), expectedStates);
-        } catch (AssertionError e) {
-            logger.fatal(">>> " + ObjectPath.eval("task.xpack/rollup/job.status.job_state", rollupJobTask));
-            logger.fatal(">>><< " + ObjectPath.eval("task.xpack/rollup/job.state.job_state", rollupJobTask));
-            logger.fatal(">>><<ssss " + clusterStateResponse);
-        }
+        assertThat("Expected field [" + jobStateField + "] to be started or indexing in " + rollupJobTask,
+            ObjectPath.eval(jobStateField, rollupJobTask), expectedStates);
+    }
+
+    private void waitForRollUpJob(final String rollupJob, final Matcher<?> expectedStates) throws Exception {
+        assertBusy(() -> {
+            final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
+            Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
+            assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+            assertThat(ObjectPath.eval("jobs.0.status.job_state", toMap(getRollupJobResponse)), expectedStates);
+        }, 30L, TimeUnit.SECONDS);
     }
 }

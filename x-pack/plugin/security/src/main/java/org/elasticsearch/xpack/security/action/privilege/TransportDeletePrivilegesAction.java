@@ -11,7 +11,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
@@ -29,15 +29,15 @@ public class TransportDeletePrivilegesAction extends HandledTransportAction<Dele
     private final NativePrivilegeStore privilegeStore;
 
     @Inject
-    public TransportDeletePrivilegesAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportDeletePrivilegesAction(Settings settings, ActionFilters actionFilters,
                                            NativePrivilegeStore privilegeStore,
                                            TransportService transportService) {
-        super(settings, DeletePrivilegesAction.NAME, threadPool, transportService, actionFilters, DeletePrivilegesRequest::new);
+        super(settings, DeletePrivilegesAction.NAME, transportService, actionFilters, DeletePrivilegesRequest::new);
         this.privilegeStore = privilegeStore;
     }
 
     @Override
-    protected void doExecute(final DeletePrivilegesRequest request, final ActionListener<DeletePrivilegesResponse> listener) {
+    protected void doExecute(Task task, final DeletePrivilegesRequest request, final ActionListener<DeletePrivilegesResponse> listener) {
         if (request.privileges() == null || request.privileges().length == 0) {
             listener.onResponse(new DeletePrivilegesResponse(Collections.emptyList()));
             return;

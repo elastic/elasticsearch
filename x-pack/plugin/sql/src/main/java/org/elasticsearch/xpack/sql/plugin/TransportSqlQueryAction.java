@@ -13,7 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
@@ -34,9 +34,9 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
-    public TransportSqlQueryAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
+    public TransportSqlQueryAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
                                    PlanExecutor planExecutor, SqlLicenseChecker sqlLicenseChecker) {
-        super(settings, SqlQueryAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, SqlQueryAction.NAME, transportService, actionFilters,
             (Writeable.Reader<SqlQueryRequest>) SqlQueryRequest::new);
 
         this.planExecutor = planExecutor;
@@ -44,7 +44,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     }
 
     @Override
-    protected void doExecute(SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
+    protected void doExecute(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
         operation(planExecutor, request, listener);
     }

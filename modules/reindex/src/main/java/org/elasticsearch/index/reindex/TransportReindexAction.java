@@ -92,6 +92,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST =
             Setting.listSetting("reindex.remote.whitelist", emptyList(), Function.identity(), Property.NodeScope);
 
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final ScriptService scriptService;
     private final AutoCreateIndex autoCreateIndex;
@@ -103,8 +104,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
             AutoCreateIndex autoCreateIndex, Client client, TransportService transportService) {
-        super(settings, ReindexAction.NAME, threadPool, transportService, actionFilters,
-            ReindexRequest::new);
+        super(settings, ReindexAction.NAME, transportService, actionFilters, ReindexRequest::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.autoCreateIndex = autoCreateIndex;
@@ -131,11 +132,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                     listener).start();
             }
         );
-    }
-
-    @Override
-    protected void doExecute(ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-        throw new UnsupportedOperationException("task required");
     }
 
     static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo) {

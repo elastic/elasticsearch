@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
@@ -26,17 +27,19 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
  */
 public class TransportSetEnabledAction extends HandledTransportAction<SetEnabledRequest, SetEnabledResponse> {
 
+    private final ThreadPool threadPool;
     private final NativeUsersStore usersStore;
 
     @Inject
     public TransportSetEnabledAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                      ActionFilters actionFilters, NativeUsersStore usersStore) {
-        super(settings, SetEnabledAction.NAME, threadPool, transportService, actionFilters, SetEnabledRequest::new);
+        super(settings, SetEnabledAction.NAME, transportService, actionFilters, SetEnabledRequest::new);
+        this.threadPool = threadPool;
         this.usersStore = usersStore;
     }
 
     @Override
-    protected void doExecute(SetEnabledRequest request, ActionListener<SetEnabledResponse> listener) {
+    protected void doExecute(Task task, SetEnabledRequest request, ActionListener<SetEnabledResponse> listener) {
         final String username = request.username();
         // make sure the user is not disabling themselves
         if (Authentication.getAuthentication(threadPool.getThreadContext()).getUser().principal().equals(request.username())) {

@@ -10,7 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
@@ -27,14 +27,14 @@ public class TransportPutPrivilegesAction extends HandledTransportAction<PutPriv
     private final NativePrivilegeStore privilegeStore;
 
     @Inject
-    public TransportPutPrivilegesAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportPutPrivilegesAction(Settings settings, ActionFilters actionFilters,
                                         NativePrivilegeStore privilegeStore, TransportService transportService) {
-        super(settings, PutPrivilegesAction.NAME, threadPool, transportService, actionFilters, PutPrivilegesRequest::new);
+        super(settings, PutPrivilegesAction.NAME, transportService, actionFilters, PutPrivilegesRequest::new);
         this.privilegeStore = privilegeStore;
     }
 
     @Override
-    protected void doExecute(final PutPrivilegesRequest request, final ActionListener<PutPrivilegesResponse> listener) {
+    protected void doExecute(Task task, final PutPrivilegesRequest request, final ActionListener<PutPrivilegesResponse> listener) {
         if (request.getPrivileges() == null || request.getPrivileges().size() == 0) {
             listener.onResponse(new PutPrivilegesResponse(Collections.emptyMap()));
         } else {

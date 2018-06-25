@@ -55,6 +55,7 @@ import static org.joda.time.DateTimeZone.UTC;
  */
 public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequest, PutWatchResponse> {
 
+    private final ThreadPool threadPool;
     private final Clock clock;
     private final WatchParser parser;
     private final Client client;
@@ -64,7 +65,8 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     @Inject
     public TransportPutWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    Clock clock, XPackLicenseState licenseState, WatchParser parser, Client client) {
-        super(settings, PutWatchAction.NAME, transportService, threadPool, actionFilters, licenseState, PutWatchRequest::new);
+        super(settings, PutWatchAction.NAME, transportService, actionFilters, licenseState, PutWatchRequest::new);
+        this.threadPool = threadPool;
         this.clock = clock;
         this.parser = parser;
         this.client = client;

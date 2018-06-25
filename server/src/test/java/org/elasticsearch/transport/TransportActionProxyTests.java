@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -88,7 +88,7 @@ public class TransportActionProxyTests extends ESTestCase {
 
     public void testSendMessage() throws InterruptedException {
         serviceA.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
-            (request, channel) -> {
+            (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse();
                 response.targetNode = "TS_A";
@@ -98,7 +98,7 @@ public class TransportActionProxyTests extends ESTestCase {
         serviceA.connectToNode(nodeB);
 
         serviceB.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
-            (request, channel) -> {
+            (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse();
                 response.targetNode = "TS_B";
@@ -107,7 +107,7 @@ public class TransportActionProxyTests extends ESTestCase {
         TransportActionProxy.registerProxyAction(serviceB, "/test", SimpleTestResponse::new);
         serviceB.connectToNode(nodeC);
         serviceC.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
-            (request, channel) -> {
+            (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse();
                 response.targetNode = "TS_C";
@@ -151,7 +151,7 @@ public class TransportActionProxyTests extends ESTestCase {
 
     public void testException() throws InterruptedException {
         serviceA.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
-            (request, channel) -> {
+            (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse();
                 response.targetNode = "TS_A";
@@ -161,7 +161,7 @@ public class TransportActionProxyTests extends ESTestCase {
         serviceA.connectToNode(nodeB);
 
         serviceB.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
-            (request, channel) -> {
+            (request, channel, task) -> {
                 assertEquals(request.sourceNode, "TS_A");
                 SimpleTestResponse response = new SimpleTestResponse();
                 response.targetNode = "TS_B";
@@ -170,7 +170,7 @@ public class TransportActionProxyTests extends ESTestCase {
         TransportActionProxy.registerProxyAction(serviceB, "/test", SimpleTestResponse::new);
         serviceB.connectToNode(nodeC);
         serviceC.registerRequestHandler("/test", SimpleTestRequest::new, ThreadPool.Names.SAME,
-            (request, channel) -> {
+            (request, channel, task) -> {
                 throw new ElasticsearchException("greetings from TS_C");
             });
         TransportActionProxy.registerProxyAction(serviceC, "/test", SimpleTestResponse::new);

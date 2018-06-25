@@ -10,7 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -25,16 +25,15 @@ public class TransportGetCertificateInfoAction extends HandledTransportAction<Ge
     private final SSLService sslService;
 
     @Inject
-    public TransportGetCertificateInfoAction(Settings settings, ThreadPool threadPool,
-                                             TransportService transportService, ActionFilters actionFilters,
+    public TransportGetCertificateInfoAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
                                              SSLService sslService) {
-        super(settings, GetCertificateInfoAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, GetCertificateInfoAction.NAME, transportService, actionFilters,
             GetCertificateInfoAction.Request::new);
         this.sslService = sslService;
     }
 
     @Override
-    protected void doExecute(GetCertificateInfoAction.Request request,
+    protected void doExecute(Task task, GetCertificateInfoAction.Request request,
                              ActionListener<GetCertificateInfoAction.Response> listener) {
         try {
             Collection<CertificateInfo> certificates = sslService.getLoadedCertificates();

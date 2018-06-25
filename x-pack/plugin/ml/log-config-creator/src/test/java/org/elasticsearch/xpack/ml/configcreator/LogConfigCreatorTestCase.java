@@ -10,6 +10,7 @@ import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -21,6 +22,7 @@ public abstract class LogConfigCreatorTestCase extends ESTestCase {
     protected static final List<String> POSSIBLE_CHARSETS = Collections.unmodifiableList(Charset.availableCharsets().keySet().stream()
         .filter(name -> LogFileStructureFinder.FILEBEAT_SUPPORTED_ENCODINGS.contains(name.toLowerCase(Locale.ROOT)))
         .collect(Collectors.toList()));
+    protected static final List<String> POSSIBLE_TIMEZONES = Arrays.asList(null, "Europe/London", "UTC", "+05:30", "-08:00", "EST");
 
     static {
         TEST_TERMINAL = Terminal.DEFAULT;

@@ -11,6 +11,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.PathUtils;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,6 +36,8 @@ public class LogConfigCreator extends Command {
         parser.acceptsAll(Arrays.asList("i", "index"), "index for logstash direct from file config (default test)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("n", "name"), "name for this type of log file (default xyz)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("b", "beats-repo"), "path to beats repo (default $HOME/beats)").withRequiredArg();
+        parser.acceptsAll(Arrays.asList("z", "timezone"),
+            "timezone for logstash direct from file input (default logstash server timezone)").withRequiredArg();
         parser.nonOptions("file to be processed");
     }
 
@@ -63,6 +66,13 @@ public class LogConfigCreator extends Command {
             }
         }
 
+        String timezone = getSingleOptionValueOrDefault(options, "z", "timezone", "timezone name", null);
+        try {
+            DateTimeZone.forID(timezone);
+        } catch (IllegalArgumentException e) {
+            throw new UserException(ExitCodes.USAGE, "[" + timezone + "] is not a valid timezone");
+        }
+
         if (options.nonOptionArguments().size() != 1) {
             throw new UserException(ExitCodes.USAGE, "Exactly one file to analyze must be provided, got [" +
                 options.nonOptionArguments().size() + "]");
@@ -74,7 +84,7 @@ public class LogConfigCreator extends Command {
 
         try {
             LogFileStructureFinder structureFinder = new LogFileStructureFinder(terminal, beatsRepo,
-                file.toAbsolutePath().normalize().toString(), indexName, typeName);
+                file.toAbsolutePath().normalize().toString(), indexName, typeName, timezone);
             structureFinder.findLogFileConfigs(Files.newInputStream(file), outputDirectory);
         } catch (IOException e) {
             throw new UserException(ExitCodes.IO_ERROR, "Cannot determine format of file [" + file + "]: " + e.getMessage());

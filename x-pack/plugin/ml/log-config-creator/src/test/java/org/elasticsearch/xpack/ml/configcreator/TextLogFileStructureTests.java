@@ -29,7 +29,8 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
     public void testCreateConfigsGivenElasticsearchLog() throws Exception {
         assertTrue(factory.canCreateFromSample(TEXT_SAMPLE));
         String charset = randomFrom(POSSIBLE_CHARSETS);
-        TextLogFileStructure structure = (TextLogFileStructure) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME, "es",
+        String timezone = randomFrom(POSSIBLE_TIMEZONES);
+        TextLogFileStructure structure = (TextLogFileStructure) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME, "es", timezone,
             TEXT_SAMPLE, charset);
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
@@ -52,6 +53,11 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
             containsString("match => { \"message\" => \"\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]" +
                 "\\[.*\" }\n"));
         assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"timestamp\", \"ISO8601\" ]\n"));
+        if (timezone == null) {
+            assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
+        } else {
+            assertThat(structure.getLogstashFromFileConfig(), containsString("timezone => \"" + timezone + "\"\n"));
+        }
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToIngestPipelineConfig(), not(containsString("encoding:")));
         } else {

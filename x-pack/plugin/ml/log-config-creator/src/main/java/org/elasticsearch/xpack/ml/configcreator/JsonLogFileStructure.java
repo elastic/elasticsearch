@@ -96,7 +96,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
         "      \"date\": {\n" +
         "        \"field\": \"%s\",\n" +
         "        \"formats\": [ %s ],\n" +
-        "        \"timezone\": \"{{ beat.timezone }}\"\n" +
+        "        \"timezone\": \"{{ " + BEAT_TIMEZONE_FIELD + " }}\"\n" +
         "      }\n";
     private static final String INGEST_PIPELINE_FROM_FILEBEAT_TEMPLATE = "PUT _ingest/pipeline/%s\n" +
         "{\n" +
@@ -119,9 +119,9 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
     private String filebeatToIngestPipelineConfig;
     private String ingestPipelineFromFilebeatConfig;
 
-    JsonLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String sample, String charsetName)
-        throws IOException {
-        super(terminal, sampleFileName, indexName, typeName, charsetName);
+    JsonLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String logstashFileTimezone,
+                         String sample, String charsetName) throws IOException {
+        super(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, charsetName);
 
         sampleRecords = new ArrayList<>();
 
@@ -139,10 +139,12 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
         Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
         mappings = guessMappings(sampleRecords);
 
-        String logstashDateFilter = "";
+        String logstashFromFilebeatDateFilter = "";
+        String logstashFromFileDateFilter = "";
         String ingestPipelineDateProcessor = "";
         if (timeField != null) {
-            logstashDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2());
+            logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), true);
+            logstashFromFileDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), false);
             String jsonEscapedField = timeField.v1().replaceAll("([\\\\\"])", "\\\\$1").replace("\t", "\\t");
             ingestPipelineDateProcessor = String.format(Locale.ROOT, INGEST_PIPELINE_DATE_PROCESSOR_TEMPLATE,
                 makeIngestPipelineFractionalSecondsGsubFilter(jsonEscapedField, timeField.v2()), jsonEscapedField,
@@ -151,9 +153,9 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
 
         String filebeatInputOptions = makeFilebeatInputOptions(null, null);
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions);
-        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashDateFilter);
-        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(null), logstashDateFilter,
-            indexName);
+        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatDateFilter);
+        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(null),
+            logstashFromFileDateFilter, indexName);
         filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_TEMPLATE, filebeatInputOptions, typeName);
         ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_TEMPLATE, typeName, typeName,
             ingestPipelineDateProcessor);

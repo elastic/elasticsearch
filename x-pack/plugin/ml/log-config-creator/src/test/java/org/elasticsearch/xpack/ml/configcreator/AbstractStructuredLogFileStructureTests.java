@@ -21,13 +21,14 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
 
     private static class TestStructuredLogFileStructure extends AbstractStructuredLogFileStructure {
 
-        TestStructuredLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String charsetName) {
-            super(terminal, sampleFileName, indexName, typeName, charsetName);
+        TestStructuredLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName,
+                                       String logstashFileTimezone, String charsetName) {
+            super(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, charsetName);
         }
     }
 
     private final TestStructuredLogFileStructure testStructure = new TestStructuredLogFileStructure(TEST_TERMINAL, TEST_FILE_NAME,
-        TEST_INDEX_NAME, "tests", StandardCharsets.UTF_8.name());
+        TEST_INDEX_NAME, "tests", null, StandardCharsets.UTF_8.name());
 
     public void testSingleSampleSingleField() {
         Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");

@@ -64,18 +64,21 @@ public final class LogFileStructureFinder {
     private final String sampleFileName;
     private final String indexName;
     private final String typeName;
+    private final String logstashFileTimezone;
 
     /**
      * These need to be ordered so that the more generic formats come after the more specific ones
      */
     private final List<LogFileStructureFactory> orderedStructureFactories;
 
-    public LogFileStructureFinder(Terminal terminal, Path beatsRepo, String sampleFileName, String indexName, String typeName)
+    public LogFileStructureFinder(Terminal terminal, Path beatsRepo, String sampleFileName, String indexName, String typeName,
+                                  String logstashFileTimezone)
         throws IOException {
         this.terminal = Objects.requireNonNull(terminal);
         this.sampleFileName = sampleFileName;
         this.indexName = indexName;
         this.typeName = typeName;
+        this.logstashFileTimezone = logstashFileTimezone;
         BeatsModuleStore beatsModuleStore =
             (beatsRepo != null) ? new BeatsModuleStore(beatsRepo.resolve("filebeat").resolve("module"), sampleFileName) : null;
         orderedStructureFactories = Arrays.asList(
@@ -160,7 +163,7 @@ public final class LogFileStructureFinder {
 
         for (LogFileStructureFactory factory : orderedStructureFactories) {
             if (factory.canCreateFromSample(sample)) {
-                return factory.createFromSample(sampleFileName, indexName, typeName, sample, charsetName);
+                return factory.createFromSample(sampleFileName, indexName, typeName, logstashFileTimezone, sample, charsetName);
             }
         }
         throw new Exception("Input did not match any known formats");

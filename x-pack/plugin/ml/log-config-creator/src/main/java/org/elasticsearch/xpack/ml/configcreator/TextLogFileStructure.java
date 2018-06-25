@@ -45,6 +45,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "  date {\n" +
         "    match => [ \"%s\", %s ]\n" +
         "    remove_field => [ \"%s\" ]\n" +
+        "%s" +
         "  }\n";
     private static final String LOGSTASH_FROM_FILEBEAT_TEMPLATE = "input {\n" +
         "  beats {\n" +
@@ -107,7 +108,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "      \"date\": {\n" +
         "        \"field\": \"%s\",\n" +
         "        \"formats\": [ %s ],\n" +
-        "        \"timezone\": \"{{ beat.timezone }}\"\n" +
+        "        \"timezone\": \"{{ " + BEAT_TIMEZONE_FIELD + " }}\"\n" +
         "      },\n" +
         "      \"remove\": {\n" +
         "        \"field\": \"%s\"\n" +
@@ -134,8 +135,8 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
     private String ingestPipelineFromFilebeatConfig;
 
     TextLogFileStructure(Terminal terminal, BeatsModuleStore beatsModuleStore, String sampleFileName, String indexName, String typeName,
-                         String sample, String charsetName) {
-        super(terminal, sampleFileName, indexName, typeName, charsetName);
+                         String logstashFileTimezone, String sample, String charsetName) {
+        super(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, charsetName);
         this.beatsModuleStore = beatsModuleStore;
         this.sample = sample;
     }
@@ -216,15 +217,18 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         }
         String grokQuote = bestLogstashQuoteFor(grokPattern);
         String dateFormatsStr = bestTimestamp.v1().dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\""));
-        String commonLogstashFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
-            makeLogstashFractionalSecondsGsubFilter(interimTimestampField, bestTimestamp.v1()), interimTimestampField, dateFormatsStr,
-            interimTimestampField);
 
         String filebeatInputOptions = makeFilebeatInputOptions(multiLineRegex, null);
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions);
-        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, commonLogstashFilters);
+        String logstashFromFilebeatFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
+            makeLogstashFractionalSecondsGsubFilter(interimTimestampField, bestTimestamp.v1()), interimTimestampField, dateFormatsStr,
+            interimTimestampField, makeLogstashTimezoneSetting(true));
+        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatFilters);
+        String logstashFromFileFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
+            makeLogstashFractionalSecondsGsubFilter(interimTimestampField, bestTimestamp.v1()), interimTimestampField, dateFormatsStr,
+            interimTimestampField, makeLogstashTimezoneSetting(false));
         logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(multiLineRegex),
-            commonLogstashFilters, indexName);
+            logstashFromFileFilters, indexName);
         BeatsModule matchingModule = (beatsModuleStore != null) ? beatsModuleStore.findMatchingModule(sampleMessages) : null;
         if (matchingModule == null) {
             filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_WITHOUT_MODULE_TEMPLATE,

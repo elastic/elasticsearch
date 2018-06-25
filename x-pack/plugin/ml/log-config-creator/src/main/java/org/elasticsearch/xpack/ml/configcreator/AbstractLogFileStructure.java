@@ -26,6 +26,7 @@ public abstract class AbstractLogFileStructure {
 
     protected static final boolean IS_WINDOWS = System.getProperty("os.name").startsWith("Windows");
     protected static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
+    protected static final String BEAT_TIMEZONE_FIELD = "beat.timezone";
 
     // NUMBER Grok pattern doesn't support scientific notation, so we extend it
     private static final Grok NUMBER_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{NUMBER}(?:[eE][+-]?[0-3]?[0-9]{1,2})?$");
@@ -61,6 +62,8 @@ public abstract class AbstractLogFileStructure {
         "    sincedb_path => \"" + (IS_WINDOWS ? "NUL" : "/dev/null") + "\"\n" +
         "  }\n";
 
+    private static final String LOGSTASH_TIMEZONE_SETTING_TEMPLATE = "    timezone => \"%s\"\n";
+
     // These next two are needed because Joda will throw an error if asked to parse fractional seconds
     // more granular than milliseconds, so we need to truncate the fractional part to 3 digits
     private static final String LOGSTASH_FRACTIONAL_SECONDS_GSUB_TEMPLATE = "  mutate {\n" +
@@ -91,14 +94,17 @@ public abstract class AbstractLogFileStructure {
     protected final String sampleFileName;
     protected final String indexName;
     protected final String typeName;
+    protected final String logstashFileTimezone;
     protected final String charsetName;
     private String preambleComment = "";
 
-    protected AbstractLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String charsetName) {
+    protected AbstractLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName,
+                                       String logstashFileTimezone, String charsetName) {
         this.terminal = Objects.requireNonNull(terminal);
         this.sampleFileName = Objects.requireNonNull(sampleFileName);
         this.indexName = Objects.requireNonNull(indexName);
         this.typeName = Objects.requireNonNull(typeName);
+        this.logstashFileTimezone = logstashFileTimezone;
         this.charsetName = Objects.requireNonNull(charsetName);
     }
 
@@ -243,5 +249,10 @@ public abstract class AbstractLogFileStructure {
                 "# " + preamble.replaceFirst("\n$", "").replace("\n", "\n# ") + "\n" +
                 "#\n";
         }
+    }
+
+    protected String makeLogstashTimezoneSetting(boolean isFromFilebeat) {
+        String timezone = isFromFilebeat ? "%{" + BEAT_TIMEZONE_FIELD + "}" : logstashFileTimezone;
+        return (timezone == null) ? "" : String.format(Locale.ROOT, LOGSTASH_TIMEZONE_SETTING_TEMPLATE, timezone);
     }
 }

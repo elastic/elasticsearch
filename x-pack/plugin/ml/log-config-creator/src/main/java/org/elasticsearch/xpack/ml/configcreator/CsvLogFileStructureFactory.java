@@ -33,9 +33,10 @@ public class CsvLogFileStructureFactory implements LogFileStructureFactory {
     }
 
     @Override
-    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String sample, String charsetName)
+    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String logstashFileTimezone,
+                                             String sample, String charsetName)
         throws IOException {
-        return new SeparatedValuesLogFileStructure(terminal, sampleFileName, indexName, typeName, sample, charsetName,
+        return new SeparatedValuesLogFileStructure(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, sample, charsetName,
             CsvPreference.EXCEL_PREFERENCE);
     }
 }

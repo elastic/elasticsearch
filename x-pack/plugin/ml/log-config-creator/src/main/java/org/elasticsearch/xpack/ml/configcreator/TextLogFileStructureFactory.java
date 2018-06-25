@@ -37,7 +37,9 @@ public class TextLogFileStructureFactory implements LogFileStructureFactory {
     }
 
     @Override
-    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String sample, String charsetName) {
-        return new TextLogFileStructure(terminal, beatsModuleStore, sampleFileName, indexName, typeName, sample, charsetName);
+    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String logstashFileTimezone,
+                                             String sample, String charsetName) {
+        return new TextLogFileStructure(terminal, beatsModuleStore, sampleFileName, indexName, typeName, logstashFileTimezone, sample,
+            charsetName);
     }
 }

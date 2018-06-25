@@ -18,8 +18,9 @@ public class XmlLogFileStructureTests extends LogConfigCreatorTestCase {
     public void testCreateConfigsGivenGoodXml() throws Exception {
         assertTrue(factory.canCreateFromSample(XML_SAMPLE));
         String charset = randomFrom(POSSIBLE_CHARSETS);
+        String timezone = randomFrom(POSSIBLE_TIMEZONES);
         XmlLogFileStructure structure = (XmlLogFileStructure) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME, "log4cxx-xml",
-            XML_SAMPLE, charset);
+            timezone, XML_SAMPLE, charset);
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
@@ -35,5 +36,10 @@ public class XmlLogFileStructureTests extends LogConfigCreatorTestCase {
         }
         assertThat(structure.getLogstashFromFileConfig(), containsString("pattern => \"^\\s*<log4j:event\"\n"));
         assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
+        if (timezone == null) {
+            assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
+        } else {
+            assertThat(structure.getLogstashFromFileConfig(), containsString("timezone => \"" + timezone + "\"\n"));
+        }
     }
 }

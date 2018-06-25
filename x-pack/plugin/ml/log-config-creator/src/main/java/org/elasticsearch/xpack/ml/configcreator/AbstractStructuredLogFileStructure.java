@@ -30,12 +30,13 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
     private static final String LOGSTASH_DATE_FILTER_TEMPLATE = "%s" +
         "  date {\n" +
         "    match => [ %s%s%s, %s ]\n" +
+        "%s" +
         "  }\n" +
         "%s";
 
     protected AbstractStructuredLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName,
-                                                 String charsetName) {
-        super(terminal, sampleFileName, indexName, typeName, charsetName);
+                                                 String logstashFileTimezone, String charsetName) {
+        super(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, charsetName);
     }
 
     protected Tuple<String, TimestampMatch> guessTimestampField(List<Map<String, ?>> sampleRecords) {
@@ -94,14 +95,15 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
         return null;
     }
 
-    protected String makeLogstashDateFilter(String timeFieldName, TimestampMatch timestampMatch) {
+    protected String makeLogstashDateFilter(String timeFieldName, TimestampMatch timestampMatch, boolean isFromFilebeat) {
 
         String fieldQuote = bestLogstashQuoteFor(timeFieldName);
         String copyFilter = DEFAULT_TIMESTAMP_FIELD.equals(timeFieldName) ? "" :
             String.format(Locale.ROOT, LOGSTASH_DATE_COPY_TEMPLATE, fieldQuote, timeFieldName, fieldQuote);
         return String.format(Locale.ROOT, LOGSTASH_DATE_FILTER_TEMPLATE,
             makeLogstashFractionalSecondsGsubFilter(timeFieldName, timestampMatch), fieldQuote, timeFieldName, fieldQuote,
-            timestampMatch.dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\"")), copyFilter);
+            timestampMatch.dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\"")),
+            makeLogstashTimezoneSetting(isFromFilebeat), copyFilter);
     }
 
     protected SortedMap<String, String> guessMappings(List<Map<String, ?>> sampleRecords) {

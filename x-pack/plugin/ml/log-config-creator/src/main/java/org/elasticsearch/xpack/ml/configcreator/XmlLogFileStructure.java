@@ -97,9 +97,9 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
     private String logstashFromFilebeatConfig;
     private String logstashFromFileConfig;
 
-    XmlLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String sample, String charsetName)
-        throws IOException, ParserConfigurationException, SAXException {
-        super(terminal, sampleFileName, indexName, typeName, charsetName);
+    XmlLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String logstashFileTimezone,
+                        String sample, String charsetName) throws IOException, ParserConfigurationException, SAXException {
+        super(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, charsetName);
 
         try (Scanner scanner = new Scanner(sample)) {
             messagePrefix = scanner.next();
@@ -175,13 +175,18 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
         mappings = guessMappings(sampleRecords);
 
-        String logstashDateFilter = (timeField == null) ? "" : makeLogstashDateFilter(timeField.v1(), timeField.v2());
+        String logstashFromFilebeatDateFilter = "";
+        String logstashFromFileDateFilter = "";
+        if (timeField != null) {
+            logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), true);
+            logstashFromFileDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), false);
+        }
 
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
             makeFilebeatInputOptions("^\\s*" + messagePrefix, null));
-        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashDateFilter);
+        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatDateFilter);
         logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput("^\\s*" + messagePrefix),
-            logstashDateFilter, indexName);
+            logstashFromFileDateFilter, indexName);
     }
 
     String getFilebeatToLogstashConfig() {

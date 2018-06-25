@@ -54,8 +54,8 @@ public class JsonLogFileStructureFactory implements LogFileStructureFactory {
     }
 
     @Override
-    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String sample, String charsetName)
-        throws IOException {
-        return new JsonLogFileStructure(terminal, sampleFileName, indexName, typeName, sample, charsetName);
+    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String logstashFileTimezone,
+                                             String sample, String charsetName) throws IOException {
+        return new JsonLogFileStructure(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, sample, charsetName);
     }
 }

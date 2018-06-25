@@ -29,8 +29,9 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
             "2018-05-17T13:41:32,hello again\n";
         assertTrue(factory.canCreateFromSample(sample));
         String charset = randomFrom(POSSIBLE_CHARSETS);
+        String timezone = randomFrom(POSSIBLE_TIMEZONES);
         SeparatedValuesLogFileStructure structure = (SeparatedValuesLogFileStructure) factory.createFromSample(TEST_FILE_NAME,
-            TEST_INDEX_NAME, "time_message", sample, charset);
+            TEST_INDEX_NAME, "time_message", timezone, sample, charset);
         structure.createConfigs();
         assertThat(structure.getFilebeatToLogstashConfig(), containsString("exclude_lines: ['^\"?time\"?,\"?message\"?']\n"));
         assertThat(structure.getFilebeatToLogstashConfig(),
@@ -38,6 +39,11 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("columns => [ \"time\", \"message\" ]\n"));
         assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
+        if (timezone == null) {
+            assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
+        } else {
+            assertThat(structure.getLogstashFromFileConfig(), containsString("timezone => \"" + timezone + "\"\n"));
+        }
     }
 
     public void testCreateConfigsGivenCsvWithIncompleteLastRecord() throws Exception {
@@ -47,8 +53,9 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
             "\"hello again\n"; // note that this last record is truncated
         assertTrue(factory.canCreateFromSample(sample));
         String charset = randomFrom(POSSIBLE_CHARSETS);
+        String timezone = randomFrom(POSSIBLE_TIMEZONES);
         SeparatedValuesLogFileStructure structure = (SeparatedValuesLogFileStructure) factory.createFromSample(TEST_FILE_NAME,
-            TEST_INDEX_NAME, "message_time", sample, charset);
+            TEST_INDEX_NAME, "message_time", timezone, sample, charset);
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
@@ -66,6 +73,11 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
             assertThat(structure.getLogstashFromFileConfig(), containsString("charset => \"" + charset + "\""));
         }
         assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
+        if (timezone == null) {
+            assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
+        } else {
+            assertThat(structure.getLogstashFromFileConfig(), containsString("timezone => \"" + timezone + "\"\n"));
+        }
     }
 
     public void testFindHeaderFromSampleGivenHeaderInSample() throws IOException {

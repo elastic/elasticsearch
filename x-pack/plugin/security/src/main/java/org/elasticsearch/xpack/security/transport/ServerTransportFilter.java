@@ -24,7 +24,7 @@ import org.elasticsearch.transport.TcpTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.netty4.NettyTcpChannel;
+import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
@@ -116,8 +116,8 @@ public interface ServerTransportFilter {
             }
 
             if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel) &&
-                ((TcpTransportChannel) unwrappedChannel).getChannel() instanceof NettyTcpChannel) {
-                Channel channel = ((NettyTcpChannel) ((TcpTransportChannel) unwrappedChannel).getChannel()).getLowLevelChannel();
+                ((TcpTransportChannel) unwrappedChannel).getChannel() instanceof Netty4TcpChannel) {
+                Channel channel = ((Netty4TcpChannel) ((TcpTransportChannel) unwrappedChannel).getChannel()).getLowLevelChannel();
                 SslHandler sslHandler = channel.pipeline().get(SslHandler.class);
                 if (channel.isOpen()) {
                     assert sslHandler != null : "channel [" + channel + "] did not have a ssl handler. pipeline " + channel.pipeline();

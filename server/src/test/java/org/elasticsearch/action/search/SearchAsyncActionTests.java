@@ -174,7 +174,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
         };
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        // for the sake of this test we place the replica on the same node. ie. this is not a mistake since we limit per node now
+        DiscoveryNode replicaNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
@@ -242,7 +243,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
                     return new SearchPhase("test") {
                         @Override
-                        public void run() throws IOException {
+                        public void run() {
                             latch.countDown();
                         }
                     };

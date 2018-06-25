@@ -132,8 +132,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * To find the right position in the root query, we add a marker as `queryName` which
      * all query builders support. The added bogus field after that should trigger the exception.
      * Queries that allow arbitrary field names at this level need to override this test.
+     * @throws IOException
      */
-    public void testUnknownField() {
+    public void testUnknownField() throws IOException {
         String marker = "#marker#";
         QB testQuery;
         do {
@@ -141,9 +142,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         } while (testQuery.toString().contains(marker));
         testQuery.queryName(marker); // to find root query to add additional bogus field there
         String queryAsString = testQuery.toString().replace("\"" + marker + "\"", "\"" + marker + "\", \"bogusField\" : \"someValue\"");
-        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryAsString));
-        // we'd like to see the offending field name here
-        assertThat(e.getMessage(), containsString("bogusField"));
+        try {
+            parseQuery(queryAsString);
+            fail("expected ParsingException or XContentParsingException");
+        } catch (ParsingException | XContentParseException e) {
+            // we'd like to see the offending field name here
+            assertThat(e.getMessage(), containsString("bogusField"));
+        }
+
     }
 
     /**

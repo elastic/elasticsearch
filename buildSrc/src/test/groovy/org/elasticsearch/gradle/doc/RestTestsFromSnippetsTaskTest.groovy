@@ -19,15 +19,18 @@
 
 package org.elasticsearch.gradle.doc
 
+
 import org.elasticsearch.gradle.GradleUnitTestCase
 import org.gradle.api.InvalidUserDataException
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.ExpectedException
 
-import static org.junit.Assert.*
-
+import static org.elasticsearch.gradle.doc.RestTestsFromSnippetsTask.shouldAddShardFailureCheck
 import static org.elasticsearch.gradle.doc.RestTestsFromSnippetsTask.replaceBlockQuote
+import static org.junit.Assert.assertEquals
+import static org.junit.Assert.assertFalse
+import static org.junit.Assert.assertTrue
 
 class RestTestFromSnippetsTaskTests extends GradleUnitTestCase {
 
@@ -60,5 +63,11 @@ class RestTestFromSnippetsTaskTests extends GradleUnitTestCase {
             replaceBlockQuote("\"foo\": \"\"\"bort\" baz\"\"\""))
         assertEquals("\"foo\": \"bort\\n baz\"",
             replaceBlockQuote("\"foo\": \"\"\"bort\n baz\"\"\""))
+    }
+
+    void testIsDocWriteRequest() {
+        assertTrue(shouldAddShardFailureCheck("doc-index/_search"));
+        assertFalse(shouldAddShardFailureCheck("_cat"))
+        assertFalse(shouldAddShardFailureCheck("_xpack/ml/datafeeds/datafeed-id/_preview"));
     }
 }

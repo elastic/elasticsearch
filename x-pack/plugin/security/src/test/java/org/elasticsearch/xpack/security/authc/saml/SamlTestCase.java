@@ -71,7 +71,7 @@ public abstract class SamlTestCase extends ESTestCase {
     }
 
     /**
-     * Generates key pair for given algorithm and then associates with a certificate.
+     * Reads a key pair and associated certificate for given algorithm and key length
      * For testing, for "EC" algorithm 256 key size is used, others use 2048 as default.
      * @param algorithm
      * @return X509Certificate a signed certificate, it's PrivateKey {@link Tuple}

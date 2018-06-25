@@ -42,6 +42,9 @@ final class Ec2ClientSettings {
     /** The secret key (ie password) for connecting to ec2. */
     static final Setting<SecureString> SECRET_KEY_SETTING = SecureSetting.secureString("discovery.ec2.secret_key", null);
 
+    /** The session token for connecting to ec2. */
+    static final Setting<SecureString> SESSION_TOKEN_SETTING = SecureSetting.secureString("discovery.ec2.session_token", null);
+
     /** The host name of a proxy to connect to ec2 through. */
     static final Setting<String> PROXY_HOST_SETTING = Setting.simpleString("discovery.ec2.proxy.host", Property.NodeScope);
 

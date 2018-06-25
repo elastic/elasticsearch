@@ -53,11 +53,11 @@ public class FileUserPasswdStoreTests extends ESTestCase {
     @Before
     public void init() {
         settings = Settings.builder()
-                .put("resource.reload.interval.high", "2s")
-                .put("path.home", createTempDir())
+            .put("resource.reload.interval.high", "2s")
+            .put("path.home", createTempDir())
             .put("xpack.security.authc.password_hashing.algorithm", randomFrom("bcrypt", "bcrypt11", "pbkdf2", "pbkdf2_1000",
                 "pbkdf2_50000"))
-                .build();
+            .build();
         env = TestEnvironment.newEnvironment(settings);
         threadPool = new TestThreadPool("test");
     }

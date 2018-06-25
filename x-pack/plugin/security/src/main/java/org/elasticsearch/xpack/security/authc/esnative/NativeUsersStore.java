@@ -76,7 +76,6 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
  */
 public class NativeUsersStore extends AbstractComponent {
 
-
     public static final String INDEX_TYPE = "doc";
     static final String USER_DOC_TYPE = "user";
     public static final String RESERVED_USER_TYPE = "reserved-user";

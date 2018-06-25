@@ -39,7 +39,7 @@ class UserAndPassword {
     }
 
     boolean verifyPassword(SecureString data) {
-            return hasher.verify(data, this.passwordHash);
+        return hasher.verify(data, this.passwordHash);
     }
 
     @Override

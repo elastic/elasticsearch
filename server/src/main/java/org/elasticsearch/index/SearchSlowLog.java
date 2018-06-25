@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.tasks.Task;
 
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
@@ -174,8 +175,8 @@ public final class SearchSlowLog implements SearchOperationListener {
             } else {
                 sb.append("source[], ");
             }
-            if (context.getTask().getHeader("X-Opaque-Id") != null) {
-                sb.append("id[").append(context.getTask().getHeader("X-Opaque-Id")).append("], ");
+            if (context.getTask().getHeader(Task.X_OPAQUE_ID) != null) {
+                sb.append("id[").append(context.getTask().getHeader(Task.X_OPAQUE_ID)).append("], ");
             } else {
                 sb.append("id[], ");
             }

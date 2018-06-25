@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -42,6 +43,7 @@ import java.util.function.LongSupplier;
 public class TransportMultiSearchAction extends HandledTransportAction<MultiSearchRequest, MultiSearchResponse> {
 
     private final int availableProcessors;
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final LongSupplier relativeTimeProvider;
     private final NodeClient client;
@@ -49,7 +51,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     @Inject
     public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                       ClusterService clusterService, ActionFilters actionFilters, NodeClient client) {
-        super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters, MultiSearchRequest::new);
+        super(settings, MultiSearchAction.NAME, transportService, actionFilters, MultiSearchRequest::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.availableProcessors = EsExecutors.numberOfProcessors(settings);
         this.relativeTimeProvider = System::nanoTime;
@@ -59,7 +62,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     TransportMultiSearchAction(ThreadPool threadPool, ActionFilters actionFilters, TransportService transportService,
                                ClusterService clusterService, int availableProcessors,
                                LongSupplier relativeTimeProvider, NodeClient client) {
-        super(Settings.EMPTY, MultiSearchAction.NAME, threadPool, transportService, actionFilters, MultiSearchRequest::new);
+        super(Settings.EMPTY, MultiSearchAction.NAME, transportService, actionFilters, MultiSearchRequest::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.availableProcessors = availableProcessors;
         this.relativeTimeProvider = relativeTimeProvider;
@@ -67,7 +71,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     }
 
     @Override
-    protected void doExecute(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
+    protected void doExecute(Task task, MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
         final long relativeStartTime = relativeTimeProvider.getAsLong();
 
         ClusterState clusterState = clusterService.state();

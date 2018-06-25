@@ -132,7 +132,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
      * Setting `cloud.azure.refresh_interval` to `0` will disable caching (default).
      */
     @Override
-    public List<TransportAddress> buildDynamicHosts() {
+    public List<TransportAddress> buildDynamicHosts(HostsResolver hostsResolver) {
         if (refreshInterval.millis() != 0) {
             if (dynamicHosts != null &&
                     (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {

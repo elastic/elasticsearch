@@ -15,13 +15,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.JobTaskRequest;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
@@ -39,11 +38,11 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
 
     protected final AutodetectProcessManager processManager;
 
-    TransportJobTaskAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
+    TransportJobTaskAction(Settings settings, String actionName, ClusterService clusterService,
                            TransportService transportService, ActionFilters actionFilters,
                            Supplier<Request> requestSupplier,
                            Supplier<Response> responseSupplier, String nodeExecutor, AutodetectProcessManager processManager) {
-        super(settings, actionName, threadPool, clusterService, transportService, actionFilters,
+        super(settings, actionName, clusterService, transportService, actionFilters,
             requestSupplier, responseSupplier, nodeExecutor);
         this.processManager = processManager;
     }

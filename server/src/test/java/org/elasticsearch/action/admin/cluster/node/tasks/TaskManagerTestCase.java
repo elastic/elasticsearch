@@ -192,9 +192,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());
             ActionFilters actionFilters = new ActionFilters(emptySet());
-            transportListTasksAction = new TransportListTasksAction(settings, threadPool, clusterService, transportService, actionFilters);
-            transportCancelTasksAction = new TransportCancelTasksAction(settings, threadPool, clusterService,
-                transportService, actionFilters);
+            transportListTasksAction = new TransportListTasksAction(settings, clusterService, transportService, actionFilters);
+            transportCancelTasksAction = new TransportCancelTasksAction(settings, clusterService, transportService, actionFilters);
             transportService.acceptIncomingRequests();
         }
 

@@ -29,9 +29,9 @@ import java.io.IOException;
 public class TransportPersistJobAction extends TransportJobTaskAction<PersistJobAction.Request, PersistJobAction.Response> {
 
     @Inject
-    public TransportPersistJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportPersistJobAction(Settings settings, TransportService transportService,
                                    ClusterService clusterService, ActionFilters actionFilters, AutodetectProcessManager processManager) {
-        super(settings, PersistJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(settings, PersistJobAction.NAME, clusterService, transportService, actionFilters,
             PersistJobAction.Request::new, PersistJobAction.Response::new, ThreadPool.Names.SAME, processManager);
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
     }

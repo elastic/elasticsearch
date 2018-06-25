@@ -30,7 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -45,17 +45,17 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
     private final NodeClient client;
 
     @Inject
-    public TransportMultiSearchTemplateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportMultiSearchTemplateAction(Settings settings, TransportService transportService,
                                               ActionFilters actionFilters, ScriptService scriptService,
                                               NamedXContentRegistry xContentRegistry, NodeClient client) {
-        super(settings, MultiSearchTemplateAction.NAME, threadPool, transportService, actionFilters, MultiSearchTemplateRequest::new);
+        super(settings, MultiSearchTemplateAction.NAME, transportService, actionFilters, MultiSearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
     }
 
     @Override
-    protected void doExecute(MultiSearchTemplateRequest request, ActionListener<MultiSearchTemplateResponse> listener) {
+    protected void doExecute(Task task, MultiSearchTemplateRequest request, ActionListener<MultiSearchTemplateResponse> listener) {
         List<Integer> originalSlots = new ArrayList<>();
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         multiSearchRequest.indicesOptions(request.indicesOptions());

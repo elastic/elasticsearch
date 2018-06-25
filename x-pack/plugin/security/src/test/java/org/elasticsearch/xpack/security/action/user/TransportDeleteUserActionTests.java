@@ -9,8 +9,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserResponse;
@@ -48,14 +48,13 @@ public class TransportDeleteUserActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportDeleteUserAction action = new TransportDeleteUserAction(settings, mock(ThreadPool.class), mock(ActionFilters.class),
-                usersStore, transportService);
+        TransportDeleteUserAction action = new TransportDeleteUserAction(settings, mock(ActionFilters.class), usersStore, transportService);
 
         DeleteUserRequest request = new DeleteUserRequest(new AnonymousUser(settings).principal());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<DeleteUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<DeleteUserResponse>() {
             @Override
             public void onResponse(DeleteUserResponse response) {
                 responseRef.set(response);
@@ -77,14 +76,14 @@ public class TransportDeleteUserActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportDeleteUserAction action = new TransportDeleteUserAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-               usersStore, transportService);
+        TransportDeleteUserAction action = new TransportDeleteUserAction(Settings.EMPTY, mock(ActionFilters.class),
+            usersStore, transportService);
 
         DeleteUserRequest request = new DeleteUserRequest(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<DeleteUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<DeleteUserResponse>() {
             @Override
             public void onResponse(DeleteUserResponse response) {
                 responseRef.set(response);
@@ -107,14 +106,14 @@ public class TransportDeleteUserActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportDeleteUserAction action = new TransportDeleteUserAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                usersStore, transportService);
+        TransportDeleteUserAction action = new TransportDeleteUserAction(Settings.EMPTY, mock(ActionFilters.class),
+            usersStore, transportService);
 
         DeleteUserRequest request = new DeleteUserRequest(reserved.principal());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<DeleteUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<DeleteUserResponse>() {
             @Override
             public void onResponse(DeleteUserResponse response) {
                 responseRef.set(response);
@@ -137,7 +136,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportDeleteUserAction action = new TransportDeleteUserAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
+        TransportDeleteUserAction action = new TransportDeleteUserAction(Settings.EMPTY, mock(ActionFilters.class),
                 usersStore, transportService);
 
         final boolean found = randomBoolean();
@@ -154,7 +153,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<DeleteUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<DeleteUserResponse>() {
             @Override
             public void onResponse(DeleteUserResponse response) {
                 responseRef.set(response);
@@ -178,7 +177,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportDeleteUserAction action = new TransportDeleteUserAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
+        TransportDeleteUserAction action = new TransportDeleteUserAction(Settings.EMPTY, mock(ActionFilters.class),
                 usersStore, transportService);
 
         final DeleteUserRequest request = new DeleteUserRequest(user.principal());
@@ -194,7 +193,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<DeleteUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<DeleteUserResponse>() {
             @Override
             public void onResponse(DeleteUserResponse response) {
                 responseRef.set(response);

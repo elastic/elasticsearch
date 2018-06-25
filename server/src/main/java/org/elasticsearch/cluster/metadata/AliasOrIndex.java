@@ -154,12 +154,18 @@ public interface AliasOrIndex {
         }
 
         public void computeAndValidateWriteIndex() {
-            List<IndexMetaData> writeIndices = referenceIndexMetaDatas.stream()
-                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
-                .collect(Collectors.toList());
-            if (referenceIndexMetaDatas.size() == 1) {
-                writeIndex.set(referenceIndexMetaDatas.get(0));
-            } else if (writeIndices.size() == 1) {
+            final List<IndexMetaData> writeIndices;
+            if (referenceIndexMetaDatas.size() > 1) {
+                writeIndices = referenceIndexMetaDatas.stream()
+                    .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
+                    .collect(Collectors.toList());
+            } else if(Boolean.FALSE.equals(referenceIndexMetaDatas.get(0).getAliases().get(aliasName).writeIndex()) == false) {
+                writeIndices = Collections.singletonList(referenceIndexMetaDatas.get(0));
+            } else {
+                writeIndices = Collections.emptyList();
+            }
+
+            if (writeIndices.size() == 1) {
                 writeIndex.set(writeIndices.get(0));
             } else if (writeIndices.size() > 1) {
                 List<String> writeIndicesStrings = writeIndices.stream()

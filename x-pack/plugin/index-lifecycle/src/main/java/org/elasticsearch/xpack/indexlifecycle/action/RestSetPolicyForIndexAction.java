@@ -13,7 +13,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.indexlifecycle.action.SetPolicyForIndexAction;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
 
 import java.io.IOException;
 
@@ -21,8 +20,8 @@ public class RestSetPolicyForIndexAction extends BaseRestHandler {
 
     public RestSetPolicyForIndexAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "_" + IndexLifecycle.NAME + "/set_policy/{new_policy}", this);
-        controller.registerHandler(RestRequest.Method.PUT, "{index}/_" + IndexLifecycle.NAME + "/set_policy/{new_policy}", this);
+        controller.registerHandler(RestRequest.Method.PUT, "_lifecycle/{new_policy}", this);
+        controller.registerHandler(RestRequest.Method.PUT, "{index}/_lifecycle/{new_policy}", this);
     }
 
     @Override

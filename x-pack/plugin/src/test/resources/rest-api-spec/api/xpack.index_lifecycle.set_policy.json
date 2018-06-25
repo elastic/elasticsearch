@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
     "methods": [ "PUT" ],
     "url": {
-      "path": "/{index}/_index_lifecycle/set_policy/{new_policy}",
-      "paths": ["/{index}/_index_lifecycle/set_policy/{new_policy}", "/_index_lifecycle/set_policy/{new_policy}"],
+      "path": "/{index}/_lifecycle/{new_policy}",
+      "paths": ["/{index}/_lifecycle/{new_policy}", "/_lifecycle/{new_policy}"],
       "parts": {
         "index": {
           "type" : "string",

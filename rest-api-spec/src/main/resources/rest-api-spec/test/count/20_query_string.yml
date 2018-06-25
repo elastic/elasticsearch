@@ -47,14 +47,6 @@
   - do:
       count:
         index: test
-        q: field:bars
-        analyzer: snowball
-
-  - match: {count : 1}
-
-  - do:
-      count:
-        index: test
         q: field:BA*
 
   - match: {count : 1}

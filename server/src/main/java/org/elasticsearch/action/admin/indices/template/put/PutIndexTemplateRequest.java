@@ -558,9 +558,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         builder.startObject("mappings");
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
             builder.field(entry.getKey());
-            XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entry.getValue());
-            builder.copyCurrentStructure(parser);
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entry.getValue())) {
+                builder.copyCurrentStructure(parser);
+            }
         }
         builder.endObject();
 

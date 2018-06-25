@@ -546,11 +546,24 @@ public class GeoShapeFieldMapper extends FieldMapper {
         if (includeDefaults || fieldType().tree().equals(Defaults.TREE) == false) {
             builder.field(Names.TREE, fieldType().tree());
         }
-        if (includeDefaults || fieldType().treeLevels() != 0) {
+
+        if (fieldType().treeLevels() != 0) {
             builder.field(Names.TREE_LEVELS, fieldType().treeLevels());
+        } else if(includeDefaults && fieldType().precisionInMeters() == -1) { // defaults only make sense if precision is not specified
+            if ("geohash".equals(fieldType().tree())) {
+                builder.field(Names.TREE_LEVELS, Defaults.GEOHASH_LEVELS);
+            } else if ("legacyquadtree".equals(fieldType().tree())) {
+                builder.field(Names.TREE_LEVELS, Defaults.QUADTREE_LEVELS);
+            } else if ("quadtree".equals(fieldType().tree())) {
+                builder.field(Names.TREE_LEVELS, Defaults.QUADTREE_LEVELS);
+            } else {
+                throw new IllegalArgumentException("Unknown prefix tree type [" + fieldType().tree() + "]");
+            }
         }
-        if (includeDefaults || fieldType().precisionInMeters() != -1) {
+        if (fieldType().precisionInMeters() != -1) {
             builder.field(Names.TREE_PRESISION, DistanceUnit.METERS.toString(fieldType().precisionInMeters()));
+        } else if (includeDefaults && fieldType().treeLevels() == 0) { // defaults only make sense if tree levels are not specified
+            builder.field(Names.TREE_PRESISION, DistanceUnit.METERS.toString(50));
         }
         if (includeDefaults || fieldType().strategyName() != Defaults.STRATEGY) {
             builder.field(Names.STRATEGY, fieldType().strategyName());

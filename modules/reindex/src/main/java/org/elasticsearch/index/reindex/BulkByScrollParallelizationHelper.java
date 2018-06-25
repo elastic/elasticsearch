@@ -61,7 +61,7 @@ class BulkByScrollParallelizationHelper {
     static <Request extends AbstractBulkByScrollRequest<Request>> void startSlicedAction(
             Request request,
             BulkByScrollTask task,
-            Action<Request, BulkByScrollResponse> action,
+            Action<BulkByScrollResponse> action,
             ActionListener<BulkByScrollResponse> listener,
             Client client,
             DiscoveryNode node,
@@ -85,7 +85,7 @@ class BulkByScrollParallelizationHelper {
     private static <Request extends AbstractBulkByScrollRequest<Request>> void sliceConditionally(
             Request request,
             BulkByScrollTask task,
-            Action<Request, BulkByScrollResponse> action,
+            Action<BulkByScrollResponse> action,
             ActionListener<BulkByScrollResponse> listener,
             Client client,
             DiscoveryNode node,
@@ -118,7 +118,7 @@ class BulkByScrollParallelizationHelper {
 
     private static <Request extends AbstractBulkByScrollRequest<Request>> void sendSubRequests(
             Client client,
-            Action<Request, BulkByScrollResponse> action,
+            Action<BulkByScrollResponse> action,
             String localNodeId,
             BulkByScrollTask task,
             Request request,

@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
-import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -32,6 +31,7 @@ import javax.net.ssl.SSLContext;
 import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -48,29 +48,30 @@ public final class RestClientBuilder {
 
     private static final Header[] EMPTY_HEADERS = new Header[0];
 
-    private final HttpHost[] hosts;
+    private final List<Node> nodes;
     private int maxRetryTimeout = DEFAULT_MAX_RETRY_TIMEOUT_MILLIS;
     private Header[] defaultHeaders = EMPTY_HEADERS;
     private RestClient.FailureListener failureListener;
     private HttpClientConfigCallback httpClientConfigCallback;
     private RequestConfigCallback requestConfigCallback;
     private String pathPrefix;
+    private NodeSelector nodeSelector = NodeSelector.ANY;
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
      *
-     * @throws NullPointerException if {@code hosts} or any host is {@code null}.
-     * @throws IllegalArgumentException if {@code hosts} is empty.
+     * @throws IllegalArgumentException if {@code nodes} is {@code null} or empty.
      */
-    RestClientBuilder(HttpHost... hosts) {
-        Objects.requireNonNull(hosts, "hosts must not be null");
-        if (hosts.length == 0) {
-            throw new IllegalArgumentException("no hosts provided");
+    RestClientBuilder(List<Node> nodes) {
+        if (nodes == null || nodes.isEmpty()) {
+            throw new IllegalArgumentException("nodes must not be null or empty");
         }
-        for (HttpHost host : hosts) {
-            Objects.requireNonNull(host, "host cannot be null");
+        for (Node node : nodes) {
+            if (node == null) {
+                throw new IllegalArgumentException("node cannot be null");
+            }
         }
-        this.hosts = hosts;
+        this.nodes = nodes;
     }
 
     /**
@@ -174,6 +175,16 @@ public final class RestClientBuilder {
     }
 
     /**
+     * Sets the {@link NodeSelector} to be used for all requests.
+     * @throws NullPointerException if the provided nodeSelector is null
+     */
+    public RestClientBuilder setNodeSelector(NodeSelector nodeSelector) {
+        Objects.requireNonNull(nodeSelector, "nodeSelector must not be null");
+        this.nodeSelector = nodeSelector;
+        return this;
+    }
+
+    /**
      * Creates a new {@link RestClient} based on the provided configuration.
      */
     public RestClient build() {
@@ -186,7 +197,8 @@ public final class RestClientBuilder {
                 return createHttpClient();
             }
         });
-        RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, hosts, pathPrefix, failureListener);
+        RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, nodes,
+                pathPrefix, failureListener, nodeSelector);
         httpClient.start();
         return restClient;
     }

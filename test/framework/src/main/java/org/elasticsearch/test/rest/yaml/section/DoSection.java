@@ -21,6 +21,9 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.HasAttributeNodeSelector;
+import org.elasticsearch.client.Node;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -29,6 +32,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
@@ -38,9 +42,11 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
@@ -85,6 +91,7 @@ public class DoSection implements ExecutableSection {
 
         DoSection doSection = new DoSection(parser.getTokenLocation());
         ApiCallSection apiCallSection = null;
+        NodeSelector nodeSelector = NodeSelector.ANY;
         Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         List<String> expectedWarnings = new ArrayList<>();
 
@@ -121,6 +128,17 @@ public class DoSection implements ExecutableSection {
                             headers.put(headerName, parser.text());
                         }
                     }
+                } else if ("node_selector".equals(currentFieldName)) {
+                    String selectorName = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            selectorName = parser.currentName();
+                        } else {
+                            NodeSelector newSelector = buildNodeSelector(selectorName, parser);
+                            nodeSelector = nodeSelector == NodeSelector.ANY ?
+                                newSelector : new ComposeNodeSelector(nodeSelector, newSelector);
+                        }
+                    }
                 } else if (currentFieldName != null) { // must be part of API call then
                     apiCallSection = new ApiCallSection(currentFieldName);
                     String paramName = null;
@@ -153,6 +171,7 @@ public class DoSection implements ExecutableSection {
                 throw new IllegalArgumentException("client call section is mandatory within a do section");
             }
             apiCallSection.addHeaders(headers);
+            apiCallSection.setNodeSelector(nodeSelector);
             doSection.setApiCallSection(apiCallSection);
             doSection.setExpectedWarningHeaders(unmodifiableList(expectedWarnings));
         } finally {
@@ -222,7 +241,7 @@ public class DoSection implements ExecutableSection {
 
         try {
             ClientYamlTestResponse response = executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(),
-                    apiCallSection.getBodies(), apiCallSection.getHeaders());
+                    apiCallSection.getBodies(), apiCallSection.getHeaders(), apiCallSection.getNodeSelector());
             if (Strings.hasLength(catchParam)) {
                 String catchStatusCode;
                 if (catches.containsKey(catchParam)) {
@@ -348,5 +367,92 @@ public class DoSection implements ExecutableSection {
                 not(equalTo(404)),
                 not(equalTo(408)),
                 not(equalTo(409)))));
+    }
+
+    private static NodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
+        switch (name) {
+        case "attribute":
+            return parseAttributeValuesSelector(parser);
+        case "version":
+            return parseVersionSelector(parser);
+        default:
+            throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
+        }
+    }
+
+    private static NodeSelector parseAttributeValuesSelector(XContentParser parser) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new XContentParseException(parser.getTokenLocation(), "expected START_OBJECT");
+        }
+        String key = null;
+        XContentParser.Token token;
+        NodeSelector result = NodeSelector.ANY;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                key = parser.currentName();
+            } else if (token.isValue()) {
+                NodeSelector newSelector = new HasAttributeNodeSelector(key, parser.text());
+                result = result == NodeSelector.ANY ?
+                    newSelector : new ComposeNodeSelector(result, newSelector);
+            } else {
+                throw new XContentParseException(parser.getTokenLocation(), "expected [" + key + "] to be a value");
+            }
+        }
+        return result;
+    }
+
+    private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
+        if (false == parser.currentToken().isValue()) {
+            throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
+        }
+        Version[] range = SkipSection.parseVersionRange(parser.text());
+        return new NodeSelector() {
+            @Override
+            public void select(Iterable<Node> nodes) {
+                for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
+                    Node node = itr.next();
+                    if (node.getVersion() == null) {
+                        throw new IllegalStateException("expected [version] metadata to be set but got "
+                                + node);
+                    }
+                    Version version = Version.fromString(node.getVersion());
+                    if (false == (version.onOrAfter(range[0]) && version.onOrBefore(range[1]))) {
+                        itr.remove();
+                    }
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "version between [" + range[0] + "] and [" + range[1] + "]";
+            }
+        };
+    }
+
+    /**
+     * Selector that composes two selectors, running the "right" most selector
+     * first and then running the "left" selector on the results of the "right"
+     * selector.
+     */
+    private static class ComposeNodeSelector implements NodeSelector {
+        private final NodeSelector lhs;
+        private final NodeSelector rhs;
+
+        private ComposeNodeSelector(NodeSelector lhs, NodeSelector rhs) {
+            this.lhs = Objects.requireNonNull(lhs, "lhs is required");
+            this.rhs = Objects.requireNonNull(rhs, "rhs is required");
+        }
+
+        @Override
+        public void select(Iterable<Node> nodes) {
+            rhs.select(nodes);
+            lhs.select(nodes);
+        }
+
+        @Override
+        public String toString() {
+            // . as in haskell's "compose" operator
+            return lhs + "." + rhs;
+        }
     }
 }

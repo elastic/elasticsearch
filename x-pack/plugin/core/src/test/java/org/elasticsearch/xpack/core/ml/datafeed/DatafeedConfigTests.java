@@ -40,7 +40,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.TimeZone;
@@ -193,11 +192,11 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
     public void testDefaultQueryDelay() {
         DatafeedConfig.Builder feedBuilder1 = new DatafeedConfig.Builder("datafeed1", "job1");
-        feedBuilder1.setIndices(Arrays.asList("foo"));
+        feedBuilder1.setIndices(Collections.singletonList("foo"));
         DatafeedConfig.Builder feedBuilder2 = new DatafeedConfig.Builder("datafeed2", "job1");
-        feedBuilder2.setIndices(Arrays.asList("foo"));
+        feedBuilder2.setIndices(Collections.singletonList("foo"));
         DatafeedConfig.Builder feedBuilder3 = new DatafeedConfig.Builder("datafeed3", "job2");
-        feedBuilder3.setIndices(Arrays.asList("foo"));
+        feedBuilder3.setIndices(Collections.singletonList("foo"));
         DatafeedConfig feed1 = feedBuilder1.build();
         DatafeedConfig feed2 = feedBuilder2.build();
         DatafeedConfig feed3 = feedBuilder3.build();
@@ -208,19 +207,19 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertThat(feed1.getQueryDelay(), not(equalTo(feed3.getQueryDelay())));
     }
 
-    public void testCheckValid_GivenNullIndices() throws IOException {
+    public void testCheckValid_GivenNullIndices() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         expectThrows(IllegalArgumentException.class, () -> conf.setIndices(null));
     }
 
-    public void testCheckValid_GivenEmptyIndices() throws IOException {
+    public void testCheckValid_GivenEmptyIndices() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         conf.setIndices(Collections.emptyList());
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, conf::build);
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "indices", "[]"), e.getMessage());
     }
 
-    public void testCheckValid_GivenIndicesContainsOnlyNulls() throws IOException {
+    public void testCheckValid_GivenIndicesContainsOnlyNulls() {
         List<String> indices = new ArrayList<>();
         indices.add(null);
         indices.add(null);
@@ -230,7 +229,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "indices", "[null, null]"), e.getMessage());
     }
 
-    public void testCheckValid_GivenIndicesContainsOnlyEmptyStrings() throws IOException {
+    public void testCheckValid_GivenIndicesContainsOnlyEmptyStrings() {
         List<String> indices = new ArrayList<>();
         indices.add("");
         indices.add("");
@@ -240,27 +239,27 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "indices", "[, ]"), e.getMessage());
     }
 
-    public void testCheckValid_GivenNegativeQueryDelay() throws IOException {
+    public void testCheckValid_GivenNegativeQueryDelay() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
                 () -> conf.setQueryDelay(TimeValue.timeValueMillis(-10)));
         assertEquals("query_delay cannot be less than 0. Value = -10", e.getMessage());
     }
 
-    public void testCheckValid_GivenZeroFrequency() throws IOException {
+    public void testCheckValid_GivenZeroFrequency() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> conf.setFrequency(TimeValue.ZERO));
         assertEquals("frequency cannot be less or equal than 0. Value = 0s", e.getMessage());
     }
 
-    public void testCheckValid_GivenNegativeFrequency() throws IOException {
+    public void testCheckValid_GivenNegativeFrequency() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
                 () -> conf.setFrequency(TimeValue.timeValueMinutes(-1)));
         assertEquals("frequency cannot be less or equal than 0. Value = -1", e.getMessage());
     }
 
-    public void testCheckValid_GivenNegativeScrollSize() throws IOException {
+    public void testCheckValid_GivenNegativeScrollSize() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, () -> conf.setScrollSize(-1000));
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "scroll_size", -1000L), e.getMessage());
@@ -414,7 +413,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
     public void testDefaultFrequency_GivenNoAggregations() {
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", "job");
-        datafeedBuilder.setIndices(Arrays.asList("my_index"));
+        datafeedBuilder.setIndices(Collections.singletonList("my_index"));
         DatafeedConfig datafeed = datafeedBuilder.build();
 
         assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(1)));

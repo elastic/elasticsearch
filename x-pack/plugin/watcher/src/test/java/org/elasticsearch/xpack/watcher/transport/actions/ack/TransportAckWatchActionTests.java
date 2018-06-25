@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -60,9 +59,8 @@ public class TransportAckWatchActionTests extends ESTestCase {
         WatchParser watchParser = mock(WatchParser.class);
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        action = new TransportAckWatchAction(Settings.EMPTY, transportService, threadPool,
-                new ActionFilters(Collections.emptySet()), new IndexNameExpressionResolver(Settings.EMPTY),
-                Clock.systemUTC(), new XPackLicenseState(Settings.EMPTY), watchParser, client);
+        action = new TransportAckWatchAction(Settings.EMPTY, transportService, new ActionFilters(Collections.emptySet()),
+            Clock.systemUTC(), new XPackLicenseState(Settings.EMPTY), watchParser, client);
     }
 
     public void testWatchNotFound() {

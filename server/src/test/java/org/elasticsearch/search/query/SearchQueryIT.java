@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -1862,4 +1863,42 @@ public class SearchQueryIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("index").setQuery(nestedQuery).get();
         assertHitCount(searchResponse, 1);
     }
+
+   public void testFieldAliasesForMetaFields() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("id-alias")
+                            .field("type", "alias")
+                            .field("path", "_id")
+                        .endObject()
+                        .startObject("routing-alias")
+                            .field("type", "alias")
+                            .field("path", "_routing")
+                        .endObject()
+                    .endObject()
+            .endObject()
+        .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+
+        IndexRequestBuilder indexRequest = client().prepareIndex("test", "type")
+            .setId("1")
+            .setRouting("custom")
+            .setSource("field", "value");
+        indexRandom(true, false, indexRequest);
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(termQuery("routing-alias", "custom"))
+            .addDocValueField("id-alias")
+            .get();
+        assertHitCount(searchResponse, 1L);
+
+        SearchHit hit = searchResponse.getHits().getAt(0);
+        assertEquals(2, hit.getFields().size());
+        assertTrue(hit.getFields().containsKey("id-alias"));
+
+        DocumentField field = hit.getFields().get("id-alias");
+        assertThat(field.getValue().toString(), equalTo("1"));
+   }
 }

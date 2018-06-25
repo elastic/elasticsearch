@@ -232,12 +232,13 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "  \"distance_type\" : \"arc\",\n" +
                 "  \"mode\" : \"SUM\"\n" +
                 "}";
-        XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
-        itemParser.nextToken();
+        try (XContentParser itemParser = createParser(JsonXContent.jsonXContent, json)) {
+            itemParser.nextToken();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> GeoDistanceSortBuilder.fromXContent(itemParser, ""));
-        assertEquals("sort_mode [sum] isn't supported for sorting by geo distance", e.getMessage());
+            assertEquals("sort_mode [sum] isn't supported for sorting by geo distance", e.getMessage());
+        }
     }
 
     public void testGeoDistanceSortCanBeParsedFromGeoHash() throws IOException {
@@ -258,16 +259,17 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    },\n" +
                 "    \"validation_method\" : \"STRICT\"\n" +
                 "  }";
-        XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
-        itemParser.nextToken();
+        try (XContentParser itemParser = createParser(JsonXContent.jsonXContent, json)) {
+            itemParser.nextToken();
 
-        GeoDistanceSortBuilder result = GeoDistanceSortBuilder.fromXContent(itemParser, json);
-        assertEquals("[-19.700583312660456, -2.8225036337971687, "
+            GeoDistanceSortBuilder result = GeoDistanceSortBuilder.fromXContent(itemParser, json);
+            assertEquals("[-19.700583312660456, -2.8225036337971687, "
                 + "31.537466906011105, -74.63590376079082, "
                 + "43.71844606474042, -5.548660643398762, "
                 + "-37.20467280596495, 38.71751043945551, "
                 + "-69.44606635719538, 84.25200328230858, "
                 + "-39.03717711567879, 44.74099852144718]", Arrays.toString(result.points()));
+        }
     }
 
     public void testGeoDistanceSortParserManyPointsNoException() throws Exception {
@@ -380,9 +382,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     private GeoDistanceSortBuilder parse(XContentBuilder sortBuilder) throws Exception {
-        XContentParser parser = createParser(sortBuilder);
-        parser.nextToken();
-        return GeoDistanceSortBuilder.fromXContent(parser, null);
+        try (XContentParser parser = createParser(sortBuilder)) {
+            parser.nextToken();
+            return GeoDistanceSortBuilder.fromXContent(parser, null);
+        }
     }
 
     @Override

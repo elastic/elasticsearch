@@ -1,5 +1,6 @@
+[role="xpack"]
 [[ml-configuring-aggregation]]
-=== Aggregating Data For Faster Performance
+=== Aggregating data for faster performance
 
 By default, {dfeeds} fetch data from {es} using search and scroll requests.
 It can be significantly more efficient, however, to aggregate data in {es}

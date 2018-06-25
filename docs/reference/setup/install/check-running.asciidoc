@@ -19,7 +19,7 @@ which should give you a response something like this:
   "cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",
   "version" : {
     "number" : "{version}",
-    "build_flavor" : "oss",
+    "build_flavor" : "{build_flavor}",
     "build_type" : "zip",
     "build_hash" : "f27399d",
     "build_date" : "2016-03-30T09:51:41.449Z",

@@ -28,7 +28,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCalendarAction.Response>  {
+public class PutCalendarAction extends Action<PutCalendarAction.Response>  {
     public static final PutCalendarAction INSTANCE = new PutCalendarAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/put";
 

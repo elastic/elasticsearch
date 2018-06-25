@@ -1,6 +1,6 @@
 package org.elasticsearch.gradle.precommit;
 
-import org.elasticsearch.gradle.GradleIntegrationTests;
+import org.elasticsearch.gradle.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.TaskOutcome;
@@ -13,7 +13,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 
-public class NamingConventionsTaskIT extends GradleIntegrationTests {
+public class NamingConventionsTaskIT extends GradleIntegrationTestCase {
 
     @Test
     public void pluginCanBeApplied() {

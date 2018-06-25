@@ -6,12 +6,11 @@
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for adding a role to the security index
  */
-public class PutRoleMappingAction extends Action<PutRoleMappingRequest, PutRoleMappingResponse> {
+public class PutRoleMappingAction extends Action<PutRoleMappingResponse> {
 
     public static final PutRoleMappingAction INSTANCE = new PutRoleMappingAction();
     public static final String NAME = "cluster:admin/xpack/security/role_mapping/put";

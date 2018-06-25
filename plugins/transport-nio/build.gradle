@@ -22,8 +22,6 @@ esplugin {
     classname 'org.elasticsearch.transport.nio.NioTransportPlugin'
 }
 
-dependencyLicenses.enabled = false
-
 compileJava.options.compilerArgs << "-Xlint:-try"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
@@ -38,6 +36,10 @@ dependencies {
     compile "io.netty:netty-handler:4.1.16.Final"
     compile "io.netty:netty-resolver:4.1.16.Final"
     compile "io.netty:netty-transport:4.1.16.Final"
+}
+
+dependencyLicenses {
+    mapping from: /netty-.*/, to: 'netty'
 }
 
 thirdPartyAudit.excludes = [

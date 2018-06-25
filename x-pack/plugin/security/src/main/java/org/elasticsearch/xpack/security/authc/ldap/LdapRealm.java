@@ -160,12 +160,14 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    public Map<String, Object> usageStats() {
-        Map<String, Object> usage = super.usageStats();
-        usage.put("load_balance_type", LdapLoadBalancing.resolve(config.settings()).toString());
-        usage.put("ssl", sessionFactory.isSslUsed());
-        usage.put("user_search", LdapUserSearchSessionFactory.hasUserSearchSettings(config));
-        return usage;
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        super.usageStats(ActionListener.wrap(usage -> {
+            usage.put("size", getCacheSize());
+            usage.put("load_balance_type", LdapLoadBalancing.resolve(config.settings()).toString());
+            usage.put("ssl", sessionFactory.isSslUsed());
+            usage.put("user_search", LdapUserSearchSessionFactory.hasUserSearchSettings(config));
+            listener.onResponse(usage);
+        }, listener::onFailure));
     }
 
     private static void buildUser(LdapSession session, String username, ActionListener<AuthenticationResult> listener,

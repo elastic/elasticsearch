@@ -21,7 +21,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.Action;
 
-public class PutPipelineAction extends Action<PutPipelineRequest, WritePipelineResponse> {
+public class PutPipelineAction extends Action<WritePipelineResponse> {
 
     public static final PutPipelineAction INSTANCE = new PutPipelineAction();
     public static final String NAME = "cluster:admin/ingest/pipeline/put";

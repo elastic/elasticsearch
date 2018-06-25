@@ -46,7 +46,7 @@ public interface ElementVisitor<V> {
     /**
      * Visit a request to inject the instance fields and methods of an instance.
      */
-    V visit(InjectionRequest request);
+    V visit(InjectionRequest<?> request);
 
     /**
      * Visit a request to inject the static fields and methods of type.

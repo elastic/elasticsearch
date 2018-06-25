@@ -195,7 +195,7 @@ public class NativeRolesStore extends AbstractComponent {
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        Map<String, Object> usageStats = new HashMap<>();
+        Map<String, Object> usageStats = new HashMap<>(3);
         if (securityIndex.indexExists() == false) {
             usageStats.put("size", 0L);
             usageStats.put("fls", false);
@@ -204,56 +204,56 @@ public class NativeRolesStore extends AbstractComponent {
         } else {
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                        client.prepareMultiSearch()
-                                .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
-                                        .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
-                                        .setSize(0))
-                                .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
-                                        .setQuery(QueryBuilders.boolQuery()
-                                                .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
-                                                .must(QueryBuilders.boolQuery()
-                                                        .should(existsQuery("indices.field_security.grant"))
-                                                        .should(existsQuery("indices.field_security.except"))
-                                                        // for backwardscompat with 2.x
-                                                        .should(existsQuery("indices.fields"))))
-                                        .setSize(0)
-                                        .setTerminateAfter(1))
-                                .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
-                                        .setQuery(QueryBuilders.boolQuery()
-                                                .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
-                                                .filter(existsQuery("indices.query")))
-                                        .setSize(0)
-                                        .setTerminateAfter(1))
-                                .request(),
-                        new ActionListener<MultiSearchResponse>() {
-                            @Override
-                            public void onResponse(MultiSearchResponse items) {
-                                Item[] responses = items.getResponses();
-                                if (responses[0].isFailure()) {
-                                    usageStats.put("size", 0);
-                                } else {
-                                    usageStats.put("size", responses[0].getResponse().getHits().getTotalHits());
-                                }
-
-                                if (responses[1].isFailure()) {
-                                    usageStats.put("fls", false);
-                                } else {
-                                    usageStats.put("fls", responses[1].getResponse().getHits().getTotalHits() > 0L);
-                                }
-
-                                if (responses[2].isFailure()) {
-                                    usageStats.put("dls", false);
-                                } else {
-                                    usageStats.put("dls", responses[2].getResponse().getHits().getTotalHits() > 0L);
-                                }
-                                listener.onResponse(usageStats);
+                    client.prepareMultiSearch()
+                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                            .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                            .setSize(0))
+                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                            .setQuery(QueryBuilders.boolQuery()
+                                .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                .must(QueryBuilders.boolQuery()
+                                    .should(existsQuery("indices.field_security.grant"))
+                                    .should(existsQuery("indices.field_security.except"))
+                                    // for backwardscompat with 2.x
+                                    .should(existsQuery("indices.fields"))))
+                            .setSize(0)
+                            .setTerminateAfter(1))
+                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                            .setQuery(QueryBuilders.boolQuery()
+                                .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                .filter(existsQuery("indices.query")))
+                            .setSize(0)
+                            .setTerminateAfter(1))
+                        .request(),
+                    new ActionListener<MultiSearchResponse>() {
+                        @Override
+                        public void onResponse(MultiSearchResponse items) {
+                            Item[] responses = items.getResponses();
+                            if (responses[0].isFailure()) {
+                                usageStats.put("size", 0);
+                            } else {
+                                usageStats.put("size", responses[0].getResponse().getHits().getTotalHits());
                             }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                listener.onFailure(e);
+                            if (responses[1].isFailure()) {
+                                usageStats.put("fls", false);
+                            } else {
+                                usageStats.put("fls", responses[1].getResponse().getHits().getTotalHits() > 0L);
                             }
-                        }, client::multiSearch));
+
+                            if (responses[2].isFailure()) {
+                                usageStats.put("dls", false);
+                            } else {
+                                usageStats.put("dls", responses[2].getResponse().getHits().getTotalHits() > 0L);
+                            }
+                            listener.onResponse(usageStats);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }, client::multiSearch));
         }
     }
 

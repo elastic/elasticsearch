@@ -28,66 +28,91 @@ import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.HashMap;
+import java.io.IOException;
 import java.util.Map;
-import java.util.function.Function;
+import static java.util.Collections.emptyMap;
 
 
-class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
+class InternalAwsS3Service extends AbstractComponent implements AwsS3Service {
 
-    // pkg private for tests
-    static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
+    private volatile Map<String, AmazonS3Reference> clientsCache = emptyMap();
+    private volatile Map<String, S3ClientSettings> clientsSettings = emptyMap();
 
-    private final Map<String, S3ClientSettings> clientsSettings;
-
-    private final Map<String, AmazonS3Client> clientsCache = new HashMap<>();
-
-    InternalAwsS3Service(Settings settings, Map<String, S3ClientSettings> clientsSettings) {
+    InternalAwsS3Service(Settings settings) {
         super(settings);
-        this.clientsSettings = clientsSettings;
     }
 
+    /**
+     * Refreshes the settings for the AmazonS3 clients and clears the cache of
+     * existing clients. New clients will be build using these new settings. Old
+     * clients are usable until released. On release they will be destroyed instead
+     * to being returned to the cache.
+     */
     @Override
-    public synchronized AmazonS3 client(Settings repositorySettings) {
-        String clientName = CLIENT_NAME.get(repositorySettings);
-        AmazonS3Client client = clientsCache.get(clientName);
-        if (client != null) {
-            return client;
+    public synchronized Map<String, S3ClientSettings> refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings) {
+        // shutdown all unused clients
+        // others will shutdown on their respective release
+        releaseCachedClients();
+        final Map<String, S3ClientSettings> prevSettings = this.clientsSettings;
+        this.clientsSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
+        assert this.clientsSettings.containsKey("default") : "always at least have 'default'";
+        // clients are built lazily by {@link client(String)}
+        return prevSettings;
+    }
+
+    /**
+     * Attempts to retrieve a client by name from the cache. If the client does not
+     * exist it will be created.
+     */
+    @Override
+    public AmazonS3Reference client(String clientName) {
+        AmazonS3Reference clientReference = clientsCache.get(clientName);
+        if ((clientReference != null) && clientReference.tryIncRef()) {
+            return clientReference;
         }
-
-        S3ClientSettings clientSettings = clientsSettings.get(clientName);
-        if (clientSettings == null) {
-            throw new IllegalArgumentException("Unknown s3 client name [" + clientName + "]. Existing client configs: " +
-                Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
+        synchronized (this) {
+            clientReference = clientsCache.get(clientName);
+            if ((clientReference != null) && clientReference.tryIncRef()) {
+                return clientReference;
+            }
+            final S3ClientSettings clientSettings = clientsSettings.get(clientName);
+            if (clientSettings == null) {
+                throw new IllegalArgumentException("Unknown s3 client name [" + clientName + "]. Existing client configs: "
+                        + Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
+            }
+            logger.debug("creating S3 client with client_name [{}], endpoint [{}]", clientName, clientSettings.endpoint);
+            clientReference = new AmazonS3Reference(buildClient(clientSettings));
+            clientReference.incRef();
+            clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientName, clientReference).immutableMap();
+            return clientReference;
         }
+    }
 
-        logger.debug("creating S3 client with client_name [{}], endpoint [{}]", clientName, clientSettings.endpoint);
-
-        AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, clientSettings, repositorySettings);
-        ClientConfiguration configuration = buildConfiguration(clientSettings);
-
-        client = new AmazonS3Client(credentials, configuration);
-
+    private AmazonS3 buildClient(S3ClientSettings clientSettings) {
+        final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
+        final ClientConfiguration configuration = buildConfiguration(clientSettings);
+        final AmazonS3 client = buildClient(credentials, configuration);
         if (Strings.hasText(clientSettings.endpoint)) {
             client.setEndpoint(clientSettings.endpoint);
         }
-
-        clientsCache.put(clientName, client);
         return client;
+    }
+
+    // proxy for testing
+    AmazonS3 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration) {
+        return new AmazonS3Client(credentials, configuration);
     }
 
     // pkg private for tests
     static ClientConfiguration buildConfiguration(S3ClientSettings clientSettings) {
-        ClientConfiguration clientConfiguration = new ClientConfiguration();
+        final ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
         clientConfiguration.setResponseMetadataCacheSize(0);
@@ -109,27 +134,8 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     }
 
     // pkg private for tests
-    static AWSCredentialsProvider buildCredentials(Logger logger, DeprecationLogger deprecationLogger,
-                                                   S3ClientSettings clientSettings, Settings repositorySettings) {
-
-
-        BasicAWSCredentials credentials = clientSettings.credentials;
-        if (S3Repository.ACCESS_KEY_SETTING.exists(repositorySettings)) {
-            if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings) == false) {
-                throw new IllegalArgumentException("Repository setting [" + S3Repository.ACCESS_KEY_SETTING.getKey() +
-                    " must be accompanied by setting [" + S3Repository.SECRET_KEY_SETTING.getKey() + "]");
-            }
-            try (SecureString key = S3Repository.ACCESS_KEY_SETTING.get(repositorySettings);
-                 SecureString secret = S3Repository.SECRET_KEY_SETTING.get(repositorySettings)) {
-                credentials = new BasicAWSCredentials(key.toString(), secret.toString());
-            }
-            // backcompat for reading keys out of repository settings
-            deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead " +
-                "store these in named clients and the elasticsearch keystore for secure settings.");
-        } else if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings)) {
-            throw new IllegalArgumentException("Repository setting [" + S3Repository.SECRET_KEY_SETTING.getKey() +
-                " must be accompanied by setting [" + S3Repository.ACCESS_KEY_SETTING.getKey() + "]");
-        }
+    static AWSCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
+        final BasicAWSCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
             logger.debug("Using instance profile credentials");
             return new PrivilegedInstanceProfileCredentialsProvider();
@@ -139,21 +145,15 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
         }
     }
 
-    @Override
-    protected void doStart() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
-        for (AmazonS3Client client : clientsCache.values()) {
-            client.shutdown();
+    protected synchronized void releaseCachedClients() {
+        // the clients will shutdown when they will not be used anymore
+        for (final AmazonS3Reference clientReference : clientsCache.values()) {
+            clientReference.decRef();
         }
-
-        // Ensure that IdleConnectionReaper is shutdown
+        // clear previously cached clients, they will be build lazily
+        clientsCache = emptyMap();
+        // shutdown IdleConnectionReaper background thread
+        // it will be restarted on new client usage
         IdleConnectionReaper.shutdown();
     }
 
@@ -174,4 +174,10 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
             SocketAccess.doPrivilegedVoid(credentials::refresh);
         }
     }
+
+    @Override
+    public void close() throws IOException {
+        releaseCachedClients();
+    }
+
 }

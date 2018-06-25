@@ -115,7 +115,6 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
-import org.elasticsearch.xpack.core.security.authz.accesscontrol.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -174,6 +173,7 @@ import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
@@ -472,7 +472,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         components.add(ipFilter.get());
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(),
-                authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations));
+                authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations, clusterService));
 
         final Set<RequestInterceptor> requestInterceptors;
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
@@ -843,8 +843,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                        PageCacheRecycler pageCacheRecycler,
                                                                         CircuitBreakerService circuitBreakerService,
-                                                                        NamedWriteableRegistry namedWriteableRegistry,
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher) {

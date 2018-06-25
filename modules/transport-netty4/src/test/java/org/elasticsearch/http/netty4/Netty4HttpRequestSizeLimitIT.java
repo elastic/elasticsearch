@@ -22,7 +22,6 @@ package org.elasticsearch.http.netty4;
 import io.netty.handler.codec.http.FullHttpResponse;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;

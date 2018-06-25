@@ -239,6 +239,9 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             throw e;
         }
 
+        // flushing the job forces an index refresh, see https://github.com/elastic/elasticsearch/issues/31173
+        flushJob(job.getId(), false);
+
         List<ForecastRequestStats> forecastStats = getForecastStats();
         assertThat(forecastStats.size(), equalTo(1));
         ForecastRequestStats forecastRequestStats = forecastStats.get(0);
@@ -261,6 +264,16 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         }
 
         closeJob(job.getId());
+
+        forecastStats = getForecastStats();
+        assertThat(forecastStats.size(), equalTo(2));
+        for (ForecastRequestStats stats : forecastStats) {
+            forecasts = getForecasts(job.getId(), stats);
+
+            assertThat(forecastRequestStats.getRecordCount(), equalTo(8000L));
+            assertThat(forecasts.size(), equalTo(8000));
+        }
+
     }
 
     private void createDataWithLotsOfClientIps(TimeValue bucketSpan, Job.Builder job) throws IOException {

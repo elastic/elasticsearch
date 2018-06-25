@@ -34,7 +34,6 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -55,7 +54,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -100,16 +98,17 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TestPersistentTasksExecutor.NAME, TestParams::new),
-                new NamedWriteableRegistry.Entry(Task.Status.class, TestPersistentTasksExecutor.NAME, Status::new)
+                new NamedWriteableRegistry.Entry(PersistentTaskState.class, TestPersistentTasksExecutor.NAME, State::new)
         );
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return Arrays.asList(
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(TestPersistentTasksExecutor.NAME),
-                        TestParams::fromXContent),
-                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(TestPersistentTasksExecutor.NAME), Status::fromXContent)
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class,
+                    new ParseField(TestPersistentTasksExecutor.NAME), TestParams::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskState.class,
+                    new ParseField(TestPersistentTasksExecutor.NAME), State::fromXContent)
         );
     }
 
@@ -221,22 +220,22 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
     }
 
-    public static class Status implements Task.Status {
+    public static class State implements PersistentTaskState {
 
         private final String phase;
 
-        public static final ConstructingObjectParser<Status, Void> STATUS_PARSER =
-                new ConstructingObjectParser<>(TestPersistentTasksExecutor.NAME, args -> new Status((String) args[0]));
+        public static final ConstructingObjectParser<State, Void> STATE_PARSER =
+                new ConstructingObjectParser<>(TestPersistentTasksExecutor.NAME, args -> new State((String) args[0]));
 
         static {
-            STATUS_PARSER.declareString(constructorArg(), new ParseField("phase"));
+            STATE_PARSER.declareString(constructorArg(), new ParseField("phase"));
         }
 
-        public Status(String phase) {
+        public State(String phase) {
             this.phase = requireNonNull(phase, "Phase cannot be null");
         }
 
-        public Status(StreamInput in) throws IOException {
+        public State(StreamInput in) throws IOException {
             phase = in.readString();
         }
 
@@ -253,10 +252,9 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             return builder;
         }
 
-        public static Task.Status fromXContent(XContentParser parser) throws IOException {
-            return STATUS_PARSER.parse(parser, null);
+        public static PersistentTaskState fromXContent(XContentParser parser) throws IOException {
+            return STATE_PARSER.parse(parser, null);
         }
-
 
         @Override
         public boolean isFragment() {
@@ -276,10 +274,10 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         // Implements equals and hashcode for testing
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || obj.getClass() != Status.class) {
+            if (obj == null || obj.getClass() != State.class) {
                 return false;
             }
-            Status other = (Status) obj;
+            State other = (State) obj;
             return phase.equals(other.phase);
         }
 
@@ -288,7 +286,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             return phase.hashCode();
         }
     }
-
 
     public static class TestPersistentTasksExecutor extends PersistentTasksExecutor<TestParams> {
 
@@ -317,7 +314,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        protected void nodeOperation(AllocatedPersistentTask task, TestParams params, Task.Status status) {
+        protected void nodeOperation(AllocatedPersistentTask task, TestParams params, PersistentTaskState state) {
             logger.info("started node operation for the task {}", task);
             try {
                 TestTask testTask = (TestTask) task;
@@ -340,9 +337,9 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                     } else if ("update_status".equals(testTask.getOperation())) {
                         testTask.setOperation(null);
                         CountDownLatch latch = new CountDownLatch(1);
-                        Status newStatus = new Status("phase " + phase.incrementAndGet());
-                        logger.info("updating the task status to {}", newStatus);
-                        task.updatePersistentStatus(newStatus, new ActionListener<PersistentTask<?>>() {
+                        State newState = new State("phase " + phase.incrementAndGet());
+                        logger.info("updating the task state to {}", newState);
+                        task.updatePersistentTaskState(newState, new ActionListener<PersistentTask<?>>() {
                             @Override
                             public void onResponse(PersistentTask<?> persistentTask) {
                                 logger.info("updating was successful");
@@ -385,7 +382,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
     }
 
-    public static class TestTaskAction extends Action<TestTasksRequest, TestTasksResponse> {
+    public static class TestTaskAction extends Action<TestTasksResponse> {
 
         public static final TestTaskAction INSTANCE = new TestTaskAction();
         public static final String NAME = "cluster:admin/persistent/task_test";
@@ -513,11 +510,10 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             TestTasksRequest, TestTasksResponse, TestTaskResponse> {
 
         @Inject
-        public TransportTestTaskAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                       TransportService transportService, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver, String nodeExecutor) {
-            super(settings, TestTaskAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                    TestTasksRequest::new, TestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+        public TransportTestTaskAction(Settings settings, ClusterService clusterService,
+                                       TransportService transportService, ActionFilters actionFilters) {
+            super(settings, TestTaskAction.NAME, clusterService, transportService, actionFilters,
+                TestTasksRequest::new, TestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         }
 
         @Override
@@ -539,6 +535,5 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
     }
-
 
 }

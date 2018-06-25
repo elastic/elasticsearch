@@ -126,7 +126,8 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -432,10 +433,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             randomSettingsBuilder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
             if (randomBoolean()) {
                 randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), randomBoolean());
-            }
-
-            if (randomBoolean()) {
-                randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), randomBoolean());
             }
             PutIndexTemplateRequestBuilder putTemplate = client().admin().indices()
                 .preparePutTemplate("random_index_template")
@@ -823,7 +820,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Waits till a (pattern) field name mappings concretely exists on all nodes. Note, this waits for the current
+     * Waits until mappings for the provided fields exist on all nodes. Note, this waits for the current
      * started shards and checks for concrete mappings.
      */
     public void assertConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) throws Exception {
@@ -833,11 +830,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
             IndexService indexService = indicesService.indexService(resolveIndex(index));
             assertThat("index service doesn't exists on " + node, indexService, notNullValue());
-            DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-            assertThat("document mapper doesn't exists on " + node, documentMapper, notNullValue());
+            MapperService mapperService = indexService.mapperService();
             for (String fieldName : fieldNames) {
-                Collection<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
-                assertThat("field " + fieldName + " doesn't exists on " + node, matches, Matchers.not(emptyIterable()));
+                MappedFieldType fieldType = mapperService.fullName(fieldName);
+                assertNotNull("field " + fieldName + " doesn't exists on " + node, fieldType);
             }
         }
         assertMappingOnMaster(index, type, fieldNames);

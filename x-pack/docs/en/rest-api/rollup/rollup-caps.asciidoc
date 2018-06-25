@@ -5,6 +5,8 @@
 <titleabbrev>Get Rollup Caps</titleabbrev>
 ++++
 
+experimental[]
+
 This API returns the rollup capabilities that have been configured for an index or index pattern.  This API is useful
 because a rollup job is often configured to rollup only a subset of fields from the source index.  Furthermore, only
 certain aggregations can be configured for various fields, leading to a limited subset of functionality depending on

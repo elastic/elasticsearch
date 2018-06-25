@@ -144,3 +144,13 @@ include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-cl
 
 In the rest of this documentation about the Java High Level Client, the `RestHighLevelClient` instance
 will be referenced as `client`.
+
+[[java-rest-hight-getting-started-request-options]]
+=== RequestOptions
+
+All APIs in the `RestHighLevelClient` accept a `RequestOptions` which you can
+use to customize the request in ways that won't change how Elasticsearch
+executes the request. For example, this is the place where you'd specify a
+`NodeSelector` to control which node receives the request. See the
+<<java-rest-low-usage-request-options,low level client documentation>> for
+more examples of customizing the options.

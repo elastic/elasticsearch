@@ -29,12 +29,17 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -47,6 +52,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -56,7 +62,9 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -67,6 +75,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -81,8 +90,10 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -92,12 +103,12 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -123,6 +134,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -140,6 +152,7 @@ import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
@@ -438,6 +451,61 @@ public class RequestConvertersTests extends ESTestCase {
         endpoint.add("_mapping");
         if (type != null) {
             endpoint.add(type);
+        }
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+    }
+
+    public void testGetFieldMapping() throws IOException {
+        GetFieldMappingsRequest getFieldMappingsRequest = new GetFieldMappingsRequest();
+
+        String[] indices = Strings.EMPTY_ARRAY;
+        if (randomBoolean()) {
+            indices = randomIndicesNames(0, 5);
+            getFieldMappingsRequest.indices(indices);
+        } else if (randomBoolean()) {
+            getFieldMappingsRequest.indices((String[]) null);
+        }
+
+        String type = null;
+        if (randomBoolean()) {
+            type = randomAlphaOfLengthBetween(3, 10);
+            getFieldMappingsRequest.types(type);
+        } else if (randomBoolean()) {
+            getFieldMappingsRequest.types((String[]) null);
+        }
+
+        String[] fields = null;
+        if (randomBoolean()) {
+            fields = new String[randomIntBetween(1, 5)];
+            for (int i = 0; i < fields.length; i++) {
+                fields[i] = randomAlphaOfLengthBetween(3, 10);
+            }
+            getFieldMappingsRequest.fields(fields);
+        } else if (randomBoolean()) {
+            getFieldMappingsRequest.fields((String[]) null);
+        }
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        setRandomIndicesOptions(getFieldMappingsRequest::indicesOptions, getFieldMappingsRequest::indicesOptions, expectedParams);
+        setRandomLocal(getFieldMappingsRequest::local, expectedParams);
+
+        Request request = RequestConverters.getFieldMapping(getFieldMappingsRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        endpoint.add("_mapping");
+        if (type != null) {
+            endpoint.add(type);
+        }
+        endpoint.add("field");
+        if (fields != null) {
+            endpoint.add(String.join(",", fields));
         }
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
 
@@ -1523,6 +1591,113 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, expectedRequest.getParameters());
     }
 
+    public void testSimulatePipeline() throws IOException {
+        String pipelineId = randomBoolean() ? "some_pipeline_id" : null;
+        boolean verbose = randomBoolean();
+        String json = "{\"pipeline\":{" +
+            "\"description\":\"_description\"," +
+            "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]}," +
+            "\"docs\":[{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}]}";
+        SimulatePipelineRequest request = new SimulatePipelineRequest(
+            new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
+        request.setId(pipelineId);
+        request.setVerbose(verbose);
+        Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put("verbose", Boolean.toString(verbose));
+
+        Request expectedRequest = RequestConverters.simulatePipeline(request);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add("_ingest/pipeline");
+        if (pipelineId != null && !pipelineId.isEmpty())
+            endpoint.add(pipelineId);
+        endpoint.add("_simulate");
+        assertEquals(endpoint.toString(), expectedRequest.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(expectedParams, expectedRequest.getParameters());
+        assertToXContentBody(request, expectedRequest.getEntity());
+    }
+
+    public void testClusterHealth() {
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomLocal(healthRequest, expectedParams);
+        String timeoutType = randomFrom("timeout", "masterTimeout", "both", "none");
+        String timeout = randomTimeValue();
+        String masterTimeout = randomTimeValue();
+        switch (timeoutType) {
+            case "timeout":
+                healthRequest.timeout(timeout);
+                expectedParams.put("timeout", timeout);
+                // If Master Timeout wasn't set it uses the same value as Timeout
+                expectedParams.put("master_timeout", timeout);
+                break;
+            case "masterTimeout":
+                expectedParams.put("timeout", "30s");
+                healthRequest.masterNodeTimeout(masterTimeout);
+                expectedParams.put("master_timeout", masterTimeout);
+                break;
+            case "both":
+                healthRequest.timeout(timeout);
+                expectedParams.put("timeout", timeout);
+                healthRequest.masterNodeTimeout(timeout);
+                expectedParams.put("master_timeout", timeout);
+                break;
+            case "none":
+                expectedParams.put("timeout", "30s");
+                expectedParams.put("master_timeout", "30s");
+                break;
+            default:
+                throw new UnsupportedOperationException();
+        }
+        setRandomWaitForActiveShards(healthRequest::waitForActiveShards, ActiveShardCount.NONE, expectedParams);
+        if (randomBoolean()) {
+            ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
+            healthRequest.level(level);
+            expectedParams.put("level", level.name().toLowerCase(Locale.ROOT));
+        } else {
+            expectedParams.put("level", "cluster");
+        }
+        if (randomBoolean()) {
+            Priority priority = randomFrom(Priority.values());
+            healthRequest.waitForEvents(priority);
+            expectedParams.put("wait_for_events", priority.name().toLowerCase(Locale.ROOT));
+        }
+        if (randomBoolean()) {
+            ClusterHealthStatus status = randomFrom(ClusterHealthStatus.values());
+            healthRequest.waitForStatus(status);
+            expectedParams.put("wait_for_status", status.name().toLowerCase(Locale.ROOT));
+        }
+        if (randomBoolean()) {
+            boolean waitForNoInitializingShards = randomBoolean();
+            healthRequest.waitForNoInitializingShards(waitForNoInitializingShards);
+            if (waitForNoInitializingShards) {
+                expectedParams.put("wait_for_no_initializing_shards", Boolean.TRUE.toString());
+            }
+        }
+        if (randomBoolean()) {
+            boolean waitForNoRelocatingShards = randomBoolean();
+            healthRequest.waitForNoRelocatingShards(waitForNoRelocatingShards);
+            if (waitForNoRelocatingShards) {
+                expectedParams.put("wait_for_no_relocating_shards", Boolean.TRUE.toString());
+            }
+        }
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
+        healthRequest.indices(indices);
+
+        Request request = RequestConverters.clusterHealth(healthRequest);
+        assertThat(request, CoreMatchers.notNullValue());
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getEntity(), nullValue());
+        if (indices != null && indices.length > 0) {
+            assertThat(request.getEndpoint(), equalTo("/_cluster/health/" + String.join(",", indices)));
+        } else {
+            assertThat(request.getEndpoint(), equalTo("/_cluster/health"));
+        }
+        assertThat(request.getParameters(), equalTo(expectedParams));
+    }
+
     public void testRollover() throws IOException {
         RolloverRequest rolloverRequest = new RolloverRequest(randomAlphaOfLengthBetween(3, 10),
                 randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10));
@@ -1561,6 +1736,36 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
     }
 
+    public void testGetAlias() {
+        GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomLocal(getAliasesRequest, expectedParams);
+        setRandomIndicesOptions(getAliasesRequest::indicesOptions, getAliasesRequest::indicesOptions, expectedParams);
+
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 2);
+        String[] aliases = randomBoolean() ? null : randomIndicesNames(0, 2);
+        getAliasesRequest.indices(indices);
+        getAliasesRequest.aliases(aliases);
+
+        Request request = RequestConverters.getAlias(getAliasesRequest);
+        StringJoiner expectedEndpoint = new StringJoiner("/", "/", "");
+
+        if (false == CollectionUtils.isEmpty(indices)) {
+            expectedEndpoint.add(String.join(",", indices));
+        }
+        expectedEndpoint.add("_alias");
+
+        if (false == CollectionUtils.isEmpty(aliases)) {
+            expectedEndpoint.add(String.join(",", aliases));
+        }
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(expectedEndpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+    }
+
     public void testIndexPutSettings() throws IOException {
         String[] indices = randomBoolean() ? null : randomIndicesNames(0, 2);
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indices);
@@ -1585,6 +1790,23 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertToXContentBody(updateSettingsRequest, request.getEntity());
         assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testCancelTasks() {
+        CancelTasksRequest request = new CancelTasksRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        TaskId parentTaskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        request.setTaskId(taskId);
+        request.setParentTaskId(parentTaskId);
+        expectedParams.put("task_id", taskId.toString());
+        expectedParams.put("parent_task_id", parentTaskId.toString());
+        Request httpRequest = RequestConverters.cancelTasks(request);
+        assertThat(httpRequest, notNullValue());
+        assertThat(httpRequest.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(httpRequest.getEntity(), nullValue());
+        assertThat(httpRequest.getEndpoint(), equalTo("/_tasks/_cancel"));
+        assertThat(httpRequest.getParameters(), equalTo(expectedParams));
     }
 
     public void testListTasks() {
@@ -1721,6 +1943,25 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(expectedParams, equalTo(request.getParameters()));
     }
 
+    public void testDeleteSnapshot() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String snapshot = "snapshot-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+
+        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s", repository, snapshot);
+
+        DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest();
+        deleteSnapshotRequest.repository(repository);
+        deleteSnapshotRequest.snapshot(snapshot);
+        setRandomMasterTimeout(deleteSnapshotRequest, expectedParams);
+
+        Request request = RequestConverters.deleteSnapshot(deleteSnapshotRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpDelete.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertNull(request.getEntity());
+    }
+
     public void testPutTemplateRequest() throws Exception {
         Map<String, String> names = new HashMap<>();
         names.put("log", "log");
@@ -1760,6 +2001,84 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getEndpoint(), equalTo("/_template/" + names.get(putTemplateRequest.name())));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertToXContentBody(putTemplateRequest, request.getEntity());
+    }
+
+    public void testValidateQuery() throws Exception {
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
+        String[] types = randomBoolean() ? generateRandomStringArray(5, 5, false, false) : null;
+        ValidateQueryRequest validateQueryRequest;
+        if (randomBoolean()) {
+            validateQueryRequest = new ValidateQueryRequest(indices);
+        } else {
+            validateQueryRequest = new ValidateQueryRequest();
+            validateQueryRequest.indices(indices);
+        }
+        validateQueryRequest.types(types);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(validateQueryRequest::indicesOptions, validateQueryRequest::indicesOptions, expectedParams);
+        validateQueryRequest.explain(randomBoolean());
+        validateQueryRequest.rewrite(randomBoolean());
+        validateQueryRequest.allShards(randomBoolean());
+        expectedParams.put("explain", Boolean.toString(validateQueryRequest.explain()));
+        expectedParams.put("rewrite", Boolean.toString(validateQueryRequest.rewrite()));
+        expectedParams.put("all_shards", Boolean.toString(validateQueryRequest.allShards()));
+        Request request = RequestConverters.validateQuery(validateQueryRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indices != null && indices.length > 0) {
+            endpoint.add(String.join(",", indices));
+            if (types != null && types.length > 0) {
+                endpoint.add(String.join(",", types));
+            }
+        }
+        endpoint.add("_validate/query");
+        assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertToXContentBody(validateQueryRequest, request.getEntity());
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+    }
+
+    public void testGetTemplateRequest() throws Exception {
+        Map<String, String> encodes = new HashMap<>();
+        encodes.put("log", "log");
+        encodes.put("1", "1");
+        encodes.put("template#1", "template%231");
+        encodes.put("template-*", "template-*");
+        encodes.put("foo^bar", "foo%5Ebar");
+        List<String> names = randomSubsetOf(1, encodes.keySet());
+        GetIndexTemplatesRequest getTemplatesRequest = new GetIndexTemplatesRequest().names(names.toArray(new String[0]));
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(getTemplatesRequest, expectedParams);
+        setRandomLocal(getTemplatesRequest, expectedParams);
+        Request request = RequestConverters.getTemplates(getTemplatesRequest);
+        assertThat(request.getEndpoint(), equalTo("/_template/" + names.stream().map(encodes::get).collect(Collectors.joining(","))));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testGetScriptRequest() {
+        GetStoredScriptRequest getStoredScriptRequest = new GetStoredScriptRequest("x-script");
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(getStoredScriptRequest, expectedParams);
+
+        Request request = RequestConverters.getScript(getStoredScriptRequest);
+        assertThat(request.getEndpoint(), equalTo("/_scripts/" + getStoredScriptRequest.id()));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testDeleteScriptRequest() {
+        DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest("x-script");
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomTimeout(deleteStoredScriptRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(deleteStoredScriptRequest, expectedParams);
+
+        Request request = RequestConverters.deleteScript(deleteStoredScriptRequest);
+        assertThat(request.getEndpoint(), equalTo("/_scripts/" + deleteStoredScriptRequest.id()));
+        assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
     }
 
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
@@ -2005,14 +2324,18 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
+    private static void setRandomLocal(Consumer<Boolean> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean local = randomBoolean();
-            request.local(local);
+            setter.accept(local);
             if (local) {
                 expectedParams.put("local", String.valueOf(local));
             }
         }
+    }
+
+    private static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
+        setRandomLocal(request::local, expectedParams);
     }
 
     private static void setRandomTimeout(Consumer<String> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
@@ -2036,16 +2359,24 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     private static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, Map<String, String> expectedParams) {
+        setRandomWaitForActiveShards(setter, ActiveShardCount.DEFAULT, expectedParams);
+    }
+
+    private static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, ActiveShardCount defaultActiveShardCount,
+                                                     Map<String, String> expectedParams) {
         if (randomBoolean()) {
+            int waitForActiveShardsInt = randomIntBetween(-1, 5);
             String waitForActiveShardsString;
-            int waitForActiveShards = randomIntBetween(-1, 5);
-            if (waitForActiveShards == -1) {
+            if (waitForActiveShardsInt == -1) {
                 waitForActiveShardsString = "all";
             } else {
-                waitForActiveShardsString = String.valueOf(waitForActiveShards);
+                waitForActiveShardsString = String.valueOf(waitForActiveShardsInt);
             }
-            setter.accept(ActiveShardCount.parseString(waitForActiveShardsString));
-            expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
+            ActiveShardCount activeShardCount = ActiveShardCount.parseString(waitForActiveShardsString);
+            setter.accept(activeShardCount);
+            if (defaultActiveShardCount.equals(activeShardCount) == false) {
+                expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
+            }
         }
     }
 

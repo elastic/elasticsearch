@@ -9,11 +9,11 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -92,15 +92,15 @@ public class TransportGetUsersActionTests extends ESTestCase {
             new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, securityIndex, threadPool);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, threadPool, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService, reservedRealm);
+        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ActionFilters.class),
+                usersStore, transportService, reservedRealm);
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(anonymousUser.principal());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<GetUsersResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
             @Override
             public void onResponse(GetUsersResponse response) {
                 responseRef.set(response);
@@ -127,15 +127,15 @@ public class TransportGetUsersActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, threadPool, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService, mock(ReservedRealm.class));
+        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ActionFilters.class),
+                usersStore, transportService, mock(ReservedRealm.class));
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<GetUsersResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
             @Override
             public void onResponse(GetUsersResponse response) {
                 responseRef.set(response);
@@ -170,8 +170,8 @@ public class TransportGetUsersActionTests extends ESTestCase {
         final List<String> names = reservedUsers.stream().map(User::principal).collect(Collectors.toList());
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, threadPool, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService, reservedRealm);
+        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ActionFilters.class),
+                usersStore, transportService, reservedRealm);
 
         logger.error("names {}", names);
         GetUsersRequest request = new GetUsersRequest();
@@ -179,7 +179,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<GetUsersResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
             @Override
             public void onResponse(GetUsersResponse response) {
                 responseRef.set(response);
@@ -210,8 +210,8 @@ public class TransportGetUsersActionTests extends ESTestCase {
                 securityIndex, threadPool);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, threadPool, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService, reservedRealm);
+        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ActionFilters.class),
+                usersStore, transportService, reservedRealm);
 
         GetUsersRequest request = new GetUsersRequest();
         doAnswer(new Answer() {
@@ -226,7 +226,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<GetUsersResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
             @Override
             public void onResponse(GetUsersResponse response) {
                 responseRef.set(response);
@@ -257,8 +257,8 @@ public class TransportGetUsersActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, threadPool, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService, mock(ReservedRealm.class));
+        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ActionFilters.class),
+                usersStore, transportService, mock(ReservedRealm.class));
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(storeUsernames);
@@ -272,7 +272,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<GetUsersResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
             @Override
             public void onResponse(GetUsersResponse response) {
                 responseRef.set(response);
@@ -305,8 +305,8 @@ public class TransportGetUsersActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null, Collections.emptySet());
-        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, threadPool, mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), usersStore, transportService, mock(ReservedRealm.class));
+        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ActionFilters.class),
+                usersStore, transportService, mock(ReservedRealm.class));
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(storeUsernames);
@@ -320,7 +320,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<GetUsersResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<GetUsersResponse>() {
             @Override
             public void onResponse(GetUsersResponse response) {
                 responseRef.set(response);

@@ -4,6 +4,8 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 7.0.
 
+See also <<release-highlights>> and <<es-release-notes>>.
+
 [float]
 === Indices created before 7.0
 
@@ -36,6 +38,7 @@ Elasticsearch 6.x in order to be readable by Elasticsearch 7.x.
 * <<breaking_70_settings_changes>>
 * <<breaking_70_scripting_changes>>
 * <<breaking_70_snapshotstats_changes>>
+* <<breaking_70_restclient_changes>>
 
 include::migrate_7_0/aggregations.asciidoc[]
 include::migrate_7_0/analysis.asciidoc[]
@@ -50,3 +53,4 @@ include::migrate_7_0/java.asciidoc[]
 include::migrate_7_0/settings.asciidoc[]
 include::migrate_7_0/scripting.asciidoc[]
 include::migrate_7_0/snapshotstats.asciidoc[]
+include::migrate_7_0/restclient.asciidoc[]

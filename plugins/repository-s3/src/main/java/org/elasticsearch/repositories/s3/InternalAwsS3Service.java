@@ -135,7 +135,7 @@ class InternalAwsS3Service extends AbstractComponent implements AwsS3Service {
 
     // pkg private for tests
     static AWSCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
-        final BasicAWSCredentials credentials = clientSettings.credentials;
+        final AWSCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
             logger.debug("Using instance profile credentials");
             return new PrivilegedInstanceProfileCredentialsProvider();

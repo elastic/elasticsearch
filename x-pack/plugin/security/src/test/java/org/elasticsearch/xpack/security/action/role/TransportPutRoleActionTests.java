@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
@@ -51,7 +52,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutRoleResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<PutRoleResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<PutRoleResponse>() {
             @Override
             public void onResponse(PutRoleResponse response) {
                 responseRef.set(response);
@@ -93,7 +94,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutRoleResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<PutRoleResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<PutRoleResponse>() {
             @Override
             public void onResponse(PutRoleResponse response) {
                 responseRef.set(response);
@@ -135,7 +136,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutRoleResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<PutRoleResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<PutRoleResponse>() {
             @Override
             public void onResponse(PutRoleResponse response) {
                 responseRef.set(response);

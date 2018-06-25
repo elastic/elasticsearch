@@ -364,7 +364,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         TestTransportChannel channel = new TestTransportChannel();
 
-        handler.messageReceived(action.new NodeRequest(nodeId, new Request(), new ArrayList<>(shards)), channel);
+        handler.messageReceived(action.new NodeRequest(nodeId, new Request(), new ArrayList<>(shards)), channel, null);
 
         // check the operation was executed only on the expected shards
         assertEquals(shards, action.getResults().keySet());

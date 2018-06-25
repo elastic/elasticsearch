@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -52,7 +53,7 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
     }
 
     @Override
-    protected void doExecute(DeleteFilterAction.Request request, ActionListener<DeleteFilterAction.Response> listener) {
+    protected void doExecute(Task task, DeleteFilterAction.Request request, ActionListener<DeleteFilterAction.Response> listener) {
 
         final String filterId = request.getFilterId();
         ClusterState state = clusterService.state();

@@ -419,6 +419,8 @@
   - match: { job_id: "jobs-crud-model-memory-limit-decrease" }
 
   - do:
+      headers:
+        Content-Type: application/json
       index:
         index: .ml-anomalies-shared
         type: doc
@@ -929,6 +931,8 @@
 "Test cannot create job with existing result document":
 
   - do:
+      headers:
+        Content-Type: application/json
       index:
         index:  .ml-anomalies-shared
         type:   doc

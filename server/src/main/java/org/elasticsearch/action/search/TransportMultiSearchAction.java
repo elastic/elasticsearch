@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -70,7 +71,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     }
 
     @Override
-    protected void doExecute(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
+    protected void doExecute(Task task, MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
         final long relativeStartTime = relativeTimeProvider.getAsLong();
 
         ClusterState clusterState = clusterService.state();

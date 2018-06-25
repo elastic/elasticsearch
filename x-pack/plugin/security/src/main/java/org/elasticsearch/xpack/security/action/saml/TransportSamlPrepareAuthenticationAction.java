@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationRequest;
@@ -42,9 +43,9 @@ public final class TransportSamlPrepareAuthenticationAction
     }
 
     @Override
-    protected void doExecute(SamlPrepareAuthenticationRequest request,
+    protected void doExecute(Task task, SamlPrepareAuthenticationRequest request,
                              ActionListener<SamlPrepareAuthenticationResponse> listener) {
-        List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL()         );
+        List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL());
         if (realms.isEmpty()) {
             listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request));
         } else if (realms.size() > 1) {

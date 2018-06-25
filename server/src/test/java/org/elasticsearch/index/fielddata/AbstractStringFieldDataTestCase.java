@@ -260,7 +260,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             }
         }
 
-        final IndexFieldData indexFieldData = getForField("value");
+        final IndexFieldData<?> indexFieldData = getForField("value");
         final String missingValue = values[1];
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(missingValue, MultiValueMode.MIN, null, reverse);
@@ -315,7 +315,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
                 writer.commit();
             }
         }
-        final IndexFieldData indexFieldData = getForField("value");
+        final IndexFieldData<?> indexFieldData = getForField("value");
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(first ? "_first" : "_last", MultiValueMode.MIN, null, reverse);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(sortField));

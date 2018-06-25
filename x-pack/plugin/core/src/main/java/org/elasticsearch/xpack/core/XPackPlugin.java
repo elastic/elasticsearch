@@ -9,9 +9,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -261,8 +261,8 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     }
 
     @Override
-    public List<Action> getClientActions() {
-        List<Action> actions = new ArrayList<>();
+    public List<Action<? extends ActionResponse>> getClientActions() {
+        List<Action<? extends ActionResponse>> actions = new ArrayList<>();
         actions.addAll(licensing.getClientActions());
         actions.addAll(super.getClientActions());
         return actions;

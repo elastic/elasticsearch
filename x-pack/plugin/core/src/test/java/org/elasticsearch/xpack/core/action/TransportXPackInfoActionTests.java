@@ -12,6 +12,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -82,7 +83,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<XPackInfoResponse> response = new AtomicReference<>();
         final AtomicReference<Throwable> error = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<XPackInfoResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<XPackInfoResponse>() {
             @Override
             public void onResponse(XPackInfoResponse infoResponse) {
                 response.set(infoResponse);

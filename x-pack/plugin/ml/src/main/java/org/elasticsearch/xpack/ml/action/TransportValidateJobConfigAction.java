@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 
@@ -25,7 +26,8 @@ public class TransportValidateJobConfigAction extends HandledTransportAction<Val
     }
 
     @Override
-    protected void doExecute(ValidateJobConfigAction.Request request, ActionListener<ValidateJobConfigAction.Response> listener) {
+    protected void doExecute(Task task, ValidateJobConfigAction.Request request,
+                             ActionListener<ValidateJobConfigAction.Response> listener) {
         listener.onResponse(new ValidateJobConfigAction.Response(true));
     }
 

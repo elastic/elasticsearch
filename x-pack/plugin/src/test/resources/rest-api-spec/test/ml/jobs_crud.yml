@@ -301,10 +301,26 @@
           {
             "groups": ["group-1", "group-2"],
             "description":"Post update description",
-            "detectors": [{"detector_index": 0, "rules": {"target_field_name": "airline",
-                                      "conditions": [ { "type": "numerical_actual",
-                                                        "condition": {"operator": "gt", "value": "10" } } ] } },
-                          {"detector_index": 1, "description": "updated description"}],
+            "detectors": [
+              {
+                "detector_index": 0,
+                "custom_rules":[
+                  {
+                    "conditions": [
+                      {
+                        "applies_to": "actual",
+                        "operator": "gt",
+                        "value": 10
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "detector_index": 1,
+                "description": "updated description"
+              }
+            ],
             "model_plot_config": {
               "enabled": false,
               "terms": "foobar"
@@ -324,7 +340,8 @@
   - match: { model_plot_config.enabled: false }
   - match: { model_plot_config.terms: "foobar" }
   - match: { analysis_config.categorization_filters: ["cat3.*"] }
-  - match: { analysis_config.detectors.0.rules.0.target_field_name: "airline" }
+  - match: { analysis_config.detectors.0.custom_rules.0.actions: ["skip_result"] }
+  - length: { analysis_config.detectors.0.custom_rules.0.conditions: 1 }
   - match: { analysis_config.detectors.0.detector_index: 0 }
   - match: { analysis_config.detectors.1.detector_description: "updated description" }
   - match: { analysis_config.detectors.1.detector_index: 1 }
@@ -1223,17 +1240,23 @@
                 {
                   "function": "count",
                   "by_field_name": "country",
-                  "rules": [
+                  "custom_rules": [
                     {
-                      "actions": ["filter_results", "skip_sampling"],
+                      "actions": ["skip_result", "skip_model_update"],
+                      "scope": {
+                        "country": {"filter_id": "safe_countries"}
+                      },
                       "conditions": [
                         {
-                          "type":"numerical_actual",
-                          "field_name":"country",
-                          "field_value": "uk",
-                          "condition": {"operator":"lt","value":"33.3"}
+                          "applies_to":"actual",
+                          "operator":"lt",
+                          "value": 33.3
                         },
-                        {"type":"categorical", "field_name":"country", "filter_id": "foo"}
+                        {
+                          "applies_to":"typical",
+                          "operator":"lte",
+                          "value": 42.0
+                        }
                       ]
                     }
                   ]
@@ -1248,83 +1271,23 @@
         job_id: jobs-crud-rules
   - match: { count: 1 }
   - match: {
-      jobs.0.analysis_config.detectors.0.rules: [
+      jobs.0.analysis_config.detectors.0.custom_rules: [
         {
-          "actions": ["filter_results", "skip_sampling"],
-          "conditions_connective": "or",
+          "actions": ["skip_result", "skip_model_update"],
+          "scope": {
+            "country": {"filter_id": "safe_countries", "filter_type": "include"}
+          },
           "conditions": [
             {
-              "type":"numerical_actual",
-              "field_name":"country",
-              "field_value": "uk",
-              "condition": {"operator":"lt","value":"33.3"}
+              "applies_to":"actual",
+              "operator":"lt",
+              "value": 33.3
             },
-            {"type":"categorical", "field_name":"country", "filter_id": "foo"}
-          ]
-        }
-      ]
-    }
-
----
-"Test job with pre 6.2 rules":
-
-  - skip:
-        features: "warnings"
-        reason: certain rule fields were renamed in 6.2.0
-
-  - do:
-      warnings:
-          - Deprecated field [detector_rules] used, expected [rules] instead
-          - Deprecated field [rule_action] used, expected [actions] instead
-          - Deprecated field [rule_conditions] used, expected [conditions] instead
-          - Deprecated field [condition_type] used, expected [type] instead
-          - Deprecated field [value_filter] used, expected [filter_id] instead
-      xpack.ml.put_job:
-        job_id: jobs-crud-pre-6-2-rules
-        body:  >
-          {
-            "analysis_config": {
-              "detectors": [
-                {
-                  "function": "count",
-                  "by_field_name": "country",
-                  "detector_rules": [
-                    {
-                      "rule_action": "filter_results",
-                      "rule_conditions": [
-                        {
-                          "condition_type":"numerical_actual",
-                          "field_name":"country",
-                          "field_value": "uk",
-                          "condition": {"operator":"lt","value":"33.3"}
-                        },
-                        {"type":"categorical", "field_name":"country", "value_filter": "foo"}
-                      ]
-                    }
-                  ]
-                }
-              ]
-            },
-            "data_description" : {}
-          }
-
-  - do:
-      xpack.ml.get_jobs:
-        job_id: jobs-crud-pre-6-2-rules
-  - match: { count: 1 }
-  - match: {
-      jobs.0.analysis_config.detectors.0.rules: [
-        {
-          "actions": ["filter_results"],
-          "conditions_connective": "or",
-          "conditions": [
             {
-              "type":"numerical_actual",
-              "field_name":"country",
-              "field_value": "uk",
-              "condition": {"operator":"lt","value":"33.3"}
-            },
-            {"type":"categorical", "field_name":"country", "filter_id": "foo"}
+              "applies_to":"typical",
+              "operator":"lte",
+              "value": 42.0
+            }
           ]
         }
       ]

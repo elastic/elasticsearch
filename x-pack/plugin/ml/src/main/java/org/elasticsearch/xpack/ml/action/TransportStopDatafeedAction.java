@@ -222,10 +222,10 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
     }
 
     @Override
-    protected void taskOperation(StopDatafeedAction.Request request, TransportStartDatafeedAction.DatafeedTask datafeedTaskTask,
+    protected void taskOperation(StopDatafeedAction.Request request, TransportStartDatafeedAction.DatafeedTask datafeedTask,
                                  ActionListener<StopDatafeedAction.Response> listener) {
-        DatafeedState taskStatus = DatafeedState.STOPPING;
-        datafeedTaskTask.updatePersistentStatus(taskStatus, ActionListener.wrap(task -> {
+        DatafeedState taskState = DatafeedState.STOPPING;
+        datafeedTask.updatePersistentTaskState(taskState, ActionListener.wrap(task -> {
                     // we need to fork because we are now on a network threadpool
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                         @Override
@@ -235,7 +235,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
 
                         @Override
                         protected void doRun() throws Exception {
-                            datafeedTaskTask.stop("stop_datafeed (api)", request.getStopTimeout());
+                            datafeedTask.stop("stop_datafeed (api)", request.getStopTimeout());
                             listener.onResponse(new StopDatafeedAction.Response(true));
                         }
                     });

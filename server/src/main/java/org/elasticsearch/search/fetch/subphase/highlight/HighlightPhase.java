@@ -23,7 +23,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -53,8 +52,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
         for (SearchContextHighlight.Field field : context.highlight().fields()) {
             Collection<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
-                DocumentMapper documentMapper = context.mapperService().documentMapper(hitContext.hit().getType());
-                fieldNamesToHighlight = documentMapper.mappers().simpleMatchToFullName(field.field());
+                fieldNamesToHighlight = context.mapperService().simpleMatchToFullName(field.field());
             } else {
                 fieldNamesToHighlight = Collections.singletonList(field.field());
             }

@@ -21,8 +21,6 @@ package org.elasticsearch.ingest.common;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 import java.util.Map;
 
 /**

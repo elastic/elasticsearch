@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for authenticating using SAML assertions

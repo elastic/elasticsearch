@@ -376,7 +376,8 @@ public final class Def {
              ref.delegateClassName,
              ref.delegateInvokeType,
              ref.delegateMethodName,
-             ref.delegateMethodType
+             ref.delegateMethodType,
+             ref.isDelegateInterface ? 1 : 0
          );
          return callSite.dynamicInvoker().asType(MethodType.methodType(clazz.clazz, captures));
      }

@@ -31,7 +31,7 @@ dependencies {
   compile "org.hamcrest:hamcrest-core:${versions.hamcrest}"
   compile "org.hamcrest:hamcrest-library:${versions.hamcrest}"
 
-  compile project(':libs:elasticsearch-core')
+  compile project(':libs:core')
 
   // pulls in the jar built by this project and its dependencies
   packagingTest project(path: project.path, configuration: 'runtime')

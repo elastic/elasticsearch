@@ -5,6 +5,8 @@
 <titleabbrev>Stop Job</titleabbrev>
 ++++
 
+experimental[]
+
 This API stops an existing, started rollup job.  If the job does not exist an exception will be thrown.
 Stopping an already stopped job has no action.
 

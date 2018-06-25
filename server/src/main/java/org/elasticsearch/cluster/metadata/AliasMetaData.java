@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -349,5 +348,4 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
             return builder.build();
         }
     }
-
 }

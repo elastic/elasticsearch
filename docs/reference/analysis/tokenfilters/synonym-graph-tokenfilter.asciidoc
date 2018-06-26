@@ -87,7 +87,9 @@ PUT /test_index
 }
 --------------------------------------------------
 // CONSOLE
-With the above request the word `bar` gets skipped but a mapping `foo => baz` is still added.
+With the above request the word `bar` gets skipped but a mapping `foo => baz` is still added. However, if the mapping
+being added was "foo, baz => bar" or "bar, foo, baz" nothing would get added to the synonym list. This is because the
+target word for the mapping is itself eliminated because it was a stop word.
 
 [float]
 ==== `tokenizer` and `ignore_case` are deprecated

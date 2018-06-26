@@ -599,16 +599,16 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             uuid = name;
         }
         return new SnapshotInfo(new SnapshotId(name, uuid),
-            indices,
-            state,
-            reason,
-            version,
-            startTime,
-            endTime,
-            totalShards,
-            successfulShards,
-            shardFailures,
-            includeGlobalState);
+                                indices,
+                                state,
+                                reason,
+                                version,
+                                startTime,
+                                endTime,
+                                totalShards,
+                                successfulShards,
+                                shardFailures,
+                                includeGlobalState);
     }
 
     @Override

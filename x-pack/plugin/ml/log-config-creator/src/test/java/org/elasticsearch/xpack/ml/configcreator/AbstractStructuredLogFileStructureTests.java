@@ -170,6 +170,7 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
 
     public void testGuessMappingGivenKeyword() {
         assertEquals("keyword", testStructure.guessMapping("foo", Arrays.asList("ERROR", "INFO", "DEBUG")));
+        assertEquals("keyword", testStructure.guessMapping("foo", Arrays.asList("2018-06-11T13:26:47Z", "not a date")));
     }
 
     public void testGuessMappingGivenText() {

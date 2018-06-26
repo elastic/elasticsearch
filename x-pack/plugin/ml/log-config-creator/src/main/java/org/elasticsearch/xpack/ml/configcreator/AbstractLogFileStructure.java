@@ -192,18 +192,19 @@ public abstract class AbstractLogFileStructure {
             return "boolean";
         }
 
-        TimestampMatch timestampMatch = null;
+        TimestampMatch singleMatch = null;
         for (String fieldValue : fieldValues) {
-            if (timestampMatch == null) {
-                timestampMatch = TimestampFormatFinder.findFirstFullMatch(fieldValue);
-                if (timestampMatch == null) {
+            if (singleMatch == null) {
+                singleMatch = TimestampFormatFinder.findFirstFullMatch(fieldValue);
+                if (singleMatch == null) {
                     break;
                 }
-            } else if (TimestampFormatFinder.findFirstFullMatch(fieldValue, timestampMatch.candidateIndex) != timestampMatch) {
+            } else if (singleMatch.equals(TimestampFormatFinder.findFirstFullMatch(fieldValue, singleMatch.candidateIndex)) == false) {
+                singleMatch = null;
                 break;
             }
         }
-        if (timestampMatch != null) {
+        if (singleMatch != null) {
             return "date";
         }
 

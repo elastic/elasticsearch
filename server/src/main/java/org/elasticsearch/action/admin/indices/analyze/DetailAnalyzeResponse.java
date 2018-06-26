@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.analyze;
 
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -335,7 +334,8 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
                         name = parser.text();
                     }
                     else if (AnalyzeResponse.Fields.TOKENS.equals(field)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(),
+                            parser::getTokenLocation);
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                             tokens.add(AnalyzeResponse.AnalyzeToken.readAnalyzeToken(parser));
                         }
@@ -404,7 +404,8 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         }
 
         public static CharFilteredText fromXContent(XContentParser parser) throws IOException {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(),
+                parser::getTokenLocation);
             String name = null;
             List<String> texts = new ArrayList<>();
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -414,7 +415,8 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
                         name = parser.text();
                     }
                     else if (Fields.FILTERED_TEXT.equals(parser.currentName())) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(),
+                            parser::getTokenLocation);
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                             texts.add(parser.text());
                         }

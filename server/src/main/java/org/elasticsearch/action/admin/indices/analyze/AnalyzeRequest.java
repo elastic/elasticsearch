@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -186,6 +185,7 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> implement
         this.charFilters.add(new NameOrDefinition(charFilter));
         return this;
     }
+
     public List<NameOrDefinition> charFilters() {
         return this.charFilters;
     }

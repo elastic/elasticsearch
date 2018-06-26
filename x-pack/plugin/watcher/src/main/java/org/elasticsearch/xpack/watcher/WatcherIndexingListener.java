@@ -110,16 +110,6 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
                     return operation;
                 }
 
-                // the watch status is -1, in case a watch has been freshly stored and this save
-                // watch operation does not stem from an execution
-                // we dont need to update the trigger service, when the watch has been updated as
-                // part of an execution, so we can exit early
-                boolean isWatchExecutionOperation = watch.status().version() != -1;
-                if (isWatchExecutionOperation) {
-                    logger.debug("not updating trigger for watch [{}], watch has been updated as part of an execution", watch.id());
-                    return operation;
-                }
-
                 boolean shouldBeTriggered = shardAllocationConfiguration.shouldBeTriggered(watch.id());
                 if (shouldBeTriggered) {
                     if (watch.status().state().isActive()) {

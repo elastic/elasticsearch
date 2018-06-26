@@ -257,6 +257,7 @@ import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexTemplateAction
 import org.elasticsearch.rest.action.admin.indices.RestFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestForceMergeAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetAliasesAction;
+import org.elasticsearch.rest.action.admin.indices.RestGetAllAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetFieldMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetIndicesAction;
@@ -316,6 +317,7 @@ import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 
@@ -369,7 +371,7 @@ public class ActionModule extends AbstractModule {
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<String> headers = Stream.concat(
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),
-            Stream.of("X-Opaque-Id")
+            Stream.of(Task.X_OPAQUE_ID)
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
         for (ActionPlugin plugin : actionPlugins) {
@@ -556,6 +558,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestRestoreSnapshotAction(settings, restController));
         registerHandler.accept(new RestDeleteSnapshotAction(settings, restController));
         registerHandler.accept(new RestSnapshotsStatusAction(settings, restController));
+
+        registerHandler.accept(new RestGetAllAliasesAction(settings, restController));
         registerHandler.accept(new RestGetIndicesAction(settings, restController, indexScopedSettings, settingsFilter));
         registerHandler.accept(new RestIndicesStatsAction(settings, restController));
         registerHandler.accept(new RestIndicesSegmentsAction(settings, restController));

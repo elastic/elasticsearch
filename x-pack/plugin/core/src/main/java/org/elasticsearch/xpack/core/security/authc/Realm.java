@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.HashMap;
@@ -54,6 +55,21 @@ public abstract class Realm implements Comparable<Realm> {
      */
     public int order() {
         return config.order;
+    }
+
+    /**
+     * Each Realm can define its own auth scheme challenge to be sent in
+     * 'WWW-Authenticate' header
+     * <p>
+     * By default the auth scheme is 'Basic', realms like Kerberos can use
+     * 'Negotiate' scheme or OAuth could use 'Bearer' scheme or custom realms with
+     * custom auth scheme as defined in
+     * <a href="https://tools.ietf.org/html/rfc7235#section-4.1">RFC7235</a><br>
+     *
+     * @return value to be returned in 'WWW-Authenticate' response header.
+     */
+    public String getWWWAuthenticateHeaderValue() {
+        return "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
     }
 
     @Override

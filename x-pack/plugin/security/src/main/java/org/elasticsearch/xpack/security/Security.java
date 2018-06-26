@@ -77,6 +77,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -441,7 +442,13 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         if (failureHandler == null) {
             logger.debug("Using default authentication failure handler");
-            failureHandler = new DefaultAuthenticationFailureHandler();
+            final LinkedHashSet<String> supportedWWWAuthenticateResponseHeaderValues = new LinkedHashSet<>();
+            realms.asList().stream()
+                    .forEach((realm) -> supportedWWWAuthenticateResponseHeaderValues.add(realm.getWWWAuthenticateHeaderValue()));
+            if (TokenService.isTokenServiceEnabled(settings)) {
+                supportedWWWAuthenticateResponseHeaderValues.add("Bearer realm=\"" + XPackField.SECURITY + "\"");
+            }
+            failureHandler = new DefaultAuthenticationFailureHandler(new ArrayList<>(supportedWWWAuthenticateResponseHeaderValues));
         } else {
             logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
         }

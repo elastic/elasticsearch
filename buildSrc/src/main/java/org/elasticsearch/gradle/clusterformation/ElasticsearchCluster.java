@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.clusterformation;
+package org.elasticsearch.gradle.clusterformation;
 
 import org.gradle.api.logging.Logger;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.util.Objects;
 import java.util.concurrent.Future;

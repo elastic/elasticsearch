@@ -16,20 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.clusterformation;
+package org.elasticsearch.gradle.clusterformation;
 
-import org.elasticsearch.gradle.GradleIntegrationTests;
+import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.TaskOutcome;
-import org.junit.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
-public class ClusterformationPluginIT extends GradleIntegrationTests  {
+public class ClusterformationPluginIT extends GradleIntegrationTestCase {
 
-    @Test
-    public void listClusters() {
+    public void testListClusters() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("clusterformation"))
             .withArguments("listElasticSearchClusters", "-s")
@@ -44,8 +43,7 @@ public class ClusterformationPluginIT extends GradleIntegrationTests  {
 
     }
 
-    @Test
-    public void useClusterByOne() {
+    public void testUseClusterByOne() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("clusterformation"))
             .withArguments("user1", "-s")
@@ -60,8 +58,22 @@ public class ClusterformationPluginIT extends GradleIntegrationTests  {
         );
     }
 
-    @Test
-    public void useClusterByTwo() {
+    public void testUseClusterByOneWithDryRun() {
+        BuildResult result = GradleRunner.create()
+            .withProjectDir(getProjectDir("clusterformation"))
+            .withArguments("user1", "-s", "--dry-run")
+            .withPluginClasspath()
+            .build();
+
+        assertNull(result.task(":user1"));
+        assertOutputDoesNotContain(
+            result.getOutput(),
+            "Starting cluster: myTestCluster",
+            "Stopping myTestCluster, number of claims is 0"
+        );
+    }
+
+    public void testUseClusterByTwo() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("clusterformation"))
             .withArguments("user1", "user2", "-s")
@@ -78,8 +90,7 @@ public class ClusterformationPluginIT extends GradleIntegrationTests  {
         );
     }
 
-    @Test
-    public void useClusterByUpToDateTask() {
+    public void testUseClusterByUpToDateTask() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("clusterformation"))
             .withArguments("upToDate1", "upToDate2", "-s")
@@ -96,8 +107,7 @@ public class ClusterformationPluginIT extends GradleIntegrationTests  {
         assertOutputDoesNotContain(result.getOutput(), "Starting cluster: myTestCluster");
     }
 
-    @Test
-    public void useClusterBySkippedTask() {
+    public void testUseClusterBySkippedTask() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("clusterformation"))
             .withArguments("skipped1", "skipped2", "-s")
@@ -114,8 +124,7 @@ public class ClusterformationPluginIT extends GradleIntegrationTests  {
         assertOutputDoesNotContain(result.getOutput(), "Starting cluster: myTestCluster");
     }
 
-    @Test
-    public void useClusterBySkippedAndWorkingTask() {
+    public void tetUseClusterBySkippedAndWorkingTask() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("clusterformation"))
             .withArguments("skipped1", "user1", "-s")

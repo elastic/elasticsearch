@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.clusterformation;
+package org.elasticsearch.gradle.clusterformation;
 
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;

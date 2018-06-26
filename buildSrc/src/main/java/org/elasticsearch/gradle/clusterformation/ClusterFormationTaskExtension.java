@@ -16,16 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.clusterformation;
+package org.elasticsearch.gradle.clusterformation;
 
 import org.gradle.api.Task;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class ClusterFormationTaskExtension {
 

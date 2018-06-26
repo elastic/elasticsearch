@@ -29,7 +29,7 @@ gradlePlugin {
   plugins {
     simplePlugin {
       id = 'elasticsearch.clusterformation'
-      implementationClass = 'org.elasticsearch.clusterformation.ClusterformationPlugin'
+      implementationClass = 'org.elasticsearch.gradle.clusterformation.ClusterformationPlugin'
     }
   }
 }

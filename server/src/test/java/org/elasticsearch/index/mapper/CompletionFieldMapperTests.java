@@ -32,6 +32,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -248,6 +249,46 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertSuggestFields(fields, 3);
+    }
+
+    public void testParsingWithGeoFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("type1")
+                .startObject("properties")
+                    .startObject("completion")
+                        .field("type", "completion")
+                        .startObject("contexts")
+                            .field("name", "location")
+                            .field("type", "geo")
+                            .field("path", "alias")
+                        .endObject()
+                    .endObject()
+                    .startObject("birth-place")
+                        .field("type", "geo_point")
+                    .endObject()
+                    .startObject("alias")
+                        .field("type", "alias")
+                        .field("path", "birth-place")
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject();
+
+        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
+        MappedFieldType completionFieldType = mapperService.fullName("completion");
+
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(SourceToParse.source("test", "type1", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("completion")
+                        .field("input", "suggestion")
+                        .startObject("contexts")
+                            .field("location", "37.77,-122.42")
+                        .endObject()
+                    .endObject()
+                .endObject()), XContentType.JSON));
+        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
+        assertSuggestFields(fields, 1);
     }
 
     public void testParsingFull() throws Exception {

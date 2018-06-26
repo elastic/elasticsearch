@@ -26,7 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -277,22 +276,12 @@ public class ForEachProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = new IngestDocument(
             "_index", "_type", "_id", null, null, null, Collections.emptyMap()
         );
-        IngestDocument ingestDocument = new IngestDocument(
-            "_index", "_type", "_id", null, null, null, Collections.emptyMap()
-        );
-        ForEachProcessor processor = new ForEachProcessor("_tag", "_ingest._value", new AbstractProcessor("noop") {
-            @Override
-            public void execute(final IngestDocument ingestDocument) {
-                throw new IllegalStateException("Should not run");
-            }
-
-            @Override
-            public String getType() {
-                return null;
-            }
-        }, true);
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        TestProcessor testProcessor = new TestProcessor(doc -> {});
+        ForEachProcessor processor = new ForEachProcessor("_tag", "_ingest._value", testProcessor, true);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
+        assertThat(testProcessor.getInvokedCounter(), equalTo(0));
     }
 
 }

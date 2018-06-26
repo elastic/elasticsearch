@@ -7,7 +7,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.Action;
 
-public class PostStartTrialAction extends Action<PostStartTrialRequest, PostStartTrialResponse> {
+public class PostStartTrialAction extends Action<PostStartTrialResponse> {
 
     public static final PostStartTrialAction INSTANCE = new PostStartTrialAction();
     public static final String NAME = "cluster:admin/xpack/license/start_trial";

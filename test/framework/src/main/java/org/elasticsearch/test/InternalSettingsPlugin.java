@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 
@@ -51,6 +52,8 @@ public final class InternalSettingsPlugin extends Plugin {
                 INDEX_CREATION_DATE_SETTING,
                 PROVIDED_NAME_SETTING,
                 TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING,
-                IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING);
+                IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING,
+                IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING
+            );
     }
 }

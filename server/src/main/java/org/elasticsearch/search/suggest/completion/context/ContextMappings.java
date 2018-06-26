@@ -57,10 +57,10 @@ public class ContextMappings implements ToXContent {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(ContextMappings.class));
 
-    private final List<ContextMapping> contextMappings;
-    private final Map<String, ContextMapping> contextNameMap;
+    private final List<ContextMapping<?>> contextMappings;
+    private final Map<String, ContextMapping<?>> contextNameMap;
 
-    public ContextMappings(List<ContextMapping> contextMappings) {
+    public ContextMappings(List<ContextMapping<?>> contextMappings) {
         if (contextMappings.size() > 255) {
             // we can support more, but max of 255 (1 byte) unique context types per suggest field
             // seems reasonable?
@@ -68,7 +68,7 @@ public class ContextMappings implements ToXContent {
         }
         this.contextMappings = contextMappings;
         contextNameMap = new HashMap<>(contextMappings.size());
-        for (ContextMapping mapping : contextMappings) {
+        for (ContextMapping<?> mapping : contextMappings) {
             contextNameMap.put(mapping.name(), mapping);
         }
     }
@@ -84,8 +84,8 @@ public class ContextMappings implements ToXContent {
     /**
      * Returns a context mapping by its name
      */
-    public ContextMapping get(String name) {
-        ContextMapping contextMapping = contextNameMap.get(name);
+    public ContextMapping<?> get(String name) {
+        ContextMapping<?> contextMapping = contextNameMap.get(name);
         if (contextMapping == null) {
             List<String> keys = new ArrayList<>(contextNameMap.keySet());
             Collections.sort(keys);
@@ -138,7 +138,7 @@ public class ContextMappings implements ToXContent {
             for (int typeId = 0; typeId < contextMappings.size(); typeId++) {
                 scratch.setCharAt(0, (char) typeId);
                 scratch.setLength(1);
-                ContextMapping mapping = contextMappings.get(typeId);
+                ContextMapping<?> mapping = contextMappings.get(typeId);
                 Set<CharSequence> contexts = new HashSet<>(mapping.parseContext(document));
                 if (this.contexts.get(mapping.name()) != null) {
                     contexts.addAll(this.contexts.get(mapping.name()));
@@ -173,7 +173,7 @@ public class ContextMappings implements ToXContent {
             for (int typeId = 0; typeId < contextMappings.size(); typeId++) {
                 scratch.setCharAt(0, (char) typeId);
                 scratch.setLength(1);
-                ContextMapping mapping = contextMappings.get(typeId);
+                ContextMapping<?> mapping = contextMappings.get(typeId);
                 List<ContextMapping.InternalQueryContext> internalQueryContext = queryContexts.get(mapping.name());
                 if (internalQueryContext != null) {
                     for (ContextMapping.InternalQueryContext context : internalQueryContext) {
@@ -204,7 +204,7 @@ public class ContextMappings implements ToXContent {
         for (CharSequence typedContext : contexts) {
             int typeId = typedContext.charAt(0);
             assert typeId < contextMappings.size() : "Returned context has invalid type";
-            ContextMapping mapping = contextMappings.get(typeId);
+            ContextMapping<?> mapping = contextMappings.get(typeId);
             Set<CharSequence> contextEntries = contextMap.get(mapping.name());
             if (contextEntries == null) {
                 contextEntries = new HashSet<>();
@@ -224,10 +224,10 @@ public class ContextMappings implements ToXContent {
      *
      */
     public static ContextMappings load(Object configuration, Version indexVersionCreated) throws ElasticsearchParseException {
-        final List<ContextMapping> contextMappings;
+        final List<ContextMapping<?>> contextMappings;
         if (configuration instanceof List) {
             contextMappings = new ArrayList<>();
-            List<Object> configurations = (List<Object>)configuration;
+            List<Object> configurations = (List<Object>) configuration;
             for (Object contextConfig : configurations) {
                 contextMappings.add(load((Map<String, Object>) contextConfig, indexVersionCreated));
             }
@@ -242,10 +242,10 @@ public class ContextMappings implements ToXContent {
         return new ContextMappings(contextMappings);
     }
 
-    private static ContextMapping load(Map<String, Object> contextConfig, Version indexVersionCreated) {
+    private static ContextMapping<?> load(Map<String, Object> contextConfig, Version indexVersionCreated) {
         String name = extractRequiredValue(contextConfig, FIELD_NAME);
         String type = extractRequiredValue(contextConfig, FIELD_TYPE);
-        final ContextMapping contextMapping;
+        final ContextMapping<?> contextMapping;
         switch (Type.fromString(type)) {
             case CATEGORY:
                 contextMapping = CategoryContextMapping.load(name, contextConfig);
@@ -276,7 +276,7 @@ public class ContextMappings implements ToXContent {
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (ContextMapping contextMapping : contextMappings) {
+        for (ContextMapping<?> contextMapping : contextMappings) {
             builder.startObject();
             contextMapping.toXContent(builder, params);
             builder.endObject();

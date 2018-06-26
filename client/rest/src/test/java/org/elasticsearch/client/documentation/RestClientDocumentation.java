@@ -53,6 +53,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyStore;
+import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -81,8 +82,7 @@ public class RestClientDocumentation {
     static {
         RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.addHeader("Authorization", "Bearer " + TOKEN); // <1>
-        builder.setNodeSelector(NodeSelector.NOT_MASTER_ONLY); // <2>
-        builder.setHttpAsyncResponseConsumerFactory(           // <3>
+        builder.setHttpAsyncResponseConsumerFactory(           // <2>
             new HeapBufferedResponseConsumerFactory(30 * 1024 * 1024 * 1024));
         COMMON_OPTIONS = builder.build();
     }
@@ -113,6 +113,45 @@ public class RestClientDocumentation {
             RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200, "http"));
             builder.setMaxRetryTimeoutMillis(10000); // <1>
             //end::rest-client-init-max-retry-timeout
+        }
+        {
+            //tag::rest-client-init-node-selector
+            RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200, "http"));
+            builder.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS); // <1>
+            //end::rest-client-init-node-selector
+        }
+        {
+            //tag::rest-client-init-allocation-aware-selector
+            RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200, "http"));
+            builder.setNodeSelector(new NodeSelector() { // <1>
+                @Override
+                public void select(Iterable<Node> nodes) {
+                    /*
+                     * Prefer any node that belongs to rack_one. If none is around
+                     * we will go to another rack till it's time to try and revive
+                     * some of the nodes that belong to rack_one.
+                     */
+                    boolean foundOne = false;
+                    for (Node node : nodes) {
+                        String rackId = node.getAttributes().get("rack_id").get(0);
+                        if ("rack_one".equals(rackId)) {
+                            foundOne = true;
+                            break;
+                        }
+                    }
+                    if (foundOne) {
+                        Iterator<Node> nodesIt = nodes.iterator();
+                        while (nodesIt.hasNext()) {
+                            Node node = nodesIt.next();
+                            String rackId = node.getAttributes().get("rack_id").get(0);
+                            if ("rack_one".equals(rackId) == false) {
+                                nodesIt.remove();
+                            }
+                        }
+                    }
+                }
+            });
+            //end::rest-client-init-allocation-aware-selector
         }
         {
             //tag::rest-client-init-failure-listener
@@ -190,11 +229,13 @@ public class RestClientDocumentation {
             //tag::rest-client-options-set-singleton
             request.setOptions(COMMON_OPTIONS);
             //end::rest-client-options-set-singleton
-            //tag::rest-client-options-customize
-            RequestOptions.Builder options = COMMON_OPTIONS.toBuilder();
-            options.addHeader("cats", "knock things off of other things");
-            request.setOptions(options);
-            //end::rest-client-options-customize
+            {
+                //tag::rest-client-options-customize-header
+                RequestOptions.Builder options = COMMON_OPTIONS.toBuilder();
+                options.addHeader("cats", "knock things off of other things");
+                request.setOptions(options);
+                //end::rest-client-options-customize-header
+            }
         }
         {
             HttpEntity[] documents = new HttpEntity[10];

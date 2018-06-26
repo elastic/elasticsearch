@@ -157,6 +157,11 @@ class MockAmazonS3 extends AbstractAmazonS3 {
             throw exception;
         }
     }
+    
+    @Override
+    public void shutdown() {
+        // TODO check close
+    }
 
     @Override
     public DeleteObjectsResult deleteObjects(DeleteObjectsRequest request) throws SdkClientException {

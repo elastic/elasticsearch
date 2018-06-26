@@ -22,7 +22,9 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -237,6 +239,36 @@ public class RecoveryIT extends AbstractRollingTestCase {
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
+    }
+
+    public void testRecoverSyncedFlushIndex() throws Exception {
+        final String index = "recover_synced_flush_index";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                // if the node with the replica is the first to be restarted, while a replica is still recovering
+                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                // before timing out
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+            createIndex(index, settings.build());
+            indexDocs(index, 0, randomInt(5));
+            // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
+            // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
+            assertBusy(() -> {
+                try {
+                    Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
+                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                    assertThat(result.get("successful"), equalTo(result.get("total")));
+                    assertThat(result.get("failed"), equalTo(0));
+                } catch (ResponseException ex) {
+                    throw new AssertionError(ex); // cause assert busy to retry
+                }
+            });
+        }
+        ensureGreen(index);
     }
 
 }

@@ -3832,13 +3832,15 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(noOp.seqNo(), equalTo((long) (maxSeqNo + 2)));
             assertThat(noOp.primaryTerm(), equalTo(primaryTerm.get()));
             assertThat(noOp.reason(), equalTo(reason));
-            MapperService mapperService = createMapperService("test");
-            List<Translog.Operation> operationsFromLucene = readAllOperationsInLucene(noOpEngine, mapperService);
-            assertThat(operationsFromLucene, hasSize(maxSeqNo + 2 - localCheckpoint)); // fills n gap and 2 manual noop.
-            for (int i = 0; i < operationsFromLucene.size(); i++) {
-                assertThat(operationsFromLucene.get(i), equalTo(new Translog.NoOp(localCheckpoint + 1 + i, primaryTerm.get(), "filling gaps")));
+            if (engine.engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
+                MapperService mapperService = createMapperService("test");
+                List<Translog.Operation> operationsFromLucene = readAllOperationsInLucene(noOpEngine, mapperService);
+                assertThat(operationsFromLucene, hasSize(maxSeqNo + 2 - localCheckpoint)); // fills n gap and 2 manual noop.
+                for (int i = 0; i < operationsFromLucene.size(); i++) {
+                    assertThat(operationsFromLucene.get(i), equalTo(new Translog.NoOp(localCheckpoint + 1 + i, primaryTerm.get(), "filling gaps")));
+                }
+                assertConsistentHistoryBetweenTranslogAndLuceneIndex(noOpEngine, mapperService);
             }
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(noOpEngine, mapperService);
         } finally {
             IOUtils.close(noOpEngine);
         }
@@ -3895,8 +3897,10 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.forceMerge(randomBoolean(), between(1, 10), randomBoolean(), false, false);
             }
         }
-        List<Translog.Operation> operations = readAllOperationsInLucene(engine, createMapperService("test"));
-        assertThat(operations, hasSize(numOps));
+        if (engine.engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
+            List<Translog.Operation> operations = readAllOperationsInLucene(engine, createMapperService("test"));
+            assertThat(operations, hasSize(numOps));
+        }
     }
 
     public void testMinGenerationForSeqNo() throws IOException, BrokenBarrierException, InterruptedException {
@@ -4837,9 +4841,15 @@ public class InternalEngineTests extends EngineTestCase {
     private void assertOperationHistoryInLucene(List<Engine.Operation> operations) throws IOException {
         final MergePolicy keepSoftDeleteDocsMP = new SoftDeletesRetentionMergePolicy(
             Lucene.SOFT_DELETE_FIELD, () -> new MatchAllDocsQuery(), engine.config().getMergePolicy());
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
         Set<Long> expectedSeqNos = new HashSet<>();
         try (Store store = createStore();
-             Engine engine = createEngine(config(defaultSettings, store, createTempDir(), keepSoftDeleteDocsMP, null))) {
+             Engine engine = createEngine(config(indexSettings, store, createTempDir(), keepSoftDeleteDocsMP, null))) {
             for (Engine.Operation op : operations) {
                 if (op instanceof Engine.Index) {
                     Engine.IndexResult indexResult = engine.index((Engine.Index) op);

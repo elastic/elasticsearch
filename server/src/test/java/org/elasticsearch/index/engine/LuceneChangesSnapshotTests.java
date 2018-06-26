@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -47,6 +49,13 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     @Before
     public void createMapper() throws Exception {
         mapperService = createMapperService("test");
+    }
+
+    @Override
+    protected Settings indexSettings() {
+        return Settings.builder().put(super.indexSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) // always enable soft-deletes
+            .build();
     }
 
     public void testBasics() throws Exception {

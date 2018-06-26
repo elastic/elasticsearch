@@ -629,7 +629,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     public void testMap() throws Exception {
         Map<String, Map<String, ?>> maps = new HashMap<>();
-        maps.put("{'map':null}", (Map) null);
+        maps.put("{'map':null}", (Map<String, ?>) null);
         maps.put("{'map':{}}", Collections.emptyMap());
         maps.put("{'map':{'key':'value'}}", singletonMap("key", "value"));
 
@@ -654,7 +654,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     public void testIterable() throws Exception {
         Map<String, Iterable<?>> iterables = new HashMap<>();
-        iterables.put("{'iter':null}", (Iterable) null);
+        iterables.put("{'iter':null}", (Iterable<?>) null);
         iterables.put("{'iter':[]}", Collections.emptyList());
         iterables.put("{'iter':['a','b']}", Arrays.asList("a", "b"));
 
@@ -944,7 +944,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder()
                 .startObject()
-                .field("field", (Iterable) values)
+                .field("field", values)
                 .endObject());
         assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
@@ -959,7 +959,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder()
                 .startObject()
-                .field("field", (Iterable) values)
+                .field("field", values)
                 .endObject());
         assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
@@ -972,7 +972,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         List<Object> it1 = new ArrayList<>();
 
         map0.put("foo", 0);
-        map0.put("it1", (Iterable<?>) it1); // map 0 -> it1
+        map0.put("it1", it1); // map 0 -> it1
 
         it1.add(map1);
         it1.add(map2); // it 1 -> map 1, map 2

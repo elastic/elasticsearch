@@ -823,7 +823,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             });
 
         try {
-            StringMessageResponse message = res.txGet();
+            res.txGet();
             fail("exception should be thrown");
         } catch (Exception e) {
             assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
@@ -939,8 +939,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testTracerLog() throws InterruptedException {
-        TransportRequestHandler handler = (request, channel, task) -> channel.sendResponse(new StringMessageResponse(""));
-        TransportRequestHandler handlerWithError = new TransportRequestHandler<StringMessageRequest>() {
+        TransportRequestHandler<TransportRequest> handler = (request, channel, task) -> channel.sendResponse(new StringMessageResponse(""));
+        TransportRequestHandler<StringMessageRequest> handlerWithError = new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel, Task task) throws Exception {
                 if (request.timeout() > 0) {
@@ -952,7 +952,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         };
 
         final Semaphore requestCompleted = new Semaphore(0);
-        TransportResponseHandler noopResponseHandler = new TransportResponseHandler<StringMessageResponse>() {
+        TransportResponseHandler<StringMessageResponse> noopResponseHandler = new TransportResponseHandler<StringMessageResponse>() {
 
             @Override
             public StringMessageResponse newInstance() {

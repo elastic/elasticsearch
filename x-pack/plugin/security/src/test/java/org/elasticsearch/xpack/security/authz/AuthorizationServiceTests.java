@@ -172,6 +172,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private Map<String, RoleDescriptor> roleMap = new HashMap<>();
     private CompositeRolesStore rolesStore;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setup() {
         rolesStore = mock(CompositeRolesStore.class);
@@ -224,7 +225,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
-        PlainActionFuture future = new PlainActionFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         AuthorizationUtils.AsyncAuthorizer authorizer = new AuthorizationUtils.AsyncAuthorizer(authentication, future,
             (userRoles, runAsRoles) -> {
                 authorizationService.authorize(authentication, action, request, userRoles, runAsRoles);
@@ -614,7 +615,6 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testRunAsRequestWithNoRolesUser() {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = createAuthentication(new User("run as me", null, new User("test user", "admin")));
-        final User user = new User("run as me", null, new User("test user", "admin"));
         assertNotEquals(authentication.getUser().authenticatedUser(), authentication);
         assertThrowsAuthorizationExceptionRunAs(
             () -> authorize(authentication, "indices:a", request),

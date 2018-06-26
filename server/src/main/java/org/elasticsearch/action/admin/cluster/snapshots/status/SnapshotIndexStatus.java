@@ -19,7 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,9 +31,12 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Represents snapshot status of all shards in the index
@@ -118,37 +123,38 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
         return builder;
     }
 
+    static final ObjectParser.NamedObjectParser<SnapshotIndexStatus, Void> PARSER;
+    static {
+        ConstructingObjectParser<SnapshotIndexStatus, String> innerParser = new ConstructingObjectParser<>(
+            "snapshot_index_status", false,
+            (Object[] parsedObjects, String index) -> {
+                int i = 0;
+                SnapshotShardsStats shardsStats = ((SnapshotShardsStats) parsedObjects[i++]);
+                SnapshotStats stats = ((SnapshotStats) parsedObjects[i++]);
+                @SuppressWarnings("unchecked") List<SnapshotIndexShardStatus> shardStatuses = (List<SnapshotIndexShardStatus>) parsedObjects[i];
+
+                final Map<Integer, SnapshotIndexShardStatus> indexShards;
+                if (shardStatuses == null || shardStatuses.isEmpty()) {
+                    indexShards = emptyMap();
+                } else {
+                    indexShards = new HashMap<>(shardStatuses.size());
+                    for (SnapshotIndexShardStatus shardStatus : shardStatuses) {
+                        indexShards.put(shardStatus.getShardId().getId(), shardStatus);
+                    }
+                }
+                return new SnapshotIndexStatus(index, indexShards, shardsStats, stats);
+        });
+        innerParser.declareObject(constructorArg(), (p, c) -> SnapshotShardsStats.PARSER.apply(p, null),
+            new ParseField(SnapshotShardsStats.Fields.SHARDS_STATS));
+        innerParser.declareObject(constructorArg(), (p, c) -> SnapshotStats.fromXContent(p),
+            new ParseField(SnapshotStats.Fields.STATS));
+        innerParser.declareNamedObjects(constructorArg(), SnapshotIndexShardStatus.PARSER, new ParseField(Fields.SHARDS));
+        PARSER = ((p, c, name) -> innerParser.apply(p, name));
+    }
+
     public static SnapshotIndexStatus fromXContent(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-        String indexName = parser.currentName();
-        XContentParser.Token token = parser.nextToken();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
-        SnapshotShardsStats shardsStats = null;
-        SnapshotStats stats = null;
-        Map<Integer, SnapshotIndexShardStatus> shards = new HashMap<>();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token.equals(XContentParser.Token.FIELD_NAME)) {
-                String currentName = parser.currentName();
-                if (currentName.equals(SnapshotShardsStats.Fields.SHARDS_STATS)) {
-                    shardsStats = SnapshotShardsStats.fromXContent(parser);
-                } else if (currentName.equals(SnapshotStats.Fields.STATS)) {
-                    stats = SnapshotStats.fromXContent(parser);
-                } else if (currentName.equals(Fields.SHARDS)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(),
-                        parser::getTokenLocation);
-                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                        SnapshotIndexShardStatus shardStatus = SnapshotIndexShardStatus.fromXContent(parser, indexName);
-                        shards.put(shardStatus.getShardId().getId(), shardStatus);
-                    }
-                } else {
-                    throw new ElasticsearchParseException("failed to parse snapshot index status [{}], unknown field [{}]", indexName,
-                        currentName);
-                }
-            } else {
-                throw new ElasticsearchParseException("failed to parse snapshot index status [{}]", indexName);
-            }
-        }
-        return new SnapshotIndexStatus(indexName, shards, shardsStats, stats);
+        return PARSER.parse(parser, null, parser.currentName());
     }
 
     @Override

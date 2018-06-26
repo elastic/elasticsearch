@@ -23,15 +23,17 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 
@@ -45,7 +47,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Status of a snapshot
@@ -235,79 +241,55 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
         return builder;
     }
 
-    public static SnapshotStatus fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        if (token == null) {
-            token = parser.nextToken();
-        }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
-        String name = null;
-        String repository = null;
-        String uuid = null;
-        SnapshotsInProgress.State state = null;
-        Boolean includeGlobalState = null;
-        SnapshotShardsStats shardsStats = null;
-        SnapshotStats stats = null;
-        List<SnapshotIndexShardStatus> shards = new ArrayList<>();
-        Map<String, SnapshotIndexStatus> indices = new HashMap<>();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                String currentFieldName = parser.currentName();
-                if (SNAPSHOT.equals(currentFieldName)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(),
-                        parser::getTokenLocation);
-                    name = parser.text();
-                } else if (REPOSITORY.equals(currentFieldName)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(),
-                        parser::getTokenLocation);
-                    repository = parser.text();
-                } else if (UUID.equals(currentFieldName)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(),
-                        parser::getTokenLocation);
-                    uuid = parser.text();
-                } else if (STATE.equals(currentFieldName)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(),
-                        parser::getTokenLocation);
-                    String stateRaw = parser.text();
-                    try {
-                        state = SnapshotsInProgress.State.valueOf(stateRaw);
-                    } catch (IllegalArgumentException iae) {
-                        throw new ElasticsearchParseException("failed to parse snapshot status, unknown state value [{}]", iae, stateRaw);
-                    }
-                } else if (INCLUDE_GLOBAL_STATE.equals(currentFieldName)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_BOOLEAN, parser.nextToken(),
-                        parser::getTokenLocation);
-                    includeGlobalState = parser.booleanValue();
-                } else if (SnapshotShardsStats.Fields.SHARDS_STATS.equals(currentFieldName)) {
-                    shardsStats = SnapshotShardsStats.fromXContent(parser);
-                } else if (SnapshotStats.Fields.STATS.equals(currentFieldName)) {
-                    stats = SnapshotStats.fromXContent(parser);
-                } else if (INDICES.equals(currentFieldName)) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(),
-                        parser::getTokenLocation);
-                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                        SnapshotIndexStatus indexStatus = SnapshotIndexStatus.fromXContent(parser);
-                        indices.put(indexStatus.getIndex(), indexStatus);
-                        shards.addAll(indexStatus.getShards().values());
-                    }
-                } else {
-                    throw new ElasticsearchParseException("failed to parse snapshot status, unknown field [{}]", currentFieldName);
-                }
-            } else {
-                throw new ElasticsearchParseException("failed to parse snapshot status");
+    static final ConstructingObjectParser<SnapshotStatus, Void> PARSER = new ConstructingObjectParser<>(
+        "snapshot_status",
+        (Object[] parsedObjects) -> {
+            int i = 0;
+            String name = (String) parsedObjects[i++];
+            String repository = (String) parsedObjects[i++];
+            String uuid = (String) parsedObjects[i++];
+            String rawState = (String) parsedObjects[i++];
+            Boolean includeGlobalState = (Boolean) parsedObjects[i++];
+            SnapshotStats stats = ((SnapshotStats) parsedObjects[i++]);
+            SnapshotShardsStats shardsStats = ((SnapshotShardsStats) parsedObjects[i++]);
+            @SuppressWarnings("unchecked") List<SnapshotIndexStatus> indices = ((List<SnapshotIndexStatus>) parsedObjects[i]);
+
+            Snapshot snapshot = new Snapshot(repository, new SnapshotId(name, uuid));
+            SnapshotsInProgress.State state;
+            try {
+                state = SnapshotsInProgress.State.valueOf(rawState);
+            } catch (IllegalArgumentException iae) {
+                throw new ElasticsearchParseException("failed to parse snapshot status, unknown state value [{}]", iae, rawState);
             }
-        }
-        if (name == null) {
-            throw new ElasticsearchParseException("failed to parse snapshot status, missing snapshot name");
-        } else if (uuid == null) {
-            throw new ElasticsearchParseException("failed to parse snapshot status, missing snapshot uuid");
-        } else if (repository == null) {
-            throw new ElasticsearchParseException("failed to parse snapshot status, missing snapshot repository");
-        } else if (state == null) {
-            throw new ElasticsearchParseException("failed to parse snapshot status, missing snapshot state");
-        }
-        Snapshot snapshot = new Snapshot(repository, new SnapshotId(name, uuid));
-        return new SnapshotStatus(snapshot, state, shards, indices, shardsStats, stats, includeGlobalState);
+            Map<String, SnapshotIndexStatus> indicesStatus;
+            List<SnapshotIndexShardStatus> shards;
+            if (indices == null || indices.isEmpty()) {
+                indicesStatus = emptyMap();
+                shards = emptyList();
+            } else {
+                indicesStatus = new HashMap<>(indices.size());
+                shards = new ArrayList<>();
+                for (SnapshotIndexStatus index : indices) {
+                    indicesStatus.put(index.getIndex(), index);
+                    shards.addAll(index.getShards().values());
+                }
+            }
+            return new SnapshotStatus(snapshot, state, shards, indicesStatus, shardsStats, stats, includeGlobalState);
+        });
+    static {
+        PARSER.declareString(constructorArg(), new ParseField(SNAPSHOT));
+        PARSER.declareString(constructorArg(), new ParseField(REPOSITORY));
+        PARSER.declareString(constructorArg(), new ParseField(UUID));
+        PARSER.declareString(constructorArg(), new ParseField(STATE));
+        PARSER.declareBoolean(optionalConstructorArg(), new ParseField(INCLUDE_GLOBAL_STATE));
+        PARSER.declareField(constructorArg(), SnapshotStats::fromXContent, new ParseField(SnapshotStats.Fields.STATS),
+            ObjectParser.ValueType.OBJECT);
+        PARSER.declareObject(constructorArg(), SnapshotShardsStats.PARSER, new ParseField(SnapshotShardsStats.Fields.SHARDS_STATS));
+        PARSER.declareNamedObjects(constructorArg(), SnapshotIndexStatus.PARSER, new ParseField(INDICES));
+    }
+
+    public static SnapshotStatus fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     private void updateShardStats() {

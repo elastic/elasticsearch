@@ -209,8 +209,13 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
     }
 
     public static SnapshotStats fromXContent(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        XContentParser.Token token;
+        // Parse this old school style instead of using the ObjectParser since there's an impedance mismatch between how the
+        // object has historically been written as JSON versus how it is structured in Java.
+        XContentParser.Token token = parser.currentToken();
+        if (token == null) {
+            token = parser.nextToken();
+        }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
         long startTime = 0;
         long time = 0;
         int incrementalFileCount = 0;

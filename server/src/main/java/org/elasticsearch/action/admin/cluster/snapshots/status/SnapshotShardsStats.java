@@ -19,15 +19,17 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.Collection;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Status of a snapshot shards
@@ -141,62 +143,30 @@ public class SnapshotShardsStats implements ToXContentFragment {
         return builder;
     }
 
-    public static SnapshotShardsStats fromXContent(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        XContentParser.Token token;
-        int initializingShards = 0;
-        int startedShards = 0;
-        int finalizingShards = 0;
-        int doneShards = 0;
-        int failedShards = 0;
-        int totalShards = 0;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                String currentName = parser.currentName();
-                if (currentName.equals(Fields.INITIALIZING)) {
-                    if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]",
-                            currentName);
-                    }
-                    initializingShards = parser.intValue();
-                } else if (currentName.equals(Fields.STARTED)) {
-                    if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]",
-                            currentName);
-                    }
-                    startedShards = parser.intValue();
-                } else if (currentName.equals(Fields.FINALIZING)) {
-                    if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]",
-                            currentName);
-                    }
-                    finalizingShards = parser.intValue();
-                } else if (currentName.equals(Fields.DONE)) {
-                    if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]",
-                            currentName);
-                    }
-                    doneShards = parser.intValue();
-                } else if (currentName.equals(Fields.FAILED)) {
-                    if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]",
-                            currentName);
-                    }
-                    failedShards = parser.intValue();
-                } else if (currentName.equals(Fields.TOTAL)) {
-                    if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                        throw new ElasticsearchParseException("failed to parse snapshot shards stats, expected number for field [{}]",
-                            currentName);
-                    }
-                    totalShards = parser.intValue();
-                } else {
-                    throw new ElasticsearchParseException("failed to parse snapshot shards stats, unexpected field [{}]", currentName);
-                }
-            } else {
-                throw new ElasticsearchParseException("failed to parse snapshot shards stats");
-            }
+    static final ConstructingObjectParser<SnapshotShardsStats, Void> PARSER = new ConstructingObjectParser<>(
+        Fields.SHARDS_STATS,
+        (Object[] parsedObjects) -> {
+            int i = 0;
+            int initializingShards = (int) parsedObjects[i++];
+            int startedShards = (int) parsedObjects[i++];
+            int finalizingShards = (int) parsedObjects[i++];
+            int doneShards = (int) parsedObjects[i++];
+            int failedShards = (int) parsedObjects[i++];
+            int totalShards = (int) parsedObjects[i];
+            return new SnapshotShardsStats(initializingShards, startedShards, finalizingShards, doneShards, failedShards, totalShards);
         }
-        return new SnapshotShardsStats(initializingShards, startedShards, finalizingShards, doneShards, failedShards, totalShards);
+    );
+    static {
+        PARSER.declareInt(constructorArg(), new ParseField(Fields.INITIALIZING));
+        PARSER.declareInt(constructorArg(), new ParseField(Fields.STARTED));
+        PARSER.declareInt(constructorArg(), new ParseField(Fields.FINALIZING));
+        PARSER.declareInt(constructorArg(), new ParseField(Fields.DONE));
+        PARSER.declareInt(constructorArg(), new ParseField(Fields.FAILED));
+        PARSER.declareInt(constructorArg(), new ParseField(Fields.TOTAL));
+    }
+
+    public static SnapshotShardsStats fromXContent(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
     }
 
     @Override

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.junit.AfterClass;
@@ -50,9 +51,17 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     @Before
     public void setupTestDataIfNeeded() throws Exception {
-        if (client().performRequest(new Request("HEAD", "/test_emp")).getStatusLine().getStatusCode() == 404) {
-            DataLoader.loadDatasetIntoEs(client());
+        if (client().performRequest(new Request("HEAD", "/" + indexName())).getStatusLine().getStatusCode() == 404) {
+            loadDataset(client());
         }
+    }
+
+    protected String indexName() {
+        return "test_emp";
+    }
+
+    protected void loadDataset(RestClient client) throws Exception {
+        DataLoader.loadEmpDatasetIntoEs(client);
     }
 
     @Override

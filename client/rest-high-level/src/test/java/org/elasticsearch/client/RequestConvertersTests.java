@@ -1984,7 +1984,7 @@ public class RequestConvertersTests extends ESTestCase {
             getSnapshotsRequest.ignoreUnavailable(true);
             expectedParams.put("ignore_unavailable", Boolean.TRUE.toString());
         }
-        if (randomBoolean() == false) {
+        if (randomBoolean()) {
             getSnapshotsRequest.verbose(false);
             expectedParams.put("verbose", Boolean.FALSE.toString());
         }

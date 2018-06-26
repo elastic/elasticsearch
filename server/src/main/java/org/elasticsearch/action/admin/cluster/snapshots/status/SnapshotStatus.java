@@ -242,7 +242,7 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
     }
 
     static final ConstructingObjectParser<SnapshotStatus, Void> PARSER = new ConstructingObjectParser<>(
-        "snapshot_status",
+        "snapshot_status", true,
         (Object[] parsedObjects) -> {
             int i = 0;
             String name = (String) parsedObjects[i++];

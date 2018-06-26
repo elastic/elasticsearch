@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -34,8 +35,14 @@ public class SnapshotsStatusResponseTests extends AbstractXContentTestCase<Snaps
     }
 
     @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // Do not place random fields in the indices field or shards field since their fields correspond to names.
+        return (s) -> s.endsWith("shards") || s.endsWith("indices");
+    }
+
+    @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 
     @Override

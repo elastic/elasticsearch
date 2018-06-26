@@ -90,8 +90,8 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
         return builder;
     }
 
-    static final ConstructingObjectParser<SnapshotsStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "snapshots_status_response",
+    private static final ConstructingObjectParser<SnapshotsStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "snapshots_status_response", true,
         (Object[] parsedObjects) -> {
             @SuppressWarnings("unchecked") List<SnapshotStatus> snapshots = (List<SnapshotStatus>) parsedObjects[0];
             return new SnapshotsStatusResponse(snapshots);

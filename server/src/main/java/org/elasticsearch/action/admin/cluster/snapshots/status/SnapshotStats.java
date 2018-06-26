@@ -241,7 +241,10 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
                         XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
                         incrementalSize = parser.longValue();
                     } else {
-                        throw new ElasticsearchParseException("failed to parse snapshot stats, unknown field [{}]", innerName);
+                        // Unknown sub field, skip
+                        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+                            parser.skipChildren();
+                        }
                     }
                 }
             } else if (currentName.equals(Fields.PROCESSED)) {
@@ -257,7 +260,10 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
                         XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
                         processedSize = parser.longValue();
                     } else {
-                        throw new ElasticsearchParseException("failed to parse snapshot stats, unknown field [{}]", innerName);
+                        // Unknown sub field, skip
+                        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+                            parser.skipChildren();
+                        }
                     }
                 }
             } else if (currentName.equals(Fields.TOTAL)) {
@@ -273,7 +279,10 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
                         XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
                         totalSize = parser.longValue();
                     } else {
-                        throw new ElasticsearchParseException("failed to parse snapshot stats, unknown field [{}]", innerName);
+                        // Unknown sub field, skip
+                        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+                            parser.skipChildren();
+                        }
                     }
                 }
             } else if (currentName.equals(Fields.START_TIME_IN_MILLIS)) {
@@ -283,7 +292,10 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
                 time = parser.longValue();
             } else {
-                throw new ElasticsearchParseException("failed to parse snapshot stats, unknown field [{}]", currentName);
+                // Unknown field, skip
+                if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+                    parser.skipChildren();
+                }
             }
         }
         return new SnapshotStats(startTime, time, incrementalFileCount, totalFileCount, processedFileCount, incrementalSize, totalSize,

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,6 +49,12 @@ public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<Snap
     }
 
     @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // Do not place random fields in the root object since its fields correspond to shard names.
+        return String::isEmpty;
+    }
+
+    @Override
     protected SnapshotIndexShardStatus doParseInstance(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
@@ -58,6 +65,6 @@ public class SnapshotIndexShardStatusTests extends AbstractXContentTestCase<Snap
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

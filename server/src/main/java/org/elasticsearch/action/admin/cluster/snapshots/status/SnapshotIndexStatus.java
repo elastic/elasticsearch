@@ -126,7 +126,7 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
     static final ObjectParser.NamedObjectParser<SnapshotIndexStatus, Void> PARSER;
     static {
         ConstructingObjectParser<SnapshotIndexStatus, String> innerParser = new ConstructingObjectParser<>(
-            "snapshot_index_status", false,
+            "snapshot_index_status", true,
             (Object[] parsedObjects, String index) -> {
                 int i = 0;
                 SnapshotShardsStats shardsStats = ((SnapshotShardsStats) parsedObjects[i++]);

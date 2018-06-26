@@ -144,7 +144,7 @@ public class SnapshotShardsStats implements ToXContentFragment {
     }
 
     static final ConstructingObjectParser<SnapshotShardsStats, Void> PARSER = new ConstructingObjectParser<>(
-        Fields.SHARDS_STATS,
+        Fields.SHARDS_STATS, true,
         (Object[] parsedObjects) -> {
             int i = 0;
             int initializingShards = (int) parsedObjects[i++];

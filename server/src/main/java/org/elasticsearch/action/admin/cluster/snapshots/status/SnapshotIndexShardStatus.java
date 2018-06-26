@@ -176,7 +176,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
     static final ObjectParser.NamedObjectParser<SnapshotIndexShardStatus, String> PARSER;
     static {
         ConstructingObjectParser<SnapshotIndexShardStatus, ShardId> innerParser = new ConstructingObjectParser<>(
-            "snapshot_index_shard_status", false,
+            "snapshot_index_shard_status", true,
             (Object[] parsedObjects, ShardId shard) -> {
                 int i = 0;
                 String rawStage = (String) parsedObjects[i++];

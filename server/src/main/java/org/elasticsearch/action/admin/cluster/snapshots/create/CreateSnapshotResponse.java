@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
@@ -103,14 +104,33 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
     public static CreateSnapshotResponse fromXContent(XContentParser parser) throws IOException {
         CreateSnapshotResponse createSnapshotResponse = new CreateSnapshotResponse();
 
-        parser.nextToken(); // '{'
-        parser.nextToken(); // 'snapshot' || 'accepted'
+        parser.nextToken(); // move to '{'
+
+        if (parser.currentToken() != Token.START_OBJECT) {
+            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "], expected ['{']");
+        }
+
+        parser.nextToken(); // move to 'snapshot' || 'accepted'
 
         if ("snapshot".equals(parser.currentName())) {
             createSnapshotResponse.snapshotInfo = SnapshotInfo.fromXContent(parser);
+        } else if ("accepted".equals(parser.currentName())) {
+            parser.nextToken(); // move to 'accepted' field value
+
+            if (parser.booleanValue()) {
+                // ensure accepted is a boolean value
+            }
+
+            parser.nextToken(); // move past 'true'/'false'
+        } else {
+            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "] expected ['snapshot', 'accepted']");
         }
 
-        parser.nextToken(); // '}'
+        if (parser.currentToken() != Token.END_OBJECT) {
+            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "], expected ['}']");
+        }
+
+        parser.nextToken(); // move past '}'
 
         return createSnapshotResponse;
     }
@@ -132,7 +152,6 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
 
     @Override
     public int hashCode() {
-
         return Objects.hash(snapshotInfo);
     }
 }

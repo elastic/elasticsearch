@@ -610,9 +610,19 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     public static SnapshotInfo fromXContent(final XContentParser parser) throws IOException {
-        parser.nextToken();
+        parser.nextToken(); // // move to '{'
+
+        if (parser.currentToken() != Token.START_OBJECT) {
+            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "], expected ['{']");
+        }
+
         SnapshotInfo snapshotInfo = SNAPSHOT_INFO_PARSER.apply(parser, null).build();
-        parser.nextToken();
+
+        if (parser.currentToken() != Token.END_OBJECT) {
+            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "], expected ['}']");
+        }
+
+        parser.nextToken(); // move past '}'
 
         return snapshotInfo;
     }

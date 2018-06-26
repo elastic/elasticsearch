@@ -372,7 +372,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         }
     }
 
-    public void testSnapshotCreateSnapshot() throws IOException {
+    public void testSnapshotCreate() throws IOException {
         RestHighLevelClient client = highLevelClient();
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("test-index0");
@@ -424,7 +424,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         assertEquals(RestStatus.OK, status);
     }
 
-    public void testCreateSnapshotRepositoryAsync() throws InterruptedException {
+    public void testSnapshotCreateAsync() throws InterruptedException {
         RestHighLevelClient client = highLevelClient();
         {
             CreateSnapshotRequest request = new CreateSnapshotRequest(repositoryName, snapshotName);

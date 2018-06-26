@@ -28,5 +28,5 @@ import org.junit.runner.RunWith;
     JUnit4MethodProvider.class,
     JUnit3MethodProvider.class
 })
-public class BaseTestCase {
+public abstract class BaseTestCase {
 }

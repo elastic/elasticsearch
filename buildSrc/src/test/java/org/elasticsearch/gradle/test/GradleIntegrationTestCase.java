@@ -2,7 +2,7 @@ package org.elasticsearch.gradle.test;
 
 import java.io.File;
 
-public abstract class GradleIntegrationTestCase extends BaseTestCase {
+public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
 
     protected File getProjectDir(String name) {
         File root = new File("src/testKit/");
@@ -12,6 +12,5 @@ public abstract class GradleIntegrationTestCase extends BaseTestCase {
         }
         return new File(root, name);
     }
-
 
 }

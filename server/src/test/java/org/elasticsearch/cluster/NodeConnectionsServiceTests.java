@@ -88,7 +88,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         ClusterState current = clusterStateFromNodes(Collections.emptyList());
         ClusterChangedEvent event = new ClusterChangedEvent("test", clusterStateFromNodes(randomSubsetOf(nodes)), current);
 
-        service.connectToNodes(event.state().nodes());
+        service.connectToNodes(event.state().nodes(), false);
         assertConnected(event.state().nodes());
 
         service.disconnectFromNodesExcept(event.state().nodes());
@@ -97,7 +97,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         current = event.state();
         event = new ClusterChangedEvent("test", clusterStateFromNodes(randomSubsetOf(nodes)), current);
 
-        service.connectToNodes(event.state().nodes());
+        service.connectToNodes(event.state().nodes(), false);
         assertConnected(event.state().nodes());
 
         service.disconnectFromNodesExcept(event.state().nodes());
@@ -114,7 +114,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         transport.randomConnectionExceptions = true;
 
-        service.connectToNodes(event.state().nodes());
+        service.connectToNodes(event.state().nodes(), false);
 
         for (int i = 0; i < 3; i++) {
             // simulate disconnects
@@ -137,21 +137,23 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         final ClusterState state1 = clusterStateFromNodes(randomSubsetOf(nodes));
         final ClusterState state2 = clusterStateFromNodes(randomSubsetOf(nodes));
 
-        service.connectToNodes(state1.nodes());
+        service.connectToNodes(state1.nodes(), false);
 
         final Set<DiscoveryNode> disconnectedNodes = new HashSet<>(randomSubsetOf(nodes));
         for (final DiscoveryNode node : disconnectedNodes) {
             transport.disconnectFromNode(node);
         }
 
-        service.connectToNodes(state2.nodes());
+        boolean shouldReconnect = randomBoolean();
+
+        service.connectToNodes(state2.nodes(), shouldReconnect);
 
         final Set<DiscoveryNode> expectedNodes = new HashSet<>(nodes.size());
         state1.nodes().forEach(expectedNodes::add);
         disconnectedNodes.forEach(expectedNodes::remove);
         for (final DiscoveryNode discoveryNode : state2.nodes()) {
-            if (state1.nodes().get(discoveryNode.getId()) == null) {
-                // Only expect to be connected to _new_ nodes in state2.
+            if (shouldReconnect || state1.nodes().get(discoveryNode.getId()) == null) {
+                // Only expect to be connected to _new_ nodes in state2 unless shouldReconnect is set
                 expectedNodes.add(discoveryNode);
             }
         }
@@ -166,7 +168,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         assertConnected(expectedNodes);
         assertThat(transport.connectedNodes.size(), equalTo(expectedNodes.size()));
     }
-
+    
     private void assertConnectedExactlyToNodes(ClusterState state) {
         assertConnected(state.nodes());
         assertThat(transport.connectedNodes.size(), equalTo(state.nodes().getSize()));

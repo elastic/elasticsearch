@@ -91,8 +91,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
             "ClusterApplierServiceTests").build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool);
         timedClusterApplierService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
+
             @Override
-            public void connectToNodes(DiscoveryNodes discoveryNodes) {
+            public void connectToNodes(DiscoveryNodes discoveryNodes, boolean reconnectToKnownNodes) {
                 // skip
             }
 

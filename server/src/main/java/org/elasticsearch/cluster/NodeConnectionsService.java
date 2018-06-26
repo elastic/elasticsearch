@@ -78,7 +78,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         this.reconnectInterval = NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(settings);
     }
 
-    public void connectToNodes(DiscoveryNodes discoveryNodes) {
+    public void connectToNodes(DiscoveryNodes discoveryNodes, boolean reconnectToKnownNodes) {
         CountDownLatch latch = new CountDownLatch(discoveryNodes.getSize());
         for (final DiscoveryNode node : discoveryNodes) {
             final boolean shouldConnect;
@@ -86,7 +86,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 // We try and connect to any new nodes before returning. However, on the elected master the connections are established
                 // during joining, so we also check that we're not already connected to avoid the need to execute any background tasks in
                 // that case.
-                shouldConnect = nodes.putIfAbsent(node, 0) == null && transportService.nodeConnected(node) == false;
+                shouldConnect = (nodes.putIfAbsent(node, 0) == null || reconnectToKnownNodes)
+                    && transportService.nodeConnected(node) == false;
             }
             if (shouldConnect) {
                 // spawn to another thread to do in parallel

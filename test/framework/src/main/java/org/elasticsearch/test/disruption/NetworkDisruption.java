@@ -104,7 +104,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     public static void ensureFullyConnectedCluster(InternalTestCluster cluster) {
         for (String node: cluster.getNodeNames()) {
             ClusterState stateOnNode = cluster.getInstance(ClusterService.class, node).state();
-            cluster.getInstance(NodeConnectionsService.class, node).connectToNodes(stateOnNode.nodes());
+            cluster.getInstance(NodeConnectionsService.class, node).connectToNodes(stateOnNode.nodes(), true);
         }
     }
 

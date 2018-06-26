@@ -23,6 +23,7 @@ node-0 generic             0 0 0
 node-0 get                 0 0 0
 node-0 listener            0 0 0
 node-0 management          1 0 0
+node-0 node_connections    0 0 0
 node-0 refresh             0 0 0
 node-0 search              0 0 0
 node-0 snapshot            0 0 0
@@ -52,6 +53,7 @@ generic
 get
 listener
 management
+node_connections
 refresh
 search
 snapshot

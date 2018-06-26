@@ -184,14 +184,14 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         @Override
         public void onAfter() {
             if (lifecycle.started()) {
-                backgroundFuture = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, this);
+                backgroundFuture = threadPool.schedule(reconnectInterval, ThreadPool.Names.NODE_CONNECTIONS, this);
             }
         }
     }
 
     @Override
     protected void doStart() {
-        backgroundFuture = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ConnectionChecker());
+        backgroundFuture = threadPool.schedule(reconnectInterval, ThreadPool.Names.NODE_CONNECTIONS, new ConnectionChecker());
     }
 
     @Override

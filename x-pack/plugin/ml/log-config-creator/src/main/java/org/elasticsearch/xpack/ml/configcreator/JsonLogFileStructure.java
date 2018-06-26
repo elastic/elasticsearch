@@ -25,6 +25,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 
+/**
+ * Really ND-JSON.
+ */
 public class JsonLogFileStructure extends AbstractStructuredLogFileStructure implements LogFileStructure {
 
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +

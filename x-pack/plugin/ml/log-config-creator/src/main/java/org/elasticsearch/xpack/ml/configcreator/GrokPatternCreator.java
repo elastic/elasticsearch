@@ -106,6 +106,13 @@ public final class GrokPatternCreator {
     private GrokPatternCreator() {
     }
 
+    /**
+     * This method attempts to find a Grok pattern that will match all of the sample messages in their entirety.
+     * @param terminal Used for verbose status messages.
+     * @param sampleMessages Sample messages that any non-<code>null</code> return will match.
+     * @param mappings Will be updated with mappings appropriate for the returned pattern, if non-<code>null</code>.
+     * @return A tuple of (time field name, Grok string), or <code>null</code> if no suitable Grok pattern was found.
+     */
     public static Tuple<String, String> findFullLineGrokPattern(Terminal terminal, Collection<String> sampleMessages,
                                                                 Map<String, String> mappings) {
 
@@ -118,6 +125,15 @@ public final class GrokPatternCreator {
         return null;
     }
 
+    /**
+     * Build a Grok pattern that will match all of the sample messages in their entirety.
+     * @param terminal Used for verbose status messages.
+     * @param sampleMessages Sample messages that the returned Grok pattern will match.
+     * @param seedPatternName A pattern that has already been determined to match some portion of every sample message.
+     * @param seedFieldName The field name to be used for the portion of every sample message that the seed pattern matches.
+     * @param mappings Will be updated with mappings appropriate for the returned pattern, excluding the seed field name.
+     * @return The built Grok pattern.
+     */
     public static String createGrokPatternFromExamples(Terminal terminal, Collection<String> sampleMessages, String seedPatternName,
                                                        String seedFieldName, Map<String, String> mappings) {
 
@@ -348,7 +364,7 @@ public final class GrokPatternCreator {
     }
 
     /**
-     * Unlike the @link{ValueOnlyGrokPatternCandidate} an object of this class is not immutable and not thread safe.
+     * Unlike the {@link ValueOnlyGrokPatternCandidate} an object of this class is not immutable and not thread safe.
      * When a given object matches a set of strings it chooses a field name.  Then that same field name is used when
      * processing captures from the pattern.  Hence only a single thread may use any particular instance of this
      * class.
@@ -448,8 +464,8 @@ public final class GrokPatternCreator {
         }
 
         /**
-         * This must only be called if @link{matchesAll} returns <code>true</code>.
-         * @return A tuple of (time field, Grok string).
+         * This must only be called if {@link #matchesAll} returns <code>true</code>.
+         * @return A tuple of (time field name, Grok string).
          */
         public Tuple<String, String> processMatch(Terminal terminal, Collection<String> sampleMessages, Map<String, String> mappings) {
 

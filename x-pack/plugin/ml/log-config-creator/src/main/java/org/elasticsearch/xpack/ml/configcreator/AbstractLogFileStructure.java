@@ -72,7 +72,7 @@ public abstract class AbstractLogFileStructure {
     private static final String INGEST_PIPELINE_FRACTIONAL_SECONDS_GSUB_TEMPLATE = ",\n" +
         "      \"gsub\": {\n" +
         "        \"field\": \"%s\",\n" +
-        "        \"pattern\": \"([:.,]\\d{3})\\d*\",\n" +
+        "        \"pattern\": \"([:.,]\\\\d{3})\\\\d*\",\n" +
         "        \"replacement\": \"$1\"\n" +
         "      }";
 

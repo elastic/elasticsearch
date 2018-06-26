@@ -1248,9 +1248,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         AnalyzeRequest noindexRequest = new AnalyzeRequest().text("One two three").analyzer("english");
-        AnalyzeResponse noindexResponse = client.indices().analyze(noindexRequest, RequestOptions.DEFAULT);
+        AnalyzeResponse noindexResponse = execute(noindexRequest, client.indices()::analyze, client.indices()::analyzeAsync);
 
         assertThat(noindexResponse.getTokens(), hasSize(3));
+
+        AnalyzeRequest detailsRequest = new AnalyzeRequest().text("One two three").analyzer("english").explain(true);
+        AnalyzeResponse detailsResponse = execute(detailsRequest, client.indices()::analyze, client.indices()::analyzeAsync);
+
+        assertNotNull(detailsResponse.detail());
 
     }
 }

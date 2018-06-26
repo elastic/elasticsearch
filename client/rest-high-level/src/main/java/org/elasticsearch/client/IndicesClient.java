@@ -724,11 +724,28 @@ public final class IndicesClient {
             options, GetIndexTemplatesResponse::fromXContent, listener, emptySet());
     }
 
+    /**
+     * Calls the analyze API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-analyze.html">Analyze API on elastic.co</a>
+     *
+     * @param request   the request
+     * @param options   the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
     public AnalyzeResponse analyze(AnalyzeRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::analyze, options,
             AnalyzeResponse::fromXContent, emptySet());
     }
 
+    /**
+     * Asynchronously calls the analyze API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-analyze.html">Analyze API on elastic.co</a>
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
     public void analyzeAsync(AnalyzeRequest request, RequestOptions options,
                              ActionListener<AnalyzeResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::analyze, options,

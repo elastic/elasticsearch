@@ -27,6 +27,9 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
+import org.elasticsearch.action.admin.indices.analyze.DetailAnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -2210,5 +2213,128 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::validate-query-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testAnalyze() throws IOException, InterruptedException {
+
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::analyze-builtin-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.text("Some text to analyze", "Some more text to analyze");  // <1>
+            request.analyzer("english");    // <2>
+            // end::analyze-builtin-request
+        }
+
+        {
+            // tag::analyze-custom-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.text("<b>Some text to analyze</b>");
+            request.addCharFilter("html_strip");                // <1>
+            request.tokenizer("standard");                      // <2>
+            request.addTokenFilter("lowercase");                // <3>
+
+            Map<String, Object> stopFilter = new HashMap<>();
+            stopFilter.put("type", "stop");
+            stopFilter.put("stopwords", new String[]{ "to" });  // <4>
+            request.addTokenFilter(stopFilter);                 // <5>
+            // end::analyze-custom-request
+        }
+
+        {
+            // tag::analyze-custom-normalizer-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.text("<b>BaR</b>");
+            request.addCharFilter("html_strip");
+            request.addTokenFilter("lowercase");
+            // end::analyze-custom-normalizer-request
+
+            // tag::analyze-request-explain
+            request.explain(true);
+            request.attributes("keyword", "type");
+            // end::analyze-request-explain
+
+            // tag::analyze-request-sync
+            AnalyzeResponse response = client.indices().analyze(request, RequestOptions.DEFAULT);
+            // end::analyze-request-sync
+
+            // tag::analyze-response
+            List<AnalyzeResponse.AnalyzeToken> tokens = response.getTokens();   // <1>
+            DetailAnalyzeResponse detail = response.detail();                   // <2>
+            // end::analyze-response
+
+            assertEquals(tokens.size(), 1);
+            assertEquals(tokens.get(0).getTerm(), "bar");
+            assertNotNull(detail.tokenizer());
+        }
+
+        CreateIndexRequest req = new CreateIndexRequest("my_index");
+        CreateIndexResponse resp = client.indices().create(req, RequestOptions.DEFAULT);
+        assertTrue(resp.isAcknowledged());
+
+        PutMappingRequest pmReq = new PutMappingRequest()
+            .indices("my_index")
+            .source("my_field", "type=text,analyzer=english");
+        PutMappingResponse pmResp = client.indices().putMapping(pmReq, RequestOptions.DEFAULT);
+        assertTrue(pmResp.isAcknowledged());
+
+        {
+            // tag::analyze-index-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.index("my_index");              // <1>
+            request.analyzer("my_analyzer");        // <2>
+            request.text("some text to analyze");
+            // end::analyze-index-request
+
+            // tag::analyze-execute-listener
+            ActionListener<AnalyzeResponse> listener = new ActionListener<AnalyzeResponse>() {
+                @Override
+                public void onResponse(AnalyzeResponse analyzeTokens) {
+
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+
+                }
+            };
+            // end::analyze-execute-listener
+
+            // Use a blocking listener in the test
+            final CountDownLatch latch = new CountDownLatch(1);
+            final ActionListener<AnalyzeResponse> blockingListener = new LatchedActionListener<>(listener, latch);
+            listener = ActionListener.wrap(r -> {
+                assertThat(r.getTokens(), hasSize(4));
+            }, e-> {
+                blockingListener.onFailure(e);
+                fail("should not fail");
+            });
+
+            // tag::analyze-request-async
+            client.indices().analyzeAsync(request, RequestOptions.DEFAULT, listener);
+            // end::analyze-request-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::analyze-index-normalizer-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.index("my_index");              // <1>
+            request.normalizer("my_normalizer");        // <2>
+            request.text("some text to analyze");
+            // end::analyze-index-normalizer-request
+        }
+
+        {
+            // tag::analyze-field-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.index("my_index");
+            request.field("my_field");
+            request.text("some text to analyze");
+            // end::analyze-field-request
+        }
+
     }
 }

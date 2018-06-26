@@ -1,7 +1,11 @@
 package com.carrotsearch.gradle.junit4
 
 import com.carrotsearch.ant.tasks.junit4.JUnit4
-import org.gradle.api.*
+import org.gradle.api.GradleException
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.api.Task
+import org.gradle.api.UnknownTaskException
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.TaskProvider
@@ -71,8 +75,7 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         TaskProvider<Test> oldTestProvider
         try {
             oldTestProvider = tasks.getByNameLater(Test, 'test')
-        }
-        catch (UnknownTaskException why) {
+        } catch (UnknownTaskException unused) {
             // no test task, ok, user will use testing task on their own
             return
         }

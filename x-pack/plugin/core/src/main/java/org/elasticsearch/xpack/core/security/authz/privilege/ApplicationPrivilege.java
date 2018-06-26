@@ -11,7 +11,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -141,7 +140,6 @@ public final class ApplicationPrivilege extends Privilege {
         Set<String> actions = new HashSet<>();
         Set<String> patterns = new HashSet<>();
         for (String name : names) {
-            name = name.toLowerCase(Locale.ROOT);
             if (isValidPrivilegeName(name)) {
                 ApplicationPrivilegeDescriptor descriptor = lookup.get(name);
                 if (descriptor != null) {

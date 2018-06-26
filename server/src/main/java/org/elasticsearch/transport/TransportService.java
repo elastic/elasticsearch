@@ -231,7 +231,7 @@ public class TransportService extends AbstractLifecycleComponent {
             () -> HandshakeRequest.INSTANCE,
             ThreadPool.Names.SAME,
             false, false,
-            (request, channel) -> channel.sendResponse(
+            (request, channel, task) -> channel.sendResponse(
                     new HandshakeResponse(localNode, clusterName, localNode.getVersion())));
         if (connectToRemoteCluster) {
             // here we start to connect to the remote clusters

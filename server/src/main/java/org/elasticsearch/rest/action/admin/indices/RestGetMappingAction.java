@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -89,14 +88,9 @@ public class RestGetMappingAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(final GetMappingsResponse response, final XContentBuilder builder) throws Exception {
                 final ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
-                if (mappingsByIndex.isEmpty() && (indices.length != 0 || types.length != 0)) {
-                    if (indices.length != 0 && types.length == 0) {
-                        builder.close();
-                        return new BytesRestResponse(channel, new IndexNotFoundException(String.join(",", indices)));
-                    } else {
-                        builder.close();
-                        return new BytesRestResponse(channel, new TypeMissingException("_all", String.join(",", types)));
-                    }
+                if (mappingsByIndex.isEmpty() && types.length != 0) {
+                    builder.close();
+                    return new BytesRestResponse(channel, new TypeMissingException("_all", String.join(",", types)));
                 }
 
                 final Set<String> typeNames = new HashSet<>();

@@ -450,6 +450,24 @@ public class DoSection implements ExecutableSection {
         }
 
         @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            ComposeNodeSelector that = (ComposeNodeSelector) o;
+            return Objects.equals(lhs, that.lhs) &&
+                    Objects.equals(rhs, that.rhs);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(lhs, rhs);
+        }
+
+        @Override
         public String toString() {
             // . as in haskell's "compose" operator
             return lhs + "." + rhs;

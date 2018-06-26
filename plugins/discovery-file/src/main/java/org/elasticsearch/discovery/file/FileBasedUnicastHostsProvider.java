@@ -23,25 +23,18 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static org.elasticsearch.discovery.zen.UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT;
-import static org.elasticsearch.discovery.zen.UnicastZenPing.resolveHostsLists;
 
 /**
  * An implementation of {@link UnicastHostsProvider} that reads hosts/ports
@@ -59,23 +52,15 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
 
     static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
 
-    private final TransportService transportService;
-    private final ExecutorService executorService;
-
     private final Path unicastHostsFilePath;
 
-    private final TimeValue resolveTimeout;
-
-    FileBasedUnicastHostsProvider(Environment environment, TransportService transportService, ExecutorService executorService) {
+    FileBasedUnicastHostsProvider(Environment environment) {
         super(environment.settings());
-        this.transportService = transportService;
-        this.executorService = executorService;
         this.unicastHostsFilePath = environment.configFile().resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
-        this.resolveTimeout = DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
     }
 
     @Override
-    public List<TransportAddress> buildDynamicHosts() {
+    public List<TransportAddress> buildDynamicHosts(HostsResolver hostsResolver) {
         List<String> hostsList;
         try (Stream<String> lines = Files.lines(unicastHostsFilePath)) {
             hostsList = lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
@@ -90,21 +75,8 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
             hostsList = Collections.emptyList();
         }
 
-        final List<TransportAddress> dynamicHosts = new ArrayList<>();
-        try {
-            dynamicHosts.addAll(resolveHostsLists(
-                executorService,
-                logger,
-                hostsList,
-                1,
-                transportService,
-                resolveTimeout));
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
+        final List<TransportAddress> dynamicHosts = hostsResolver.resolveHosts(hostsList, 1);
         logger.debug("[discovery-file] Using dynamic discovery nodes {}", dynamicHosts);
-
         return dynamicHosts;
     }
 

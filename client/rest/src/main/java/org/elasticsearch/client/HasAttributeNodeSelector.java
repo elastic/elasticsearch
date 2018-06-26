@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A {@link NodeSelector} that selects nodes that have a particular value
@@ -47,6 +48,24 @@ public final class HasAttributeNodeSelector implements NodeSelector {
                 itr.remove();
             }
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        HasAttributeNodeSelector that = (HasAttributeNodeSelector) o;
+        return Objects.equals(key, that.key) &&
+                Objects.equals(value, that.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(key, value);
     }
 
     @Override

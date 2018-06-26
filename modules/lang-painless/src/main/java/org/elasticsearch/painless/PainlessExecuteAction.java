@@ -48,6 +48,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -285,7 +286,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             this.scriptService = scriptService;
         }
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             switch (request.context) {
                 case PAINLESS_TEST:
                     PainlessTestScript.Factory factory = scriptService.compile(request.script, PainlessTestScript.CONTEXT);

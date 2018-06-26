@@ -19,6 +19,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
@@ -50,7 +51,8 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
     }
 
     @Override
-    protected void doExecute(DeleteCalendarEventAction.Request request, ActionListener<DeleteCalendarEventAction.Response> listener) {
+    protected void doExecute(Task task, DeleteCalendarEventAction.Request request,
+                             ActionListener<DeleteCalendarEventAction.Response> listener) {
         final String eventId = request.getEventId();
 
         ActionListener<Calendar> calendarListener = ActionListener.wrap(

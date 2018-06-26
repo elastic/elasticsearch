@@ -41,6 +41,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -118,7 +119,7 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Respon
         }
 
         @Override
-        protected void doExecute(Request request, ActionListener<Response> listener) {
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             try {
                 listener.onResponse(new Response(GROK_PATTERNS));
             } catch (Exception e) {

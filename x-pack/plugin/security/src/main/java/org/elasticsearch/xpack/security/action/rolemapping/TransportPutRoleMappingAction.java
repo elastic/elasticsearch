@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
@@ -30,8 +31,7 @@ public class TransportPutRoleMappingAction
     }
 
     @Override
-    protected void doExecute(final PutRoleMappingRequest request,
-                             final ActionListener<PutRoleMappingResponse> listener) {
+    protected void doExecute(Task task, final PutRoleMappingRequest request, final ActionListener<PutRoleMappingResponse> listener) {
         roleMappingStore.putRoleMapping(request, ActionListener.wrap(
                 created -> listener.onResponse(new PutRoleMappingResponse(created)),
                 listener::onFailure

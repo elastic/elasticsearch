@@ -868,21 +868,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * @return {@link CommitStats} if engine is open, otherwise null
+     * @return {@link CommitStats}
+     * @throws AlreadyClosedException if shard is closed
      */
-    @Nullable
     public CommitStats commitStats() {
-        Engine engine = getEngineOrNull();
-        return engine == null ? null : engine.commitStats();
+        return getEngine().commitStats();
     }
 
     /**
-     * @return {@link SeqNoStats} if engine is open, otherwise null
+     * @return {@link SeqNoStats}
+     * @throws AlreadyClosedException if shard is closed
      */
-    @Nullable
     public SeqNoStats seqNoStats() {
-        Engine engine = getEngineOrNull();
-        return engine == null ? null : engine.getSeqNoStats(replicationTracker.getGlobalCheckpoint());
+        return getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
     }
 
     public IndexingStats indexingStats(String... types) {
@@ -912,8 +910,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return store.stats();
         } catch (IOException e) {
             throw new ElasticsearchException("io exception while building 'store stats'", e);
-        } catch (AlreadyClosedException ex) {
-            return null; // already closed
         }
     }
 

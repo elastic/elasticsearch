@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
@@ -67,7 +68,7 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
 
         final ExpressionRoleMapping mapping = mock(ExpressionRoleMapping.class);
         result = Collections.singletonList(mapping);
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
         assertThat(future.get(), notNullValue());
         assertThat(future.get().mappings(), arrayContaining(mapping));
         assertThat(namesRef.get(), containsInAnyOrder("everyone"));
@@ -83,7 +84,7 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
         final ExpressionRoleMapping mapping3 = mock(ExpressionRoleMapping.class);
         result = Arrays.asList(mapping1, mapping2, mapping3);
 
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
 
         final GetRoleMappingsResponse response = future.get();
         assertThat(response, notNullValue());
@@ -101,7 +102,7 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
         final ExpressionRoleMapping mapping3 = mock(ExpressionRoleMapping.class);
         result = Arrays.asList(mapping1, mapping2, mapping3);
 
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
 
         final GetRoleMappingsResponse response = future.get();
         assertThat(response, notNullValue());

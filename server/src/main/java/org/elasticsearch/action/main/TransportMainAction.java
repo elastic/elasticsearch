@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportMainAction extends HandledTransportAction<MainRequest, MainResponse> {
@@ -44,7 +45,7 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
     }
 
     @Override
-    protected void doExecute(MainRequest request, ActionListener<MainResponse> listener) {
+    protected void doExecute(Task task, MainRequest request, ActionListener<MainResponse> listener) {
         ClusterState clusterState = clusterService.state();
         assert Node.NODE_NAME_SETTING.exists(settings);
         final boolean available = clusterState.getBlocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE) == false;

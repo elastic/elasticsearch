@@ -20,6 +20,7 @@
 package org.elasticsearch.action.support.replication;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -64,12 +65,6 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         this.replicatedBroadcastShardAction = replicatedBroadcastShardAction;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-    }
-
-
-    @Override
-    protected final void doExecute(final Request request, final ActionListener<Response> listener) {
-        throw new UnsupportedOperationException("the task parameter is required for this operation");
     }
 
     @Override

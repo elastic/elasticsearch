@@ -12,6 +12,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -46,7 +47,8 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
     }
 
     @Override
-    protected void doExecute(DeleteExpiredDataAction.Request request, ActionListener<DeleteExpiredDataAction.Response> listener) {
+    protected void doExecute(Task task, DeleteExpiredDataAction.Request request,
+                             ActionListener<DeleteExpiredDataAction.Response> listener) {
         logger.info("Deleting expired data");
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> deleteExpiredData(listener));
     }

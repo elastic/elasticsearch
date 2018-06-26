@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -72,7 +73,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<SetEnabledResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<SetEnabledResponse>() {
             @Override
             public void onResponse(SetEnabledResponse setEnabledResponse) {
                 responseRef.set(setEnabledResponse);
@@ -110,7 +111,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<SetEnabledResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<SetEnabledResponse>() {
             @Override
             public void onResponse(SetEnabledResponse setEnabledResponse) {
                 responseRef.set(setEnabledResponse);
@@ -160,7 +161,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<SetEnabledResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<SetEnabledResponse>() {
             @Override
             public void onResponse(SetEnabledResponse setEnabledResponse) {
                 responseRef.set(setEnabledResponse);
@@ -212,7 +213,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<SetEnabledResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<SetEnabledResponse>() {
             @Override
             public void onResponse(SetEnabledResponse setEnabledResponse) {
                 responseRef.set(setEnabledResponse);
@@ -252,7 +253,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<SetEnabledResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<SetEnabledResponse>() {
             @Override
             public void onResponse(SetEnabledResponse setEnabledResponse) {
                 responseRef.set(setEnabledResponse);

@@ -133,7 +133,7 @@ setup:
 ---
 "Scripted Field with script error":
     - do:
-        catch: request
+        catch: bad_request
         search:
           body:
             script_fields:

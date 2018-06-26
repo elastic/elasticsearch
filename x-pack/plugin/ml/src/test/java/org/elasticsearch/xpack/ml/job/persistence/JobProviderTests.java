@@ -39,8 +39,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -61,7 +59,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -94,7 +91,7 @@ public class JobProviderTests extends ESTestCase {
         AtomicReference<Boolean> resultHolder = new AtomicReference<>();
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MLMetadataField.TYPE, MlMetadata.EMPTY_METADATA).indices(ImmutableOpenMap.of()))
+                .metaData(MetaData.builder().indices(ImmutableOpenMap.of()))
                 .build();
 
         ClusterService clusterService = mock(ClusterService.class);
@@ -158,7 +155,7 @@ public class JobProviderTests extends ESTestCase {
                 .fPut(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), indexMetaData).build();
 
         ClusterState cs2 = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MLMetadataField.TYPE, MlMetadata.EMPTY_METADATA).indices(indexMap)).build();
+                .metaData(MetaData.builder().indices(indexMap)).build();
 
         ClusterService clusterService = mock(ClusterService.class);
 
@@ -210,7 +207,7 @@ public class JobProviderTests extends ESTestCase {
         ImmutableOpenMap<String, IndexMetaData> indexMap = ImmutableOpenMap.<String, IndexMetaData>builder().build();
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MLMetadataField.TYPE, MlMetadata.EMPTY_METADATA).indices(indexMap)).build();
+                .metaData(MetaData.builder().indices(indexMap)).build();
 
         ClusterService clusterService = mock(ClusterService.class);
 
@@ -235,8 +232,7 @@ public class JobProviderTests extends ESTestCase {
         });
     }
 
-    public void testBuckets_OneBucketNoInterim()
-            throws InterruptedException, ExecutionException, IOException {
+    public void testBuckets_OneBucketNoInterim() throws IOException {
         String jobId = "TestJobIdentification";
         Date now = new Date();
         List<Map<String, Object>> source = new ArrayList<>();
@@ -268,8 +264,7 @@ public class JobProviderTests extends ESTestCase {
                         ".*"));
     }
 
-    public void testBuckets_OneBucketInterim()
-            throws InterruptedException, ExecutionException, IOException {
+    public void testBuckets_OneBucketInterim() throws IOException {
         String jobId = "TestJobIdentification";
         Date now = new Date();
         List<Map<String, Object>> source = new ArrayList<>();
@@ -302,8 +297,7 @@ public class JobProviderTests extends ESTestCase {
         assertFalse(queryString.matches("(?s).*is_interim.*"));
     }
 
-    public void testBuckets_UsingBuilder()
-            throws InterruptedException, ExecutionException, IOException {
+    public void testBuckets_UsingBuilder() throws IOException {
         String jobId = "TestJobIdentification";
         Date now = new Date();
         List<Map<String, Object>> source = new ArrayList<>();
@@ -339,8 +333,7 @@ public class JobProviderTests extends ESTestCase {
         assertFalse(queryString.matches("(?s).*is_interim.*"));
     }
 
-    public void testBucket_NoBucketNoExpand()
-            throws InterruptedException, ExecutionException, IOException {
+    public void testBucket_NoBucketNoExpand() throws IOException {
         String jobId = "TestJobIdentification";
         Long timestamp = 98765432123456789L;
         List<Map<String, Object>> source = new ArrayList<>();
@@ -357,8 +350,7 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(ResourceNotFoundException.class, holder[0].getClass());
     }
 
-    public void testBucket_OneBucketNoExpand()
-            throws InterruptedException, ExecutionException, IOException {
+    public void testBucket_OneBucketNoExpand() throws IOException {
         String jobId = "TestJobIdentification";
         Date now = new Date();
         List<Map<String, Object>> source = new ArrayList<>();
@@ -384,7 +376,7 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(now, b.getTimestamp());
     }
 
-    public void testRecords() throws InterruptedException, ExecutionException, IOException {
+    public void testRecords() throws IOException {
         String jobId = "TestJobIdentification";
         Date now = new Date();
         List<Map<String, Object>> source = new ArrayList<>();
@@ -431,8 +423,7 @@ public class JobProviderTests extends ESTestCase {
         assertEquals("irrascible", records.get(1).getFunction());
     }
 
-    public void testRecords_UsingBuilder()
-            throws InterruptedException, ExecutionException, IOException {
+    public void testRecords_UsingBuilder() throws IOException {
         String jobId = "TestJobIdentification";
         Date now = new Date();
         List<Map<String, Object>> source = new ArrayList<>();
@@ -485,7 +476,7 @@ public class JobProviderTests extends ESTestCase {
         assertEquals("irrascible", records.get(1).getFunction());
     }
 
-    public void testBucketRecords() throws InterruptedException, ExecutionException, IOException {
+    public void testBucketRecords() throws IOException {
         String jobId = "TestJobIdentification";
         Date now = new Date();
         Bucket bucket = mock(Bucket.class);
@@ -532,7 +523,7 @@ public class JobProviderTests extends ESTestCase {
         assertEquals("irrascible", records.get(1).getFunction());
     }
 
-    public void testexpandBucket() throws InterruptedException, ExecutionException, IOException {
+    public void testexpandBucket() throws IOException {
         String jobId = "TestJobIdentification";
         Date now = new Date();
         Bucket bucket = new Bucket("foo", now, 22);
@@ -559,8 +550,7 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(400L, records);
     }
 
-    public void testCategoryDefinitions()
-            throws InterruptedException, ExecutionException, IOException {
+    public void testCategoryDefinitions() throws IOException {
         String jobId = "TestJobIdentification";
         String terms = "the terms and conditions are not valid here";
         List<Map<String, Object>> source = new ArrayList<>();
@@ -580,15 +570,14 @@ public class JobProviderTests extends ESTestCase {
         JobProvider provider = createProvider(client);
         @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<CategoryDefinition>[] holder = new QueryPage[1];
-        provider.categoryDefinitions(jobId, null, from, size, r -> holder[0] = r,
+        provider.categoryDefinitions(jobId, null, false, from, size, r -> holder[0] = r,
                 e -> {throw new RuntimeException(e);}, client);
         QueryPage<CategoryDefinition> categoryDefinitions = holder[0];
         assertEquals(1L, categoryDefinitions.count());
         assertEquals(terms, categoryDefinitions.results().get(0).getTerms());
     }
 
-    public void testCategoryDefinition()
-            throws InterruptedException, ExecutionException, IOException {
+    public void testCategoryDefinition() throws IOException {
         String jobId = "TestJobIdentification";
         String terms = "the terms and conditions are not valid here";
 
@@ -603,14 +592,14 @@ public class JobProviderTests extends ESTestCase {
         JobProvider provider = createProvider(client);
         @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<CategoryDefinition>[] holder = new QueryPage[1];
-        provider.categoryDefinitions(jobId, categoryId, null, null,
+        provider.categoryDefinitions(jobId, categoryId, false, null, null,
                 r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
         QueryPage<CategoryDefinition> categoryDefinitions = holder[0];
         assertEquals(1L, categoryDefinitions.count());
         assertEquals(terms, categoryDefinitions.results().get(0).getTerms());
     }
 
-    public void testInfluencers_NoInterim() throws InterruptedException, ExecutionException, IOException {
+    public void testInfluencers_NoInterim() throws IOException {
         String jobId = "TestJobIdentificationForInfluencers";
         Date now = new Date();
         List<Map<String, Object>> source = new ArrayList<>();
@@ -670,7 +659,7 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(5.0, records.get(1).getInitialInfluencerScore(), 0.00001);
     }
 
-    public void testInfluencers_WithInterim() throws InterruptedException, ExecutionException, IOException {
+    public void testInfluencers_WithInterim() throws IOException {
         String jobId = "TestJobIdentificationForInfluencers";
         Date now = new Date();
         List<Map<String, Object>> source = new ArrayList<>();
@@ -730,7 +719,7 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(5.0, records.get(1).getInitialInfluencerScore(), 0.00001);
     }
 
-    public void testModelSnapshots() throws InterruptedException, ExecutionException, IOException {
+    public void testModelSnapshots() throws IOException {
         String jobId = "TestJobIdentificationForInfluencers";
         Date now = new Date();
         List<Map<String, Object>> source = new ArrayList<>();
@@ -851,8 +840,7 @@ public class JobProviderTests extends ESTestCase {
         return getResponse;
     }
 
-    private static SearchResponse createSearchResponse(List<Map<String, Object>> source)
-            throws IOException {
+    private static SearchResponse createSearchResponse(List<Map<String, Object>> source) throws IOException {
         SearchResponse response = mock(SearchResponse.class);
         List<SearchHit> list = new ArrayList<>();
 

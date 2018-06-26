@@ -77,12 +77,12 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     @Override
     protected RangeFieldType createDefaultFieldType() {
-        return new RangeFieldType(type, Version.CURRENT);
+        return new RangeFieldType(type);
     }
 
     public void testRangeQuery() throws Exception {
         QueryShardContext context = createContext();
-        RangeFieldType ft = new RangeFieldType(type, Version.CURRENT);
+        RangeFieldType ft = new RangeFieldType(type);
         ft.setName(FIELDNAME);
         ft.setIndexOptions(IndexOptions.DOCS);
 
@@ -106,7 +106,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     public void testDateRangeQueryUsingMappingFormat() {
         QueryShardContext context = createContext();
-        RangeFieldType fieldType = new RangeFieldType(RangeType.DATE, Version.CURRENT);
+        RangeFieldType fieldType = new RangeFieldType(RangeType.DATE);
         fieldType.setName(FIELDNAME);
         fieldType.setIndexOptions(IndexOptions.DOCS);
         fieldType.setHasDocValues(false);
@@ -313,7 +313,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     public void testTermQuery() throws Exception {
         // See https://github.com/elastic/elasticsearch/issues/25950
         QueryShardContext context = createContext();
-        RangeFieldType ft = new RangeFieldType(type, Version.CURRENT);
+        RangeFieldType ft = new RangeFieldType(type);
         ft.setName(FIELDNAME);
         ft.setIndexOptions(IndexOptions.DOCS);
 

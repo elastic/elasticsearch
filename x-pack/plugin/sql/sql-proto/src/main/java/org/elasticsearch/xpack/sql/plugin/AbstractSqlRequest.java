@@ -10,9 +10,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -23,24 +23,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Contains information about the client mode that can be used to generate different responses based on the caller type.
  */
 public abstract class AbstractSqlRequest extends ActionRequest implements ToXContent {
-
-    public enum Mode {
-        PLAIN,
-        JDBC;
-
-        public static Mode fromString(String mode) {
-            if (mode == null) {
-                return PLAIN;
-            }
-            return Mode.valueOf(mode.toUpperCase(Locale.ROOT));
-        }
-
-
-        @Override
-        public String toString() {
-            return this.name().toLowerCase(Locale.ROOT);
-        }
-    }
 
     private Mode mode = Mode.PLAIN;
 

@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.Action.Result.Status;
 import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.watcher.WatcherClientHelper;
 import org.elasticsearch.xpack.watcher.support.ArrayObjectIterator;
 import org.joda.time.DateTime;
 
@@ -96,7 +96,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                     new XContentSource(indexRequest.source(), XContentType.JSON));
         }
 
-        IndexResponse response = WatcherClientHelper.execute(ctx.watch(), client,
+        IndexResponse response = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
                 () -> client.index(indexRequest).actionGet(indexDefaultTimeout));
         try (XContentBuilder builder = jsonBuilder()) {
             indexResponseToXContent(builder, response);
@@ -137,7 +137,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             }
             bulkRequest.add(indexRequest);
         }
-        BulkResponse bulkResponse = WatcherClientHelper.execute(ctx.watch(), client,
+        BulkResponse bulkResponse = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
                 () -> client.bulk(bulkRequest).actionGet(bulkDefaultTimeout));
         try (XContentBuilder jsonBuilder = jsonBuilder().startArray()) {
             for (BulkItemResponse item : bulkResponse) {

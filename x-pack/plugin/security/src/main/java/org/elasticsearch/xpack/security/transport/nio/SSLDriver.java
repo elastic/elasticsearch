@@ -113,7 +113,13 @@ public class SSLDriver implements AutoCloseable {
     }
 
     public void read(InboundChannelBuffer buffer) throws SSLException {
-        currentMode.read(buffer);
+        Mode modePriorToRead;
+        do {
+            modePriorToRead = currentMode;
+            currentMode.read(buffer);
+            // If we switched modes we want to read again as there might be unhandled bytes that need to be
+            // handled by the new mode.
+        } while (modePriorToRead != currentMode);
     }
 
     public boolean readyForApplicationWrites() {
@@ -359,14 +365,16 @@ public class SSLDriver implements AutoCloseable {
 
         @Override
         public void read(InboundChannelBuffer buffer) throws SSLException {
+            ensureApplicationBufferSize(buffer);
             boolean continueUnwrap = true;
             while (continueUnwrap && networkReadBuffer.position() > 0) {
                 networkReadBuffer.flip();
                 try {
                     SSLEngineResult result = unwrap(buffer);
                     handshakeStatus = result.getHandshakeStatus();
-                    continueUnwrap = result.bytesConsumed() > 0;
                     handshake();
+                    // If we are done handshaking we should exit the handshake read
+                    continueUnwrap = result.bytesConsumed() > 0 && currentMode.isHandshake();
                 } catch (SSLException e) {
                     closingInternal();
                     throw e;

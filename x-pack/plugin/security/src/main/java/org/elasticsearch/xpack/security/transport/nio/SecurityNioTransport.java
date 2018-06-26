@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
@@ -13,24 +12,22 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.nio.AcceptingSelector;
 import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
-import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.nio.NioTcpChannel;
+import org.elasticsearch.transport.nio.NioTcpServerChannel;
 import org.elasticsearch.transport.nio.NioTransport;
-import org.elasticsearch.transport.nio.TcpNioServerSocketChannel;
-import org.elasticsearch.transport.nio.TcpNioSocketChannel;
+import org.elasticsearch.transport.nio.TcpReadWriteHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import javax.net.ssl.SSLEngine;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
@@ -97,11 +94,6 @@ public class SecurityNioTransport extends NioTransport {
         super.acceptChannel(channel);
     }
 
-    @Override
-    protected void exceptionCaught(NioSocketChannel channel, Exception exception) {
-        super.exceptionCaught(channel, exception);
-    }
-
     private class SecurityTcpChannelFactory extends TcpChannelFactory {
 
         private final String profileName;
@@ -118,31 +110,30 @@ public class SecurityNioTransport extends NioTransport {
         }
 
         @Override
-        public TcpNioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
+        public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             SSLConfiguration defaultConfig = profileConfiguration.get(TcpTransport.DEFAULT_PROFILE);
             SSLEngine sslEngine = sslService.createSSLEngine(profileConfiguration.getOrDefault(profileName, defaultConfig), null, -1);
             SSLDriver sslDriver = new SSLDriver(sslEngine, isClient);
-            TcpNioSocketChannel nioChannel = new TcpNioSocketChannel(profileName, channel);
+            NioTcpChannel nioChannel = new NioTcpChannel(profileName, channel);
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
 
-            SocketChannelContext.ReadConsumer nioReadConsumer = channelBuffer ->
-                consumeNetworkReads(nioChannel, BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex())));
+            TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, SecurityNioTransport.this);
             InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
-            Consumer<Exception> exceptionHandler = (e) -> exceptionCaught(nioChannel, e);
-            SSLChannelContext context = new SSLChannelContext(nioChannel, selector, exceptionHandler, sslDriver, nioReadConsumer,
-                    buffer);
+            Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
+            SSLChannelContext context = new SSLChannelContext(nioChannel, selector, exceptionHandler, sslDriver, readWriteHandler, buffer);
             nioChannel.setContext(context);
             return nioChannel;
         }
 
         @Override
-        public TcpNioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
-            TcpNioServerSocketChannel nioChannel = new TcpNioServerSocketChannel(profileName, channel);
-            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, SecurityNioTransport.this::acceptChannel,
-                    (e) -> {});
+        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
+            NioTcpServerChannel nioChannel = new NioTcpServerChannel(profileName, channel);;
+            Consumer<Exception> exceptionHandler = (e) -> onServerException(nioChannel, e);
+            Consumer<NioSocketChannel> acceptor = SecurityNioTransport.this::acceptChannel;
+            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, acceptor, exceptionHandler);
             nioChannel.setContext(context);
             return nioChannel;
         }

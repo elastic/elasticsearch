@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -63,12 +62,11 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     private final SnapshotShardsService snapshotShardsService;
 
     @Inject
-    public TransportNodesSnapshotsStatus(Settings settings, ThreadPool threadPool,
-                                         ClusterService clusterService, TransportService transportService,
-                                         SnapshotShardsService snapshotShardsService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-              Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeSnapshotStatus.class);
+    public TransportNodesSnapshotsStatus(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                         TransportService transportService, SnapshotShardsService snapshotShardsService,
+                                         ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+            Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeSnapshotStatus.class);
         this.snapshotShardsService = snapshotShardsService;
     }
 

@@ -25,6 +25,9 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
         categoryDefinition.setRegex(randomAlphaOfLength(10));
         categoryDefinition.setMaxMatchingLength(randomLong());
         categoryDefinition.setExamples(Arrays.asList(generateRandomStringArray(10, 10, false)));
+        if (randomBoolean()) {
+            categoryDefinition.setGrokPattern(randomAlphaOfLength(50));
+        }
         return categoryDefinition;
     }
 

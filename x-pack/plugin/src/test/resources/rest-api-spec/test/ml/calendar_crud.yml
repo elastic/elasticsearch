@@ -86,23 +86,6 @@
       xpack.ml.get_calendars:
         calendar_id: "dogs_of_the_year"
 
-  - do:
-      xpack.ml.put_calendar:
-        calendar_id: "new_cal_with_unknown_job_group"
-        body:  >
-          {
-            "job_ids": ["cal-job", "unknown-job-group"]
-          }
-
-  - do:
-      xpack.ml.get_calendars:
-        calendar_id: "new_cal_with_unknown_job_group"
-  - match: { count: 1 }
-  - match:
-      calendars.0:
-        calendar_id: "new_cal_with_unknown_job_group"
-        job_ids: ["cal-job", "unknown-job-group"]
-
 ---
 "Test get calendar given missing":
   - do:
@@ -714,3 +697,106 @@
   - match: { calendar_id: "expression" }
   - length: { job_ids: 1 }
   - match: { job_ids.0: "bar-a" }
+
+---
+"Test calendar actions with new job group":
+  - do:
+      xpack.ml.put_job:
+        job_id: calendar-job
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "cal_with_new_job_group"
+        body:  >
+          {
+            "job_ids": ["calendar-job", "new-job-group"]
+          }
+
+  - do:
+      xpack.ml.get_calendars:
+        calendar_id: "cal_with_new_job_group"
+  - match: { count: 1 }
+  - match:
+      calendars.0:
+        calendar_id: "cal_with_new_job_group"
+        job_ids: ["calendar-job", "new-job-group"]
+
+  - do:
+      xpack.ml.post_calendar_events:
+        calendar_id: "cal_with_new_job_group"
+        body: >
+          {
+            "events" : [{ "description": "beach", "start_time": "2018-05-01T00:00:00Z", "end_time": "2018-05-06T00:00:00Z" }]
+          }
+
+  - do:
+      xpack.ml.get_calendar_events:
+        calendar_id: cal_with_new_job_group
+  - length: { events: 1 }
+  - match: { events.0.description: beach }
+
+  - do:
+      xpack.ml.delete_calendar:
+        calendar_id: "cal_with_new_job_group"
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "started_empty_calendar"
+
+  - do:
+      xpack.ml.put_calendar_job:
+        calendar_id: "started_empty_calendar"
+        job_id: "new-group"
+  - match: { calendar_id: "started_empty_calendar" }
+  - length: { job_ids: 1 }
+
+  - do:
+      xpack.ml.get_calendars:
+        calendar_id: "started_empty_calendar"
+  - match: { count: 1 }
+  - match:
+      calendars.0:
+        calendar_id: "started_empty_calendar"
+        job_ids: ["new-group"]
+
+  - do:
+      xpack.ml.post_calendar_events:
+        calendar_id: "started_empty_calendar"
+        body: >
+          {
+            "events" : [{ "description": "beach", "start_time": "2018-05-01T00:00:00Z", "end_time": "2018-05-06T00:00:00Z" }]
+          }
+
+  - do:
+      xpack.ml.get_calendar_events:
+        calendar_id: "started_empty_calendar"
+  - length: { events: 1 }
+  - match: { events.0.description: beach }
+  - set: { events.0.event_id: beach_event_id }
+
+  - do:
+      xpack.ml.delete_calendar_event:
+        calendar_id: "started_empty_calendar"
+        event_id: $beach_event_id
+
+  - do:
+      xpack.ml.get_calendar_events:
+        calendar_id: "started_empty_calendar"
+  - length: { events: 0 }
+
+  - do:
+      xpack.ml.delete_calendar:
+        calendar_id: "started_empty_calendar"
+
+  - do:
+      catch: missing
+      xpack.ml.get_calendars:
+        calendar_id: "started_empty_calendar"

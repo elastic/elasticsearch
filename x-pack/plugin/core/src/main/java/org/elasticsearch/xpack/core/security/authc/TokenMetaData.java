@@ -12,13 +12,14 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
+public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Custom> implements XPackPlugin.XPackClusterStateCustom {
 
     /**
      * The type of {@link ClusterState} data.

@@ -19,12 +19,17 @@
 package org.elasticsearch.action.support;
 
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
@@ -35,41 +40,155 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  */
 public class IndicesOptions {
 
-    private static final IndicesOptions[] VALUES;
+    public enum WildcardStates {
+        OPEN,
+        CLOSED;
 
-    private static final byte IGNORE_UNAVAILABLE = 1;
-    private static final byte ALLOW_NO_INDICES = 2;
-    private static final byte EXPAND_WILDCARDS_OPEN = 4;
-    private static final byte EXPAND_WILDCARDS_CLOSED = 8;
-    private static final byte FORBID_ALIASES_TO_MULTIPLE_INDICES = 16;
-    private static final byte FORBID_CLOSED_INDICES = 32;
-    private static final byte IGNORE_ALIASES = 64;
+        public static final EnumSet<WildcardStates> NONE = EnumSet.noneOf(WildcardStates.class);
 
-    private static final byte STRICT_EXPAND_OPEN = 6;
-    private static final byte LENIENT_EXPAND_OPEN = 7;
-    private static final byte STRICT_EXPAND_OPEN_CLOSED = 14;
-    private static final byte STRICT_EXPAND_OPEN_FORBID_CLOSED = 38;
-    private static final byte STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = 48;
+        public static EnumSet<WildcardStates> parseParameter(Object value, EnumSet<WildcardStates> defaultStates) {
+            if (value == null) {
+                return defaultStates;
+            }
 
-    static {
-        short max = 1 << 7;
-        VALUES = new IndicesOptions[max];
-        for (short id = 0; id < max; id++) {
-            VALUES[id] = new IndicesOptions((byte)id);
+            Set<WildcardStates> states = new HashSet<>();
+            String[] wildcards = nodeStringArrayValue(value);
+            for (String wildcard : wildcards) {
+                if ("open".equals(wildcard)) {
+                    states.add(OPEN);
+                } else if ("closed".equals(wildcard)) {
+                    states.add(CLOSED);
+                } else if ("none".equals(wildcard)) {
+                    states.clear();
+                } else if ("all".equals(wildcard)) {
+                    states.add(OPEN);
+                    states.add(CLOSED);
+                } else {
+                    throw new IllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
+                }
+            }
+
+            return states.isEmpty() ? NONE : EnumSet.copyOf(states);
         }
     }
 
-    private final byte id;
+    public enum Option {
+        IGNORE_UNAVAILABLE,
+        IGNORE_ALIASES,
+        ALLOW_NO_INDICES,
+        FORBID_ALIASES_TO_MULTIPLE_INDICES,
+        FORBID_CLOSED_INDICES;
 
-    private IndicesOptions(byte id) {
-        this.id = id;
+        public static final EnumSet<Option> NONE = EnumSet.noneOf(Option.class);
+    }
+
+    public static final IndicesOptions STRICT_EXPAND_OPEN =
+        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES), EnumSet.of(WildcardStates.OPEN));
+    public static final IndicesOptions LENIENT_EXPAND_OPEN =
+        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE), EnumSet.of(WildcardStates.OPEN));
+    public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED =
+        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES), EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED));
+    public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED =
+        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES), EnumSet.of(WildcardStates.OPEN));
+    public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED =
+        new IndicesOptions(EnumSet.of(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES, Option.FORBID_CLOSED_INDICES),
+            EnumSet.noneOf(WildcardStates.class));
+
+    private final EnumSet<Option> options;
+    private final EnumSet<WildcardStates> expandWildcards;
+
+    public IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> expandWildcards) {
+        this.options = options;
+        this.expandWildcards = expandWildcards;
+    }
+
+    private IndicesOptions(Collection<Option> options, Collection<WildcardStates> expandWildcards) {
+        this(options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
+            expandWildcards.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(expandWildcards));
+    }
+
+    // Package visible for testing
+    static IndicesOptions fromByte(final byte id) {
+        // IGNORE_UNAVAILABLE = 1;
+        // ALLOW_NO_INDICES = 2;
+        // EXPAND_WILDCARDS_OPEN = 4;
+        // EXPAND_WILDCARDS_CLOSED = 8;
+        // FORBID_ALIASES_TO_MULTIPLE_INDICES = 16;
+        // FORBID_CLOSED_INDICES = 32;
+        // IGNORE_ALIASES = 64;
+
+        Set<Option> opts = new HashSet<>();
+        Set<WildcardStates> wildcards = new HashSet<>();
+        if ((id & 1) != 0) {
+            opts.add(Option.IGNORE_UNAVAILABLE);
+        }
+        if ((id & 2) != 0) {
+            opts.add(Option.ALLOW_NO_INDICES);
+        }
+        if ((id & 4) != 0) {
+            wildcards.add(WildcardStates.OPEN);
+        }
+        if ((id & 8) != 0) {
+            wildcards.add(WildcardStates.CLOSED);
+        }
+        if ((id & 16) != 0) {
+            opts.add(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES);
+        }
+        if ((id & 32) != 0) {
+            opts.add(Option.FORBID_CLOSED_INDICES);
+        }
+        if ((id & 64) != 0) {
+            opts.add(Option.IGNORE_ALIASES);
+        }
+        return new IndicesOptions(opts, wildcards);
+    }
+
+    /**
+     * See: {@link #fromByte(byte)}
+     */
+    private static byte toByte(IndicesOptions options) {
+        byte id = 0;
+        if (options.ignoreUnavailable()) {
+            id |= 1;
+        }
+        if (options.allowNoIndices()) {
+            id |= 2;
+        }
+        if (options.expandWildcardsOpen()) {
+            id |= 4;
+        }
+        if (options.expandWildcardsClosed()) {
+            id |= 8;
+        }
+        // true is default here, for bw comp we keep the first 16 values
+        // in the array same as before + the default value for the new flag
+        if (options.allowAliasesToMultipleIndices() == false) {
+            id |= 16;
+        }
+        if (options.forbidClosedIndices()) {
+            id |= 32;
+        }
+        if (options.ignoreAliases()) {
+            id |= 64;
+        }
+        return id;
+    }
+
+    private static final IndicesOptions[] OLD_VALUES;
+
+    static {
+        short max = 1 << 7;
+        OLD_VALUES = new IndicesOptions[max];
+        for (short id = 0; id < max; id++) {
+            OLD_VALUES[id] = IndicesOptions.fromByte((byte)id);
+        }
     }
 
     /**
      * @return Whether specified concrete indices should be ignored when unavailable (missing or closed)
      */
     public boolean ignoreUnavailable() {
-        return (id & IGNORE_UNAVAILABLE) != 0;
+        return options.contains(Option.IGNORE_UNAVAILABLE);
     }
 
     /**
@@ -79,28 +198,28 @@ public class IndicesOptions {
      *         are allowed.
      */
     public boolean allowNoIndices() {
-        return (id & ALLOW_NO_INDICES) != 0;
+        return options.contains(Option.ALLOW_NO_INDICES);
     }
 
     /**
      * @return Whether wildcard expressions should get expanded to open indices
      */
     public boolean expandWildcardsOpen() {
-        return (id & EXPAND_WILDCARDS_OPEN) != 0;
+        return expandWildcards.contains(WildcardStates.OPEN);
     }
 
     /**
      * @return Whether wildcard expressions should get expanded to closed indices
      */
     public boolean expandWildcardsClosed() {
-        return (id & EXPAND_WILDCARDS_CLOSED) != 0;
+        return expandWildcards.contains(WildcardStates.CLOSED);
     }
 
     /**
      * @return Whether execution on closed indices is allowed.
      */
     public boolean forbidClosedIndices() {
-        return (id & FORBID_CLOSED_INDICES) != 0;
+        return options.contains(Option.FORBID_CLOSED_INDICES);
     }
 
     /**
@@ -109,26 +228,35 @@ public class IndicesOptions {
     public boolean allowAliasesToMultipleIndices() {
         // true is default here, for bw comp we keep the first 16 values
         // in the array same as before + the default value for the new flag
-        return (id & FORBID_ALIASES_TO_MULTIPLE_INDICES) == 0;
+        return options.contains(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES) == false;
     }
 
     /**
      * @return whether aliases should be ignored (when resolving a wildcard)
      */
     public boolean ignoreAliases() {
-        return (id & IGNORE_ALIASES) != 0;
+        return options.contains(Option.IGNORE_ALIASES);
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        out.write(id);
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            out.writeEnumSet(options);
+            out.writeEnumSet(expandWildcards);
+        } else {
+            out.write(IndicesOptions.toByte(this));
+        }
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
-        byte id = in.readByte();
-        if (id >= VALUES.length) {
-            throw new IllegalArgumentException("No valid missing index type id: " + id);
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            return new IndicesOptions(in.readEnumSet(Option.class), in.readEnumSet(WildcardStates.class));
+        } else {
+            byte id = in.readByte();
+            if (id >= OLD_VALUES.length) {
+                throw new IllegalArgumentException("No valid missing index type id: " + id);
+            }
+            return OLD_VALUES[id];
         }
-        return VALUES[id];
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices) {
@@ -141,9 +269,32 @@ public class IndicesOptions {
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
             boolean expandToClosedIndices, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices, boolean ignoreAliases) {
-        byte id = toByte(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, allowAliasesToMultipleIndices,
-                forbidClosedIndices, ignoreAliases);
-        return VALUES[id];
+        final Set<Option> opts = new HashSet<>();
+        final Set<WildcardStates> wildcards = new HashSet<>();
+
+        if (ignoreUnavailable) {
+            opts.add(Option.IGNORE_UNAVAILABLE);
+        }
+        if (allowNoIndices) {
+            opts.add(Option.ALLOW_NO_INDICES);
+        }
+        if (expandToOpenIndices) {
+            wildcards.add(WildcardStates.OPEN);
+        }
+        if (expandToClosedIndices) {
+            wildcards.add(WildcardStates.CLOSED);
+        }
+        if (allowAliasesToMultipleIndices == false) {
+            opts.add(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES);
+        }
+        if (forbidClosedIndices) {
+            opts.add(Option.FORBID_CLOSED_INDICES);
+        }
+        if (ignoreAliases) {
+            opts.add(Option.IGNORE_ALIASES);
+        }
+
+        return new IndicesOptions(opts, wildcards);
     }
 
     public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
@@ -177,36 +328,14 @@ public class IndicesOptions {
             return defaultSettings;
         }
 
-        boolean expandWildcardsOpen = false;
-        boolean expandWildcardsClosed = false;
-        if (wildcardsString == null) {
-            expandWildcardsOpen = defaultSettings.expandWildcardsOpen();
-            expandWildcardsClosed = defaultSettings.expandWildcardsClosed();
-        } else {
-            String[] wildcards = nodeStringArrayValue(wildcardsString);
-            for (String wildcard : wildcards) {
-                if ("open".equals(wildcard)) {
-                    expandWildcardsOpen = true;
-                } else if ("closed".equals(wildcard)) {
-                    expandWildcardsClosed = true;
-                } else if ("none".equals(wildcard)) {
-                    expandWildcardsOpen = false;
-                    expandWildcardsClosed = false;
-                } else if ("all".equals(wildcard)) {
-                    expandWildcardsOpen = true;
-                    expandWildcardsClosed = true;
-                } else {
-                    throw new IllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");
-                }
-            }
-        }
+        EnumSet<WildcardStates> wildcards = WildcardStates.parseParameter(wildcardsString, defaultSettings.expandWildcards);
 
-        //note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
+        // note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return fromOptions(
                 nodeBooleanValue(ignoreUnavailableString, "ignore_unavailable", defaultSettings.ignoreUnavailable()),
                 nodeBooleanValue(allowNoIndicesString, "allow_no_indices", defaultSettings.allowNoIndices()),
-                expandWildcardsOpen,
-                expandWildcardsClosed,
+                wildcards.contains(WildcardStates.OPEN),
+                wildcards.contains(WildcardStates.CLOSED),
                 defaultSettings.allowAliasesToMultipleIndices(),
                 defaultSettings.forbidClosedIndices(),
                 defaultSettings.ignoreAliases()
@@ -218,7 +347,7 @@ public class IndicesOptions {
      *         allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strictExpandOpen() {
-        return VALUES[STRICT_EXPAND_OPEN];
+        return STRICT_EXPAND_OPEN;
     }
 
     /**
@@ -227,7 +356,7 @@ public class IndicesOptions {
      *         use of closed indices by throwing an error.
      */
     public static IndicesOptions strictExpandOpenAndForbidClosed() {
-        return VALUES[STRICT_EXPAND_OPEN_FORBID_CLOSED];
+        return STRICT_EXPAND_OPEN_FORBID_CLOSED;
     }
 
     /**
@@ -235,7 +364,7 @@ public class IndicesOptions {
      * indices and allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strictExpand() {
-        return VALUES[STRICT_EXPAND_OPEN_CLOSED];
+        return STRICT_EXPAND_OPEN_CLOSED;
     }
 
     /**
@@ -243,7 +372,7 @@ public class IndicesOptions {
      * throws error if any of the aliases resolves to multiple indices
      */
     public static IndicesOptions strictSingleIndexNoExpandForbidClosed() {
-        return VALUES[STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED];
+        return STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED;
     }
 
     /**
@@ -251,43 +380,33 @@ public class IndicesOptions {
      *         allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions lenientExpandOpen() {
-        return VALUES[LENIENT_EXPAND_OPEN];
+        return LENIENT_EXPAND_OPEN;
     }
 
-    private static byte toByte(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen,
-            boolean wildcardExpandToClosed, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices, boolean ignoreAliases) {
-        byte id = 0;
-        if (ignoreUnavailable) {
-            id |= IGNORE_UNAVAILABLE;
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
         }
-        if (allowNoIndices) {
-            id |= ALLOW_NO_INDICES;
+
+        if (obj.getClass() != getClass()) {
+            return false;
         }
-        if (wildcardExpandToOpen) {
-            id |= EXPAND_WILDCARDS_OPEN;
-        }
-        if (wildcardExpandToClosed) {
-            id |= EXPAND_WILDCARDS_CLOSED;
-        }
-        //true is default here, for bw comp we keep the first 16 values
-        //in the array same as before + the default value for the new flag
-        if (!allowAliasesToMultipleIndices) {
-            id |= FORBID_ALIASES_TO_MULTIPLE_INDICES;
-        }
-        if (forbidClosedIndices) {
-            id |= FORBID_CLOSED_INDICES;
-        }
-        if (ignoreAliases) {
-            id |= IGNORE_ALIASES;
-        }
-        return id;
+
+        IndicesOptions other = (IndicesOptions) obj;
+        return options.equals(other.options) && expandWildcards.equals(other.expandWildcards);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = options.hashCode();
+        return 31 * result + expandWildcards.hashCode();
     }
 
     @Override
     public String toString() {
         return "IndicesOptions[" +
-                "id=" + id +
-                ", ignore_unavailable=" + ignoreUnavailable() +
+                "ignore_unavailable=" + ignoreUnavailable() +
                 ", allow_no_indices=" + allowNoIndices() +
                 ", expand_wildcards_open=" + expandWildcardsOpen() +
                 ", expand_wildcards_closed=" + expandWildcardsClosed() +

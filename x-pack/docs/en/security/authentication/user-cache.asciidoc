@@ -1,5 +1,6 @@
+[role="xpack"]
 [[controlling-user-cache]]
-=== Controlling the User Cache
+=== Controlling the user cache
 
 User credentials are cached in memory on each node to avoid connecting to a
 remote authentication service or hitting the disk for every incoming request.
@@ -34,7 +35,7 @@ setting the `cache_hash_algo` setting to any of the following:
 |=======================
 
 [[cache-eviction-api]]
-==== Evicting Users from the Cache
+==== Evicting users from the cache
 
 {security} exposes a
 {ref}/security-api-clear-cache.html[Clear Cache API] you can use

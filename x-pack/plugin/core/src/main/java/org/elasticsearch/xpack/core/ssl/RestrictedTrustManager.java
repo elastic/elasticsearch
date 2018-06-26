@@ -7,18 +7,13 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.bouncycastle.asn1.ASN1ObjectIdentifier;
-import org.bouncycastle.asn1.ASN1Primitive;
-import org.bouncycastle.asn1.ASN1Sequence;
-import org.bouncycastle.asn1.ASN1String;
-import org.bouncycastle.asn1.ASN1TaggedObject;
-import org.bouncycastle.asn1.DERTaggedObject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedTrustManager;
 
+import java.io.IOException;
 import java.net.Socket;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateParsingException;
@@ -41,10 +36,11 @@ import java.util.stream.Collectors;
  */
 public final class RestrictedTrustManager extends X509ExtendedTrustManager {
 
+    private static final String CN_OID = "2.5.4.3";
+    private static final int SAN_CODE_OTHERNAME = 0;
     private final Logger logger;
     private final X509ExtendedTrustManager delegate;
     private final CertificateTrustRestrictions trustRestrictions;
-    private final int SAN_CODE_OTHERNAME = 0;
 
     public RestrictedTrustManager(Settings settings, X509ExtendedTrustManager delegate, CertificateTrustRestrictions restrictions) {
         this.logger = Loggers.getLogger(getClass(), settings);
@@ -127,47 +123,54 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         return getSubjectAlternativeNames(certificate).stream()
                 .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_OTHERNAME)
                 .map(pair -> pair.get(1))
-                .map(value -> {
-                    ASN1Sequence seq = ASN1Sequence.getInstance(value);
-                    if (seq.size() != 2) {
-                        String message = "Incorrect sequence length for 'other name' [" + seq + "]";
-                        assert false : message;
-                        logger.warn(message);
-                        return null;
-                    }
-                    final String id = ASN1ObjectIdentifier.getInstance(seq.getObjectAt(0)).getId();
-                    if (CertUtils.CN_OID.equals(id)) {
-                        ASN1TaggedObject tagged = DERTaggedObject.getInstance(seq.getObjectAt(1));
-                        // The JRE's handling of OtherNames is buggy.
-                        // The internal sun classes go to a lot of trouble to parse the GeneralNames into real object
-                        // And then java.security.cert.X509Certificate just turns them back into bytes
-                        // But in doing so, it ends up wrapping the "other name" bytes with a second tag
-                        // Specifically: sun.security.x509.OtherName(DerValue) never decodes the tagged "nameValue"
-                        // But: sun.security.x509.OtherName.encode() wraps the nameValue in a DER Tag.
-                        // So, there's a good chance that our tagged nameValue contains... a tagged name value.
-                        if (tagged.getObject() instanceof ASN1TaggedObject) {
-                            tagged = (ASN1TaggedObject) tagged.getObject();
-                        }
-                        final ASN1Primitive nameValue = tagged.getObject();
-                        if (nameValue instanceof ASN1String) {
-                            final String cn = ((ASN1String) nameValue).getString();
-                            logger.trace("Read cn [{}] from ASN1Sequence [{}]", cn, seq);
-                            return cn;
-                        } else {
-                            logger.warn("Certificate [{}] has 'otherName' [{}] with unsupported name-value type [{}]",
-                                    certificate.getSubjectDN(), seq, nameValue.getClass().getSimpleName());
-                            return null;
-                        }
-                    } else {
-                        logger.debug("Certificate [{}] has 'otherName' [{}] with unsupported object-id [{}]",
-                                certificate.getSubjectDN(), seq, id);
-                        return null;
-                    }
-                })
+                .map(value -> decodeDerValue((byte[]) value, certificate))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * Decodes the otherName CN from the certificate
+     *
+     * @param value       The DER Encoded Subject Alternative Name
+     * @param certificate
+     * @return the CN or null if it could not be parsed
+     */
+    private String decodeDerValue(byte[] value, X509Certificate certificate) {
+        try {
+            DerParser parser = new DerParser(value);
+            DerParser.Asn1Object seq = parser.readAsn1Object();
+            parser = seq.getParser();
+            String id = parser.readAsn1Object().getOid();
+            if (CN_OID.equals(id)) {
+                // Get the DER object with explicit 0 tag
+                DerParser.Asn1Object cnObject = parser.readAsn1Object();
+                parser = cnObject.getParser();
+                // The JRE's handling of OtherNames is buggy.
+                // The internal sun classes go to a lot of trouble to parse the GeneralNames into real object
+                // And then java.security.cert.X509Certificate just turns them back into bytes
+                // But in doing so, it ends up wrapping the "other name" bytes with a second tag
+                // Specifically: sun.security.x509.OtherName(DerValue) never decodes the tagged "nameValue"
+                // But: sun.security.x509.OtherName.encode() wraps the nameValue in a DER Tag.
+                // So, there's a good chance that our tagged nameValue contains... a tagged name value.
+                DerParser.Asn1Object innerObject = parser.readAsn1Object();
+                if (innerObject.isConstructed()) {
+                    innerObject = innerObject.getParser().readAsn1Object();
+                }
+                logger.trace("Read innermost ASN.1 Object with type code [{}]", innerObject.getType());
+                String cn = innerObject.getString();
+                logger.trace("Read cn [{}] from ASN1Sequence [{}]", cn, seq);
+                return cn;
+            } else {
+                logger.debug("Certificate [{}] has 'otherName' [{}] with unsupported object-id [{}]",
+                        certificate.getSubjectDN(), seq, id);
+                return null;
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to read 'otherName' from certificate [{}]",
+                    certificate.getSubjectDN());
+            return null;
+        }
+    }
 
     private Collection<List<?>> getSubjectAlternativeNames(X509Certificate certificate) throws CertificateParsingException {
         final Collection<List<?>> sans = certificate.getSubjectAlternativeNames();

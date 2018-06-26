@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -125,7 +124,6 @@ public class AuthenticationServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private ThreadContext threadContext;
     private TokenService tokenService;
-    private SecurityLifecycleService lifecycleService;
     private SecurityIndexManager securityIndex;
     private Client client;
     private InetSocketAddress remoteAddress;
@@ -182,16 +180,14 @@ public class AuthenticationServiceTests extends ESTestCase {
                     .setId((String) invocationOnMock.getArguments()[2]);
             return builder;
         }).when(client).prepareGet(anyString(), anyString(), anyString());
-        lifecycleService = mock(SecurityLifecycleService.class);
         securityIndex = mock(SecurityIndexManager.class);
-        when(lifecycleService.securityIndex()).thenReturn(securityIndex);
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
         }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, lifecycleService, clusterService);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
         service = new AuthenticationService(settings, realms, auditTrail,
                 new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings), tokenService);
     }
@@ -203,7 +199,6 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testTokenFirstMissingSecondFound() throws Exception {
         when(firstRealm.token(threadContext)).thenReturn(null);
         when(secondRealm.token(threadContext)).thenReturn(token);
@@ -231,7 +226,6 @@ public class AuthenticationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
-    @SuppressWarnings("unchecked")
     public void testAuthenticateBothSupportSecondSucceeds() throws Exception {
         User user = new User("_username", "r1");
         when(firstRealm.supports(token)).thenReturn(true);
@@ -702,7 +696,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         mockAuthenticate(secondRealm, token, user);
         mockRealmLookupReturnsNull(firstRealm, "run_as");
         doAnswer((i) -> {
-            ActionListener listener = (ActionListener) i.getArguments()[1];
+            ActionListener<User> listener = (ActionListener<User>) i.getArguments()[1];
             listener.onResponse(new User("looked up user", new String[]{"some role"}));
             return null;
         }).when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
@@ -739,6 +733,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertTrue(completed.get());
     }
 
+    @SuppressWarnings("unchecked")
     public void testRunAsLookupDifferentRealm() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
@@ -746,7 +741,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.supports(token)).thenReturn(true);
         mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
         doAnswer((i) -> {
-            ActionListener listener = (ActionListener) i.getArguments()[1];
+            ActionListener<User> listener = (ActionListener<User>) i.getArguments()[1];
             listener.onResponse(new User("looked up user", new String[]{"some role"}));
             return null;
         }).when(firstRealm).lookupUser(eq("run_as"), any(ActionListener.class));
@@ -809,6 +804,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testAuthenticateTransportDisabledRunAsUser() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "run_as");
@@ -817,7 +813,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
         mockRealmLookupReturnsNull(firstRealm, "run_as");
         doAnswer((i) -> {
-            ActionListener listener = (ActionListener) i.getArguments()[1];
+            ActionListener<User> listener = (ActionListener<User>) i.getArguments()[1];
             listener.onResponse(new User("looked up user", new String[]{"some role"}, null, null, null, false));
             return null;
         }).when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
@@ -837,7 +833,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         mockAuthenticate(secondRealm, token, new User("lookup user", new String[]{"user"}));
         mockRealmLookupReturnsNull(firstRealm, "run_as");
         doAnswer((i) -> {
-            ActionListener listener = (ActionListener) i.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            ActionListener<User> listener = (ActionListener<User>) i.getArguments()[1];
             listener.onResponse(new User("looked up user", new String[]{"some role"}, null, null, null, false));
             return null;
         }).when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
@@ -929,7 +926,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testExpiredToken() throws Exception {
         when(securityIndex.isAvailable()).thenReturn(true);
-        when(lifecycleService.securityIndex().indexExists()).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
         User user = new User("_username", "r1");
         final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
@@ -988,9 +985,10 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY), equalTo((Object) authentication.encode()));
     }
 
+    @SuppressWarnings("unchecked")
     private void mockAuthenticate(Realm realm, AuthenticationToken token, User user) {
         doAnswer((i) -> {
-            ActionListener listener = (ActionListener) i.getArguments()[1];
+            ActionListener<AuthenticationResult> listener = (ActionListener<AuthenticationResult>) i.getArguments()[1];
             if (user == null) {
                 listener.onResponse(AuthenticationResult.notHandled());
             } else {
@@ -1012,9 +1010,10 @@ public class AuthenticationServiceTests extends ESTestCase {
         return future.actionGet();
     }
 
+    @SuppressWarnings("unchecked")
     private static void mockRealmLookupReturnsNull(Realm realm, String username) {
         doAnswer((i) -> {
-            ActionListener listener = (ActionListener) i.getArguments()[1];
+            ActionListener<?> listener = (ActionListener<?>) i.getArguments()[1];
             listener.onResponse(null);
             return null;
         }).when(realm).lookupUser(eq(username), any(ActionListener.class));

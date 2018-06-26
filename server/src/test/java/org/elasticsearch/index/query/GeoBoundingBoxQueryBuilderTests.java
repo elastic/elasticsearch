@@ -24,6 +24,7 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -448,6 +449,64 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(expectedJson, 40.01, parsed.bottomRight().getLat(), delta);
         assertEquals(expectedJson, 1.0, parsed.boost(), delta);
         assertEquals(expectedJson, GeoExecType.MEMORY, parsed.type());
+    }
+
+    public void testFromGeohash() throws IOException {
+        String json =
+            "{\n" +
+                "  \"geo_bounding_box\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"top_left\" : \"dr\",\n" +
+                "      \"bottom_right\" : \"dq\"\n" +
+                "    },\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        String expectedJson =
+            "{\n" +
+                "  \"geo_bounding_box\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"top_left\" : [ -78.75, 45.0 ],\n" +
+                "      \"bottom_right\" : [ -67.5, 33.75 ]\n" +
+                "    },\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        GeoBoundingBoxQueryBuilder parsed = (GeoBoundingBoxQueryBuilder) parseQuery(json);
+        checkGeneratedJson(expectedJson, parsed);
+        assertEquals(json, "pin.location", parsed.fieldName());
+        assertEquals(json, -78.75, parsed.topLeft().getLon(), 0.0001);
+        assertEquals(json, 45.0, parsed.topLeft().getLat(), 0.0001);
+        assertEquals(json, -67.5, parsed.bottomRight().getLon(), 0.0001);
+        assertEquals(json, 33.75, parsed.bottomRight().getLat(), 0.0001);
+        assertEquals(json, 1.0, parsed.boost(), 0.0001);
+        assertEquals(json, GeoExecType.MEMORY, parsed.type());
+    }
+
+    public void testMalformedGeohashes() {
+        String jsonGeohashAndWkt =
+            "{\n" +
+                "  \"geo_bounding_box\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"top_left\" : [ -78.75, 45.0 ],\n" +
+                "      \"wkt\" : \"BBOX (-74.1, -71.12, 40.73, 40.01)\"\n" +
+                "    },\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class, () -> parseQuery(jsonGeohashAndWkt));
+        assertThat(e1.getMessage(), containsString("Conflicting definition found using well-known text and explicit corners."));
     }
 
     @Override

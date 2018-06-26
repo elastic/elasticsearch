@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -148,14 +147,14 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         PipelineConfiguration that = (PipelineConfiguration) o;
 
         if (!id.equals(that.id)) return false;
-        return config.equals(that.config);
+        return getConfigAsMap().equals(that.getConfigAsMap());
 
     }
 
     @Override
     public int hashCode() {
         int result = id.hashCode();
-        result = 31 * result + config.hashCode();
+        result = 31 * result + getConfigAsMap().hashCode();
         return result;
     }
 }

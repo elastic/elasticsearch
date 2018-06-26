@@ -29,8 +29,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
 
@@ -83,7 +84,11 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
         startDatafeed(datafeedId, 0, System.currentTimeMillis());
         waitUntilJobIsClosed(job.getId());
 
-        assertThat(getBuckets(job.getId()).size(), equalTo(23));
+        // As the initial time is random, there's a chance the first record is
+        // aligned on a bucket start. Thus we check the buckets are in [23, 24]
+        assertThat(getBuckets(job.getId()).size(), greaterThanOrEqualTo(23));
+        assertThat(getBuckets(job.getId()).size(), lessThanOrEqualTo(24));
+
         Set<String> modelPlotTerms = modelPlotTerms(job.getId(), "partition_field_value");
         assertThat(modelPlotTerms, containsInAnyOrder("user_1", "user_2", "user_3"));
     }
@@ -101,7 +106,11 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
         startDatafeed(datafeedId, 0, System.currentTimeMillis());
         waitUntilJobIsClosed(job.getId());
 
-        assertThat(getBuckets(job.getId()).size(), equalTo(23));
+        // As the initial time is random, there's a chance the first record is
+        // aligned on a bucket start. Thus we check the buckets are in [23, 24]
+        assertThat(getBuckets(job.getId()).size(), greaterThanOrEqualTo(23));
+        assertThat(getBuckets(job.getId()).size(), lessThanOrEqualTo(24));
+
         Set<String> modelPlotTerms = modelPlotTerms(job.getId(), "partition_field_value");
         assertThat(modelPlotTerms, containsInAnyOrder("user_2", "user_3"));
     }
@@ -119,7 +128,11 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
         startDatafeed(datafeedId, 0, System.currentTimeMillis());
         waitUntilJobIsClosed(job.getId());
 
-        assertThat(getBuckets(job.getId()).size(), equalTo(23));
+        // As the initial time is random, there's a chance the first record is
+        // aligned on a bucket start. Thus we check the buckets are in [23, 24]
+        assertThat(getBuckets(job.getId()).size(), greaterThanOrEqualTo(23));
+        assertThat(getBuckets(job.getId()).size(), lessThanOrEqualTo(24));
+
         Set<String> modelPlotTerms = modelPlotTerms(job.getId(), "by_field_value");
         assertThat(modelPlotTerms, containsInAnyOrder("user_2", "user_3"));
     }

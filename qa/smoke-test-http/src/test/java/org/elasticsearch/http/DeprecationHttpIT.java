@@ -22,6 +22,7 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -106,11 +107,10 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
 
         final String commaSeparatedIndices = Stream.of(indices).collect(Collectors.joining(","));
 
-        final String body = "{\"query\":{\"bool\":{\"filter\":[{\"" + TestDeprecatedQueryBuilder.NAME +  "\":{}}]}}}";
-
         // trigger all index deprecations
-        Response response = getRestClient().performRequest("GET", "/" + commaSeparatedIndices + "/_search",
-                Collections.emptyMap(), new StringEntity(body, ContentType.APPLICATION_JSON));
+        Request request = new Request("GET", "/" + commaSeparatedIndices + "/_search");
+        request.setJsonEntity("{\"query\":{\"bool\":{\"filter\":[{\"" + TestDeprecatedQueryBuilder.NAME +  "\":{}}]}}}");
+        Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
         final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
@@ -162,8 +162,9 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
         Collections.shuffle(settings, random());
 
         // trigger all deprecations
-        Response response = getRestClient().performRequest("GET", "/_test_cluster/deprecated_settings",
-                Collections.emptyMap(), buildSettingsRequest(settings, useDeprecatedField));
+        Request request = new Request("GET", "/_test_cluster/deprecated_settings");
+        request.setEntity(buildSettingsRequest(settings, useDeprecatedField));
+        Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
 
         final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());

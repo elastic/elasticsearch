@@ -57,7 +57,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
 
     private MockWebServer webServer = new MockWebServer();
     private static Boolean encryptSensitiveData = null;
-    private static byte[] encryptionKey = CryptoServiceTests.generateKey();
+    private static final byte[] encryptionKey = CryptoServiceTests.generateKey();
 
     @Before
     public void init() throws Exception {
@@ -155,8 +155,17 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         assertThat(webServer.requests(), hasSize(1));
         assertThat(webServer.requests().get(0).getHeader("Authorization"),
                 is(ApplicableBasicAuth.headerValue(USERNAME, PASSWORD.toCharArray())));
+
+        // now trigger the by the scheduler and make sure that the password is also correctly transmitted
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(
+            BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString()));
+        timeWarp().trigger("_id");
+        assertThat(webServer.requests(), hasSize(2));
+        assertThat(webServer.requests().get(1).getHeader("Authorization"),
+            is(ApplicableBasicAuth.headerValue(USERNAME, PASSWORD.toCharArray())));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30094")
     public void testWebhookAction() throws Exception {
         WatcherClient watcherClient = watcherClient();
         watcherClient.preparePutWatch("_id")

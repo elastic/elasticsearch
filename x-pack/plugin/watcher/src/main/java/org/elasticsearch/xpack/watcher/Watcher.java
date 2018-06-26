@@ -196,16 +196,14 @@ import static java.util.Collections.emptyList;
 
 public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
 
+    // This setting is only here for backward compatibility reasons as 6.x indices made use of it. It can be removed in 8.x.
+    @Deprecated
     public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
             new Setting<>("index.xpack.watcher.template.version", "", Function.identity(), Setting.Property.IndexScope);
     public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING =
             Setting.boolSetting("xpack.watcher.encrypt_sensitive_data", false, Setting.Property.NodeScope);
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
             Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
-
-    // list of headers that will be stored when a watch is stored
-    public static final Set<String> HEADER_FILTERS =
-            new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
 
     public static final ScriptContext<SearchScript.Factory> SCRIPT_SEARCH_CONTEXT =
         new ScriptContext<>("xpack", SearchScript.Factory.class);

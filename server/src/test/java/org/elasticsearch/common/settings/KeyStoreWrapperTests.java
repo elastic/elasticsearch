@@ -48,11 +48,13 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class KeyStoreWrapperTests extends ESTestCase {
@@ -95,6 +97,19 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testCreate() throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         assertTrue(keystore.getSettingNames().contains(KeyStoreWrapper.SEED_SETTING.getKey()));
+    }
+
+    public void testCannotReadStringFromClosedKeystore() throws Exception {
+        KeyStoreWrapper keystore = KeyStoreWrapper.create();
+        assertThat(keystore.getSettingNames(), Matchers.hasItem(KeyStoreWrapper.SEED_SETTING.getKey()));
+        assertThat(keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()), notNullValue());
+
+        keystore.close();
+
+        assertThat(keystore.getSettingNames(), Matchers.hasItem(KeyStoreWrapper.SEED_SETTING.getKey()));
+        final IllegalStateException exception = expectThrows(IllegalStateException.class,
+            () -> keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()));
+        assertThat(exception.getMessage(), containsString("closed"));
     }
 
     public void testUpgradeNoop() throws Exception {

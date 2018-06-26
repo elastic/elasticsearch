@@ -37,8 +37,8 @@ tweets from the `twitter` index for a certain user. The result is:
 {
     "count" : 1,
     "_shards" : {
-        "total" : 5,
-        "successful" : 5,
+        "total" : 1,
+        "successful" : 1,
         "skipped" : 0,
         "failed" : 0
     }

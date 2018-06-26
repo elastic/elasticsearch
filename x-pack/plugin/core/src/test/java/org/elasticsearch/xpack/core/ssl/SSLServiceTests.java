@@ -39,12 +39,10 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
 
-import java.net.Socket;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -446,22 +444,11 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testEmptyTrustManager() throws Exception {
-        X509ExtendedTrustManager trustManager = new SSLService.EmptyX509TrustManager();
+        Settings settings = Settings.builder().build();
+        final SSLService sslService = new SSLService(settings, env);
+        SSLConfiguration sslConfig = new SSLConfiguration(settings);
+        X509ExtendedTrustManager trustManager = sslService.sslContextHolder(sslConfig).getEmptyTrustManager();
         assertThat(trustManager.getAcceptedIssuers(), emptyArray());
-        final String message = "no certificates are trusted";
-        CertificateException ce =
-                expectThrows(CertificateException.class, () -> trustManager.checkClientTrusted(null, null, (Socket) null));
-        assertEquals(message, ce.getMessage());
-        ce = expectThrows(CertificateException.class, () -> trustManager.checkClientTrusted(null, null, (SSLEngine) null));
-        assertEquals(message, ce.getMessage());
-        ce = expectThrows(CertificateException.class, () -> trustManager.checkClientTrusted(null, null));
-        assertEquals(message, ce.getMessage());
-        ce = expectThrows(CertificateException.class, () -> trustManager.checkServerTrusted(null, null, (Socket) null));
-        assertEquals(message, ce.getMessage());
-        ce = expectThrows(CertificateException.class, () -> trustManager.checkServerTrusted(null, null, (SSLEngine) null));
-        assertEquals(message, ce.getMessage());
-        ce = expectThrows(CertificateException.class, () -> trustManager.checkServerTrusted(null, null));
-        assertEquals(message, ce.getMessage());
     }
 
     public void testReadCertificateInformation() throws Exception {
@@ -485,7 +472,7 @@ public class SSLServiceTests extends ESTestCase {
 
         final SSLService sslService = new SSLService(settings, env);
         final List<CertificateInfo> certificates = new ArrayList<>(sslService.getLoadedCertificates());
-        assertThat(certificates, iterableWithSize(8));
+        assertThat(certificates, iterableWithSize(10));
         Collections.sort(certificates,
                 Comparator.comparing((CertificateInfo c) -> c.alias() == null ? "" : c.alias()).thenComparing(CertificateInfo::path));
 
@@ -536,24 +523,6 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
         cert = iterator.next();
-        assertThat(cert.alias(), equalTo("testnode"));
-        assertThat(cert.path(), equalTo(jksPath.toString()));
-        assertThat(cert.format(), equalTo("jks"));
-        assertThat(cert.serialNumber(), equalTo("b8b96c37e332cccb"));
-        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
-        assertThat(cert.expiry(), equalTo(DateTime.parse("2019-09-22T18:52:57Z")));
-        assertThat(cert.hasPrivateKey(), equalTo(true));
-
-        cert = iterator.next();
-        assertThat(cert.alias(), equalTo("testnode"));
-        assertThat(cert.path(), equalTo(p12Path.toString()));
-        assertThat(cert.format(), equalTo("PKCS12"));
-        assertThat(cert.serialNumber(), equalTo("b8b96c37e332cccb"));
-        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
-        assertThat(cert.expiry(), equalTo(DateTime.parse("2019-09-22T18:52:57Z")));
-        assertThat(cert.hasPrivateKey(), equalTo(true));
-
-        cert = iterator.next();
         assertThat(cert.alias(), equalTo("testnode-client-profile"));
         assertThat(cert.path(), equalTo(jksPath.toString()));
         assertThat(cert.format(), equalTo("jks"));
@@ -561,6 +530,42 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.subjectDn(), equalTo("CN=testnode-client-profile"));
         assertThat(cert.expiry(), equalTo(DateTime.parse("2019-09-22T18:52:56Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
+
+        cert = iterator.next();
+        assertThat(cert.alias(), equalTo("testnode_dsa"));
+        assertThat(cert.path(), equalTo(jksPath.toString()));
+        assertThat(cert.format(), equalTo("jks"));
+        assertThat(cert.serialNumber(), equalTo("223c736a"));
+        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node"));
+        assertThat(cert.expiry(), equalTo(DateTime.parse("2045-10-02T09:43:18.000Z")));
+        assertThat(cert.hasPrivateKey(), equalTo(true));
+
+        cert = iterator.next();
+        assertThat(cert.alias(), equalTo("testnode_ec"));
+        assertThat(cert.path(), equalTo(jksPath.toString()));
+        assertThat(cert.format(), equalTo("jks"));
+        assertThat(cert.serialNumber(), equalTo("7268203b"));
+        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node"));
+        assertThat(cert.expiry(), equalTo(DateTime.parse("2045-10-02T09:36:10.000Z")));
+        assertThat(cert.hasPrivateKey(), equalTo(true));
+
+        cert = iterator.next();
+        assertThat(cert.alias(), equalTo("testnode_rsa"));
+        assertThat(cert.path(), equalTo(jksPath.toString()));
+        assertThat(cert.format(), equalTo("jks"));
+        assertThat(cert.serialNumber(), equalTo("b8b96c37e332cccb"));
+        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
+        assertThat(cert.expiry(), equalTo(DateTime.parse("2019-09-22T18:52:57.000Z")));
+        assertThat(cert.hasPrivateKey(), equalTo(true));
+
+        cert = iterator.next();
+        assertThat(cert.alias(), equalTo("testnode_rsa"));
+        assertThat(cert.path(), equalTo(p12Path.toString()));
+        assertThat(cert.format(), equalTo("PKCS12"));
+        assertThat(cert.serialNumber(), equalTo("b8b96c37e332cccb"));
+        assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
+        assertThat(cert.expiry(), equalTo(DateTime.parse("2019-09-22T18:52:57Z")));
+        assertThat(cert.hasPrivateKey(), equalTo(true));
 
         assertFalse(iterator.hasNext());
     }

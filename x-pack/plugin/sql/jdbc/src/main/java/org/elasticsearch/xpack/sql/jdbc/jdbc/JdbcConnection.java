@@ -43,6 +43,10 @@ public class JdbcConnection implements Connection, JdbcWrapper {
     private String catalog;
     private String schema;
 
+    /**
+     * The SQLException is the only type of Exception the JDBC API can throw (and that the user expects).
+     * If we remove it, we need to make sure no other types of Exceptions (runtime or otherwise) are thrown
+     */
     public JdbcConnection(JdbcConfiguration connectionInfo) throws SQLException {
         cfg = connectionInfo;
         client = new JdbcHttpClient(connectionInfo);

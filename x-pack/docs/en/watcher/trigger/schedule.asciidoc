@@ -26,16 +26,23 @@ once per minute. For more information about throttling, see
 * <<schedule-cron, `cron`>>
 * <<schedule-interval, `interval`>>
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/schedule/hourly.asciidoc
 include::schedule/hourly.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/schedule/daily.asciidoc
 include::schedule/daily.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/schedule/weekly.asciidoc
 include::schedule/weekly.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/schedule/monthly.asciidoc
 include::schedule/monthly.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/schedule/yearly.asciidoc
 include::schedule/yearly.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/schedule/cron.asciidoc
 include::schedule/cron.asciidoc[]
 
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/schedule/interval.asciidoc
 include::schedule/interval.asciidoc[]

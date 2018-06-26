@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
-import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -57,11 +56,11 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
             try {
                 SynonymMap.Builder parser;
                 if ("wordnet".equalsIgnoreCase(format)) {
-                    parser = new WordnetSynonymParser(true, expand, analyzerForParseSynonym);
-                    ((WordnetSynonymParser) parser).parse(rulesReader);
+                    parser = new ESWordnetSynonymParser(true, expand, lenient, analyzerForParseSynonym);
+                    ((ESWordnetSynonymParser) parser).parse(rulesReader);
                 } else {
-                    parser = new ElasticsearchSynonymParser(true, expand, lenient, analyzerForParseSynonym);
-                    ((ElasticsearchSynonymParser) parser).parse(rulesReader);
+                    parser = new ESSolrSynonymParser(true, expand, lenient, analyzerForParseSynonym);
+                    ((ESSolrSynonymParser) parser).parse(rulesReader);
                 }
                 synonymMap = parser.build();
             } catch (Exception e) {

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -33,10 +35,10 @@ import java.text.ParseException;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ElasticsearchSynonymParserTests extends ESTokenStreamTestCase {
+public class ESSolrSynonymParserTests extends ESTokenStreamTestCase {
 
     public void testLenientParser() throws IOException, ParseException {
-        ElasticsearchSynonymParser parser = new ElasticsearchSynonymParser(true, false, true, new StandardAnalyzer());
+        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, true, new StandardAnalyzer());
         String rules =
             "&,and\n" +
             "come,advance,approach\n";
@@ -49,8 +51,23 @@ public class ElasticsearchSynonymParserTests extends ESTokenStreamTestCase {
         assertTokenStreamContents(ts, new String[]{"come", "quietly", "then", "come", "destroy"});
     }
 
+    public void testLenientParserWithSomeIncorrectLines() throws IOException, ParseException {
+        CharArraySet stopSet = new CharArraySet(1, true);
+        stopSet.add("bar");
+        ESSolrSynonymParser parser =
+            new ESSolrSynonymParser(true, false, true, new StandardAnalyzer(stopSet));
+        String rules = "foo,bar,baz";
+        StringReader rulesReader = new StringReader(rules);
+        parser.parse(rulesReader);
+        SynonymMap synonymMap = parser.build();
+        Tokenizer tokenizer = new StandardTokenizer();
+        tokenizer.setReader(new StringReader("first word is foo, then bar and lastly baz"));
+        TokenStream ts = new SynonymFilter(new StopFilter(tokenizer, stopSet), synonymMap, false);
+        assertTokenStreamContents(ts, new String[]{"first", "word", "is", "foo", "then", "and", "lastly", "foo"});
+    }
+
     public void testNonLenientParser() {
-        ElasticsearchSynonymParser parser = new ElasticsearchSynonymParser(true, false, false, new StandardAnalyzer());
+        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, false, new StandardAnalyzer());
         String rules =
             "&,and=>and\n" +
             "come,advance,approach\n";

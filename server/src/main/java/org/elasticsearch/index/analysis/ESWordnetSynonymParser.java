@@ -21,20 +21,20 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.synonym.SolrSynonymParser;
+import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 
-public class ElasticsearchSynonymParser extends SolrSynonymParser {
+public class ESWordnetSynonymParser extends WordnetSynonymParser {
 
     private final boolean lenient;
     private static final Logger logger =
-        Loggers.getLogger(ElasticsearchSynonymParser.class, "ElasticsearchSynonymParser");
+        Loggers.getLogger(ESSolrSynonymParser.class, "ESWordnetSynonymParser");
 
-    public ElasticsearchSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer) {
+    public ESWordnetSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer) {
         super(dedup, expand, analyzer);
         this.lenient = lenient;
     }

@@ -86,7 +86,7 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
         // The index names can come in either order
         assertThat(e.getMessage(), containsString("target"));
         assertThat(e.getMessage(), containsString("target2"));
-        succeeds("target_multi_with_write", "foo"); // should this be allowed?
+        // NORELEASE: succeeds("target_multi_with_write", "foo"); should this be allowed?
     }
 
     public void testRemoteInfoSkipsValidation() {

@@ -19,17 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
 public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<AnalyzeResponse> {
 

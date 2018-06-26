@@ -74,11 +74,12 @@ public class SuggestBuilderTests extends ESTestCase {
                 xContentBuilder.prettyPrint();
             }
             suggestBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-            XContentParser parser = createParser(xContentBuilder);
-            SuggestBuilder secondSuggestBuilder = SuggestBuilder.fromXContent(parser);
-            assertNotSame(suggestBuilder, secondSuggestBuilder);
-            assertEquals(suggestBuilder, secondSuggestBuilder);
-            assertEquals(suggestBuilder.hashCode(), secondSuggestBuilder.hashCode());
+            try (XContentParser parser = createParser(xContentBuilder)) {
+                SuggestBuilder secondSuggestBuilder = SuggestBuilder.fromXContent(parser);
+                assertNotSame(suggestBuilder, secondSuggestBuilder);
+                assertEquals(suggestBuilder, secondSuggestBuilder);
+                assertEquals(suggestBuilder.hashCode(), secondSuggestBuilder.hashCode());
+            }
         }
     }
 

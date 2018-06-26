@@ -1,5 +1,6 @@
+[role="xpack"]
 [[ml-geo-functions]]
-=== Geographic Functions
+=== Geographic functions
 
 The geographic functions detect anomalies in the geographic location of the
 input data.
@@ -28,12 +29,22 @@ see {ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects]
 .Example 1: Analyzing transactions with the lat_long function
 [source,js]
 --------------------------------------------------
+PUT _xpack/ml/anomaly_detectors/example1
 {
-  "function" : "lat_long",
-  "field_name" : "transactionCoordinates",
-  "by_field_name" : "creditCardNumber"
+  "analysis_config": {
+    "detectors": [{
+      "function" : "lat_long",
+      "field_name" : "transactionCoordinates",
+      "by_field_name" : "creditCardNumber"
+    }]
+  },
+  "data_description": {
+    "time_field":"timestamp",
+    "time_format": "epoch_ms"
+  }
 }
 --------------------------------------------------
+// CONSOLE
 
 If you use this `lat_long` function in a detector in your job, it
 detects anomalies where the geographic location of a credit card transaction is
@@ -54,6 +65,7 @@ For example, JSON data might contain the following transaction coordinates:
   "creditCardNumber": "1234123412341234"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 In {es}, location data is likely to be stored in `geo_point` fields. For more
 information, see {ref}/geo-point.html[Geo-point datatype]. This data type is not
@@ -64,7 +76,15 @@ format. For example, the following Painless script transforms
 
 [source,js]
 --------------------------------------------------
+PUT _xpack/ml/datafeeds/datafeed-test2
 {
+  "job_id": "farequote",
+  "indices": ["farequote"],
+  "query": {
+    "match_all": {
+          "boost": 1
+    }
+  },
   "script_fields": {
     "lat-lon": {
       "script": {
@@ -75,5 +95,7 @@ format. For example, the following Painless script transforms
   }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:farequote_job]
 
 For more information, see <<ml-configuring-transform>>.

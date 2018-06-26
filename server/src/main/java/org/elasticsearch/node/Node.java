@@ -27,7 +27,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -136,6 +136,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -447,7 +448,7 @@ public class Node implements Closeable {
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
-                Stream.of("X-Opaque-Id")
+                Stream.of(Task.X_OPAQUE_ID)
             ).collect(Collectors.toSet());
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings(), taskHeaders);
@@ -540,7 +541,7 @@ public class Node implements Closeable {
                 .map(injector::getInstance).collect(Collectors.toList()));
             resourcesToClose.addAll(pluginLifecycleComponents);
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-            client.initialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}),
+            client.initialize(injector.getInstance(new Key<Map<Action, TransportAction>>() {}),
                     () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
 
             logger.debug("initializing HTTP handlers ...");

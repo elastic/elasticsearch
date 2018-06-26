@@ -19,13 +19,13 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
+
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -34,14 +34,15 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Locale;
 
 class S3BlobStore extends AbstractComponent implements BlobStore {
 
-    private final AmazonS3 client;
+    private final AwsS3Service service;
+
+    private final String clientName;
 
     private final String bucket;
 
@@ -53,10 +54,11 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final StorageClass storageClass;
 
-    S3BlobStore(Settings settings, AmazonS3 client, String bucket, boolean serverSideEncryption,
+    S3BlobStore(Settings settings, AwsS3Service service, String clientName, String bucket, boolean serverSideEncryption,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass) {
         super(settings);
-        this.client = client;
+        this.service = service;
+        this.clientName = clientName;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
@@ -68,12 +70,14 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         // Also, if invalid security credentials are used to execute this method, the
         // client is not able to distinguish between bucket permission errors and
         // invalid credential errors, and this method could return an incorrect result.
-        SocketAccess.doPrivilegedVoid(() -> {
-            if (client.doesBucketExist(bucket) == false) {
-                throw new IllegalArgumentException("The bucket [" + bucket + "] does not exist. Please create it before " +
-                                                   " creating an s3 snapshot repository backed by it.");
-            }
-        });
+        try (AmazonS3Reference clientReference = clientReference()) {
+            SocketAccess.doPrivilegedVoid(() -> {
+                if (clientReference.client().doesBucketExist(bucket) == false) {
+                    throw new IllegalArgumentException("The bucket [" + bucket + "] does not exist. Please create it before "
+                            + " creating an s3 snapshot repository backed by it.");
+                }
+            });
+        }
     }
 
     @Override
@@ -81,8 +85,8 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         return bucket;
     }
 
-    public AmazonS3 client() {
-        return client;
+    public AmazonS3Reference clientReference() {
+        return service.client(clientName);
     }
 
     public String bucket() {
@@ -104,27 +108,30 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     @Override
     public void delete(BlobPath path) {
-        AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
+        try (AmazonS3Reference clientReference = clientReference()) {
             ObjectListing prevListing = null;
-            //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html
-            //we can do at most 1K objects per delete
-            //We don't know the bucket name until first object listing
+            // From
+            // http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html
+            // we can do at most 1K objects per delete
+            // We don't know the bucket name until first object listing
             DeleteObjectsRequest multiObjectDeleteRequest = null;
-            ArrayList<KeyVersion> keys = new ArrayList<>();
+            final ArrayList<KeyVersion> keys = new ArrayList<>();
             while (true) {
                 ObjectListing list;
                 if (prevListing != null) {
-                    list = client.listNextBatchOfObjects(prevListing);
+                    final ObjectListing finalPrevListing = prevListing;
+                    list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(finalPrevListing));
                 } else {
-                    list = client.listObjects(bucket, path.buildAsString());
+                    list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(bucket, path.buildAsString()));
                     multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
                 }
-                for (S3ObjectSummary summary : list.getObjectSummaries()) {
+                for (final S3ObjectSummary summary : list.getObjectSummaries()) {
                     keys.add(new KeyVersion(summary.getKey()));
-                    //Every 500 objects batch the delete request
+                    // Every 500 objects batch the delete request
                     if (keys.size() > 500) {
                         multiObjectDeleteRequest.setKeys(keys);
-                        client.deleteObjects(multiObjectDeleteRequest);
+                        final DeleteObjectsRequest finalMultiObjectDeleteRequest = multiObjectDeleteRequest;
+                        SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObjects(finalMultiObjectDeleteRequest));
                         multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
                         keys.clear();
                     }
@@ -137,14 +144,15 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
             }
             if (!keys.isEmpty()) {
                 multiObjectDeleteRequest.setKeys(keys);
-                client.deleteObjects(multiObjectDeleteRequest);
+                final DeleteObjectsRequest finalMultiObjectDeleteRequest = multiObjectDeleteRequest;
+                SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObjects(finalMultiObjectDeleteRequest));
             }
-            return null;
-        });
+        }
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
+        this.service.close();
     }
 
     public CannedAccessControlList getCannedACL() {
@@ -154,18 +162,18 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
     public StorageClass getStorageClass() { return storageClass; }
 
     public static StorageClass initStorageClass(String storageClass) {
-        if (storageClass == null || storageClass.equals("")) {
+        if ((storageClass == null) || storageClass.equals("")) {
             return StorageClass.Standard;
         }
 
         try {
-            StorageClass _storageClass = StorageClass.fromValue(storageClass.toUpperCase(Locale.ENGLISH));
+            final StorageClass _storageClass = StorageClass.fromValue(storageClass.toUpperCase(Locale.ENGLISH));
             if (_storageClass.equals(StorageClass.Glacier)) {
                 throw new BlobStoreException("Glacier storage class is not supported");
             }
 
             return _storageClass;
-        } catch (IllegalArgumentException illegalArgumentException) {
+        } catch (final IllegalArgumentException illegalArgumentException) {
             throw new BlobStoreException("`" + storageClass + "` is not a valid S3 Storage Class.");
         }
     }
@@ -174,11 +182,11 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
      * Constructs canned acl from string
      */
     public static CannedAccessControlList initCannedACL(String cannedACL) {
-        if (cannedACL == null || cannedACL.equals("")) {
+        if ((cannedACL == null) || cannedACL.equals("")) {
             return CannedAccessControlList.Private;
         }
 
-        for (CannedAccessControlList cur : CannedAccessControlList.values()) {
+        for (final CannedAccessControlList cur : CannedAccessControlList.values()) {
             if (cur.toString().equalsIgnoreCase(cannedACL)) {
                 return cur;
             }

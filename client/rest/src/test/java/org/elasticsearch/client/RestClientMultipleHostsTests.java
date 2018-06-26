@@ -35,9 +35,7 @@ import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
-import org.elasticsearch.client.Node.Roles;
 import org.junit.After;
-import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -74,13 +72,11 @@ import static org.mockito.Mockito.when;
 public class RestClientMultipleHostsTests extends RestClientTestCase {
 
     private ExecutorService exec = Executors.newFixedThreadPool(1);
-    private RestClient restClient;
     private List<Node> nodes;
     private HostsTrackingFailureListener failureListener;
 
-    @Before
     @SuppressWarnings("unchecked")
-    public void createRestClient() throws IOException {
+    public RestClient createRestClient(NodeSelector nodeSelector) {
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
         when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
                any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
@@ -119,7 +115,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         }
         nodes = Collections.unmodifiableList(nodes);
         failureListener = new HostsTrackingFailureListener();
-        restClient = new RestClient(httpClient, 10000, new Header[0], nodes, null, failureListener);
+        return new RestClient(httpClient, 10000, new Header[0], nodes, null, failureListener, nodeSelector);
     }
 
     /**
@@ -131,12 +127,13 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     }
 
     public void testRoundRobinOkStatusCodes() throws IOException {
+        RestClient restClient = createRestClient(NodeSelector.ANY);
         int numIters = RandomNumbers.randomIntBetween(getRandom(), 1, 5);
         for (int i = 0; i < numIters; i++) {
             Set<HttpHost> hostsSet = hostsSet();
             for (int j = 0; j < nodes.size(); j++) {
                 int statusCode = randomOkStatusCode(getRandom());
-                Response response = restClient.performRequest(randomHttpMethod(getRandom()), "/" + statusCode);
+                Response response = restClient.performRequest(new Request(randomHttpMethod(getRandom()), "/" + statusCode));
                 assertEquals(statusCode, response.getStatusLine().getStatusCode());
                 assertTrue("host not found: " + response.getHost(), hostsSet.remove(response.getHost()));
             }
@@ -146,6 +143,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     }
 
     public void testRoundRobinNoRetryErrors() throws IOException {
+        RestClient restClient = createRestClient(NodeSelector.ANY);
         int numIters = RandomNumbers.randomIntBetween(getRandom(), 1, 5);
         for (int i = 0; i < numIters; i++) {
             Set<HttpHost> hostsSet = hostsSet();
@@ -153,7 +151,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                 String method = randomHttpMethod(getRandom());
                 int statusCode = randomErrorNoRetryStatusCode(getRandom());
                 try {
-                    Response response = restClient.performRequest(method, "/" + statusCode);
+                    Response response = restClient.performRequest(new Request(method, "/" + statusCode));
                     if (method.equals("HEAD") && statusCode == 404) {
                         //no exception gets thrown although we got a 404
                         assertEquals(404, response.getStatusLine().getStatusCode());
@@ -178,9 +176,10 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     }
 
     public void testRoundRobinRetryErrors() throws IOException {
+        RestClient restClient = createRestClient(NodeSelector.ANY);
         String retryEndpoint = randomErrorRetryEndpoint();
         try  {
-            restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint);
+            restClient.performRequest(new Request(randomHttpMethod(getRandom()), retryEndpoint));
             fail("request should have failed");
         } catch (ResponseException e) {
             /*
@@ -237,7 +236,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             for (int j = 0; j < nodes.size(); j++) {
                 retryEndpoint = randomErrorRetryEndpoint();
                 try  {
-                    restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint);
+                    restClient.performRequest(new Request(randomHttpMethod(getRandom()), retryEndpoint));
                     fail("request should have failed");
                 } catch (ResponseException e) {
                     Response response = e.getResponse();
@@ -269,7 +268,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                     int statusCode = randomErrorNoRetryStatusCode(getRandom());
                     Response response;
                     try {
-                        response = restClient.performRequest(randomHttpMethod(getRandom()), "/" + statusCode);
+                        response = restClient.performRequest(new Request(randomHttpMethod(getRandom()), "/" + statusCode));
                     } catch (ResponseException e) {
                         response = e.getResponse();
                     }
@@ -286,7 +285,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                 for (int y = 0; y < i + 1; y++) {
                     retryEndpoint = randomErrorRetryEndpoint();
                     try {
-                        restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint);
+                        restClient.performRequest(new Request(randomHttpMethod(getRandom()), retryEndpoint));
                         fail("request should have failed");
                     } catch (ResponseException e) {
                         Response response = e.getResponse();
@@ -323,6 +322,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                 assertTrue(found);
             }
         };
+        RestClient restClient = createRestClient(firstPositionOnly);
         int rounds = between(1, 10);
         for (int i = 0; i < rounds; i++) {
             /*
@@ -330,18 +330,16 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
              * NodeSelector overrides the round robin behavior.
              */
             Request request = new Request("GET", "/200");
-            RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.setNodeSelector(firstPositionOnly);
-            request.setOptions(options);
             Response response = restClient.performRequest(request);
             assertEquals(nodes.get(0).getHost(), response.getHost());
         }
     }
 
     public void testSetNodes() throws IOException {
+        RestClient restClient = createRestClient(NodeSelector.SKIP_DEDICATED_MASTERS);
         List<Node> newNodes = new ArrayList<>(nodes.size());
         for (int i = 0; i < nodes.size(); i++) {
-            Roles roles = i == 0 ? new Roles(false, true, true) : new Roles(true, false, false);
+            Node.Roles roles = i == 0 ? new Node.Roles(false, true, true) : new Node.Roles(true, false, false);
             newNodes.add(new Node(nodes.get(i).getHost(), null, null, null, roles, null));
         }
         restClient.setNodes(newNodes);
@@ -352,9 +350,6 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
              * NodeSelector overrides the round robin behavior.
              */
             Request request = new Request("GET", "/200");
-            RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.setNodeSelector(NodeSelector.NOT_MASTER_ONLY);
-            request.setOptions(options);
             Response response = restClient.performRequest(request);
             assertEquals(newNodes.get(0).getHost(), response.getHost());
         }

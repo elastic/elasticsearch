@@ -11,6 +11,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
+import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.contains;
@@ -43,7 +44,7 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
         for (int i = 0; i < size; i++) {
             items.add(randomAlphaOfLengthBetween(1, 20));
         }
-        return new MlFilter(filterId, description, items);
+        return MlFilter.builder(filterId).setDescription(description).setItems(items).build();
     }
 
     @Override
@@ -57,13 +58,13 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
     }
 
     public void testNullId() {
-        NullPointerException ex = expectThrows(NullPointerException.class, () -> new MlFilter(null, "", new TreeSet<>()));
+        NullPointerException ex = expectThrows(NullPointerException.class, () -> MlFilter.builder(null).build());
         assertEquals(MlFilter.ID.getPreferredName() + " must not be null", ex.getMessage());
     }
 
     public void testNullItems() {
-        NullPointerException ex =
-                expectThrows(NullPointerException.class, () -> new MlFilter(randomAlphaOfLengthBetween(1, 20), "", null));
+        NullPointerException ex = expectThrows(NullPointerException.class,
+                () -> MlFilter.builder(randomAlphaOfLength(20)).setItems((SortedSet<String>) null).build());
         assertEquals(MlFilter.ITEMS.getPreferredName() + " must not be null", ex.getMessage());
     }
 

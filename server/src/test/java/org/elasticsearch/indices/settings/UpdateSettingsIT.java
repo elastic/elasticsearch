@@ -162,7 +162,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         }
 
         public static class UpdateInternalIndexAction
-                extends Action<UpdateInternalIndexAction.Request, UpdateInternalIndexAction.Response> {
+                extends Action<UpdateInternalIndexAction.Response> {
 
             private static final UpdateInternalIndexAction INSTANCE = new UpdateInternalIndexAction();
             private static final String NAME = "indices:admin/settings/update-internal-index";

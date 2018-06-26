@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.Action;
 
-public class PutMappingAction extends Action<PutMappingRequest, PutMappingResponse> {
+public class PutMappingAction extends Action<PutMappingResponse> {
 
     public static final PutMappingAction INSTANCE = new PutMappingAction();
     public static final String NAME = "indices:admin/mapping/put";

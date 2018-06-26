@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.Action;
 
-public class IndicesAliasesAction extends Action<IndicesAliasesRequest, IndicesAliasesResponse> {
+public class IndicesAliasesAction extends Action<IndicesAliasesResponse> {
 
     public static final IndicesAliasesAction INSTANCE = new IndicesAliasesAction();
     public static final String NAME = "indices:admin/aliases";

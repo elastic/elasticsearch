@@ -15,3 +15,11 @@ Requests that try to return more than the limit will fail with an exception.
 
 The `missing` option of the `composite` aggregation, deprecated in 6.x,
 has been removed. `missing_bucket` should be used instead.
+
+==== Replaced `params._agg` with `state` context variable in scripted metric aggregations
+
+The object used to share aggregation state between the scripts in a Scripted Metric
+Aggregation is now a variable called `state` available in the script context, rather than
+being provided via the `params` object as `params._agg`.
+
+The old `params._agg` variable is still available as well.

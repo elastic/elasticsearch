@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAction.Response> {
+public class DeleteJobAction extends Action<DeleteJobAction.Response> {
 
     public static final DeleteJobAction INSTANCE = new DeleteJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/delete";

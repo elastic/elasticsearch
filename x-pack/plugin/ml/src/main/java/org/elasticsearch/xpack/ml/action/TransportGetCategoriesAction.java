@@ -9,14 +9,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+
+import java.util.function.Supplier;
 
 public class TransportGetCategoriesAction extends HandledTransportAction<GetCategoriesAction.Request, GetCategoriesAction.Response> {
 
@@ -25,18 +26,17 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
     private final JobManager jobManager;
 
     @Inject
-    public TransportGetCategoriesAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        JobProvider jobProvider, Client client, JobManager jobManager) {
-        super(settings, GetCategoriesAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GetCategoriesAction.Request::new);
+    public TransportGetCategoriesAction(Settings settings, TransportService transportService,
+                                        ActionFilters actionFilters, JobProvider jobProvider, Client client, JobManager jobManager) {
+        super(settings, GetCategoriesAction.NAME, transportService, actionFilters,
+            (Supplier<GetCategoriesAction.Request>) GetCategoriesAction.Request::new);
         this.jobProvider = jobProvider;
         this.client = client;
         this.jobManager = jobManager;
     }
 
     @Override
-    protected void doExecute(GetCategoriesAction.Request request, ActionListener<GetCategoriesAction.Response> listener) {
+    protected void doExecute(Task task, GetCategoriesAction.Request request, ActionListener<GetCategoriesAction.Response> listener) {
         jobManager.getJobOrThrowIfUnknown(request.getJobId());
 
         Integer from = request.getPageParams() != null ? request.getPageParams().getFrom() : null;

@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.AbstractRestChannel;
@@ -36,6 +37,8 @@ import org.elasticsearch.rest.RestResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.tasks.Task.X_OPAQUE_ID;
 
 /**
  * The default rest channel for incoming requests. This class implements the basic logic for sending a rest
@@ -49,7 +52,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     static final String CONTENT_TYPE = "content-type";
     static final String CONTENT_LENGTH = "content-length";
     static final String SET_COOKIE = "set-cookie";
-    static final String X_OPAQUE_ID = "X-Opaque-Id";
 
     private final HttpRequest httpRequest;
     private final BigArrays bigArrays;
@@ -114,7 +116,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             }
 
             if (isCloseConnection()) {
-                toClose.add(httpChannel);
+                toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
             }
 
             ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));

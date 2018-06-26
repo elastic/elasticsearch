@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -42,6 +43,8 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -63,6 +66,8 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -71,6 +76,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -80,6 +86,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -371,6 +379,41 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Map<String, Object> expected = new HashMap<>();
         expected.put("properties", field);
         assertThat(mappings, equalTo(expected));
+    }
+
+    public void testGetFieldMapping() throws IOException {
+        String indexName = "test";
+        createIndex(indexName, Settings.EMPTY);
+
+        PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
+        putMappingRequest.type("_doc");
+        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+        mappingBuilder.startObject().startObject("properties").startObject("field");
+        mappingBuilder.field("type", "text");
+        mappingBuilder.endObject().endObject().endObject();
+        putMappingRequest.source(mappingBuilder);
+
+        PutMappingResponse putMappingResponse =
+            execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
+        assertTrue(putMappingResponse.isAcknowledged());
+
+        GetFieldMappingsRequest getFieldMappingsRequest = new GetFieldMappingsRequest()
+            .indices(indexName)
+            .types("_doc")
+            .fields("field");
+
+        GetFieldMappingsResponse getFieldMappingsResponse =
+            execute(getFieldMappingsRequest,
+                highLevelClient().indices()::getFieldMapping,
+                highLevelClient().indices()::getFieldMappingAsync);
+
+        final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldMappingMap =
+            getFieldMappingsResponse.mappings().get(indexName).get("_doc");
+
+        final GetFieldMappingsResponse.FieldMappingMetaData metaData =
+            new GetFieldMappingsResponse.FieldMappingMetaData("field",
+                new BytesArray("{\"field\":{\"type\":\"text\"}}"));
+        assertThat(fieldMappingMap, equalTo(Collections.singletonMap("field", metaData)));
     }
 
     public void testDeleteIndex() throws IOException {
@@ -1153,6 +1196,40 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ElasticsearchStatusException unknownSettingError = expectThrows(ElasticsearchStatusException.class,
             () -> execute(unknownSettingTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
         assertThat(unknownSettingError.getDetailedMessage(), containsString("unknown setting [index.this-setting-does-not-exist]"));
+    }
+
+    public void testValidateQuery() throws IOException{
+        String index = "some_index";
+        createIndex(index, Settings.EMPTY);
+        QueryBuilder builder = QueryBuilders
+            .boolQuery()
+            .must(QueryBuilders.queryStringQuery("*:*"))
+            .filter(QueryBuilders.termQuery("user", "kimchy"));
+        ValidateQueryRequest request = new ValidateQueryRequest(index).query(builder);
+        request.explain(randomBoolean());
+        ValidateQueryResponse response = execute(request, highLevelClient().indices()::validateQuery,
+            highLevelClient().indices()::validateQueryAsync);
+        assertTrue(response.isValid());
+    }
+
+    public void testInvalidValidateQuery() throws IOException{
+        String index = "shakespeare";
+
+        createIndex(index, Settings.EMPTY);
+        Request postDoc = new Request(HttpPost.METHOD_NAME, "/" + index + "/1");
+        postDoc.setJsonEntity(
+            "{\"type\":\"act\",\"line_id\":1,\"play_name\":\"Henry IV\", \"speech_number\":\"\"," +
+                "\"line_number\":\"\",\"speaker\":\"\",\"text_entry\":\"ACT I\"}");
+        assertOK(client().performRequest(postDoc));
+
+        QueryBuilder builder = QueryBuilders
+            .queryStringQuery("line_id:foo")
+            .lenient(false);
+        ValidateQueryRequest request = new ValidateQueryRequest(index).query(builder);
+        request.explain(true);
+        ValidateQueryResponse response = execute(request, highLevelClient().indices()::validateQuery,
+            highLevelClient().indices()::validateQueryAsync);
+        assertFalse(response.isValid());
     }
 
     public void testGetIndexTemplate() throws Exception {

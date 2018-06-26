@@ -38,6 +38,9 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
@@ -48,6 +51,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -59,6 +63,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -68,6 +73,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -223,6 +229,25 @@ final class RequestConverters {
         parameters.withMasterTimeout(getMappingsRequest.masterNodeTimeout());
         parameters.withIndicesOptions(getMappingsRequest.indicesOptions());
         parameters.withLocal(getMappingsRequest.local());
+        return request;
+    }
+
+    static Request getFieldMapping(GetFieldMappingsRequest getFieldMappingsRequest) throws IOException {
+        String[] indices = getFieldMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.indices();
+        String[] types = getFieldMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.types();
+        String[] fields = getFieldMappingsRequest.fields() == null ? Strings.EMPTY_ARRAY : getFieldMappingsRequest.fields();
+
+        String endpoint = new EndpointBuilder().addCommaSeparatedPathParts(indices)
+            .addPathPartAsIs("_mapping").addCommaSeparatedPathParts(types)
+            .addPathPartAsIs("field").addCommaSeparatedPathParts(fields)
+            .build();
+
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withIndicesOptions(getFieldMappingsRequest.indicesOptions());
+        parameters.withIncludeDefaults(getFieldMappingsRequest.includeDefaults());
+        parameters.withLocal(getFieldMappingsRequest.local());
         return request;
     }
 
@@ -855,6 +880,18 @@ final class RequestConverters {
         return request;
     }
 
+    static Request deleteSnapshot(DeleteSnapshotRequest deleteSnapshotRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(deleteSnapshotRequest.repository())
+            .addPathPart(deleteSnapshotRequest.snapshot())
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(deleteSnapshotRequest.masterNodeTimeout());
+        return request;
+    }
+
     static Request putTemplate(PutIndexTemplateRequest putIndexTemplateRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_template").addPathPart(putIndexTemplateRequest.name()).build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -867,6 +904,34 @@ final class RequestConverters {
             params.putParam("cause", putIndexTemplateRequest.cause());
         }
         request.setEntity(createEntity(putIndexTemplateRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request validateQuery(ValidateQueryRequest validateQueryRequest) throws IOException {
+        String[] indices = validateQueryRequest.indices() == null ? Strings.EMPTY_ARRAY : validateQueryRequest.indices();
+        String[] types = validateQueryRequest.types() == null || indices.length <= 0 ? Strings.EMPTY_ARRAY : validateQueryRequest.types();
+        String endpoint = endpoint(indices, types, "_validate/query");
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withIndicesOptions(validateQueryRequest.indicesOptions());
+        params.putParam("explain", Boolean.toString(validateQueryRequest.explain()));
+        params.putParam("all_shards", Boolean.toString(validateQueryRequest.allShards()));
+        params.putParam("rewrite", Boolean.toString(validateQueryRequest.rewrite()));
+        request.setEntity(createEntity(validateQueryRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request simulatePipeline(SimulatePipelineRequest simulatePipelineRequest) throws IOException {
+        EndpointBuilder builder = new EndpointBuilder().addPathPartAsIs("_ingest/pipeline");
+        if (simulatePipelineRequest.getId() != null && !simulatePipelineRequest.getId().isEmpty()) {
+            builder.addPathPart(simulatePipelineRequest.getId());
+        }
+        builder.addPathPartAsIs("_simulate");
+        String endpoint = builder.build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.putParam("verbose", Boolean.toString(simulatePipelineRequest.isVerbose()));
+        request.setEntity(createEntity(simulatePipelineRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -888,6 +953,23 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withLocal(getIndexTemplatesRequest.local());
         params.withMasterTimeout(getIndexTemplatesRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withMasterTimeout(getStoredScriptRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request deleteScript(DeleteStoredScriptRequest deleteStoredScriptRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(deleteStoredScriptRequest.id()).build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withTimeout(deleteStoredScriptRequest.timeout());
+        params.withMasterTimeout(deleteStoredScriptRequest.masterNodeTimeout());
         return request;
     }
 

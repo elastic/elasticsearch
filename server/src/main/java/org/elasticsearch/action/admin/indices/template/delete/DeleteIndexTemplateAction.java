@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.template.delete;
 
 import org.elasticsearch.action.Action;
 
-public class DeleteIndexTemplateAction extends Action<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse> {
+public class DeleteIndexTemplateAction extends Action<DeleteIndexTemplateResponse> {
 
     public static final DeleteIndexTemplateAction INSTANCE = new DeleteIndexTemplateAction();
     public static final String NAME = "indices:admin/template/delete";

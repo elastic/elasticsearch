@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

@@ -174,13 +174,13 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         assertThat(new String(users.get("sha")), equalTo("{SHA}cojt0Pw//L6ToM8G41aOKFIWh7w="));
         assertThat(users.get("pbkdf2"), notNullValue());
         assertThat(new String(users.get("pbkdf2")),
-            equalTo("{PBKDF2}10000$mt6v5zV3MjdNXnxZC2oCRa7NEGxNWuMk$6hdneZD6U+9S7CSIw7bET/bqekPij8iPJ0VbckW1bmg="));
+            equalTo("{PBKDF2}10000$ekcItXk4jtK2bBjbVk0rZuWRjT0DoQqQJOIfyMeLIxg=$RA2/Nn1jRi8QskRS5IVotCV0FBO6M8DlNXC37GKa/8c="));
         assertThat(users.get("pbkdf2_1000"), notNullValue());
         assertThat(new String(users.get("pbkdf2_1000")),
-            equalTo("{PBKDF2}1000$oHlBSjW2NHGtK/RvKoXHFMs0IA8bnWm2$ipz0ZvKjnu/tlui9vFzD6ftuQWaonlIAGqmW1MDd0/k="));
+            equalTo("{PBKDF2}1000$32yPZSShxuKYAl47ip0g6VwbFrD8tvFJuQCoRPGhXC8=$cXAE1BkBXRmkv7pQA7fw4TZ1+rFWS2/nZGeA3kL1Eu8="));
         assertThat(users.get("pbkdf2_50000"), notNullValue());
         assertThat(new String(users.get("pbkdf2_50000")),
-            equalTo("{PBKDF2}50000$aiCg0jaOsm1avJY/XWOEzqWUja4dE7l5$qVjn2BCt31GF8ZgQ5PbzdKLquT2MFyifHM3CROiyDYg="));
+            equalTo("{PBKDF2}50000$z1CLJt0MEFjkIK5iEfgvfnA6xq7lF25uasspsTKSo5Q=$XxCVLbaKDimOdyWgLCLJiyoiWpA/XDMe/xtVgn1r5Sg="));
     }
 
     public void testParseFile_Empty() throws Exception {

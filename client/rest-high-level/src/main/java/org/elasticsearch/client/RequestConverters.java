@@ -1175,9 +1175,8 @@ final class RequestConverters {
         }
 
         Params withIgnoreUnavailable(boolean ignoreUnavailable) {
-            if (ignoreUnavailable) {
-                putParam("ignore_unavailable", Boolean.toString(ignoreUnavailable));
-            }
+            // Always explicitly place the ignore_unavailable value.
+            putParam("ignore_unavailable", Boolean.toString(ignoreUnavailable));
             return this;
         }
 

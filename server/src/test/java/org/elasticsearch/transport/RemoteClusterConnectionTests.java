@@ -593,7 +593,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                             try {
                                 responseLatch.await();
                             } catch (InterruptedException e) {
-                                e.printStackTrace();
+                                throw new RuntimeException(e);
                             }
                             assertNull(failReference.get());
                             assertNotNull(reference.get());

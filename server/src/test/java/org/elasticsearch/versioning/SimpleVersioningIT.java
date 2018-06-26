@@ -788,7 +788,8 @@ public class SimpleVersioningIT extends ESIntegTestCase {
     }
 
     public void testSpecialVersioning() {
-        createIndex("test");
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        createIndex("test", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build());
         IndexResponse doc1 = client().prepareIndex("test", "type", "1").setSource("field", "value1")
             .setVersion(0).setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertThat(doc1.getVersion(), equalTo(0L));

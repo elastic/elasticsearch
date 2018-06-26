@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
@@ -28,14 +29,15 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
+public class GetRollupIndexCapsAction extends Action<GetRollupIndexCapsAction.Response> {
 
-    public static final GetRollupCapsAction INSTANCE = new GetRollupCapsAction();
-    public static final String NAME = "cluster:monitor/xpack/rollup/get/caps";
+    public static final GetRollupIndexCapsAction INSTANCE = new GetRollupIndexCapsAction();
+    public static final String NAME = "indices:data/xpack/rollup/get_index/caps";
     public static final ParseField CONFIG = new ParseField("config");
     public static final ParseField STATUS = new ParseField("status");
+    private static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
 
-    private GetRollupCapsAction() {
+    private GetRollupIndexCapsAction() {
         super(NAME);
     }
 
@@ -46,13 +48,19 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
 
     public static class Request extends ActionRequest implements ToXContent {
         private String indexPattern;
+        private IndicesOptions options;
 
         public Request(String indexPattern) {
+            this(indexPattern, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED);
+        }
+
+        public Request(String indexPattern, IndicesOptions options) {
             if (Strings.isNullOrEmpty(indexPattern) || indexPattern.equals("*")) {
                 this.indexPattern = MetaData.ALL;
             } else {
                 this.indexPattern = indexPattern;
             }
+            this.options = options;
         }
 
         public Request() {}
@@ -61,16 +69,22 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
             return indexPattern;
         }
 
+        public IndicesOptions getOptions() {
+            return options;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             this.indexPattern = in.readString();
+            this.options = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(indexPattern);
+            options.writeIndicesOptions(out);
         }
 
         @Override
@@ -81,12 +95,13 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(RollupField.ID.getPreferredName(), indexPattern);
+            builder.field(INDICES_OPTIONS.getPreferredName(), options);
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indexPattern);
+            return Objects.hash(indexPattern, options);
         }
 
         @Override
@@ -98,13 +113,14 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(indexPattern, other.indexPattern);
+            return Objects.equals(indexPattern, other.indexPattern)
+                && Objects.equals(options, other.options);
         }
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
-        protected RequestBuilder(ElasticsearchClient client, GetRollupCapsAction action) {
+        protected RequestBuilder(ElasticsearchClient client, GetRollupIndexCapsAction action) {
             super(client, action, new Request());
         }
     }

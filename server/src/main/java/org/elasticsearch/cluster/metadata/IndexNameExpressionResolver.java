@@ -106,8 +106,8 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     /**
      * Translates the provided index expression into actual concrete indices, properly deduplicated.
      *
-     * @param state                 the cluster state containing all the data to resolve to expressions to concrete indices
-     * @param options               defines how the aliases or indices need to be resolved to concrete indices
+     * @param state             the cluster state containing all the data to resolve to expressions to concrete indices
+     * @param options           defines how the aliases or indices need to be resolved to concrete indices
      * @param indexExpressions  expressions that can be resolved to alias or index names.
      * @return the resolved concrete indices based on the cluster state, indices options and index expressions
      * @throws IndexNotFoundException if one of the index expressions is pointing to a missing index or alias and the
@@ -127,7 +127,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * @param state                 the cluster state containing all the data to resolve to expressions to concrete indices
      * @param options               defines how the aliases or indices need to be resolved to concrete indices
      * @param resolveToWriteIndex   defines whether to require that aliases resolve to their respective write indices
-     * @param indexExpressions  expressions that can be resolved to alias or index names.
+     * @param indexExpressions      expressions that can be resolved to alias or index names.
      * @return the resolved concrete indices based on the cluster state, indices options and index expressions
      * @throws IndexNotFoundException if one of the index expressions is pointing to a missing index or alias and the
      * provided indices options in the context don't allow such a case, or if the final result of the indices resolution
@@ -610,7 +610,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
          * This is used to require that aliases resolve to their write-index. It is currently not used in conjunction
          * with <code>preserveAliases</code>.
          */
-
         boolean isResolveToWriteIndex() {
             return resolveToWriteIndex;
         }

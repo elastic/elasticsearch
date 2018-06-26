@@ -274,7 +274,7 @@ public class ForEachProcessorTests extends ESTestCase {
 
     public void testIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = new IngestDocument(
-            "_index", "_type", "_id", null, null, null, Collections.emptyMap()
+            "_index", "_type", "_id", null, null, null, null, Collections.emptyMap()
         );
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         TestProcessor testProcessor = new TestProcessor(doc -> {});

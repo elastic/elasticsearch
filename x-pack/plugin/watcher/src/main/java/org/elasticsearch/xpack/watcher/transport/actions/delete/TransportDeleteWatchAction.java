@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.delete;
 
-import java.util.function.Supplier;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -17,12 +15,14 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -36,15 +36,14 @@ public class TransportDeleteWatchAction extends HandledTransportAction<DeleteWat
     private final Client client;
 
     @Inject
-    public TransportDeleteWatchAction(Settings settings, TransportService transportService,ThreadPool threadPool,
-                                      ActionFilters actionFilters, Client client) {
-        super(settings, DeleteWatchAction.NAME, threadPool, transportService, actionFilters,
+    public TransportDeleteWatchAction(Settings settings, TransportService transportService, ActionFilters actionFilters, Client client) {
+        super(settings, DeleteWatchAction.NAME, transportService, actionFilters,
             (Supplier<DeleteWatchRequest>) DeleteWatchRequest::new);
         this.client = client;
     }
 
     @Override
-    protected void doExecute(DeleteWatchRequest request, ActionListener<DeleteWatchResponse> listener) {
+    protected void doExecute(Task task, DeleteWatchRequest request, ActionListener<DeleteWatchResponse> listener) {
         DeleteRequest deleteRequest = new DeleteRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, deleteRequest,

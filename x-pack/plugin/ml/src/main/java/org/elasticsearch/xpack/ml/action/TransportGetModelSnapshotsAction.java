@@ -10,7 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
@@ -27,16 +27,17 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
     private final JobManager jobManager;
 
     @Inject
-    public TransportGetModelSnapshotsAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportGetModelSnapshotsAction(Settings settings, TransportService transportService,
                                             ActionFilters actionFilters, JobProvider jobProvider, JobManager jobManager) {
-        super(settings, GetModelSnapshotsAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, GetModelSnapshotsAction.NAME, transportService, actionFilters,
             GetModelSnapshotsAction.Request::new);
         this.jobProvider = jobProvider;
         this.jobManager = jobManager;
     }
 
     @Override
-    protected void doExecute(GetModelSnapshotsAction.Request request, ActionListener<GetModelSnapshotsAction.Response> listener) {
+    protected void doExecute(Task task, GetModelSnapshotsAction.Request request,
+                             ActionListener<GetModelSnapshotsAction.Response> listener) {
         logger.debug("Get model snapshots for job {} snapshot ID {}. from = {}, size = {}"
                 + " start = '{}', end='{}', sort={} descending={}",
                 request.getJobId(), request.getSnapshotId(), request.getPageParams().getFrom(), request.getPageParams().getSize(),

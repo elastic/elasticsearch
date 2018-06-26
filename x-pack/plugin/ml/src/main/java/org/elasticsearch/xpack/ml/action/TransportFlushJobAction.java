@@ -23,10 +23,10 @@ import java.io.IOException;
 public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobAction.Request, FlushJobAction.Response> {
 
     @Inject
-    public TransportFlushJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportFlushJobAction(Settings settings, TransportService transportService,
                                    ClusterService clusterService, ActionFilters actionFilters,
                                    AutodetectProcessManager processManager) {
-        super(settings, FlushJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(settings, FlushJobAction.NAME, clusterService, transportService, actionFilters,
             FlushJobAction.Request::new, FlushJobAction.Response::new, ThreadPool.Names.SAME, processManager);
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
     }

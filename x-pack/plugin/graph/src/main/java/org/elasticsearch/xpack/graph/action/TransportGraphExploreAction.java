@@ -13,9 +13,9 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -65,7 +66,8 @@ import java.util.function.Supplier;
  */
 public class TransportGraphExploreAction extends HandledTransportAction<GraphExploreRequest, GraphExploreResponse> {
 
-    private final TransportSearchAction searchAction;
+    private final ThreadPool threadPool;
+    private final NodeClient client;
     protected final XPackLicenseState licenseState;
 
     static class VertexPriorityQueue extends PriorityQueue<Vertex> {
@@ -82,17 +84,16 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
     }
 
     @Inject
-    public TransportGraphExploreAction(Settings settings, ThreadPool threadPool, TransportSearchAction transportSearchAction,
-            TransportService transportService, ActionFilters actionFilters,
-            XPackLicenseState licenseState) {
-        super(settings, GraphExploreAction.NAME, threadPool, transportService, actionFilters,
-              (Supplier<GraphExploreRequest>)GraphExploreRequest::new);
-        this.searchAction = transportSearchAction;
+    public TransportGraphExploreAction(Settings settings, ThreadPool threadPool, NodeClient client,
+            TransportService transportService, ActionFilters actionFilters, XPackLicenseState licenseState) {
+        super(settings, GraphExploreAction.NAME, transportService, actionFilters, (Supplier<GraphExploreRequest>)GraphExploreRequest::new);
+        this.threadPool = threadPool;
+        this.client = client;
         this.licenseState = licenseState;
     }
 
     @Override
-    protected void doExecute(GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
+    protected void doExecute(Task task, GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
         if (licenseState.isGraphAllowed()) {
             new AsyncGraphAction(request, listener).start();
         } else {
@@ -313,7 +314,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
             // System.out.println(source);
             logger.trace("executing expansion graph search request");
-            searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
+            client.search(searchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     // System.out.println(searchResponse);
@@ -660,7 +661,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 searchRequest.source(source);
                 // System.out.println(source);
                 logger.trace("executing initial graph search request");
-                searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
+                client.search(searchRequest, new ActionListener<SearchResponse>() {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
                         addShardFailures(searchResponse.getShardFailures());

@@ -59,9 +59,4 @@ public class GetSnapshotsResponseTests extends AbstractStreamableXContentTestCas
         }
         return new GetSnapshotsResponse(snapshots);
     }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

@@ -143,10 +143,10 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         if (randomBoolean()) {
             request = new GetSnapshotsRequest(repository);
         } else if (randomBoolean()) {
-            request = new GetSnapshotsRequest(repository, Collections.singletonList("_all").toArray(new String[0]));
+            request = new GetSnapshotsRequest(repository, new String[] {"_all"});
 
         } else {
-            request = new GetSnapshotsRequest(repository, Arrays.asList(snapshot1, snapshot2).toArray(new String[0]));
+            request = new GetSnapshotsRequest(repository, new String[] {snapshot1, snapshot2});
         }
         GetSnapshotsResponse response = execute(request, highLevelClient().snapshot()::get, highLevelClient().snapshot()::getAsync);
 

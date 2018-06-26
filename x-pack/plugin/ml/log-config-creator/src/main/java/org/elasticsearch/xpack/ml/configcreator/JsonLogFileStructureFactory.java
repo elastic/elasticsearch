@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 
@@ -22,7 +23,7 @@ public class JsonLogFileStructureFactory implements LogFileStructureFactory {
     private final Terminal terminal;
 
     public JsonLogFileStructureFactory(Terminal terminal) {
-        this.terminal = terminal;
+        this.terminal = Objects.requireNonNull(terminal);
     }
 
     /**

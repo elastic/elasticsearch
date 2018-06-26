@@ -21,7 +21,7 @@ public interface LogFileStructureFactory {
      * @param sampleFileName The name of the sample log file to be ingested.
      * @param indexName The name of the index to specify in the Logstash direct from file config.
      * @param typeName The name for this type of log file.
-     * @param logstashFileTimezone The timezone to use for Logstash direct from file input.
+     * @param logstashFileTimezone The timezone to use for Logstash direct from file input.  May be <code>null</code>.
      * @param sample A sample from the log file to be ingested.
      * @param charsetName The name of the character set in which the sample was provided.
      * @return A log file structure object suitable for ingesting the supplied sample.

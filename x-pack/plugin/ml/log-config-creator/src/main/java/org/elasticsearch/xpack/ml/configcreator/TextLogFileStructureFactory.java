@@ -9,6 +9,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class TextLogFileStructureFactory implements LogFileStructureFactory {
 
@@ -16,7 +17,7 @@ public class TextLogFileStructureFactory implements LogFileStructureFactory {
     private final BeatsModuleStore beatsModuleStore;
 
     public TextLogFileStructureFactory(Terminal terminal, BeatsModuleStore beatsModuleStore) throws IOException {
-        this.terminal = terminal;
+        this.terminal = Objects.requireNonNull(terminal);
         this.beatsModuleStore = beatsModuleStore;
     }
 

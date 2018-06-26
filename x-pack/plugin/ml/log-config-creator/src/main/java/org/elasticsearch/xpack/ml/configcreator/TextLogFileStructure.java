@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -140,7 +141,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
                          String logstashFileTimezone, String sample, String charsetName) {
         super(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, charsetName);
         this.beatsModuleStore = beatsModuleStore;
-        this.sample = sample;
+        this.sample = Objects.requireNonNull(sample);
     }
 
     String getFilebeatToLogstashConfig() {

@@ -9,13 +9,14 @@ import org.elasticsearch.cli.Terminal;
 import org.supercsv.prefs.CsvPreference;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class CsvLogFileStructureFactory implements LogFileStructureFactory {
 
     private final Terminal terminal;
 
     public CsvLogFileStructureFactory(Terminal terminal) {
-        this.terminal = terminal;
+        this.terminal = Objects.requireNonNull(terminal);
     }
 
     /**

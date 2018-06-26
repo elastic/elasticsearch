@@ -77,9 +77,9 @@ public final class LogFileStructureFinder {
                                   String logstashFileTimezone)
         throws IOException {
         this.terminal = Objects.requireNonNull(terminal);
-        this.sampleFileName = sampleFileName;
-        this.indexName = indexName;
-        this.typeName = typeName;
+        this.sampleFileName = Objects.requireNonNull(sampleFileName);
+        this.indexName = Objects.requireNonNull(indexName);
+        this.typeName = Objects.requireNonNull(typeName);
         this.logstashFileTimezone = logstashFileTimezone;
         BeatsModuleStore beatsModuleStore =
             (beatsRepo != null) ? new BeatsModuleStore(beatsRepo.resolve("filebeat").resolve("module"), sampleFileName) : null;
@@ -201,17 +201,19 @@ public final class LogFileStructureFinder {
 
         int lineCount = 0;
         BufferedReader bufferedReader = new BufferedReader(reader);
+        StringBuilder sample = new StringBuilder();
 
         // Don't include any byte-order-marker in the sample.  (The logic to skip it works for both
         // UTF-8 and UTF-16 assuming the character set of the reader was correctly detected.)
-        bufferedReader.mark(1);
         int maybeByteOrderMarker = reader.read();
-        if (maybeByteOrderMarker >= 0 && (char) maybeByteOrderMarker != '\uFEFF')
+        if (maybeByteOrderMarker >= 0 && (char) maybeByteOrderMarker != '\uFEFF' && (char) maybeByteOrderMarker != '\r')
         {
-            bufferedReader.reset();
+            sample.appendCodePoint(maybeByteOrderMarker);
+            if ((char) maybeByteOrderMarker == '\n') {
+                ++lineCount;
+            }
         }
 
-        StringBuilder sample = new StringBuilder();
         String line;
         while ((line = bufferedReader.readLine()) != null && ++lineCount <= maxLines) {
             sample.append(line).append('\n');

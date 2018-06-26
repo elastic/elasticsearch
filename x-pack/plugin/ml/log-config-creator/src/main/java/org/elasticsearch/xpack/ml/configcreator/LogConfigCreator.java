@@ -32,12 +32,12 @@ public class LogConfigCreator extends Command {
 
     private LogConfigCreator() {
         super("Log config creator", () -> {});
-        parser.acceptsAll(Arrays.asList("o", "output"), "output directory (default .)").withRequiredArg();
-        parser.acceptsAll(Arrays.asList("i", "index"), "index for logstash direct from file config (default test)").withRequiredArg();
-        parser.acceptsAll(Arrays.asList("n", "name"), "name for this type of log file (default xyz)").withRequiredArg();
-        parser.acceptsAll(Arrays.asList("b", "beats-repo"), "path to beats repo (default $HOME/beats)").withRequiredArg();
+        parser.acceptsAll(Arrays.asList("o", "output"), "output directory (default: .)").withRequiredArg();
+        parser.acceptsAll(Arrays.asList("i", "index"), "index for logstash direct from file config (default: test)").withRequiredArg();
+        parser.acceptsAll(Arrays.asList("n", "name"), "name for this type of log file (default: xyz)").withRequiredArg();
+        parser.acceptsAll(Arrays.asList("b", "beats-repo"), "path to beats repo (default: $HOME/beats)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("z", "timezone"),
-            "timezone for logstash direct from file input (default logstash server timezone)").withRequiredArg();
+            "timezone for logstash direct from file input (default: logstash server timezone)").withRequiredArg();
         parser.nonOptions("file to be processed");
     }
 

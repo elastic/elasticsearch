@@ -1,5 +1,6 @@
 package org.elasticsearch.gradle
 
+import org.elasticsearch.gradle.test.GradleUnitTestCase
 import org.junit.Test
 
 import static org.junit.Assert.*

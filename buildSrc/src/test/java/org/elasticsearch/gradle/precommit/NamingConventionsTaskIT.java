@@ -1,10 +1,9 @@
 package org.elasticsearch.gradle.precommit;
 
-import org.elasticsearch.gradle.GradleIntegrationTestCase;
+import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.TaskOutcome;
-import org.junit.Test;
 
 import java.util.Arrays;
 
@@ -15,8 +14,7 @@ import static org.junit.Assert.assertTrue;
 
 public class NamingConventionsTaskIT extends GradleIntegrationTestCase {
 
-    @Test
-    public void pluginCanBeApplied() {
+    public void testPluginCanBeApplied() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("namingConventionsSelfTest"))
             .withArguments("hello", "-s", "-PcheckForTestsInMain=false")
@@ -27,8 +25,7 @@ public class NamingConventionsTaskIT extends GradleIntegrationTestCase {
         assertTrue(result.getOutput().contains("build plugin can be applied"));
     }
 
-    @Test
-    public void nameCheckFailsAsItShould() {
+    public void testNameCheckFailsAsItShould() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("namingConventionsSelfTest"))
             .withArguments("namingConventions", "-s", "-PcheckForTestsInMain=false")
@@ -52,8 +49,7 @@ public class NamingConventionsTaskIT extends GradleIntegrationTestCase {
         }
     }
 
-    @Test
-    public void nameCheckFailsAsItShouldWithMain() {
+    public void testNameCheckFailsAsItShouldWithMain() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("namingConventionsSelfTest"))
             .withArguments("namingConventions", "-s", "-PcheckForTestsInMain=true")

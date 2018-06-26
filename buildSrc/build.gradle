@@ -87,6 +87,8 @@ repositories {
 dependencies {
   compile localGroovy()
   compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
+  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
+
   compile("junit:junit:${props.getProperty('junit')}") {
     transitive = false
   }
@@ -157,7 +159,7 @@ if (project != rootProject) {
   }
 
   namingConventions {
-    testClass = 'org.elasticsearch.gradle.GradleUnitTestCase'
-    integTestClass = 'org.elasticsearch.gradle.GradleIntegrationTestCase'
+    testClass = 'org.elasticsearch.gradle.test.GradleUnitTestCase'
+    integTestClass = 'org.elasticsearch.gradle.test.GradleIntegrationTestCase'
   }
 }

@@ -1,8 +1,8 @@
-package org.elasticsearch.gradle;
+package org.elasticsearch.gradle.test;
 
 import java.io.File;
 
-public abstract class GradleIntegrationTestCase {
+public abstract class GradleIntegrationTestCase extends BaseTestCase {
 
     protected File getProjectDir(String name) {
         File root = new File("src/testKit/");

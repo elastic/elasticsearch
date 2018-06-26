@@ -131,7 +131,8 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
                 int i = 0;
                 SnapshotShardsStats shardsStats = ((SnapshotShardsStats) parsedObjects[i++]);
                 SnapshotStats stats = ((SnapshotStats) parsedObjects[i++]);
-                @SuppressWarnings("unchecked") List<SnapshotIndexShardStatus> shardStatuses = (List<SnapshotIndexShardStatus>) parsedObjects[i];
+                @SuppressWarnings("unchecked") List<SnapshotIndexShardStatus> shardStatuses =
+                    (List<SnapshotIndexShardStatus>) parsedObjects[i];
 
                 final Map<Integer, SnapshotIndexShardStatus> indexShards;
                 if (shardStatuses == null || shardStatuses.isEmpty()) {

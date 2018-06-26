@@ -415,7 +415,11 @@ public abstract class RollupIndexer {
         DateHistoGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHisto();
         String fieldName = dateHisto.getField();
         String rollupFieldName = fieldName + "."  + DateHistogramAggregationBuilder.NAME;
-        long lowerBound = position != null ? (long) position.get(rollupFieldName) : 0;
+        long lowerBound = 0L;
+        if (position != null) {
+            Number value = (Number) position.get(rollupFieldName);
+            lowerBound = value.longValue();
+        }
         assert lowerBound <= maxBoundary;
         final RangeQueryBuilder query = new RangeQueryBuilder(fieldName)
                 .gte(lowerBound)

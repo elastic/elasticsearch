@@ -94,7 +94,7 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
     }
 
     static SimulatePipelineResponse createInstance(String pipelineId, boolean isVerbose, boolean withFailure) {
-        int numResults = randomIntBetween(1, 10);
+        int numResults = randomIntBetween(1, 5);
         List<SimulateDocumentResult> results = new ArrayList<>(numResults);
         for (int i = 0; i < numResults; i++) {
             if (isVerbose) {

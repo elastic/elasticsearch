@@ -106,8 +106,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
                                                            IndexSearcher indexSearcher,
                                                            MappedFieldType... fieldTypes) throws IOException {
-        return createAggregatorFactory(null, aggregationBuilder, indexSearcher, createIndexSettings(),
+        return createAggregatorFactory(aggregationBuilder, indexSearcher, createIndexSettings(),
             new MultiBucketConsumer(DEFAULT_MAX_BUCKETS), fieldTypes);
+    }
+
+
+    protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
+                                                           IndexSearcher indexSearcher,
+                                                           IndexSettings indexSettings,
+                                                           MultiBucketConsumer bucketConsumer,
+                                                           MappedFieldType... fieldTypes) throws IOException {
+        return createAggregatorFactory(null, aggregationBuilder, indexSearcher, indexSettings, bucketConsumer, fieldTypes);
     }
 
     /** Create a factory for the given aggregation builder. */

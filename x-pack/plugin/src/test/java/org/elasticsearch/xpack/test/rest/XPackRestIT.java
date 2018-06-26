@@ -252,7 +252,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
      */
     private void clearMlState() throws Exception {
         if (isMachineLearningTest()) {
-            new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
+            new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
         }
     }
 
@@ -263,7 +263,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
      */
     private void clearRollupState() throws Exception {
         if (isRollupTest()) {
-            new RollupRestTestStateCleaner(logger, adminClient(), this).clearRollupMetadata();
+            new RollupRestTestStateCleaner(logger, adminClient()).clearRollupMetadata();
         }
     }
 

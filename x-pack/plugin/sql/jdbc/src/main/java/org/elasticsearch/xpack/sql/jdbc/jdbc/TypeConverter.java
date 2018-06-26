@@ -24,9 +24,11 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.GregorianCalendar;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -58,7 +60,7 @@ final class TypeConverter {
     private static final Map<Class<?>, JDBCType> javaToJDBC;
     
     static {
-        javaToJDBC = Arrays.stream(DataType.values())
+        Map<Class<?>, JDBCType> aMap = Arrays.stream(DataType.values())
                 .filter(dataType -> dataType.javaClass() != null 
                         && dataType != DataType.HALF_FLOAT 
                         && dataType != DataType.SCALED_FLOAT 
@@ -66,9 +68,10 @@ final class TypeConverter {
                 .collect(Collectors.toMap(dataType -> dataType.javaClass(), dataType -> dataType.jdbcType));
         // apart from the mappings in {@code DataType} three more Java classes can be mapped to a {@code JDBCType.TIMESTAMP}
         // according to B-4 table from the jdbc4.2 spec
-        javaToJDBC.put(Calendar.class, JDBCType.TIMESTAMP);
-        javaToJDBC.put(java.util.Date.class, JDBCType.TIMESTAMP);
-        javaToJDBC.put(LocalDateTime.class, JDBCType.TIMESTAMP);
+        aMap.put(Calendar.class, JDBCType.TIMESTAMP);
+        aMap.put(java.util.Date.class, JDBCType.TIMESTAMP);
+        aMap.put(LocalDateTime.class, JDBCType.TIMESTAMP);
+        javaToJDBC = Collections.unmodifiableMap(aMap);
     }
 
     /**
@@ -276,10 +279,10 @@ final class TypeConverter {
     
     
     static JDBCType fromJavaToJDBC(Class<?> clazz) throws SQLException {
-        for (Class<?> key : javaToJDBC.keySet()) {
+        for (Entry<Class<?>, JDBCType> e : javaToJDBC.entrySet()) {
             // java.util.Calendar from {@code javaToJDBC} is an abstract class and this method can be used with concrete classes as well
-            if (key.isAssignableFrom(clazz)) {
-                return javaToJDBC.get(key);
+            if (e.getKey().isAssignableFrom(clazz)) {
+                return e.getValue();
             }
         }
         

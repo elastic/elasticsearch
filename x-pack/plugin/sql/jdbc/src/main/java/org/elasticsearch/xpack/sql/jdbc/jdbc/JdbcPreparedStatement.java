@@ -233,7 +233,8 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
             setObject(parameterIndex, x, Types.TIMESTAMP);
             return;
         }
-        if (setIfNull(parameterIndex, x, Types.TIMESTAMP)) {
+        if (x == null) {
+            setNull(parameterIndex, Types.TIMESTAMP);
             return;
         }
         // converting to UTC since this is what ES is storing internally
@@ -246,7 +247,8 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
             setObject(parameterIndex, x, Types.TIMESTAMP);
             return;
         }
-        if (setIfNull(parameterIndex, x, Types.TIMESTAMP)) {
+        if (x == null) {
+            setNull(parameterIndex, Types.TIMESTAMP);
             return;
         }
         // converting to UTC since this is what ES is storing internally
@@ -259,7 +261,8 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
             setObject(parameterIndex, x, Types.TIMESTAMP);
             return;
         }
-        if (setIfNull(parameterIndex, x, Types.TIMESTAMP)) {
+        if (x == null) {
+            setNull(parameterIndex, Types.TIMESTAMP);
             return;
         }
         // converting to UTC since this is what ES is storing internally
@@ -320,7 +323,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     public void setSQLXML(int parameterIndex, SQLXML xmlObject) throws SQLException {
         setObject(parameterIndex, xmlObject);
     }
-
+    
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
         checkOpen();
@@ -340,25 +343,23 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         }
         
         checkKnownUnsupportedTypes(x);
-        if (x instanceof Boolean
-                || x instanceof Byte
-                || x instanceof Short
-                || x instanceof Integer
-                || x instanceof Long
-                || x instanceof Float
-                || x instanceof Double
-                || x instanceof String) 
-        {
-            setParam(parameterIndex, 
-                    TypeConverter.convert(x, TypeConverter.fromJavaToJDBC(x.getClass()), DataType.fromJdbcTypeToJava(targetJDBCType)), 
-                    targetSqlType);
-        } else if (x instanceof Timestamp
+        if (x instanceof byte[]) {
+            if (targetJDBCType != JDBCType.VARBINARY) {
+                throw new SQLFeatureNotSupportedException(
+                        "Conversion from type byte[] to " + targetJDBCType + " not supported");
+            }
+            setParam(parameterIndex, x, Types.VARBINARY);
+            return;
+        }
+        
+        if (x instanceof Timestamp
                 || x instanceof Calendar
                 || x instanceof Date
                 || x instanceof LocalDateTime
                 || x instanceof Time
-                || x instanceof java.util.Date) {
-            if (targetJDBCType == JDBCType.TIMESTAMP ) {
+                || x instanceof java.util.Date) 
+        {
+            if (targetJDBCType == JDBCType.TIMESTAMP) {
                 // converting to {@code java.util.Date} because this is the type supported by {@code XContentBuilder} for serialization
                 java.util.Date dateToSet;
                 if (x instanceof Timestamp) {
@@ -380,23 +381,32 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                 }
 
                 setParam(parameterIndex, dateToSet, Types.TIMESTAMP);
+                return;
             } else if (targetJDBCType == JDBCType.VARCHAR) {
                 setParam(parameterIndex, String.valueOf(x), Types.VARCHAR);
-            } else {
-                // anything else other than VARCHAR and TIMESTAMP is not supported in this JDBC driver
-                throw new SQLFeatureNotSupportedException(
-                        "Conversion from type " + x.getClass().getName() + " to " + targetJDBCType + " not supported");
+                return;
             }
-        } else if (x instanceof byte[]) {
-            if (targetJDBCType != JDBCType.VARBINARY) {
-                throw new SQLFeatureNotSupportedException(
-                        "Conversion from type byte[] to " + targetJDBCType + " not supported");
-            }
-            setParam(parameterIndex, x, Types.VARBINARY);
-        } else {
+            // anything else other than VARCHAR and TIMESTAMP is not supported in this JDBC driver
             throw new SQLFeatureNotSupportedException(
                     "Conversion from type " + x.getClass().getName() + " to " + targetJDBCType + " not supported");
         }
+        
+        if (x instanceof Boolean
+                || x instanceof Byte
+                || x instanceof Short
+                || x instanceof Integer
+                || x instanceof Long
+                || x instanceof Float
+                || x instanceof Double
+                || x instanceof String) {
+            setParam(parameterIndex, 
+                    TypeConverter.convert(x, TypeConverter.fromJavaToJDBC(x.getClass()), DataType.fromJdbcTypeToJava(targetJDBCType)), 
+                    targetSqlType);
+            return;
+        }
+        
+        throw new SQLFeatureNotSupportedException(
+                "Conversion from type " + x.getClass().getName() + " to " + targetJDBCType + " not supported");
     }
 
     private void checkKnownUnsupportedTypes(Object x) throws SQLFeatureNotSupportedException {
@@ -513,13 +523,5 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     @Override
     public long executeLargeUpdate() throws SQLException {
         throw new SQLFeatureNotSupportedException("Batching not supported");
-    }
-    
-    private boolean setIfNull(int parameterIndex, Object o, int type) throws SQLException {
-        if (o == null) {
-            setNull(parameterIndex, type);
-            return true;
-        }
-        return false;
     }
 }

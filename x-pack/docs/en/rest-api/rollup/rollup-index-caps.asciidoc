@@ -1,34 +1,31 @@
 [role="xpack"]
-[[rollup-get-rollup-caps]]
-=== Get Rollup Job Capabilities
+[[rollup-get-rollup-index-caps]]
+=== Get Rollup Index Capabilities
 ++++
-<titleabbrev>Get Rollup Caps</titleabbrev>
+<titleabbrev>Get Rollup Index Caps</titleabbrev>
 ++++
 
 experimental[]
 
-This API returns the rollup capabilities that have been configured for an index or index pattern.  This API is useful
-because a rollup job is often configured to rollup only a subset of fields from the source index.  Furthermore, only
-certain aggregations can be configured for various fields, leading to a limited subset of functionality depending on
-that configuration.
+This API returns the rollup capabilities of all jobs inside of a rollup index (e.g. the index where rollup data is stored).
+A single rollup index may store the data for multiple rollup jobs, and may have a variety of capabilities depending on those jobs.
 
-This API will allow you to inspect an index and determine:
+This API will allow you to determine:
 
-1. Does this index have associated rollup data somewhere in the cluster?
-2. If yes to the first question, what fields were rolled up, what aggregations can be performed, and where does the data
-live?
+1. What jobs are stored in an index (or indices specified via a pattern)?
+2. What target indices were rolled up, what fields were used in those rollups and what aggregations can be performed on each job?
 
 ==== Request
 
-`GET _xpack/rollup/data/{index}`
+`GET {index}/_xpack/rollup/caps`
 
 //===== Description
 
 ==== Path Parameters
 
 `index`::
-  (string) Index, indices or index-pattern to return rollup capabilities for.  If omitted (or `_all` is used) all available
-  rollup job capabilities will be returned
+  (string) Index or index-pattern of concrete rollup indices to check for capabilities.
+
 
 
 ==== Request Body
@@ -44,8 +41,7 @@ For more information, see
 ==== Examples
 
 Imagine we have an index named `sensor-1` full of raw data.  We know that the data will grow over time, so there
-will be a `sensor-2`, `sensor-3`, etc.  Let's create a Rollup job that targets the index pattern `sensor-*` to accomodate
-this future scaling:
+will be a `sensor-2`, `sensor-3`, etc.  Let's create a Rollup job, which stores it's data in `sensor_rollup`:
 
 [source,js]
 --------------------------------------------------
@@ -80,21 +76,23 @@ PUT _xpack/rollup/job/sensor
 // CONSOLE
 // TEST[setup:sensor_index]
 
-We can then retrieve the rollup capabilities of that index pattern (`sensor-*`) via the following command:
+If at a later date, we'd like to determine what jobs and capabilities were stored in the `sensor_rollup` index, we can use the Get Rollup
+Index API:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/rollup/data/sensor-*
+GET /sensor_rollup/_xpack/rollup/caps
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
 
-Which will yield the following response:
+Note how we are requesting the concrete rollup index name (`sensor_rollup`) as the first part of the URL.
+This  will yield the following response:
 
 [source,js]
 ----
 {
-  "sensor-*" : {
+  "sensor_rollup" : {
     "rollup_jobs" : [
       {
         "job_id" : "sensor",
@@ -138,6 +136,7 @@ Which will yield the following response:
 ----
 // TESTRESPONSE
 
+
 The response that is returned contains information that is similar to the original Rollup configuration, but formatted
 differently.  First, there are some house-keeping details: the Rollup job's ID, the index that holds the rolled data,
 the index pattern that the job was targeting.
@@ -150,33 +149,13 @@ Note that the `rollup_jobs` element is an array; there can be multiple, independ
 or index pattern.  Each of these jobs may have different configurations, so the API returns a list of all the various
 configurations available.
 
-We could also retrieve the same information with a request to `_all`:
+
+Like other APIs that interact with indices, you can specify index patterns instead of explicit indices:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/rollup/data/_all
+GET /*_rollup/_xpack/rollup/caps
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
 
-But note that if we use the concrete index name (`sensor-1`), we'll retrieve no rollup capabilities:
-
-[source,js]
---------------------------------------------------
-GET _xpack/rollup/data/sensor-1
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-[source,js]
-----
-{
-
-}
-----
-// TESTRESPONSE
-
-Why is this?  The original rollup job was configured against a specific index pattern (`sensor-*`) not a concrete index
-(`sensor-1`).  So while the index belongs to the pattern, the rollup job is only valid across the entirety of the pattern
-not just one of it's containing indices.  So for that reason, the Rollup Capabilities API only returns information based
-on the originally configured index name or pattern.

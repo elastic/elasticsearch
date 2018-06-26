@@ -21,6 +21,12 @@ import java.util.Map.Entry;
 
 /**
  * This class is used to perform bootstrap checks for kerberos realm.
+ * <p>
+ * We use service keytabs for validating incoming kerberos tickets and is a
+ * required configuration. Due to JVM wide system properties for Kerberos we
+ * cannot support multiple Kerberos realms. This class adds checks for node to
+ * fail if service keytab does not exist or multiple kerberos realms have been
+ * configured.
  */
 public class KerberosRealmBootstrapCheck implements BootstrapCheck {
     private final Environment env;

@@ -19,6 +19,14 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.BasicSessionCredentials;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.test.ESTestCase;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -28,17 +36,6 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.BasicSessionCredentials;
-import org.elasticsearch.cluster.ClusterStateTaskConfig.Basic;
-import org.elasticsearch.discovery.ec2.AwsEc2Service;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.ec2.Ec2DiscoveryPlugin;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ESTestCase;
 
 public class Ec2DiscoveryPluginTests extends ESTestCase {
 

@@ -28,24 +28,25 @@ import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+
 import static java.util.Collections.emptyMap;
 
 
-class InternalAwsS3Service extends AbstractComponent implements AwsS3Service {
+class S3Service extends AbstractComponent implements Closeable {
 
     private volatile Map<String, AmazonS3Reference> clientsCache = emptyMap();
     private volatile Map<String, S3ClientSettings> clientsSettings = emptyMap();
 
-    InternalAwsS3Service(Settings settings) {
+    S3Service(Settings settings) {
         super(settings);
     }
 
@@ -55,7 +56,6 @@ class InternalAwsS3Service extends AbstractComponent implements AwsS3Service {
      * clients are usable until released. On release they will be destroyed instead
      * to being returned to the cache.
      */
-    @Override
     public synchronized Map<String, S3ClientSettings> refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings) {
         // shutdown all unused clients
         // others will shutdown on their respective release
@@ -71,7 +71,6 @@ class InternalAwsS3Service extends AbstractComponent implements AwsS3Service {
      * Attempts to retrieve a client by name from the cache. If the client does not
      * exist it will be created.
      */
-    @Override
     public AmazonS3Reference client(String clientName) {
         AmazonS3Reference clientReference = clientsCache.get(clientName);
         if ((clientReference != null) && clientReference.tryIncRef()) {

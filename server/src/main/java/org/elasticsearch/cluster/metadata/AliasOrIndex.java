@@ -159,7 +159,7 @@ public interface AliasOrIndex {
                 .collect(Collectors.toList());
 
             if (writeIndices.isEmpty() && referenceIndexMetaDatas.size() == 1
-                && referenceIndexMetaDatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
+                    && referenceIndexMetaDatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
                 writeIndices.add(referenceIndexMetaDatas.get(0));
             }
 

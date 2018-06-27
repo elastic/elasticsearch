@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.watcher.transport.actions.put;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -55,6 +57,7 @@ import static org.joda.time.DateTimeZone.UTC;
  */
 public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequest, PutWatchResponse> {
 
+    private final ThreadPool threadPool;
     private final Clock clock;
     private final WatchParser parser;
     private final Client client;
@@ -64,7 +67,8 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     @Inject
     public TransportPutWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    Clock clock, XPackLicenseState licenseState, WatchParser parser, Client client) {
-        super(settings, PutWatchAction.NAME, transportService, threadPool, actionFilters, licenseState, PutWatchRequest::new);
+        super(settings, PutWatchAction.NAME, transportService, actionFilters, licenseState, PutWatchRequest::new);
+        this.threadPool = threadPool;
         this.clock = clock;
         this.parser = parser;
         this.client = client;
@@ -87,18 +91,29 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
             try (XContentBuilder builder = jsonBuilder()) {
                 watch.toXContent(builder, DEFAULT_PARAMS);
 
-                UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
-                updateRequest.docAsUpsert(isUpdate == false);
-                updateRequest.version(request.getVersion());
-                updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                updateRequest.doc(builder);
+                if (isUpdate) {
+                    UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
+                    updateRequest.version(request.getVersion());
+                    updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    updateRequest.doc(builder);
 
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, updateRequest,
-                        ActionListener.<UpdateResponse>wrap(response -> {
+                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, updateRequest,
+                            ActionListener.<UpdateResponse>wrap(response -> {
+                                boolean created = response.getResult() == DocWriteResponse.Result.CREATED;
+                                listener.onResponse(new PutWatchResponse(response.getId(), response.getVersion(), created));
+                            }, listener::onFailure),
+                            client::update);
+                } else {
+                    IndexRequest indexRequest = new IndexRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
+                    indexRequest.source(builder);
+                    indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, indexRequest,
+                        ActionListener.<IndexResponse>wrap(response -> {
                             boolean created = response.getResult() == DocWriteResponse.Result.CREATED;
                             listener.onResponse(new PutWatchResponse(response.getId(), response.getVersion(), created));
                         }, listener::onFailure),
-                        client::update);
+                        client::index);
+                }
             }
         } catch (Exception e) {
             listener.onFailure(e);

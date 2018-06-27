@@ -21,12 +21,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
@@ -49,15 +49,15 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
     private final Client client;
 
     @Inject
-    public TransportGetFiltersAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportGetFiltersAction(Settings settings, TransportService transportService,
                                      ActionFilters actionFilters, Client client) {
-        super(settings, GetFiltersAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, GetFiltersAction.NAME, transportService, actionFilters,
             GetFiltersAction.Request::new);
         this.client = client;
     }
 
     @Override
-    protected void doExecute(GetFiltersAction.Request request, ActionListener<GetFiltersAction.Response> listener) {
+    protected void doExecute(Task task, GetFiltersAction.Request request, ActionListener<GetFiltersAction.Response> listener) {
         final String filterId = request.getFilterId();
         if (!Strings.isNullOrEmpty(filterId)) {
             getFilter(filterId, listener);
@@ -81,9 +81,8 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
                     if (getDocResponse.isExists()) {
                         BytesReference docSource = getDocResponse.getSourceAsBytesRef();
                         try (InputStream stream = docSource.streamInput();
-                             XContentParser parser =
-                                     XContentFactory.xContent(getDocResponse.getSourceAsBytes())
-                                             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             MlFilter filter = MlFilter.LENIENT_PARSER.apply(parser, null).build();
                             responseBody = new QueryPage<>(Collections.singletonList(filter), 1, MlFilter.RESULTS_FIELD);
 
@@ -123,7 +122,7 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
                 for (SearchHit hit : response.getHits().getHits()) {
                     BytesReference docSource = hit.getSourceRef();
                     try (InputStream stream = docSource.streamInput();
-                         XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(docSource)).createParser(
+                         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
                                  NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                         docs.add(MlFilter.LENIENT_PARSER.apply(parser, null).build());
                     } catch (IOException e) {

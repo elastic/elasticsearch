@@ -22,10 +22,9 @@ import java.io.IOException;
 public class TransportUpdateProcessAction extends TransportJobTaskAction<UpdateProcessAction.Request, UpdateProcessAction.Response> {
 
     @Inject
-    public TransportUpdateProcessAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                        ClusterService clusterService, ActionFilters actionFilters,
-                                        AutodetectProcessManager processManager) {
-        super(settings, UpdateProcessAction.NAME, threadPool, clusterService, transportService, actionFilters,
+    public TransportUpdateProcessAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                        ActionFilters actionFilters, AutodetectProcessManager processManager) {
+        super(settings, UpdateProcessAction.NAME, clusterService, transportService, actionFilters,
             UpdateProcessAction.Request::new, UpdateProcessAction.Response::new, ThreadPool.Names.SAME, processManager);
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
     }

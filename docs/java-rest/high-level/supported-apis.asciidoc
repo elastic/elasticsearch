@@ -77,6 +77,7 @@ Index Management::
 
 Mapping Management::
 * <<java-rest-high-put-mapping>>
+* <<java-rest-high-get-field-mappings>>
 
 Alias Management::
 * <<java-rest-high-update-aliases>>
@@ -98,6 +99,7 @@ include::indices/force_merge.asciidoc[]
 include::indices/rollover.asciidoc[]
 include::indices/put_mapping.asciidoc[]
 include::indices/get_mappings.asciidoc[]
+include::indices/get_field_mappings.asciidoc[]
 include::indices/update_aliases.asciidoc[]
 include::indices/exists_alias.asciidoc[]
 include::indices/get_alias.asciidoc[]
@@ -123,10 +125,12 @@ The Java High Level REST Client supports the following Ingest APIs:
 * <<java-rest-high-ingest-put-pipeline>>
 * <<java-rest-high-ingest-get-pipeline>>
 * <<java-rest-high-ingest-delete-pipeline>>
+* <<java-rest-high-ingest-simulate-pipeline>>
 
 include::ingest/put_pipeline.asciidoc[]
 include::ingest/get_pipeline.asciidoc[]
 include::ingest/delete_pipeline.asciidoc[]
+include::ingest/simulate_pipeline.asciidoc[]
 
 == Snapshot APIs
 

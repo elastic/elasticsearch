@@ -15,7 +15,7 @@
 ---
 "No templates":
     - skip:
-        features: default_shards
+        features: default_shards, no_xpack
     - do:
         cat.templates: {}
 
@@ -177,7 +177,7 @@
 ---
 "Sort templates":
     - skip:
-        features: default_shards
+        features: default_shards, no_xpack
     - do:
         indices.put_template:
           name: test
@@ -227,7 +227,7 @@
 ---
 "Multiple template":
     - skip:
-        features: default_shards
+        features: default_shards, no_xpack
     - do:
         indices.put_template:
           name: test_1

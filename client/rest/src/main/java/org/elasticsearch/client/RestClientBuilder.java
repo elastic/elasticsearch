@@ -55,6 +55,7 @@ public final class RestClientBuilder {
     private HttpClientConfigCallback httpClientConfigCallback;
     private RequestConfigCallback requestConfigCallback;
     private String pathPrefix;
+    private NodeSelector nodeSelector = NodeSelector.ANY;
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
@@ -174,6 +175,16 @@ public final class RestClientBuilder {
     }
 
     /**
+     * Sets the {@link NodeSelector} to be used for all requests.
+     * @throws NullPointerException if the provided nodeSelector is null
+     */
+    public RestClientBuilder setNodeSelector(NodeSelector nodeSelector) {
+        Objects.requireNonNull(nodeSelector, "nodeSelector must not be null");
+        this.nodeSelector = nodeSelector;
+        return this;
+    }
+
+    /**
      * Creates a new {@link RestClient} based on the provided configuration.
      */
     public RestClient build() {
@@ -186,7 +197,8 @@ public final class RestClientBuilder {
                 return createHttpClient();
             }
         });
-        RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, nodes, pathPrefix, failureListener);
+        RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, nodes,
+                pathPrefix, failureListener, nodeSelector);
         httpClient.start();
         return restClient;
     }

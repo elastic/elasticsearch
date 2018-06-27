@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
@@ -66,14 +67,15 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -619,6 +621,19 @@ final class RequestConverters {
         return request;
     }
 
+    static Request explain(ExplainRequest explainRequest) throws IOException {
+        Request request = new Request(HttpGet.METHOD_NAME,
+            endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain"));
+
+        Params params = new Params(request);
+        params.withStoredFields(explainRequest.storedFields());
+        params.withFetchSourceContext(explainRequest.fetchSourceContext());
+        params.withRouting(explainRequest.routing());
+        params.withPreference(explainRequest.preference());
+        request.setEntity(createEntity(explainRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint(fieldCapabilitiesRequest.indices(), "_field_caps"));
 
@@ -864,6 +879,19 @@ final class RequestConverters {
         Params parameters = new Params(request);
         parameters.withMasterTimeout(verifyRepositoryRequest.masterNodeTimeout());
         parameters.withTimeout(verifyRepositoryRequest.timeout());
+        return request;
+    }
+
+    static Request createSnapshot(CreateSnapshotRequest createSnapshotRequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPart("_snapshot")
+            .addPathPart(createSnapshotRequest.repository())
+            .addPathPart(createSnapshotRequest.snapshot())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withMasterTimeout(createSnapshotRequest.masterNodeTimeout());
+        params.withWaitForCompletion(createSnapshotRequest.waitForCompletion());
+        request.setEntity(createEntity(createSnapshotRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

@@ -105,6 +105,13 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
                 }
             }
         }
+
+        if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "], expected ['}']");
+        }
+
+        parser.nextToken(); // move past '}'
+
         return new GetSnapshotsResponse(snapshots);
     }
 

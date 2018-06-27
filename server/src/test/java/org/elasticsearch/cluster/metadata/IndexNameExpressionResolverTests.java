@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -1001,7 +1002,29 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertArrayEquals(new String[] {"test-alias-0", "test-alias-1", "test-alias-non-filtering"}, strings);
     }
 
-    public void testIndexAliasesWithNoWriteIndexWithSingleIndex() {
+    public void testConcreteWriteIndexSuccessful() {
+        boolean testZeroWriteIndex = randomBoolean();
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("test-0").state(State.OPEN)
+                .putAlias(AliasMetaData.builder("test-alias").writeIndex(testZeroWriteIndex ? true : null)));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        String[] strings = indexNameExpressionResolver
+            .indexAliases(state, "test-0", x -> true, true, "test-*");
+        Arrays.sort(strings);
+        assertArrayEquals(new String[] {"test-alias"}, strings);
+        DocWriteRequest request = randomFrom(new IndexRequest("test-alias"),
+            new UpdateRequest("test-alias", "_type", "_id"), new DeleteRequest("test-alias"));
+        Index writeIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
+        assertThat(writeIndex.getName(), equalTo("test-0"));
+
+        state = ClusterState.builder(state).metaData(MetaData.builder(state.metaData())
+            .put(indexBuilder("test-1").putAlias(AliasMetaData.builder("test-alias")
+                .writeIndex(testZeroWriteIndex ? randomFrom(false, null) : true)))).build();
+        writeIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
+        assertThat(writeIndex.getName(), equalTo(testZeroWriteIndex ? "test-0" : "test-1"));
+    }
+
+    public void testConcreteWriteIndexWithNoWriteIndexWithSingleIndex() {
         MetaData.Builder mdBuilder = MetaData.builder()
             .put(indexBuilder("test-0").state(State.OPEN)
                 .putAlias(AliasMetaData.builder("test-alias").writeIndex(false)));
@@ -1018,7 +1041,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             equalTo("Alias [test-alias] points to an index [test-0] with [is_write_index=false]"));
     }
 
-    public void testIndexAliasesWithNoWriteIndexWithMultipleIndices() {
+    public void testConcreteWriteIndexWithNoWriteIndexWithMultipleIndices() {
         MetaData.Builder mdBuilder = MetaData.builder()
             .put(indexBuilder("test-0").state(State.OPEN)
                 .putAlias(AliasMetaData.builder("test-alias").writeIndex(randomFrom(false, null))))

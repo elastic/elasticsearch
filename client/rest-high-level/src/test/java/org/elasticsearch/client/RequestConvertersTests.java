@@ -1962,7 +1962,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             getSnapshotsRequest.verbose(false);
-            expectedParams.put("verboseSnapshotIT.java", Boolean.FALSE.toString());
+            expectedParams.put("verbose", Boolean.FALSE.toString());
         }
 
         Request request = RequestConverters.getSnapshots(getSnapshotsRequest);

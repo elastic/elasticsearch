@@ -174,26 +174,14 @@ public class MetaDataTests extends ESTestCase {
             assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
         }
 
-        // test alias pointing to multiple indices with no write index
+        // test alias pointing to multiple indices with write index set explicitly
         MetaData multiFalseMetaData = MetaData.builder(metaData).put(IndexMetaData.builder("index2")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putAlias(AliasMetaData.builder("alias0").writeIndex(randomFrom(false, null)))).build();
+            .putAlias(AliasMetaData.builder("alias0").writeIndex(randomBoolean()))).build();
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> multiFalseMetaData.resolveIndexRouting("1", "alias0"));
-        assertThat(exception.getMessage(), startsWith("Alias [alias0] has more than one index associated with it"));
-        assertThat(exception.getMessage(), containsString("index"));
-        assertThat(exception.getMessage(), containsString("index2"));
-
-        // test alias pointing to multiple indices with write index
-        MetaData multiTrueMetaData = MetaData.builder(metaData).put(IndexMetaData.builder("index2")
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .putAlias(AliasMetaData.builder("alias0").writeIndex(true))).build();
-        exception = expectThrows(IllegalArgumentException.class,
-            () -> multiTrueMetaData.resolveIndexRouting("1", "alias0"));
         assertThat(exception.getMessage(), startsWith("Alias [alias0] has more than one index associated with it"));
         assertThat(exception.getMessage(), containsString("index"));
         assertThat(exception.getMessage(), containsString("index2"));

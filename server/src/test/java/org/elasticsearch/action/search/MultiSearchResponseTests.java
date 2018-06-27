@@ -105,10 +105,9 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
         return true;
     }
 
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
+    protected Predicate<String> getRandomFieldsExcludeFilterWhenResultHasErrors() {
         return field -> field.startsWith("responses");
-    } 
+    }     
 
     /**
      * Test parsing {@link MultiSearchResponse} with inner failures as they don't support asserting on xcontent equivalence, given that
@@ -123,7 +122,7 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
         //exceptions are not of the same type whenever parsed back
         boolean assertToXContentEquivalence = false;
         AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
-                getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
+                getRandomFieldsExcludeFilterWhenResultHasErrors(), this::createParser, this::doParseInstance,
                 this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
     }       
 

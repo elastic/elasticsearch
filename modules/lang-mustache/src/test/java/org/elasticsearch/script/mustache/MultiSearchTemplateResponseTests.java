@@ -97,8 +97,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         return true;
     }
 
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
+    protected Predicate<String> getRandomFieldsExcludeFilterWhenResultHasErrors() {
         return field -> field.startsWith("responses");
     }    
 
@@ -132,7 +131,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         //exceptions are not of the same type whenever parsed back
         boolean assertToXContentEquivalence = false;
         AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
-                getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
+                getRandomFieldsExcludeFilterWhenResultHasErrors(), this::createParser, this::doParseInstance,
                 this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
     }    
 

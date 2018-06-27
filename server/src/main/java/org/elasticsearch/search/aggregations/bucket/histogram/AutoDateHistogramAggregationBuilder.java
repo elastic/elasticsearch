@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -60,8 +61,6 @@ public class AutoDateHistogramAggregationBuilder
 
         PARSER.declareInt(AutoDateHistogramAggregationBuilder::setNumBuckets, NUM_BUCKETS_FIELD);
     }
-
-    public static final int BUCKET_LIMIT = 10000;
 
     public static AutoDateHistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new AutoDateHistogramAggregationBuilder(aggregationName), null);
@@ -105,10 +104,6 @@ public class AutoDateHistogramAggregationBuilder
         if (numBuckets <= 0) {
             throw new IllegalArgumentException(NUM_BUCKETS_FIELD.getPreferredName() + " must be greater than 0 for [" + name + "]");
         }
-        if (numBuckets > BUCKET_LIMIT) {
-            throw new IllegalArgumentException(
-                String.format("%s should be less than %d for %s", NUM_BUCKETS_FIELD.getPreferredName(), BUCKET_LIMIT, name));
-        }
         this.numBuckets = numBuckets;
         return this;
     }
@@ -127,6 +122,19 @@ public class AutoDateHistogramAggregationBuilder
         roundings[3] = new RoundingInfo(createRounding(DateTimeUnit.DAY_OF_MONTH), 24 * 60 * 60 * 1000L, 1, 7);
         roundings[4] = new RoundingInfo(createRounding(DateTimeUnit.MONTH_OF_YEAR), 30 * 24 * 60 * 60 * 1000L, 1, 3);
         roundings[5] = new RoundingInfo(createRounding(DateTimeUnit.YEAR_OF_CENTURY), 365 * 24 * 60 * 60 * 1000L, 1, 5, 10, 20, 50, 100);
+
+        int maxRoundingInterval = Arrays.stream(roundings,0, roundings.length-1)
+            .map(rounding -> rounding.innerIntervals)
+            .flatMapToInt(Arrays::stream)
+            .boxed()
+            .reduce(Integer::max).get();
+        // TODO[PCS] what's the best way to get a hold of SearchService here, so I'm not just using default?
+        int bucketCeiling = MultiBucketConsumerService.DEFAULT_MAX_BUCKETS / maxRoundingInterval;
+        if (numBuckets > bucketCeiling) {
+            throw new IllegalArgumentException(
+                String.format("%s must be less than %d", NUM_BUCKETS_FIELD.getPreferredName(), bucketCeiling)
+            );
+        }
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent, subFactoriesBuilder, metaData);
     }
 

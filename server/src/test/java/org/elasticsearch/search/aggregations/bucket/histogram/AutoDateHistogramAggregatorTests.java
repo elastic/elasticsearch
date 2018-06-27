@@ -31,9 +31,11 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
@@ -48,6 +50,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -289,11 +292,11 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> testSearchCase(query, dataset,
-                aggregation -> aggregation.setNumBuckets(AutoDateHistogramAggregationBuilder.BUCKET_LIMIT+1).field(DATE_FIELD),
+                aggregation -> aggregation.setNumBuckets(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS+1).field(DATE_FIELD),
                 // since an exception is thrown, this assertion won't be invoked.
                 histogram -> assertTrue(false)
             ));
-        assertThat(exception.getMessage(), containsString("should be less than"));
+        assertThat(exception.getMessage(), containsString("must be less than"));
     }
 
     public void testIntervalDay() throws IOException {

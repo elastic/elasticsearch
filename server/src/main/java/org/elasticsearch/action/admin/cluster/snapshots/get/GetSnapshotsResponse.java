@@ -20,8 +20,10 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,12 +36,20 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-
 /**
  * Get snapshots response
  */
 public class GetSnapshotsResponse extends ActionResponse implements ToXContentObject {
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<GetSnapshotsResponse, Void> GET_SNAPSHOT_PARSER =
+        new ConstructingObjectParser<>(GetSnapshotsResponse.class.getName(), true,
+            (args) -> new GetSnapshotsResponse((List<SnapshotInfo>) args[0]));
+
+    static {
+        GET_SNAPSHOT_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
+            (p, c) -> SnapshotInfo.SNAPSHOT_INFO_PARSER.apply(p, c).build(), new ParseField("snapshots"));
+    }
 
     private List<SnapshotInfo> snapshots = Collections.emptyList();
 
@@ -92,27 +102,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     }
 
     public static GetSnapshotsResponse fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
-        ArrayList<SnapshotInfo> snapshots = new ArrayList<>();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            String currentFieldName = parser.currentName();
-            if ("snapshots".equals(currentFieldName)) {
-                token = parser.nextToken();
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    snapshots.add(SnapshotInfo.fromXContent(parser));
-                }
-            }
-        }
-
-        if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
-            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "], expected ['}']");
-        }
-
-        parser.nextToken(); // move past '}'
-
-        return new GetSnapshotsResponse(snapshots);
+        return GET_SNAPSHOT_PARSER.parse(parser, null);
     }
 
     @Override

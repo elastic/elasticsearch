@@ -81,7 +81,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final Comparator<SnapshotInfo> COMPARATOR =
         Comparator.comparing(SnapshotInfo::startTime).thenComparing(SnapshotInfo::snapshotId);
 
-    private static final class SnapshotInfoBuilder {
+    public static final class SnapshotInfoBuilder {
         private String snapshotName = null;
         private String snapshotUUID = null;
         private String state = null;
@@ -154,7 +154,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             // ignore extra field
         }
 
-        private SnapshotInfo build() {
+        public SnapshotInfo build() {
             SnapshotId snapshotId = new SnapshotId(snapshotName, snapshotUUID);
 
             if (indices == null) {
@@ -201,7 +201,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
     }
 
-    private static final ObjectParser<SnapshotInfoBuilder, Void> SNAPSHOT_INFO_PARSER =
+    public static final ObjectParser<SnapshotInfoBuilder, Void> SNAPSHOT_INFO_PARSER =
             new ObjectParser<>(SnapshotInfoBuilder.class.getName(), true, SnapshotInfoBuilder::new);
 
     private static final ObjectParser<ShardStatsBuilder, Void> SHARD_STATS_PARSER =

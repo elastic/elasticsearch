@@ -121,25 +121,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         return concreteIndices(context, indexExpressions);
     }
 
-     /**
-     * Translates the provided index expression into actual concrete indices, properly deduplicated.
-     *
-     * @param state                 the cluster state containing all the data to resolve to expressions to concrete indices
-     * @param options               defines how the aliases or indices need to be resolved to concrete indices
-     * @param resolveToWriteIndex   defines whether to require that aliases resolve to their respective write indices
-     * @param indexExpressions      expressions that can be resolved to alias or index names.
-     * @return the resolved concrete indices based on the cluster state, indices options and index expressions
-     * @throws IndexNotFoundException if one of the index expressions is pointing to a missing index or alias and the
-     * provided indices options in the context don't allow such a case, or if the final result of the indices resolution
-     * contains no indices and the indices options in the context don't allow such a case.
-     * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
-     * indices options in the context don't allow such a case.
-     */
-    public Index[] concreteIndices(ClusterState state, IndicesOptions options, boolean resolveToWriteIndex, String... indexExpressions) {
-        Context context = new Context(state, options, false, resolveToWriteIndex);
-        return concreteIndices(context, indexExpressions);
-    }
-
     /**
      * Translates the provided index expression into actual concrete indices, properly deduplicated.
      *
@@ -227,15 +208,17 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     }
                 }
                 concreteIndices.add(writeIndex.getIndex());
-            } else if (resolvedIndices.size() > 1 && options.allowAliasesToMultipleIndices() == false) {
-                String[] indexNames = new String[resolvedIndices.size()];
-                int i = 0;
-                for (IndexMetaData indexMetaData : resolvedIndices) {
-                    indexNames[i++] = indexMetaData.getIndex().getName();
-                }
-                throw new IllegalArgumentException("Alias [" + expression + "] has more than one indices associated with it [" +
-                    Arrays.toString(indexNames) + "], can't execute a single index op");
             } else {
+                if (resolvedIndices.size() > 1 && !options.allowAliasesToMultipleIndices()) {
+                    String[] indexNames = new String[resolvedIndices.size()];
+                    int i = 0;
+                    for (IndexMetaData indexMetaData : resolvedIndices) {
+                        indexNames[i++] = indexMetaData.getIndex().getName();
+                    }
+                    throw new IllegalArgumentException("Alias [" + expression + "] has more than one indices associated with it [" +
+                        Arrays.toString(indexNames) + "], can't execute a single index op");
+                }
+
                 for (IndexMetaData index : resolvedIndices) {
                     if (index.getState() == IndexMetaData.State.CLOSE) {
                         if (failClosed) {
@@ -299,10 +282,10 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      */
     public Index concreteWriteIndex(ClusterState state, IndicesRequest request) {
         String indexExpression = request.indices() != null && request.indices().length > 0 ? request.indices()[0] : null;
-        Index[] indices = concreteIndices(state, request.indicesOptions(), true, indexExpression);
-        if (indices.length != 1) {
-            throw new IllegalArgumentException("unable to return a single index as the index and options provided got resolved to multiple indices");
-        }
+        Context context = new Context(state, request.indicesOptions(), false, true);
+        Index[] indices = concreteIndices(context, indexExpression);
+        // concreteIndices will throw its own exception when checking for a write index. Assert here for good measure.
+        assert indices.length != 1 : "The index/alias and options provided did not point to a write-index";
         return indices[0];
     }
 

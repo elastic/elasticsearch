@@ -77,25 +77,25 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
                 .addAliasAction(AliasActions.add().index("test1").alias("alias0").routing("0"))
                 .addAliasAction(AliasActions.add().index("test2").alias("alias0").routing("0")).get();
 
-        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "test1", randomBoolean()), nullValue());
-        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "alias", randomBoolean()), nullValue());
+        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "test1"), nullValue());
+        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "alias"), nullValue());
 
-        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "test1", randomBoolean()), nullValue());
-        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "alias10", randomBoolean()), equalTo("0"));
-        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "alias20", randomBoolean()), equalTo("0"));
-        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "alias21", randomBoolean()), equalTo("1"));
-        assertThat(clusterService().state().metaData().resolveIndexRouting("3", "test1", randomBoolean()), equalTo("3"));
-        assertThat(clusterService().state().metaData().resolveIndexRouting("0", "alias10", randomBoolean()), equalTo("0"));
+        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "test1"), nullValue());
+        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "alias10"), equalTo("0"));
+        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "alias20"), equalTo("0"));
+        assertThat(clusterService().state().metaData().resolveIndexRouting(null, "alias21"), equalTo("1"));
+        assertThat(clusterService().state().metaData().resolveIndexRouting("3", "test1"), equalTo("3"));
+        assertThat(clusterService().state().metaData().resolveIndexRouting("0", "alias10"), equalTo("0"));
 
         try {
-            clusterService().state().metaData().resolveIndexRouting("1", "alias10", randomBoolean());
+            clusterService().state().metaData().resolveIndexRouting("1", "alias10");
             fail("should fail");
         } catch (IllegalArgumentException e) {
             // all is well, we can't have two mappings, one provided, and one in the alias
         }
 
         try {
-            clusterService().state().metaData().resolveIndexRouting(null, "alias0", randomBoolean());
+            clusterService().state().metaData().resolveIndexRouting(null, "alias0");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
             // Expected
@@ -105,7 +105,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         client().admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("test2").alias("alias")
             .writeIndex(randomFrom(false, null))).get();
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> clusterService().state().metaData().resolveIndexRouting("1", "alias", randomBoolean()));
+            () -> clusterService().state().metaData().resolveIndexRouting("1", "alias"));
         assertThat(exception.getMessage(), startsWith("Alias [alias] has more than one index associated with it"));
         assertThat(exception.getMessage(), containsString("test1"));
         assertThat(exception.getMessage(), containsString("test2"));
@@ -113,10 +113,10 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         // test alias pointing to multiple indices with write index
         client().admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("test2").alias("alias")
             .writeIndex(true)).get();
-        assertThat(clusterService().state().metaData().resolveIndexRouting("1", "alias", true),
+        assertThat(clusterService().state().metaData().resolveIndexRouting("1", "alias"),
             equalTo("1"));
         exception = expectThrows(IllegalArgumentException.class,
-            () -> clusterService().state().metaData().resolveIndexRouting("1", "alias", false));
+            () -> clusterService().state().metaData().resolveIndexRouting("1", "alias"));
         assertThat(exception.getMessage(), startsWith("Alias [alias] has more than one index associated with it"));
         assertThat(exception.getMessage(), containsString("test1"));
         assertThat(exception.getMessage(), containsString("test2"));

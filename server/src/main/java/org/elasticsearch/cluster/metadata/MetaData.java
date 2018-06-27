@@ -477,7 +477,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
      */
     // TODO: This can be moved to IndexNameExpressionResolver too, but this means that we will support wildcards and other expressions
     // in the index,bulk,update and delete apis.
-    public String resolveIndexRouting(@Nullable String routing, String aliasOrIndex, boolean isWriteOperation) {
+    public String resolveIndexRouting(@Nullable String routing, String aliasOrIndex) {
         if (aliasOrIndex == null) {
             return routing;
         }
@@ -487,15 +487,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return routing;
         }
         AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
-        if ((isWriteOperation && alias.getWriteIndex() == null) || (isWriteOperation == false && result.getIndices().size() > 1)) {
+        if (result.getIndices().size() > 1) {
             rejectSingleIndexOperation(aliasOrIndex, result);
         }
-        final AliasMetaData aliasMd;
-        if (isWriteOperation) {
-            aliasMd = alias.getWriteIndex().getAliases().get(alias.getAliasName());
-        } else {
-            aliasMd = alias.getFirstAliasMetaData();
-        }
+        AliasMetaData aliasMd = alias.getFirstAliasMetaData();
         if (aliasMd.indexRouting() != null) {
             if (aliasMd.indexRouting().indexOf(',') != -1) {
                 throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");

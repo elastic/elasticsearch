@@ -139,21 +139,21 @@ public class MetaDataTests extends ESTestCase {
         MetaData metaData = MetaData.builder().put(builder).build();
 
         // no alias, no index
-        assertEquals(metaData.resolveIndexRouting(null, null, randomBoolean()), null);
-        assertEquals(metaData.resolveIndexRouting("0", null, randomBoolean()), "0");
+        assertEquals(metaData.resolveIndexRouting(null, null), null);
+        assertEquals(metaData.resolveIndexRouting("0", null), "0");
 
         // index, no alias
-        assertEquals(metaData.resolveIndexRouting(null, "index", randomBoolean()), null);
-        assertEquals(metaData.resolveIndexRouting("0", "index", randomBoolean()), "0");
+        assertEquals(metaData.resolveIndexRouting(null, "index"), null);
+        assertEquals(metaData.resolveIndexRouting("0", "index"), "0");
 
         // alias with no index routing
-        assertEquals(metaData.resolveIndexRouting(null, "alias0", randomBoolean()), null);
-        assertEquals(metaData.resolveIndexRouting("0", "alias0", randomBoolean()), "0");
+        assertEquals(metaData.resolveIndexRouting(null, "alias0"), null);
+        assertEquals(metaData.resolveIndexRouting("0", "alias0"), "0");
 
         // alias with index routing.
-        assertEquals(metaData.resolveIndexRouting(null, "alias1", randomBoolean()), "1");
+        assertEquals(metaData.resolveIndexRouting(null, "alias1"), "1");
         try {
-            metaData.resolveIndexRouting("0", "alias1", randomBoolean());
+            metaData.resolveIndexRouting("0", "alias1");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), is("Alias [alias1] has index routing associated with it [1], and was provided with routing value [0], rejecting operation"));
@@ -161,14 +161,14 @@ public class MetaDataTests extends ESTestCase {
 
         // alias with invalid index routing.
         try {
-            metaData.resolveIndexRouting(null, "alias2", randomBoolean());
+            metaData.resolveIndexRouting(null, "alias2");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
         }
 
         try {
-            metaData.resolveIndexRouting("1", "alias2", randomBoolean());
+            metaData.resolveIndexRouting("1", "alias2");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
@@ -181,7 +181,7 @@ public class MetaDataTests extends ESTestCase {
             .numberOfReplicas(0)
             .putAlias(AliasMetaData.builder("alias0").writeIndex(randomFrom(false, null)))).build();
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> multiFalseMetaData.resolveIndexRouting("1", "alias0", randomBoolean()));
+            () -> multiFalseMetaData.resolveIndexRouting("1", "alias0"));
         assertThat(exception.getMessage(), startsWith("Alias [alias0] has more than one index associated with it"));
         assertThat(exception.getMessage(), containsString("index"));
         assertThat(exception.getMessage(), containsString("index2"));
@@ -192,10 +192,8 @@ public class MetaDataTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetaData.builder("alias0").writeIndex(true))).build();
-        assertThat(multiTrueMetaData.resolveIndexRouting("1", "alias0", true),
-            equalTo("1"));
         exception = expectThrows(IllegalArgumentException.class,
-            () -> multiTrueMetaData.resolveIndexRouting("1", "alias0", false));
+            () -> multiTrueMetaData.resolveIndexRouting("1", "alias0"));
         assertThat(exception.getMessage(), startsWith("Alias [alias0] has more than one index associated with it"));
         assertThat(exception.getMessage(), containsString("index"));
         assertThat(exception.getMessage(), containsString("index2"));

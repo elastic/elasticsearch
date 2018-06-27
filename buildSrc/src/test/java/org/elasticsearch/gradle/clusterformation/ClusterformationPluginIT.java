@@ -58,6 +58,7 @@ public class ClusterformationPluginIT extends GradleIntegrationTestCase {
         );
     }
 
+
     public void testUseClusterByOneWithDryRun() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("clusterformation"))

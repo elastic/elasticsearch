@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -129,6 +130,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         assertEquals(firstAgg.getMetaData(), reduced.getMetaData());
         if (hasReduceScript) {
             assertEquals(inputs.size(), reduced.aggregation());
+            assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING);
         } else {
             assertEquals(inputs.size(), ((List<Object>) reduced.aggregation()).size());
         }

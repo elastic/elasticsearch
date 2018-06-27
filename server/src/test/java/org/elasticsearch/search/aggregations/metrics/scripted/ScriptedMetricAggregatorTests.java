@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -169,6 +170,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals(0, ((HashMap<Object, String>) scriptedMetric.aggregation()).size());
             }
         }
+
+        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING);
     }
 
     /**
@@ -195,6 +198,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals(numDocs, list.size());
             }
         }
+
+        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING);
     }
 
     /**
@@ -217,6 +222,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals(numDocs, scriptedMetric.aggregation());
             }
         }
+
+        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING);
     }
 
     /**
@@ -240,6 +247,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals((double) numDocs, scriptedMetric.aggregation());
             }
         }
+
+        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING);
     }
 
     public void testScriptParamsPassedThrough() throws IOException {
@@ -259,6 +268,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals(306, scriptedMetric.aggregation());
             }
         }
+
+        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING);
     }
 
     public void testConflictingAggAndScriptParams() throws IOException {
@@ -282,6 +293,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     ex.getMessage());
             }
         }
+
+        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING);
     }
 
     public void testSelfReferencingAggStateAfterInit() throws IOException {
@@ -299,6 +312,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals("Iterable object is self-referencing itself (Scripted metric aggs init script)", ex.getMessage());
             }
         }
+
+        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING);
     }
 
     public void testSelfReferencingAggStateAfterMap() throws IOException {
@@ -319,6 +334,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals("Iterable object is self-referencing itself (Scripted metric aggs map script)", ex.getMessage());
             }
         }
+
+        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING);
     }
 
     public void testSelfReferencingAggStateAfterCombine() throws IOException {
@@ -336,6 +353,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals("Iterable object is self-referencing itself (Scripted metric aggs combine script)", ex.getMessage());
             }
         }
+
+        assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING);
     }
 
     /**

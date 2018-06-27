@@ -22,4 +22,5 @@ The object used to share aggregation state between the scripts in a Scripted Met
 Aggregation is now a variable called `state` available in the script context, rather than
 being provided via the `params` object as `params._agg`.
 
-The old `params._agg` variable is still available as well.
+The old `params._agg` variable is still available as well. This can be disabled by setting
+the `es.aggregations.enableDeprecatedScriptedMetricAggParam` system property to `false`.

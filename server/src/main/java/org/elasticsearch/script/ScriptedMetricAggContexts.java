@@ -22,6 +22,8 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -31,6 +33,25 @@ import java.util.List;
 import java.util.Map;
 
 public class ScriptedMetricAggContexts {
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(ScriptedMetricAggContexts.class));
+
+    // Public for access from tests
+    public static final String AGG_PARAM_DEPRECATION_WARNING =
+        "params._agg/_aggs for scripted metric aggregations are deprecated, use state/states (not in params) instead. " +
+        "Set system property es.aggregations.enableDeprecatedScriptedMetricAggParam = false to disable this deprecated behavior.";
+
+    public static boolean deprecatedAggParamEnabled() {
+        boolean enabled = Boolean.parseBoolean(
+            System.getProperty("es.aggregations.enableDeprecatedScriptedMetricAggParam", "true"));
+
+        if (enabled) {
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("enableDeprecatedScriptedMetricAggParams", AGG_PARAM_DEPRECATION_WARNING);
+        }
+
+        return enabled;
+    }
+
     private abstract static class ParamsAndStateBase {
         private final Map<String, Object> params;
         private final Object state;

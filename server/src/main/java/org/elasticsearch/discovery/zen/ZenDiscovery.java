@@ -56,6 +56,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction.IncomingClusterStateListener;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -1187,7 +1188,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     class RejoinClusterRequestHandler implements TransportRequestHandler<RejoinClusterRequest> {
         @Override
-        public void messageReceived(final RejoinClusterRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final RejoinClusterRequest request, final TransportChannel channel, Task task) throws Exception {
             try {
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             } catch (Exception e) {

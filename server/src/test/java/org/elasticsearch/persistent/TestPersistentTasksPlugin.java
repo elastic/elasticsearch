@@ -34,7 +34,6 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -511,11 +510,10 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             TestTasksRequest, TestTasksResponse, TestTaskResponse> {
 
         @Inject
-        public TransportTestTaskAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                       TransportService transportService, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver, String nodeExecutor) {
-            super(settings, TestTaskAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                    TestTasksRequest::new, TestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+        public TransportTestTaskAction(Settings settings, ClusterService clusterService,
+                                       TransportService transportService, ActionFilters actionFilters) {
+            super(settings, TestTaskAction.NAME, clusterService, transportService, actionFilters,
+                TestTasksRequest::new, TestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         }
 
         @Override

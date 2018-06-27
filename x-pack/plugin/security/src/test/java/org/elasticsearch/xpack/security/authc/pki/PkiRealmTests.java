@@ -50,6 +50,7 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class PkiRealmTests extends ESTestCase {
@@ -104,6 +105,7 @@ public class PkiRealmTests extends ESTestCase {
         UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings),
             new ThreadContext(globalSettings)), roleMapper);
+        verify(roleMapper).refreshRealmOnChange(realm);
         Mockito.doAnswer(invocation -> {
             final UserRoleMapper.UserData userData = (UserRoleMapper.UserData) invocation.getArguments()[0];
             final ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
@@ -144,6 +146,7 @@ public class PkiRealmTests extends ESTestCase {
 
         final int numTimes = invalidate ? 2 : 1;
         verify(roleMapper, times(numTimes)).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        verifyNoMoreInteractions(roleMapper);
     }
 
     public void testCustomUsernamePattern() throws Exception {

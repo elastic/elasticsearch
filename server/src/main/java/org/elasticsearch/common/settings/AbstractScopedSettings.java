@@ -83,7 +83,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         this.keySettings = Collections.unmodifiableMap(keySettings);
     }
 
-    protected void validateSettingKey(Setting setting) {
+    protected void validateSettingKey(Setting<?> setting) {
         if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())
             || isValidAffixKey(setting.getKey())) == false || setting.getKey().endsWith(".0")) {
             throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
@@ -366,7 +366,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * @throws IllegalArgumentException if the setting is invalid
      */
     void validate(final String key, final Settings settings, final boolean validateDependencies, final boolean validateInternalIndex) {
-        Setting setting = getRaw(key);
+        Setting<?> setting = getRaw(key);
         if (setting == null) {
             LevensteinDistance ld = new LevensteinDistance();
             List<Tuple<Float, String>> scoredKeys = new ArrayList<>();

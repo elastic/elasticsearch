@@ -65,14 +65,15 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -615,6 +616,19 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withIndicesOptions(getAliasesRequest.indicesOptions());
         params.withLocal(getAliasesRequest.local());
+        return request;
+    }
+
+    static Request explain(ExplainRequest explainRequest) throws IOException {
+        Request request = new Request(HttpGet.METHOD_NAME,
+            endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain"));
+
+        Params params = new Params(request);
+        params.withStoredFields(explainRequest.storedFields());
+        params.withFetchSourceContext(explainRequest.fetchSourceContext());
+        params.withRouting(explainRequest.routing());
+        params.withPreference(explainRequest.preference());
+        request.setEntity(createEntity(explainRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

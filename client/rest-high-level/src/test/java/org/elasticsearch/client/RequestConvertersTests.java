@@ -68,6 +68,7 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -111,6 +112,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
@@ -1416,6 +1418,49 @@ public class RequestConvertersTests extends ESTestCase {
                     () -> RequestConverters.existsAlias(getAliasesRequest));
             assertEquals("existsAlias requires at least an alias or an index", iae.getMessage());
         }
+    }
+
+    public void testExplain() throws IOException {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+
+        ExplainRequest explainRequest = new ExplainRequest(index, type, id);
+        explainRequest.query(QueryBuilders.termQuery(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10)));
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        if (randomBoolean()) {
+            String routing = randomAlphaOfLengthBetween(3, 10);
+            explainRequest.routing(routing);
+            expectedParams.put("routing", routing);
+        }
+        if (randomBoolean()) {
+            String preference = randomAlphaOfLengthBetween(3, 10);
+            explainRequest.preference(preference);
+            expectedParams.put("preference", preference);
+        }
+        if (randomBoolean()) {
+            String[] storedFields = generateRandomStringArray(10, 5, false);
+            String storedFieldsParams = randomFields(storedFields);
+            explainRequest.storedFields(storedFields);
+            expectedParams.put("stored_fields", storedFieldsParams);
+        }
+        if (randomBoolean()) {
+            randomizeFetchSourceContextParams(explainRequest::fetchSourceContext, expectedParams);
+        }
+
+        Request request = RequestConverters.explain(explainRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add(index)
+            .add(type)
+            .add(id)
+            .add("_explain");
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(explainRequest, request.getEntity());
     }
 
     public void testFieldCaps() {

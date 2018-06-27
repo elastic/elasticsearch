@@ -86,13 +86,11 @@ public final class GrokPatternCreator {
         new ValueOnlyGrokPatternCandidate("TIME", "date", "time"),
         // This already includes pre/post break conditions
         new ValueOnlyGrokPatternCandidate("QUOTEDSTRING", "keyword", "field", "", ""),
-        // Can't use \b as the break before, because it doesn't work for negative numbers (the
-        // minus sign is not a "word" character)
-        new ValueOnlyGrokPatternCandidate("INT", "long", "field", "(?<![\\w.+-])", "(?![\\w.])"),
-        new ValueOnlyGrokPatternCandidate("NUMBER", "double", "field", "(?<![\\w.+-])"),
         // Disallow +, - and . before numbers, as well as "word" characters, otherwise we'll pick
         // up numeric suffices too eagerly
-        new ValueOnlyGrokPatternCandidate("BASE16NUM", "keyword", "field", "(?<![\\w.+-])")
+        new ValueOnlyGrokPatternCandidate("INT", "long", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\d)"),
+        new ValueOnlyGrokPatternCandidate("NUMBER", "double", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\d)"),
+        new ValueOnlyGrokPatternCandidate("BASE16NUM", "keyword", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\w)")
         // TODO: also unfortunately can't have USERNAME in the list as it matches too broadly
         // Fixing these problems with overly broad matches would require some extra intelligence
         // to be added to remove inappropriate matches.  One idea would be to use a dictionary,
@@ -142,7 +140,8 @@ public final class GrokPatternCreator {
         Map<String, Integer> fieldNameCountStore = new HashMap<>();
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
 
-        processCandidateAndSplit(terminal, fieldNameCountStore, overallGrokPatternBuilder, seedCandidate, true, sampleMessages, mappings);
+        processCandidateAndSplit(terminal, fieldNameCountStore, overallGrokPatternBuilder, seedCandidate, true, sampleMessages, mappings,
+            false, 0, false, 0);
 
         return overallGrokPatternBuilder.toString().replace("\t", "\\t").replace("\n", "\\n");
     }
@@ -154,14 +153,18 @@ public final class GrokPatternCreator {
      */
     private static void processCandidateAndSplit(Terminal terminal, Map<String, Integer> fieldNameCountStore,
                                                  StringBuilder overallGrokPatternBuilder, GrokPatternCandidate chosenPattern,
-                                                 boolean isLast, Collection<String> snippets, Map<String, String> mappings) {
+                                                 boolean isLast, Collection<String> snippets, Map<String, String> mappings,
+                                                 boolean ignoreKeyValueCandidateLeft, int ignoreValueOnlyCandidatesLeft,
+                                                 boolean ignoreKeyValueCandidateRight, int ignoreValueOnlyCandidatesRight) {
 
         Collection<String> prefaces = new ArrayList<>();
         Collection<String> epilogues = new ArrayList<>();
         String patternBuilderContent = chosenPattern.processCaptures(fieldNameCountStore, snippets, prefaces, epilogues, mappings);
-        appendBestGrokMatchForStrings(terminal, fieldNameCountStore, overallGrokPatternBuilder, false, prefaces, mappings);
+        appendBestGrokMatchForStrings(terminal, fieldNameCountStore, overallGrokPatternBuilder, false, prefaces, mappings,
+            ignoreKeyValueCandidateLeft, ignoreValueOnlyCandidatesLeft);
         overallGrokPatternBuilder.append(patternBuilderContent);
-        appendBestGrokMatchForStrings(terminal, fieldNameCountStore, overallGrokPatternBuilder, isLast, epilogues, mappings);
+        appendBestGrokMatchForStrings(terminal, fieldNameCountStore, overallGrokPatternBuilder, isLast, epilogues, mappings,
+            ignoreKeyValueCandidateRight, ignoreValueOnlyCandidatesRight);
     }
 
     /**
@@ -171,19 +174,23 @@ public final class GrokPatternCreator {
      */
     static void appendBestGrokMatchForStrings(Terminal terminal, Map<String, Integer> fieldNameCountStore,
                                               StringBuilder overallGrokPatternBuilder, boolean isLast, Collection<String> snippets,
-                                              Map<String, String> mappings) {
+                                              Map<String, String> mappings, boolean ignoreKeyValueCandidate,
+                                              int ignoreValueOnlyCandidates) {
 
         GrokPatternCandidate bestCandidate = null;
         if (snippets.isEmpty() == false) {
             GrokPatternCandidate kvCandidate = new KeyValueGrokPatternCandidate(terminal);
-            if (kvCandidate.matchesAll(snippets)) {
+            if (ignoreKeyValueCandidate == false && kvCandidate.matchesAll(snippets)) {
                 bestCandidate = kvCandidate;
             } else {
-                for (GrokPatternCandidate candidate : ORDERED_CANDIDATE_GROK_PATTERNS) {
+                ignoreKeyValueCandidate = true;
+                for (GrokPatternCandidate candidate :
+                    ORDERED_CANDIDATE_GROK_PATTERNS.subList(ignoreValueOnlyCandidates, ORDERED_CANDIDATE_GROK_PATTERNS.size())) {
                     if (candidate.matchesAll(snippets)) {
                         bestCandidate = candidate;
                         break;
                     }
+                    ++ignoreValueOnlyCandidates;
                 }
             }
         }
@@ -195,7 +202,8 @@ public final class GrokPatternCreator {
                 addIntermediateRegex(overallGrokPatternBuilder, snippets);
             }
         } else {
-            processCandidateAndSplit(terminal, fieldNameCountStore, overallGrokPatternBuilder, bestCandidate, isLast, snippets, mappings);
+            processCandidateAndSplit(terminal, fieldNameCountStore, overallGrokPatternBuilder, bestCandidate, isLast, snippets, mappings,
+                true, ignoreValueOnlyCandidates + (ignoreKeyValueCandidate ? 1 : 0), ignoreKeyValueCandidate, ignoreValueOnlyCandidates);
         }
     }
 

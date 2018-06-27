@@ -77,7 +77,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         Map<String, String> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
-            mappings);
+            mappings, false, 0);
 
         assertEquals(".*?\\[%{TIMESTAMP_ISO8601:extra_timestamp}\\] %{LOGLEVEL:loglevel} ", overallGrokPatternBuilder.toString());
     }
@@ -94,7 +94,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         Map<String, String> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
-            mappings);
+            mappings, false, 0);
 
         assertEquals(".*?\\(%{INT:field}\\).*?", overallGrokPatternBuilder.toString());
     }
@@ -110,7 +110,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         Map<String, String> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
-            mappings);
+            mappings, false, 0);
 
         // It seems sensible that we don't detect these suffices as either base 10 or base 16 numbers
         assertEquals(".*?", overallGrokPatternBuilder.toString());
@@ -128,7 +128,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         Map<String, String> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
-            mappings);
+            mappings, false, 0);
 
         assertEquals(".*?%{BASE16NUM:field}.*?", overallGrokPatternBuilder.toString());
     }
@@ -143,7 +143,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         Map<String, String> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
-            mappings);
+            mappings, false, 0);
 
         // We don't want the .1. in the middle to get detected as a hex number
         assertEquals("<.*?:", overallGrokPatternBuilder.toString());
@@ -160,7 +160,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         Map<String, String> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
-            mappings);
+            mappings, false, 0);
 
         assertEquals(".*?%{EMAILADDRESS:email}.*?", overallGrokPatternBuilder.toString());
     }
@@ -176,7 +176,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         Map<String, String> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
-            mappings);
+            mappings, false, 0);
 
         assertEquals(".*?%{URI:uri}.*?", overallGrokPatternBuilder.toString());
     }
@@ -192,7 +192,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         Map<String, String> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
-            mappings);
+            mappings, false, 0);
 
         assertEquals(".*? .*? %{PATH:path}", overallGrokPatternBuilder.toString());
     }
@@ -209,7 +209,7 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         Map<String, String> mappings = new HashMap<>();
 
         GrokPatternCreator.appendBestGrokMatchForStrings(TEST_TERMINAL, fieldNameCountStore, overallGrokPatternBuilder, false, snippets,
-            mappings);
+            mappings, false, 0);
 
         assertEquals(".*?\\bfoo=%{USER:foo} .*?\\bbar=%{USER:bar}.*?", overallGrokPatternBuilder.toString());
     }

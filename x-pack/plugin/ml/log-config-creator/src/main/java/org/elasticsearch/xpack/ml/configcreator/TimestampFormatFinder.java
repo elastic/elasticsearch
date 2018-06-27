@@ -268,10 +268,10 @@ public final class TimestampFormatFinder {
 
         @Override
         public String toString() {
-            return "index = " + candidateIndex + ", preface = '" + preface +
-                "', date formats = " + dateFormats.stream().collect(Collectors.joining("', '", "[ '", "' ]")) +
+            return "index = " + candidateIndex + (preface.isEmpty() ? "" : ", preface = '" + preface + "'") +
+                ", date formats = " + dateFormats.stream().collect(Collectors.joining("', '", "[ '", "' ]")) +
                 ", simple pattern = '" + simplePattern.pattern() + "', grok pattern = '" + grokPatternName +
-                "', epilogue = '" + epilogue +
+                (epilogue.isEmpty() ? "" : "', epilogue = '" + epilogue) +
                 "', has fractional component smaller than millisecond = " + hasFractionalComponentSmallerThanMillisecond;
         }
     }

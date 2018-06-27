@@ -16,6 +16,10 @@ Elasticsearch.
 NOTE: The elasticsearch keystore currently only provides obfuscation. In the future,
 password protection will be added.
 
+These settings, just like the ones in the regular `elasticsearch.yml` config file,
+need to be specified for each cluster node. These are node-specific settings,
+although they usually have the same value on every node.
+
 [float]
 [[creating-keystore]]
 === Creating the keystore

@@ -30,7 +30,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
      * Constructs default authentication failure handler. By default it only
      * supports 'Basic' auth scheme and uses it for 'WWW-Authenticate' header value
      *
-     * @deprecated @see {@link #DefaultAuthenticationFailureHandler(List)}
+     * @deprecated replaced by {@link #DefaultAuthenticationFailureHandler(List)}
      */
     @Deprecated
     public DefaultAuthenticationFailureHandler() {
@@ -43,8 +43,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
      *
      * @param supportedWWWAuthenticateResponseHeaderValues List of supported auth
      *            schemes to be returned as response header 'WWW-Authenticate'
-     * @see {@link Realm#getWWWAuthenticateHeaderValue()} which is used by an realm
-     *      to specify auth scheme it wants to use
+     * @see Realm#getWWWAuthenticateHeaderValue()
      */
     public DefaultAuthenticationFailureHandler(final List<String> supportedWWWAuthenticateResponseHeaderValues) {
         if (supportedWWWAuthenticateResponseHeaderValues == null || supportedWWWAuthenticateResponseHeaderValues.isEmpty()) {

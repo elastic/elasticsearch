@@ -1997,6 +1997,12 @@ public class RequestConvertersTests extends ESTestCase {
 
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
         setRandomMasterTimeout(createSnapshotRequest, expectedParams);
+        Boolean waitForCompletion = randomBoolean();
+        createSnapshotRequest.waitForCompletion(waitForCompletion);
+
+        if (waitForCompletion) {
+            expectedParams.put("wait_for_completion", waitForCompletion.toString());
+        }
 
         Request request = RequestConverters.createSnapshot(createSnapshotRequest);
         assertThat(endpoint, equalTo(request.getEndpoint()));

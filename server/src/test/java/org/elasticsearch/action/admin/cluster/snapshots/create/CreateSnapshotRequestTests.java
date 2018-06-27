@@ -46,7 +46,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
 
         CreateSnapshotRequest original = new CreateSnapshotRequest(repo, snap);
 
-        if (randomBoolean()) { // replace
+        if (randomBoolean()) {
             List<String> indices = new ArrayList<>();
             int count = randomInt(3) + 1;
 

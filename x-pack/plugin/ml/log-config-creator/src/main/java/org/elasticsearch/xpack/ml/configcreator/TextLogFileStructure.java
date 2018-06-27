@@ -167,14 +167,14 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
     void createConfigs() throws UserException {
 
         String[] sampleLines = sample.split("\n");
-        Tuple<TimestampMatch, Set<String>> bestTimestamp = mostCommonTimestamp(sampleLines);
+        Tuple<TimestampMatch, Set<String>> bestTimestamp = mostLikelyTimestamp(sampleLines);
         if (bestTimestamp == null) {
             // Is it appropriate to treat a file that is neither structured nor has
             // a regular pattern of timestamps as a log file?  Probably not...
             throw new UserException(ExitCodes.DATA_ERROR, "Could not find a timestamp in the log sample provided");
         }
 
-        terminal.println(Verbosity.VERBOSE, "Most common timestamp format is [" + bestTimestamp.v1() + "]");
+        terminal.println(Verbosity.VERBOSE, "Most likely timestamp format is [" + bestTimestamp.v1() + "]");
 
         List<String> sampleMessages = new ArrayList<>();
         StringBuilder preamble = new StringBuilder();
@@ -252,12 +252,12 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         }
     }
 
-    private static Tuple<TimestampMatch, Set<String>> mostCommonTimestamp(String[] sampleLines) {
+    static Tuple<TimestampMatch, Set<String>> mostLikelyTimestamp(String[] sampleLines) {
 
-        Map<TimestampMatch, Tuple<Integer, Set<String>>> timestampMatches = new LinkedHashMap<>();
+        Map<TimestampMatch, Tuple<Double, Set<String>>> timestampMatches = new LinkedHashMap<>();
 
         int remainingLines = sampleLines.length;
-        int differenceBetweenMostCommonAndSecondMostCommonCounts = 0;
+        double differenceBetweenTwoHighestWeights = 0.0;
         for (String sampleLine : sampleLines) {
             TimestampMatch match = TimestampFormatFinder.findFirstMatch(sampleLine);
             if (match != null) {
@@ -265,45 +265,57 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
                     match.grokPatternName, "", match.hasFractionalComponentSmallerThanMillisecond);
                 timestampMatches.compute(pureMatch, (k, v) -> {
                     if (v == null) {
-                        return new Tuple<>(1, new HashSet<>(Collections.singletonList(match.preface)));
+                        return new Tuple<>(weightForMatch(match.preface), new HashSet<>(Collections.singletonList(match.preface)));
                     } else {
                         v.v2().add(match.preface);
-                        return new Tuple<>(v.v1() + 1, v.v2());
+                        return new Tuple<>(v.v1() + weightForMatch(match.preface), v.v2());
                     }
                 });
-                differenceBetweenMostCommonAndSecondMostCommonCounts =
-                    findDifferenceBetweenMostCommonAndSecondMostCommonCounts(timestampMatches.values());
+                differenceBetweenTwoHighestWeights = findDifferenceBetweenTwoHighestWeights(timestampMatches.values());
             }
-            if (differenceBetweenMostCommonAndSecondMostCommonCounts > --remainingLines) {
+            // The highest possible weight is 1, so if the difference between the two highest weights
+            // is less than the number of lines remaining then the leader cannot possibly be overtaken
+            if (differenceBetweenTwoHighestWeights > --remainingLines) {
                 break;
             }
         }
 
-        int mostCommonCount = 0;
-        Tuple<TimestampMatch, Set<String>> mostCommonMatch = null;
-        for (Map.Entry<TimestampMatch, Tuple<Integer, Set<String>>> entry : timestampMatches.entrySet()) {
-            int count = entry.getValue().v1();
-            if (count > mostCommonCount) {
-                mostCommonCount = count;
-                mostCommonMatch = new Tuple<>(entry.getKey(), entry.getValue().v2());
+        double highestWeight = 0.0;
+        Tuple<TimestampMatch, Set<String>> highestWeightMatch = null;
+        for (Map.Entry<TimestampMatch, Tuple<Double, Set<String>>> entry : timestampMatches.entrySet()) {
+            double weight = entry.getValue().v1();
+            if (weight > highestWeight) {
+                highestWeight = weight;
+                highestWeightMatch = new Tuple<>(entry.getKey(), entry.getValue().v2());
             }
         }
-        return mostCommonMatch;
+        return highestWeightMatch;
     }
 
-    private static int findDifferenceBetweenMostCommonAndSecondMostCommonCounts(Collection<Tuple<Integer, Set<String>>> timestampMatches) {
-        int mostCommonCount = 0;
-        int secondMostCommonCount = 0;
-        for (Tuple<Integer, Set<String>> timestampMatch : timestampMatches) {
-            int count = timestampMatch.v1();
-            if (count > mostCommonCount) {
-                secondMostCommonCount = mostCommonCount;
-                mostCommonCount = count;
-            } else if (count > secondMostCommonCount) {
-                secondMostCommonCount = count;
+    /**
+     * Used to weight a timestamp match according to how far along the line it is found.
+     * Timestamps at the very beginning of the line are given a weight of 1.  The weight
+     * progressively decreases the more text there is preceding the timestamp match, but
+     * is always greater than 0.
+     * @return A weight in the range (0, 1].
+     */
+    private static double weightForMatch(String preface) {
+        return Math.pow(1.0 + preface.length() / 15.0, -1.1);
+    }
+
+    private static double findDifferenceBetweenTwoHighestWeights(Collection<Tuple<Double, Set<String>>> timestampMatches) {
+        double highestWeight = 0.0;
+        double secondHighestWeight = 0.0;
+        for (Tuple<Double, Set<String>> timestampMatch : timestampMatches) {
+            double weight = timestampMatch.v1();
+            if (weight > highestWeight) {
+                secondHighestWeight = highestWeight;
+                highestWeight = weight;
+            } else if (weight > secondHighestWeight) {
+                secondHighestWeight = weight;
             }
         }
-        return mostCommonCount - secondMostCommonCount;
+        return highestWeight - secondHighestWeight;
     }
 
     static String createMultiLineMessageStartRegex(Collection<String> prefaces, String timestampRegex) {

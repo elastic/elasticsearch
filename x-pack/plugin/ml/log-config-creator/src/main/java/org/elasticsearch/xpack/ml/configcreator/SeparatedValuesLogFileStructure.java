@@ -393,7 +393,6 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
                 }
             }
 
-
             logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), true);
             logstashFromFileDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), false);
         }

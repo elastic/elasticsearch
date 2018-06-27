@@ -16,13 +16,13 @@ public class AbstractLogFileStructureTests extends LogConfigCreatorTestCase {
     }
 
     public void testMoreLikelyGivenText() {
-        assertTrue(AbstractStructuredLogFileStructure.isMoreLikelyTextThanKeyword("the quick brown fox jumped over the lazy dog"));
-        assertTrue(AbstractStructuredLogFileStructure.isMoreLikelyTextThanKeyword(randomAlphaOfLengthBetween(257, 10000)));
+        assertTrue(AbstractLogFileStructure.isMoreLikelyTextThanKeyword("the quick brown fox jumped over the lazy dog"));
+        assertTrue(AbstractLogFileStructure.isMoreLikelyTextThanKeyword(randomAlphaOfLengthBetween(257, 10000)));
     }
 
     public void testMoreLikelyGivenKeyword() {
-        assertFalse(AbstractStructuredLogFileStructure.isMoreLikelyTextThanKeyword("1"));
-        assertFalse(AbstractStructuredLogFileStructure.isMoreLikelyTextThanKeyword("DEBUG"));
-        assertFalse(AbstractStructuredLogFileStructure.isMoreLikelyTextThanKeyword(randomAlphaOfLengthBetween(1, 256)));
+        assertFalse(AbstractLogFileStructure.isMoreLikelyTextThanKeyword("1"));
+        assertFalse(AbstractLogFileStructure.isMoreLikelyTextThanKeyword("DEBUG"));
+        assertFalse(AbstractLogFileStructure.isMoreLikelyTextThanKeyword(randomAlphaOfLengthBetween(1, 256)));
     }
 }

@@ -186,7 +186,7 @@ public abstract class AbstractLogFileStructure {
             String.format(Locale.ROOT, INGEST_PIPELINE_FRACTIONAL_SECONDS_GSUB_TEMPLATE, timeFieldName) : "";
     }
 
-    static String guessScalarMapping(Terminal terminal, String fieldName, Collection<String> fieldValues) {
+    protected static String guessScalarMapping(Terminal terminal, String fieldName, Collection<String> fieldValues) {
 
         if (fieldValues.stream().allMatch(value -> "true".equals(value) || "false".equals(value))) {
             return "boolean";

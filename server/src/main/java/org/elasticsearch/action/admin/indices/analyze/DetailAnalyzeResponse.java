@@ -20,10 +20,12 @@
 package org.elasticsearch.action.admin.indices.analyze;
 
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,6 +37,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
 
@@ -161,44 +166,21 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         return builder;
     }
 
+    static final ConstructingObjectParser<DetailAnalyzeResponse, Void> PARSER = new ConstructingObjectParser<>("detail",
+        args -> new DetailAnalyzeResponse((boolean)args[0], (AnalyzeTokenList)args[1],
+                                            ((List<CharFilteredText>)args[2]).toArray(new CharFilteredText[0]),
+                                            (AnalyzeTokenList)args[3],
+                                            ((List<AnalyzeTokenList>)args[4]).toArray(new AnalyzeTokenList[0])));
+    static {
+        PARSER.declareBoolean(constructorArg(), new ParseField(Fields.CUSTOM_ANALYZER));
+        PARSER.declareObject(optionalConstructorArg(), AnalyzeTokenList.PARSER, new ParseField(Fields.ANALYZER));
+        PARSER.declareObjectArray(optionalConstructorArg(), CharFilteredText.PARSER, new ParseField(Fields.CHARFILTERS));
+        PARSER.declareObject(optionalConstructorArg(), AnalyzeTokenList.PARSER, new ParseField(Fields.TOKENIZER));
+        PARSER.declareObjectArray(optionalConstructorArg(), AnalyzeTokenList.PARSER, new ParseField(Fields.TOKENFILTERS));
+    }
+
     public static DetailAnalyzeResponse fromXContent(XContentParser parser) throws IOException {
-        String currentName = null;
-        boolean customAnalyzer = false;
-        AnalyzeTokenList analyzer = null;
-        CharFilteredText[] charFilteredText = null;
-        AnalyzeTokenList tokenizer = null;
-        AnalyzeTokenList[] tokenfilters = null;
-        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentName = parser.currentName();
-            }
-            else if (Fields.CUSTOM_ANALYZER.equals(currentName)) {
-                customAnalyzer = parser.booleanValue();
-            }
-            else if (Fields.ANALYZER.equals(currentName)) {
-                analyzer = AnalyzeTokenList.fromXContent(parser);
-            }
-            else if (Fields.CHARFILTERS.equals(currentName)) {
-                List<CharFilteredText> charfilters = new ArrayList<>();
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    charfilters.add(CharFilteredText.fromXContent(parser));
-                }
-                charFilteredText = charfilters.toArray(new CharFilteredText[0]);
-            }
-            else if (Fields.TOKENIZER.equals(currentName)) {
-                tokenizer = AnalyzeTokenList.fromXContent(parser);
-            }
-            else if (Fields.TOKENFILTERS.equals(currentName)) {
-                List<AnalyzeTokenList> filters = new ArrayList<>();
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    filters.add(AnalyzeTokenList.fromXContent(parser));
-                }
-                tokenfilters = filters.toArray(new AnalyzeTokenList[0]);
-            }
-        }
-        return new DetailAnalyzeResponse(customAnalyzer, analyzer, charFilteredText, tokenizer, tokenfilters);
+        return PARSER.parse(parser, null);
     }
 
     static final class Fields {
@@ -321,28 +303,17 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
             return builder;
         }
 
+        private static final ConstructingObjectParser<AnalyzeTokenList, Void> PARSER = new ConstructingObjectParser<>("token_list",
+            args -> new AnalyzeTokenList((String)args[0],
+                                         ((List<AnalyzeResponse.AnalyzeToken>)args[1]).toArray(new AnalyzeResponse.AnalyzeToken[0])));
+        static {
+            PARSER.declareString(constructorArg(), new ParseField(Fields.NAME));
+            PARSER.declareObjectArray(constructorArg(), (p, c) -> AnalyzeResponse.AnalyzeToken.fromXContent(p),
+                new ParseField(AnalyzeResponse.Fields.TOKENS));
+        }
+
         public static AnalyzeTokenList fromXContent(XContentParser parser) throws IOException {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-            String name = null;
-            List<AnalyzeResponse.AnalyzeToken> tokens = new ArrayList<>();
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                    // parser.nextToken();
-                    String field = parser.currentName();
-                    if (Fields.NAME.equals(field)) {
-                        parser.nextToken();
-                        name = parser.text();
-                    }
-                    else if (AnalyzeResponse.Fields.TOKENS.equals(field)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(),
-                            parser::getTokenLocation);
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            tokens.add(AnalyzeResponse.AnalyzeToken.readAnalyzeToken(parser));
-                        }
-                    }
-                }
-            }
-            return new AnalyzeTokenList(name, tokens.toArray(new AnalyzeResponse.AnalyzeToken[0]));
+            return PARSER.parse(parser, null);
         }
 
         @Override
@@ -403,28 +374,15 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
             return builder;
         }
 
+        private static final ConstructingObjectParser<CharFilteredText, Void> PARSER = new ConstructingObjectParser<>("char_filtered_text",
+            args -> new CharFilteredText((String)args[0], ((List<String>)args[1]).toArray(new String[0])));
+        static {
+            PARSER.declareString(constructorArg(), new ParseField(Fields.NAME));
+            PARSER.declareStringArray(constructorArg(), new ParseField(Fields.FILTERED_TEXT));
+        }
+
         public static CharFilteredText fromXContent(XContentParser parser) throws IOException {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(),
-                parser::getTokenLocation);
-            String name = null;
-            List<String> texts = new ArrayList<>();
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                    if (Fields.NAME.equals(parser.currentName())) {
-                        parser.nextToken();
-                        name = parser.text();
-                    }
-                    else if (Fields.FILTERED_TEXT.equals(parser.currentName())) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(),
-                            parser::getTokenLocation);
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            texts.add(parser.text());
-                        }
-                    }
-                }
-            }
-            //XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            return new CharFilteredText(name, texts.toArray(new String[0]));
+            return PARSER.parse(parser, null);
         }
 
         public static CharFilteredText readCharFilteredText(StreamInput in) throws IOException {

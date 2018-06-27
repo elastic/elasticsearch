@@ -20,10 +20,13 @@ package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, ToXContentObject {
@@ -136,7 +140,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             return analyzeToken;
         }
 
-        public static AnalyzeToken readAnalyzeToken(XContentParser parser) throws IOException {
+        public static AnalyzeToken fromXContent(XContentParser parser) throws IOException {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
             String field = null;
             String term = "";
@@ -253,38 +257,15 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         return builder;
     }
 
-    public static AnalyzeResponse fromXContent(XContentParser parser) throws IOException {
-        if (parser.currentToken() == null) {
-            parser.nextToken();
-        }
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        String fieldName = null;
-        List<AnalyzeToken> tokens = null;
-        DetailAnalyzeResponse dar = null;
-        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                fieldName = parser.currentName();
-                if (Fields.TOKENS.equals(fieldName)) {
-                    tokens = readTokenList(parser);
-                }
-                else if (Fields.DETAIL.equals(fieldName)) {
-                    dar = DetailAnalyzeResponse.fromXContent(parser);
-                }
-                else {
-                    throw new ParsingException(parser.getTokenLocation(), "Unexpected field name [" + fieldName + "] in AnalyzeResponse");
-                }
-            }
-        }
-        return new AnalyzeResponse(tokens, dar);
+    private static final ConstructingObjectParser<AnalyzeResponse, Void> PARSER = new ConstructingObjectParser<>("analyze_response",
+        args -> new AnalyzeResponse((List<AnalyzeToken>) args[0], (DetailAnalyzeResponse) args[1]));
+    static {
+        PARSER.declareObjectArray(constructorArg(), (p, c) -> AnalyzeToken.fromXContent(p), new ParseField(Fields.TOKENS));
+        PARSER.declareObject(constructorArg(), DetailAnalyzeResponse.PARSER, new ParseField(Fields.DETAIL));
     }
 
-    private static List<AnalyzeToken> readTokenList(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
-        List<AnalyzeToken> tokens = new ArrayList<>();
-        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            tokens.add(AnalyzeToken.readAnalyzeToken(parser));
-        }
-        return tokens;
+    public static AnalyzeResponse fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     @Override

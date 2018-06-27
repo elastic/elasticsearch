@@ -1959,7 +1959,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         Request request = RequestConverters.analyze(indexAnalyzeRequest);
         assertThat(request.getEndpoint(), equalTo("/test_index/_analyze"));
-        assertThat(request.getEntity(), notNullValue());
+        assertToXContentBody(indexAnalyzeRequest, request.getEntity());
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest()
             .text("more text")

@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -63,7 +64,7 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> implement
 
     private String normalizer;
 
-    public static class NameOrDefinition implements Writeable, ToXContentObject {
+    public static class NameOrDefinition implements Writeable, ToXContentFragment {
         // exactly one of these two members is not null
         public final String name;
         public final Settings definition;
@@ -106,16 +107,12 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> implement
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (Strings.isNullOrEmpty(name) == false) {
+            if (definition == null) {
                 return builder.value(name);
             }
             return definition.toXContent(builder, params);
         }
 
-        @Override
-        public boolean isFragment() {
-            return true;
-        }
     }
 
     public AnalyzeRequest() {

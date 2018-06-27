@@ -2320,7 +2320,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             // tag::analyze-index-normalizer-request
             AnalyzeRequest request = new AnalyzeRequest();
-            request.index("my_index");              // <1>
+            request.index("my_index");                  // <1>
             request.normalizer("my_normalizer");        // <2>
             request.text("some text to analyze");
             // end::analyze-index-normalizer-request

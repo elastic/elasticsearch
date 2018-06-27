@@ -283,6 +283,7 @@ The following snippet shows the basic structure of the _Watch Execution Context_
     "vars" : { ... } <6>
 }
 ----------------------------------------------------------------------
+// NOTCONSOLE
 <1> Any static metadata specified in the watch definition.
 <2> The current watch payload.
 <3> The id of the executing watch.
@@ -348,6 +349,7 @@ in sent emails:
   }
 }
 ----------------------------------------------------------------------
+// NOTCONSOLE
 
 [float]
 [[inline-templates-scripts]]
@@ -369,6 +371,7 @@ the context metadata.
   }
 }
 ----------------------------------------------------------------------
+// NOTCONSOLE
 
 For a script, you simply specify the inline script as the value of the `script`
 field. For example:
@@ -379,6 +382,7 @@ field. For example:
   "script" : "return true"
 }
 ----------------------------------------------------------------------
+// NOTCONSOLE
 
 You can also explicitly specify the inline type by using a formal object
 definition as the field value. For example:
@@ -395,6 +399,7 @@ definition as the field value. For example:
   }
 }
 ----------------------------------------------------------------------
+// NOTCONSOLE
 
 The formal object definition for a script would be:
 
@@ -406,6 +411,7 @@ The formal object definition for a script would be:
   }
 }
 ----------------------------------------------------------------------
+// NOTCONSOLE
 
 [float]
 [[stored-templates-scripts]]
@@ -436,3 +442,4 @@ references the `email_notification_subject` template:
   }
 }
 ----------------------------------------------------------------------
+// NOTCONSOLE

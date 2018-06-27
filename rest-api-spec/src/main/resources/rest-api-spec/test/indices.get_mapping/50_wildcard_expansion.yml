@@ -94,12 +94,26 @@ setup:
 
 ---
 "Get test-* with wildcard_expansion=none":
+ - skip:
+    version: " - 6.99.99"
+    reason: allow_no_indices (defaults to true) was ignored in previous versions
+ - do:
+    indices.get_mapping:
+        index: test-x*
+        expand_wildcards: none
+
+ - match: { '':  {} }
+---
+"Get test-* with wildcard_expansion=none allow_no_indices=false":
+ - skip:
+    version: " - 6.99.99"
+    reason: allow_no_indices was ignored in previous versions
  - do:
     catch: missing
     indices.get_mapping:
         index: test-x*
         expand_wildcards: none
-
+        allow_no_indices: false
 ---
 "Get test-* with wildcard_expansion=open,closed":
 

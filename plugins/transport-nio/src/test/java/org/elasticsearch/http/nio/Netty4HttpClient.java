@@ -44,6 +44,7 @@ import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.tasks.Task;
 
 import java.io.Closeable;
 import java.net.SocketAddress;
@@ -74,7 +75,7 @@ class Netty4HttpClient implements Closeable {
     static Collection<String> returnOpaqueIds(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
         for (HttpResponse response : responses) {
-            list.add(response.headers().get("X-Opaque-Id"));
+            list.add(response.headers().get(Task.X_OPAQUE_ID));
         }
         return list;
     }
@@ -90,7 +91,7 @@ class Netty4HttpClient implements Closeable {
         for (int i = 0; i < uris.length; i++) {
             final HttpRequest httpRequest = new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uris[i]);
             httpRequest.headers().add(HOST, "localhost");
-            httpRequest.headers().add("X-Opaque-ID", String.valueOf(i));
+            httpRequest.headers().add(Task.X_OPAQUE_ID, String.valueOf(i));
             requests.add(httpRequest);
         }
         return sendRequests(remoteAddress, requests);

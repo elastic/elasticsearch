@@ -21,7 +21,7 @@ package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.Action;
 
-public class TermVectorsAction extends Action<TermVectorsRequest, TermVectorsResponse> {
+public class TermVectorsAction extends Action<TermVectorsResponse> {
 
     public static final TermVectorsAction INSTANCE = new TermVectorsAction();
     public static final String NAME = "indices:data/read/tv";

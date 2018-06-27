@@ -41,6 +41,7 @@ import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.TcpServerChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transports;
 
@@ -164,7 +165,7 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public MockServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
-            MockServerChannel nioServerChannel = new MockServerChannel(profileName, channel, this, selector);
+            MockServerChannel nioServerChannel = new MockServerChannel(profileName, channel);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
             ServerChannelContext context = new ServerChannelContext(nioServerChannel, this, selector, MockNioTransport.this::acceptChannel,
@@ -191,12 +192,11 @@ public class MockNioTransport extends TcpTransport {
         }
     }
 
-    private static class MockServerChannel extends NioServerSocketChannel implements TcpChannel {
+    private static class MockServerChannel extends NioServerSocketChannel implements TcpServerChannel {
 
         private final String profile;
 
-        MockServerChannel(String profile, ServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, NioSelector selector)
-            throws IOException {
+        MockServerChannel(String profile, ServerSocketChannel channel) {
             super(channel);
             this.profile = profile;
         }
@@ -215,29 +215,13 @@ public class MockNioTransport extends TcpTransport {
         public void addCloseListener(ActionListener<Void> listener) {
             addCloseListener(ActionListener.toBiConsumer(listener));
         }
-
-        @Override
-        public void setSoLinger(int value) throws IOException {
-            throw new UnsupportedOperationException("Cannot set SO_LINGER on a server channel.");
-        }
-
-        @Override
-        public InetSocketAddress getRemoteAddress() {
-            return null;
-        }
-
-        @Override
-        public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-            throw new UnsupportedOperationException("Cannot send a message to a server channel.");
-        }
     }
 
     private static class MockSocketChannel extends NioSocketChannel implements TcpChannel {
 
         private final String profile;
 
-        private MockSocketChannel(String profile, java.nio.channels.SocketChannel socketChannel, NioSelector selector)
-            throws IOException {
+        private MockSocketChannel(String profile, java.nio.channels.SocketChannel socketChannel, NioSelector selector) {
             super(socketChannel);
             this.profile = profile;
         }

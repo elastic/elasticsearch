@@ -39,7 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJobsStatsAction.Response> {
+public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
 
     public static final GetJobsStatsAction INSTANCE = new GetJobsStatsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/stats/get";

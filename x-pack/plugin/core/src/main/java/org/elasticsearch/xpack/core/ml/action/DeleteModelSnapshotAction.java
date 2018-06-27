@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 
-public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.Request, DeleteModelSnapshotAction.Response> {
+public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.Response> {
 
     public static final DeleteModelSnapshotAction INSTANCE = new DeleteModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/delete";

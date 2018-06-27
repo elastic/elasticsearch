@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class GetInfluencersAction
-extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response> {
+extends Action<GetInfluencersAction.Response> {
 
     public static final GetInfluencersAction INSTANCE = new GetInfluencersAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/influencers/get";

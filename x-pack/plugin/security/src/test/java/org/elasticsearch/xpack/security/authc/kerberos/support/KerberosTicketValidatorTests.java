@@ -6,8 +6,10 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos.support;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
@@ -17,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.security.PrivilegedActionException;
 import java.util.Base64;
+import java.util.concurrent.ExecutionException;
 
 import javax.security.auth.login.LoginException;
 
@@ -41,8 +44,9 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
 
             final Environment env = TestEnvironment.newEnvironment(globalSettings);
             final Path keytabPath = env.configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
-            final GSSException gssException = expectThrows(GSSException.class,
-                    () -> kerberosTicketValidator.validateTicket(Base64.getDecoder().decode(base64KerbToken), keytabPath, true));
+            final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
+            kerberosTicketValidator.validateTicket(Base64.getDecoder().decode(base64KerbToken), keytabPath, true, future);
+            final GSSException gssException = expectThrows(GSSException.class, () -> unwrapExpectedExceptionFromFutureAndThrow(future));
             assertThat(gssException.getMajor(), equalTo(GSSException.FAILURE));
         }
     }
@@ -52,8 +56,9 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
 
         final Environment env = TestEnvironment.newEnvironment(globalSettings);
         final Path keytabPath = env.configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
-        final GSSException gssException = expectThrows(GSSException.class,
-                () -> kerberosTicketValidator.validateTicket(Base64.getDecoder().decode(base64KerbToken), keytabPath, true));
+        final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
+        kerberosTicketValidator.validateTicket(Base64.getDecoder().decode(base64KerbToken), keytabPath, true, future);
+        final GSSException gssException = expectThrows(GSSException.class, () -> unwrapExpectedExceptionFromFutureAndThrow(future));
         assertThat(gssException.getMajor(), equalTo(GSSException.DEFECTIVE_TOKEN));
     }
 
@@ -70,8 +75,9 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
             settings = buildKerberosRealmSettings(ktabPath.toString());
             final Environment env = TestEnvironment.newEnvironment(globalSettings);
             final Path keytabPath = env.configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
-            final GSSException gssException = expectThrows(GSSException.class,
-                    () -> kerberosTicketValidator.validateTicket(Base64.getDecoder().decode(base64KerbToken), keytabPath, true));
+            final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
+            kerberosTicketValidator.validateTicket(Base64.getDecoder().decode(base64KerbToken), keytabPath, true, future);
+            final GSSException gssException = expectThrows(GSSException.class, () -> unwrapExpectedExceptionFromFutureAndThrow(future));
             assertThat(gssException.getMajor(), equalTo(GSSException.FAILURE));
         }
     }
@@ -86,16 +92,27 @@ public class KerberosTicketValidatorTests extends KerberosTestCase {
 
             final Environment env = TestEnvironment.newEnvironment(globalSettings);
             final Path keytabPath = env.configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
-            final Tuple<String, String> userNameOutToken =
-                    kerberosTicketValidator.validateTicket(Base64.getDecoder().decode(base64KerbToken), keytabPath, true);
-            assertThat(userNameOutToken, is(notNullValue()));
-            assertThat(userNameOutToken.v1(), equalTo(principalName(clientUserName)));
-            assertThat(userNameOutToken.v2(), is(notNullValue()));
+            final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
+            kerberosTicketValidator.validateTicket(Base64.getDecoder().decode(base64KerbToken), keytabPath, true, future);
+            assertThat(future.actionGet(), is(notNullValue()));
+            assertThat(future.actionGet().v1(), equalTo(principalName(clientUserName)));
+            assertThat(future.actionGet().v2(), is(notNullValue()));
 
-            final String outToken = spnegoClient.handleResponse(userNameOutToken.v2());
+            final String outToken = spnegoClient.handleResponse(future.actionGet().v2());
             assertThat(outToken, is(nullValue()));
             assertThat(spnegoClient.isEstablished(), is(true));
         }
     }
 
+    private void unwrapExpectedExceptionFromFutureAndThrow(PlainActionFuture<Tuple<String, String>> future) throws Throwable {
+        try {
+            future.actionGet();
+        } catch (Throwable t) {
+            Throwable throwThis = t;
+            while (throwThis instanceof UncategorizedExecutionException || throwThis instanceof ExecutionException) {
+                throwThis = throwThis.getCause();
+            }
+            throw throwThis;
+        }
+    }
 }

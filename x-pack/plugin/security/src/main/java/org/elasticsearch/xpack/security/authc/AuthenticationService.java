@@ -271,7 +271,7 @@ public class AuthenticationService extends AbstractComponent {
                                 if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                                     logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
                                             authenticationToken.principal(), realm.name(), result.getMessage());
-                                    userListener.onFailure(Exceptions.authenticationError(result.getMessage(), result.getException()));
+                                    userListener.onFailure(result.getException());
                                 } else {
                                     if (result.getMessage() != null) {
                                         messages.put(realm, new Tuple<>(result.getMessage(), result.getException()));

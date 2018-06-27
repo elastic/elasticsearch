@@ -10,6 +10,7 @@ import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.SearchResult;
 import com.unboundid.ldap.sdk.SearchScope;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
@@ -61,13 +62,13 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
             final Environment env = TestEnvironment.newEnvironment(globalSettings);
             final Path keytabPath = env.configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
             // Handle Authz header which contains base64 token
-            final Tuple<String, String> userNameOutToken =
-                    new KerberosTicketValidator().validateTicket((byte[]) kerbAuthnToken.credentials(), keytabPath, true);
-            assertThat(userNameOutToken, is(notNullValue()));
-            assertThat(userNameOutToken.v1(), equalTo(principalName(clientUserName)));
+            final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
+            new KerberosTicketValidator().validateTicket((byte[]) kerbAuthnToken.credentials(), keytabPath, true, future);
+            assertThat(future.actionGet(), is(notNullValue()));
+            assertThat(future.actionGet().v1(), equalTo(principalName(clientUserName)));
 
             // Authenticate service on client side.
-            final String outToken = spnegoClient.handleResponse(userNameOutToken.v2());
+            final String outToken = spnegoClient.handleResponse(future.actionGet().v2());
             assertThat(outToken, is(nullValue()));
             assertThat(spnegoClient.isEstablished(), is(true));
         }

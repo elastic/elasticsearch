@@ -3,7 +3,7 @@ package org.elasticsearch.gradle.vagrant
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.FileContentsTask
 import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.Version
+import org.elasticsearch.model.Version
 import org.gradle.api.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionAdapter

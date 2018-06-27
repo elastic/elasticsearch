@@ -18,10 +18,13 @@
  */
 package org.elasticsearch.gradle.clusterformation;
 
+import org.elasticsearch.GradleServicesAdapter;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 
 public class ClusterformationPlugin implements Plugin<Project> {
 
@@ -29,11 +32,13 @@ public class ClusterformationPlugin implements Plugin<Project> {
     public static final String EXTENSION_NAME = "elasticSearchClusters";
     public static final String TASK_EXTENSION_NAME = "clusterFormation";
 
+    private final Logger logger =  Logging.getLogger(ClusterformationPlugin.class);
+
     @Override
     public void apply(Project project) {
-        NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
-            ElasticsearchCluster.class,
-            (name) -> new ElasticsearchCluster(name, project.getLogger())
+        NamedDomainObjectContainer<? extends ElasticsearchConfiguration> container = project.container(
+            ElasticsearchNode.class,
+            (name) -> new ElasticsearchNode(name, GradleServicesAdapter.getInstance(project))
         );
         project.getExtensions().add(EXTENSION_NAME, container);
 
@@ -41,8 +46,8 @@ public class ClusterformationPlugin implements Plugin<Project> {
         listTask.setGroup("ES cluster formation");
         listTask.setDescription("Lists all ES clusters configured for this project");
         listTask.doLast((Task task) ->
-            container.forEach((ElasticsearchCluster cluster) ->
-                project.getLogger().lifecycle("   * {}: {}", cluster.getName(), cluster.getDistribution())
+            container.forEach((ElasticsearchConfiguration cluster) ->
+                logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getDistribution())
             )
         );
 
@@ -55,7 +60,7 @@ public class ClusterformationPlugin implements Plugin<Project> {
         // Make sure we only claim the clusters for the tasks that will actually execute
         project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
             taskExecutionGraph.getAllTasks().forEach(task ->
-                getTaskExtension(task).getClaimedClusters().forEach(ElasticsearchCluster::claim)
+                getTaskExtension(task).getClaimedClusters().forEach(ElasticsearchConfiguration::claim)
             )
         );
 

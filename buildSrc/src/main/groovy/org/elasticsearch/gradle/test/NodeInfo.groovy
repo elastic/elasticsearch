@@ -22,15 +22,13 @@ package org.elasticsearch.gradle.test
 import com.sun.jna.Native
 import com.sun.jna.WString
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.Version
+import org.elasticsearch.model.Version
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
-
-import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
 
 /**
  * A container for the files and configuration associated with a single node in a test cluster.

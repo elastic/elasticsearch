@@ -19,6 +19,8 @@
 package org.elasticsearch.gradle.clusterformation;
 
 import org.gradle.api.Task;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,27 +30,29 @@ public class ClusterFormationTaskExtension {
 
     private final Task task;
 
-    private final List<ElasticsearchCluster> claimedClusters = new ArrayList<>();
+    private final List<ElasticsearchConfiguration> claimedClusters = new ArrayList<>();
+
+    private final Logger logger =  Logging.getLogger(ClusterFormationTaskExtension.class);
 
     public ClusterFormationTaskExtension(Task task) {
         this.task = task;
     }
 
-    public void use(ElasticsearchCluster cluster) {
+    public void use(ElasticsearchConfiguration cluster) {
         // not likely to configure the same task from multiple threads as of Gradle 4.7, but it's the right thing to do
         synchronized (claimedClusters) {
             if (claimedClusters.contains(cluster)) {
-                task.getLogger().warn("{} already claimed cluster {} will not claim it again",
+                logger.warn("{} already claimed cluster {} will not claim it again",
                     task.getPath(), cluster.getName()
                 );
                 return;
             }
             claimedClusters.add(cluster);
         }
-        task.getLogger().info("CF: the {} task will use cluster: {}", task.getName(), cluster.getName());
+        logger.info("CF: the {} task will use cluster: {}", task.getName(), cluster.getName());
     }
 
-    public List<ElasticsearchCluster> getClaimedClusters() {
+    public List<ElasticsearchConfiguration> getClaimedClusters() {
         synchronized (claimedClusters) {
             return Collections.unmodifiableList(claimedClusters);
         }

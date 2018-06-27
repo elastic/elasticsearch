@@ -1,6 +1,7 @@
 package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.test.GradleUnitTestCase
+import org.elasticsearch.model.Version
 import org.junit.Test
 
 class VersionCollectionTests extends GradleUnitTestCase {
@@ -223,7 +224,8 @@ class VersionCollectionTests extends GradleUnitTestCase {
                            Version.fromString("5.1.1"), Version.fromString("5.2.0"), Version.fromString("5.2.1"),
                            Version.fromString("5.3.0"), Version.fromString("5.3.1")]
 
-    assertTrue(wireCompatList.containsAll(vc.wireCompatible))
+    def compatible = vc.wireCompatible
+    assertTrue(wireCompatList.containsAll(compatible))
     assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
     assertEquals(vc.snapshotsIndexCompatible.size(), 1)

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle
 
+import org.elasticsearch.model.Version
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
 

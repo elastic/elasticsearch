@@ -1,5 +1,7 @@
 package org.elasticsearch.gradle;
 
+import org.elasticsearch.model.Version;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;

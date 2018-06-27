@@ -4,7 +4,7 @@ plugins {
 
 elasticSearchClusters {
     myTestCluster {
-       distribution = file('foo')
+       distribution = 'ZIP'
     }
 }
 

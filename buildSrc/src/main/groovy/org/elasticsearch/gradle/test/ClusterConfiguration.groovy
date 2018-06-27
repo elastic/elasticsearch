@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
-import org.elasticsearch.gradle.Version
+import org.elasticsearch.model.Version
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.tasks.Input

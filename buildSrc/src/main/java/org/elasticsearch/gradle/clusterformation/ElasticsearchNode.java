@@ -18,50 +18,71 @@
  */
 package org.elasticsearch.gradle.clusterformation;
 
+import org.elasticsearch.GradleServicesAdapter;
+import org.elasticsearch.model.Distribution;
+import org.elasticsearch.model.Version;
 import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 
-import java.io.File;
 import java.util.Objects;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ElasticsearchCluster {
+public class ElasticsearchNode implements ElasticsearchConfiguration {
 
     private final String name;
-
-    private File distribution;
-
+    private final GradleServicesAdapter services;
     private final AtomicInteger noOfClaims = new AtomicInteger();
     private final AtomicBoolean started = new AtomicBoolean(false);
+    private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
 
-    private final Logger logger;
+    private Distribution distribution;
+    private Version version;
 
-    public ElasticsearchCluster(String name, Logger logger) {
+    public ElasticsearchNode(String name, GradleServicesAdapter services) {
         this.name = name;
-        this.logger = logger;
+        this.services = services;
     }
 
+    @Override
     public String getName() {
         return name;
     }
 
-    public File getDistribution() {
+    @Override
+    public Version getVersion() {
+        return version;
+    }
+
+    @Override
+    public void setVersion(Version version) {
+        checkNotRunning();
+        this.version = version;
+    }
+
+    @Override
+    public Distribution getDistribution() {
         return distribution;
     }
 
-    public void setDistribution(File distribution) {
+    @Override
+    public void setDistribution(Distribution distribution) {
+        checkNotRunning();
         this.distribution = distribution;
     }
 
+    @Override
     public void claim() {
         noOfClaims.incrementAndGet();
     }
 
     /**
      * Start the cluster if not running. Does nothing if the cluster is already running.
+     *
      * @return future of thread running in the background
      */
+    @Override
     public Future<Void> start() {
         if (started.getAndSet(true)) {
             logger.lifecycle("Already started cluster: {}", name);
@@ -74,10 +95,11 @@ public class ElasticsearchCluster {
     /**
      * Stops a running cluster if it's not claimed. Does nothing otherwise.
      */
+    @Override
     public void unClaimAndStop() {
         int decrementedClaims = noOfClaims.decrementAndGet();
         if (decrementedClaims > 0) {
-            logger.lifecycle("Not stopping {}, since cluster still has {} claim(s)",name, decrementedClaims);
+            logger.lifecycle("Not stopping {}, since cluster still has {} claim(s)", name, decrementedClaims);
             return;
         }
         if (started.get() == false) {
@@ -87,11 +109,17 @@ public class ElasticsearchCluster {
         logger.lifecycle("Stopping {}, number of claims is {}", name, decrementedClaims);
     }
 
+    private void checkNotRunning() {
+        if (started.get()) {
+            throw new IllegalStateException("Configuration can not be altered while running ");
+        }
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ElasticsearchCluster that = (ElasticsearchCluster) o;
+        ElasticsearchNode that = (ElasticsearchNode) o;
         return Objects.equals(name, that.name);
     }
 

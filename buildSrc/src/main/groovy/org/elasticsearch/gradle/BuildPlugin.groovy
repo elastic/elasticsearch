@@ -19,11 +19,11 @@
 package org.elasticsearch.gradle
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.elasticsearch.model.Version
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion

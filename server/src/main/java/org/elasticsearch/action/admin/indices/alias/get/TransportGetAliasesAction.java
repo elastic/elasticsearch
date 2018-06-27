@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
@@ -68,10 +69,11 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         ImmutableOpenMap<String, List<AliasMetaData>> result = state.metaData().findAliases(request.aliases(), concreteIndices);
 
         // in case all aliases are requested then it is desired to return the concrete index with no aliases (#25114):
+        boolean aliasesProvided = Strings.isAllOrWildcard(request.getOriginalAliases());
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder(result);
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), state.metaData().indices().keys());
         for (String index : intersection) {
-            if (result.get(index) == null && request.isAliasesProvided() == false) {
+            if (result.get(index) == null && aliasesProvided) {
                 mapBuilder.put(index, Collections.emptyList());
             }
         }

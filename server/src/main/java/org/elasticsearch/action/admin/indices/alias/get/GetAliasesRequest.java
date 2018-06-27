@@ -28,18 +28,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Objects;
 
 public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> implements AliasesRequest {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpand();
-    private boolean aliasesProvided = false;
+    private String[] originalAliases;
 
     public GetAliasesRequest(String... aliases) {
-        this.aliases = Objects.requireNonNull(aliases);
-        this.aliasesProvided = aliases.length != 0;
+        this.aliases = aliases;
+        this.originalAliases = aliases;
     }
 
     public GetAliasesRequest() {
@@ -51,7 +50,7 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
         aliases = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            aliasesProvided = in.readBoolean();
+            originalAliases = in.readStringArray();
         }
     }
 
@@ -62,7 +61,7 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
         out.writeStringArray(aliases);
         indicesOptions.writeIndicesOptions(out);
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeBoolean(aliasesProvided);
+            out.writeStringArray(originalAliases);
         }
     }
 
@@ -73,8 +72,8 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
     }
 
     public GetAliasesRequest aliases(String... aliases) {
-        this.aliases = Objects.requireNonNull(aliases);
-        this.aliasesProvided = aliases.length != 0;
+        this.aliases = aliases;
+        this.originalAliases = aliases;
         return this;
     }
 
@@ -99,11 +98,10 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
     }
 
     /**
-     * @return Whether aliases that where originally provided by the user via {@link #aliases(String...)} or
-     *         {@link #GetAliasesRequest(String...)}. If this is not the case and there are aliases then
+     * Returns aliases originally specified by the user
      */
-    boolean isAliasesProvided() {
-        return aliasesProvided;
+    String[] getOriginalAliases() {
+        return originalAliases;
     }
 
     @Override

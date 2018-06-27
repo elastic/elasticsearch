@@ -20,11 +20,9 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
@@ -35,6 +33,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
@@ -49,9 +48,7 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
 
         PutStoredScriptRequest request =
             new PutStoredScriptRequest(id, "search", new BytesArray("{}"), XContentType.JSON, scriptSource);
-        PutStoredScriptResponse putResponse = execute(request, highLevelClient()::putScript,
-            highLevelClient()::putScriptAsync);
-        assertThat(putResponse.isAcknowledged(), equalTo(true));
+        assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
 
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest(id);
         getRequest.masterNodeTimeout("50s");
@@ -70,18 +67,12 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
 
         PutStoredScriptRequest request =
             new PutStoredScriptRequest(id, "search", new BytesArray("{}"), XContentType.JSON, scriptSource);
-        PutStoredScriptResponse putResponse = execute(request, highLevelClient()::putScript,
-            highLevelClient()::putScriptAsync);
-        assertThat(putResponse.isAcknowledged(), equalTo(true));
+        assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
 
         DeleteStoredScriptRequest deleteRequest = new DeleteStoredScriptRequest(id);
         deleteRequest.masterNodeTimeout("50s");
         deleteRequest.timeout("50s");
-
-        DeleteStoredScriptResponse deleteResponse = execute(deleteRequest, highLevelClient()::deleteScript,
-            highLevelClient()::deleteScriptAsync);
-
-        assertThat(deleteResponse.isAcknowledged(), equalTo(true));
+        assertAcked(execute(deleteRequest, highLevelClient()::deleteScript, highLevelClient()::deleteScriptAsync));
 
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest(id);
 
@@ -99,9 +90,7 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
 
         PutStoredScriptRequest request =
             new PutStoredScriptRequest(id, "search", new BytesArray("{}"), XContentType.JSON, scriptSource);
-        PutStoredScriptResponse putResponse = execute(request, highLevelClient()::putScript,
-            highLevelClient()::putScriptAsync);
-        assertThat(putResponse.isAcknowledged(), equalTo(true));
+        assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
 
         Map<String, Object> script = getAsMap("/_scripts/" + id);
         assertThat(extractValue("_id", script), equalTo(id));

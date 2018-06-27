@@ -30,7 +30,6 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -191,10 +190,6 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
 
     public void testPutScript() throws Exception {
         RestHighLevelClient client = highLevelClient();
-
-        {
-            createIndex("index1", Settings.EMPTY);
-        }
 
         {
             // tag::put-stored-script-request

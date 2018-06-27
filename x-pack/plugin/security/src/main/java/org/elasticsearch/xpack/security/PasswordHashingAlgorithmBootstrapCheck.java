@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import javax.crypto.SecretKeyFactory;
 import java.security.NoSuchAlgorithmException;
@@ -22,11 +21,6 @@ public class PasswordHashingAlgorithmBootstrapCheck implements BootstrapCheck {
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
         final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(context.settings);
-        if (Hasher.getAvailableAlgoStoredHash().contains(selectedAlgorithm.toLowerCase(Locale.ROOT)) == false) {
-            final String errorMessage = String.format(Locale.ROOT, "Only the following values [%s] are permitted for the [%s] setting. ",
-                Hasher.getAvailableAlgoStoredHash(), XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey());
-            return BootstrapCheckResult.failure(errorMessage);
-        }
         if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2")) {
             try {
                 SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");

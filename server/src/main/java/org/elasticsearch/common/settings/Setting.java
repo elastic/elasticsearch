@@ -1023,7 +1023,7 @@ public class Setting<T> implements ToXContentObject {
      * @param key          the settings key for this setting.
      * @param defaultValue the default String value.
      * @param properties   properties for this setting like scope, filtering...
-     * @return
+     * @return the Setting Object
      */
     public static Setting<String> simpleString(String key, String defaultValue, Property... properties) {
         return new Setting<>(key, s -> defaultValue, Function.identity(), properties);

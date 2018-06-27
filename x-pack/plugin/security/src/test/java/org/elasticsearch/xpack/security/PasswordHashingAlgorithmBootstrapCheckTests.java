@@ -17,7 +17,7 @@ public class PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCase {
     public void testPasswordHashingAlgorithmBootstrapCheck() {
         Settings settings = Settings.EMPTY;
         assertFalse(new PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null)).isFailure());
-
+        // The following two will always pass because for now we only test in environments where PBKDF2WithHMACSHA512 is supported
         settings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2_10000").build();
         assertFalse(new PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null)).isFailure());
 
@@ -29,26 +29,5 @@ public class PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCase {
 
         settings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "BCRYPT11").build();
         assertFalse(new PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null)).isFailure());
-
-        settings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "SHA1").build();
-        assertTrue(new PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null)).isFailure());
-        assertThat(new PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null)).getMessage(),
-            containsString(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey()));
-
-        settings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "MD5").build();
-        assertTrue(new PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null)).isFailure());
-        assertThat(new PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null)).getMessage(),
-            containsString(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey()));
-
-        settings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "SSHA256").build();
-        assertTrue(new PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null)).isFailure());
-        assertThat(new PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null)).getMessage(),
-            containsString(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey()));
-
-        settings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "Argon").build();
-        assertTrue(new PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null)).isFailure());
-        assertThat(new PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null)).getMessage(),
-            containsString(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey()));
-
     }
 }

@@ -20,7 +20,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
-import java.util.Random;
 import java.util.stream.Collectors;
 
 public enum Hasher {
@@ -370,8 +369,18 @@ public enum Hasher {
     private static final String SSHA256_PREFIX = "{SSHA256}";
     private static final String PBKDF2_PREFIX = "{PBKDF2}";
     private static final int PBKDF2_DEFAULT_COST = 10000;
-    private static final int PBKDF2_KEY_LENGTH = 256;
+    private static final int BCRYPT_DEFAULT_COST = 10;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    /**
+     * Returns a {@link Hasher} instance of the appropriate algorithm and associated cost as
+     * indicated by the {@code name}. Name identifiers for the default costs for
+     * BCRYPT and PBKDF2 return the he default BCRYPT and PBKDF2 Hasher instead of the specific
+     * instances for the associated cost.
+     *
+     * @param name The name of the algorithm and cost combination identifier
+     * @return the hasher associated with the identifier
+     */
     public static Hasher resolve(String name) {
         switch (name.toLowerCase(Locale.ROOT)) {
             case "bcrypt":
@@ -389,7 +398,7 @@ public enum Hasher {
             case "bcrypt9":
                 return BCRYPT9;
             case "bcrypt10":
-                return BCRYPT10;
+                return BCRYPT;
             case "bcrypt11":
                 return BCRYPT11;
             case "bcrypt12":
@@ -403,7 +412,7 @@ public enum Hasher {
             case "pbkdf2_1000":
                 return PBKDF2_1000;
             case "pbkdf2_10000":
-                return PBKDF2_10000;
+                return PBKDF2;
             case "pbkdf2_50000":
                 return PBKDF2_50000;
             case "pbkdf2_100000":
@@ -429,28 +438,25 @@ public enum Hasher {
     /**
      * Returns a {@link Hasher} instance that can be used to verify the {@code hash} by inspecting the
      * hash prefix and determining the algorithm used for its generation.
-     * The default BCRYPT and PBKDF2 Hashers are used for verifying all the hashes of these algorithm
-     * families, instead of the specific instances for the given cost factor, as the cost factor is
-     * deduced from the hash and all {@link Hasher} share the same {@link #verifyPbkdf2Hash(SecureString, char[]) verifyPbkdf2Hash}
-     * and {@link #verifyBcryptHash(SecureString, char[]) verifyBcryptHash} methods respectively.
      *
      * @param hash the char array from which the hashing algorithm is to be deduced
      * @return the hasher that can be used for validation
      */
     public static Hasher resolveFromHash(char[] hash) {
-        String hashString = new String(hash);
-        if (hashString.startsWith(BCRYPT_PREFIX)) {
-            return Hasher.BCRYPT;
-        } else if (hashString.startsWith(PBKDF2_PREFIX)) {
-            return Hasher.PBKDF2;
-        } else if (hashString.startsWith(SHA1_PREFIX)) {
+        if (CharArrays.charsBeginsWith(BCRYPT_PREFIX, hash)) {
+            int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, BCRYPT_PREFIX.length(), hash.length - 54)));
+            return cost == BCRYPT_DEFAULT_COST ? Hasher.BCRYPT : resolve("bcrypt" + cost);
+        } else if (CharArrays.charsBeginsWith(PBKDF2_PREFIX, hash)) {
+            int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, PBKDF2_PREFIX.length(), hash.length - 90)));
+            return cost == PBKDF2_DEFAULT_COST ? Hasher.PBKDF2 : resolve("pbkdf2_" + cost);
+        } else if (CharArrays.charsBeginsWith(SHA1_PREFIX, hash)) {
             return Hasher.SHA1;
-        } else if (hashString.startsWith(MD5_PREFIX)) {
+        } else if (CharArrays.charsBeginsWith(MD5_PREFIX, hash)) {
             return Hasher.MD5;
-        } else if (hashString.startsWith(SSHA256_PREFIX)) {
+        } else if (CharArrays.charsBeginsWith(SSHA256_PREFIX, hash)) {
             return Hasher.SSHA256;
         } else {
-            throw new IllegalArgumentException("unknown hash format for hash [" + hashString + "]");
+            throw new IllegalArgumentException("unknown hash format for hash [" + new String(hash) + "]");
         }
     }
 
@@ -495,8 +501,8 @@ public enum Hasher {
     private static boolean verifyPbkdf2Hash(SecureString data, char[] hash) {
         // Base64 string length : (4*(n/3)) rounded up to the next multiple of 4 because of padding,  i.e. 44 for 32 bytes
         final int tokenLength = 44;
-        char[] hashChars = new char[tokenLength];
-        char[] saltChars = new char[tokenLength];
+        char[] hashChars = null;
+        char[] saltChars = null;
         try {
             if (CharArrays.charsBeginsWith(PBKDF2_PREFIX, hash) == false) {
                 return false;
@@ -506,17 +512,21 @@ public enum Hasher {
             int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, PBKDF2_PREFIX.length(), hash.length - (2 * tokenLength + 2))));
             SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
             PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), Base64.getDecoder().decode(CharArrays.toUtf8Bytes(saltChars)),
-                cost, PBKDF2_KEY_LENGTH);
+                cost, 256);
             char[] computedPwdHash = CharArrays.utf8BytesToChars(Base64.getEncoder()
                 .encode(secretKeyFactory.generateSecret(keySpec).getEncoded()));
-            boolean result = CharArrays.constantTimeEquals(computedPwdHash, hashChars);
+            final boolean result = CharArrays.constantTimeEquals(computedPwdHash, hashChars);
             Arrays.fill(computedPwdHash, '\u0000');
             return result;
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
             throw new ElasticsearchException("Can't use PBKDF2 for password hashing", e);
         } finally {
-            Arrays.fill(hashChars, '\u0000');
-            Arrays.fill(saltChars, '\u0000');
+            if (null != hashChars) {
+                Arrays.fill(hashChars, '\u0000');
+            }
+            if (null != saltChars) {
+                Arrays.fill(saltChars, '\u0000');
+            }
         }
     }
 
@@ -547,9 +557,8 @@ public enum Hasher {
      * Generates an array of {@code length} random bytes using {@link java.security.SecureRandom}
      */
     private static byte[] generateSalt(int length) {
-        Random random = new SecureRandom();
         byte[] salt = new byte[length];
-        random.nextBytes(salt);
+        SECURE_RANDOM.nextBytes(salt);
         return salt;
     }
 

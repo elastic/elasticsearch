@@ -77,6 +77,15 @@ public class ReservedRealmTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
     }
 
+    public void testInvalidHashingAlgorithmFails() {
+        final String invalidAlgorithm = randomFrom("sha1", "md5", "noop");
+        final Settings invalidSettings = Settings.builder().put("xpack.security.authc.password_hashing.algorithm", invalidAlgorithm).build();
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new ReservedRealm(mock(Environment.class),
+            invalidSettings, usersStore, new AnonymousUser(Settings.EMPTY), securityIndex, threadPool));
+        assertThat(exception.getMessage(), containsString(invalidAlgorithm));
+        assertThat(exception.getMessage(), containsString("Only pbkdf2 or bcrypt family algorithms can be used for password hashing"));
+    }
+
     public void testReservedUserEmptyPasswordAuthenticationFails() throws Throwable {
         final String principal = randomFrom(UsernamesField.ELASTIC_NAME, UsernamesField.KIBANA_NAME, UsernamesField.LOGSTASH_NAME,
                 UsernamesField.BEATS_NAME);

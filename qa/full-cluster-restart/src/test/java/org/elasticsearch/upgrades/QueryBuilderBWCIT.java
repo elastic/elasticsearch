@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.bwc;
+package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
@@ -150,6 +150,21 @@ public class QueryBuilderBWCIT extends ESRestTestCase {
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveSnapshotsUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveReposUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
         return true;
     }
 

@@ -185,7 +185,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         }
     }
 
-    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("stored script source", Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("stored script source", true, Builder::new);
 
     static {
         // Defines the fields necessary to parse a Script as XContent using an ObjectParser.
@@ -481,7 +481,9 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         builder.startObject();
         builder.field(LANG_PARSE_FIELD.getPreferredName(), lang);
         builder.field(SOURCE_PARSE_FIELD.getPreferredName(), source);
-        builder.field(OPTIONS_PARSE_FIELD.getPreferredName(), options);
+        if (options.isEmpty() == false) {
+            builder.field(OPTIONS_PARSE_FIELD.getPreferredName(), options);
+        }
         builder.endObject();
 
         return builder;

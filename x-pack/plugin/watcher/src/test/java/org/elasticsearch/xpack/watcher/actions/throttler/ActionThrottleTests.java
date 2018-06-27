@@ -57,7 +57,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                 .trigger(schedule(interval("60m")));
 
         AvailableAction availableAction = randomFrom(AvailableAction.values());
-        Action.Builder action = availableAction.action();
+        Action.Builder<?> action = availableAction.action();
         watchSourceBuilder.addAction("test_id", action);
 
         watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder.buildAsBytes(XContentType.JSON),
@@ -98,7 +98,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         Set<String> ackingActions = new HashSet<>();
         for (int i = 0; i < scaledRandomIntBetween(5,10); ++i) {
             AvailableAction availableAction = randomFrom(AvailableAction.values());
-            Action.Builder action = availableAction.action();
+            Action.Builder<?> action = availableAction.action();
             watchSourceBuilder.addAction("test_id" + i, action);
             if (randomBoolean()) {
                 ackingActions.add("test_id" + i);
@@ -352,7 +352,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
     enum AvailableAction {
         EMAIL {
             @Override
-            public Action.Builder action() throws Exception {
+            public Action.Builder<EmailAction> action() throws Exception {
                 EmailTemplate.Builder emailBuilder = EmailTemplate.builder();
                 emailBuilder.from("test@test.com");
                 emailBuilder.to("test@test.com");
@@ -367,7 +367,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         },
         WEBHOOK {
             @Override
-            public Action.Builder action() throws Exception {
+            public Action.Builder<WebhookAction> action() throws Exception {
                 HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder("localhost", 1234)
                         .path("/")
                         .method(HttpMethod.GET);
@@ -381,7 +381,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         },
         LOGGING {
             @Override
-            public Action.Builder action() throws Exception {
+            public Action.Builder<LoggingAction> action() throws Exception {
                 return LoggingAction.builder(new TextTemplate("_logging"));
             }
 
@@ -392,7 +392,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         },
         INDEX {
             @Override
-            public Action.Builder action() throws Exception {
+            public Action.Builder<IndexAction> action() throws Exception {
                 return IndexAction.builder("test_index", "test_type");
             }
 
@@ -402,7 +402,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
             }
         };
 
-        public abstract Action.Builder action() throws Exception;
+        public abstract Action.Builder<? extends Action> action() throws Exception;
 
         public abstract String type();
     }

@@ -35,6 +35,7 @@ The Java High Level REST Client supports the following Search APIs:
 * <<java-rest-high-multi-search>>
 * <<java-rest-high-field-caps>>
 * <<java-rest-high-rank-eval>>
+* <<java-rest-high-explain>>
 
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
@@ -42,6 +43,7 @@ include::search/multi-search.asciidoc[]
 include::search/search-template.asciidoc[]
 include::search/field-caps.asciidoc[]
 include::search/rank-eval.asciidoc[]
+include::search/explain.asciidoc[]
 
 == Miscellaneous APIs
 
@@ -77,6 +79,7 @@ Index Management::
 
 Mapping Management::
 * <<java-rest-high-put-mapping>>
+* <<java-rest-high-get-field-mappings>>
 
 Alias Management::
 * <<java-rest-high-update-aliases>>
@@ -98,6 +101,7 @@ include::indices/force_merge.asciidoc[]
 include::indices/rollover.asciidoc[]
 include::indices/put_mapping.asciidoc[]
 include::indices/get_mappings.asciidoc[]
+include::indices/get_field_mappings.asciidoc[]
 include::indices/update_aliases.asciidoc[]
 include::indices/exists_alias.asciidoc[]
 include::indices/get_alias.asciidoc[]
@@ -123,10 +127,12 @@ The Java High Level REST Client supports the following Ingest APIs:
 * <<java-rest-high-ingest-put-pipeline>>
 * <<java-rest-high-ingest-get-pipeline>>
 * <<java-rest-high-ingest-delete-pipeline>>
+* <<java-rest-high-ingest-simulate-pipeline>>
 
 include::ingest/put_pipeline.asciidoc[]
 include::ingest/get_pipeline.asciidoc[]
 include::ingest/delete_pipeline.asciidoc[]
+include::ingest/simulate_pipeline.asciidoc[]
 
 == Snapshot APIs
 
@@ -136,11 +142,15 @@ The Java High Level REST Client supports the following Snapshot APIs:
 * <<java-rest-high-snapshot-create-repository>>
 * <<java-rest-high-snapshot-delete-repository>>
 * <<java-rest-high-snapshot-verify-repository>>
+* <<java-rest-high-snapshot-create-snapshot>>
+* <<java-rest-high-snapshot-delete-snapshot>>
 
 include::snapshot/get_repository.asciidoc[]
 include::snapshot/create_repository.asciidoc[]
 include::snapshot/delete_repository.asciidoc[]
 include::snapshot/verify_repository.asciidoc[]
+include::snapshot/create_snapshot.asciidoc[]
+include::snapshot/delete_snapshot.asciidoc[]
 
 == Tasks APIs
 
@@ -151,3 +161,14 @@ The Java High Level REST Client supports the following Tasks APIs:
 
 include::tasks/list_tasks.asciidoc[]
 include::tasks/cancel_tasks.asciidoc[]
+
+== Script APIs
+
+The Java High Level REST Client supports the following Scripts APIs:
+
+* <<java-rest-high-get-stored-script>>
+* <<java-rest-high-delete-stored-script>>
+
+include::script/get_script.asciidoc[]
+include::script/delete_script.asciidoc[]
+

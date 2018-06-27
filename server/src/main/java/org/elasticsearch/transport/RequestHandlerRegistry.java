@@ -59,7 +59,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
         final Task task = taskManager.register(channel.getChannelType(), action, request);
         if (task == null) {
-            handler.messageReceived(request, channel);
+            handler.messageReceived(request, channel, null);
         } else {
             boolean success = false;
             try {

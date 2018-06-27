@@ -28,6 +28,10 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
@@ -44,6 +48,13 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         request.type(type);
         return execute(request, highLevelClient().snapshot()::createRepository,
             highLevelClient().snapshot()::createRepositoryAsync);
+    }
+
+    private CreateSnapshotResponse createTestSnapshot(CreateSnapshotRequest createSnapshotRequest) throws IOException {
+        // assumes the repository already exists
+
+        return execute(createSnapshotRequest, highLevelClient().snapshot()::createSnapshot,
+            highLevelClient().snapshot()::createSnapshotAsync);
     }
 
     public void testCreateRepository() throws IOException {
@@ -107,5 +118,39 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         VerifyRepositoryResponse response = execute(request, highLevelClient().snapshot()::verifyRepository,
             highLevelClient().snapshot()::verifyRepositoryAsync);
         assertThat(response.getNodes().size(), equalTo(1));
+    }
+
+    public void testCreateSnapshot() throws IOException {
+        String repository = "test_repository";
+        assertTrue(createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
+
+        String snapshot = "test_snapshot";
+        CreateSnapshotRequest request = new CreateSnapshotRequest(repository, snapshot);
+        boolean waitForCompletion = randomBoolean();
+        request.waitForCompletion(waitForCompletion);
+        request.partial(randomBoolean());
+        request.includeGlobalState(randomBoolean());
+
+        CreateSnapshotResponse response = createTestSnapshot(request);
+        assertEquals(waitForCompletion ? RestStatus.OK : RestStatus.ACCEPTED, response.status());
+    }
+
+    public void testDeleteSnapshot() throws IOException {
+        String repository = "test_repository";
+        String snapshot = "test_snapshot";
+
+        PutRepositoryResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
+        createSnapshotRequest.waitForCompletion(true);
+        CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
+        // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
+        assertEquals(RestStatus.OK, createSnapshotResponse.status());
+
+        DeleteSnapshotRequest request = new DeleteSnapshotRequest(repository, snapshot);
+        DeleteSnapshotResponse response = execute(request, highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync);
+
+        assertTrue(response.isAcknowledged());
     }
 }

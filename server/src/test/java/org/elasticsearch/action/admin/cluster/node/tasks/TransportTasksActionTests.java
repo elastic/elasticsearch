@@ -36,7 +36,6 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -255,10 +254,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
      */
     abstract static class TestTasksAction extends TransportTasksAction<Task, TestTasksRequest, TestTasksResponse, TestTaskResponse> {
 
-        protected TestTasksAction(Settings settings, String actionName, ThreadPool threadPool,
+        protected TestTasksAction(Settings settings, String actionName,
                 ClusterService clusterService, TransportService transportService) {
-            super(settings, actionName, threadPool, clusterService, transportService, new ActionFilters(new HashSet<>()),
-                    new IndexNameExpressionResolver(Settings.EMPTY), TestTasksRequest::new, TestTasksResponse::new,
+            super(settings, actionName, clusterService, transportService, new ActionFilters(new HashSet<>()),
+                TestTasksRequest::new, TestTasksResponse::new,
                     ThreadPool.Names.MANAGEMENT);
         }
 
@@ -623,7 +622,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
             // Simulate task action that fails on one of the tasks on one of the nodes
-            tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "testTasksAction", threadPool, testNodes[i].clusterService,
+            tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "testTasksAction", testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
                 protected void taskOperation(TestTasksRequest request, Task task, ActionListener<TestTaskResponse> listener) {
@@ -702,7 +701,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             final int node = i;
             // Simulate a task action that works on all nodes except nodes listed in filterNodes.
             // We are testing that it works.
-            tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "testTasksAction", threadPool,
+            tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "testTasksAction",
                 testNodes[i].clusterService, testNodes[i].transportService) {
 
                 @Override

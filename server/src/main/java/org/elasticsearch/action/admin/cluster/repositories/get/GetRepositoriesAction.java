@@ -24,7 +24,7 @@ import org.elasticsearch.action.Action;
 /**
  * Get repositories action
  */
-public class GetRepositoriesAction extends Action<GetRepositoriesRequest, GetRepositoriesResponse> {
+public class GetRepositoriesAction extends Action<GetRepositoriesResponse> {
 
     public static final GetRepositoriesAction INSTANCE = new GetRepositoriesAction();
     public static final String NAME = "cluster:admin/repository/get";

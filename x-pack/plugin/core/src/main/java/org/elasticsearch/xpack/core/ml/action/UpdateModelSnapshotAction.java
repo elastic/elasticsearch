@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.Request, UpdateModelSnapshotAction.Response> {
+public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.Response> {
 
     public static final UpdateModelSnapshotAction INSTANCE = new UpdateModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/update";

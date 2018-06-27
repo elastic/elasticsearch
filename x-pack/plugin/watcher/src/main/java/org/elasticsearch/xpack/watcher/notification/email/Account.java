@@ -7,6 +7,9 @@ package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
@@ -28,6 +31,8 @@ import java.util.Properties;
 public class Account {
 
     static final String SMTP_PROTOCOL = "smtp";
+    static final String SMTP_PASSWORD = "password";
+    private static final Setting<SecureString> SECURE_PASSWORD_SETTING = SecureSetting.secureString("secure_" + SMTP_PASSWORD, null);
 
     static {
         SecurityManager sm = System.getSecurityManager();
@@ -204,11 +209,28 @@ public class Account {
 
             Smtp(Settings settings) {
                 host = settings.get("host", settings.get("localaddress", settings.get("local_address")));
+
                 port = settings.getAsInt("port", settings.getAsInt("localport", settings.getAsInt("local_port", 25)));
                 user = settings.get("user", settings.get("from", null));
-                String passStr = settings.get("password", null);
+                String passStr = getNullableSetting(SMTP_PASSWORD, settings, SECURE_PASSWORD_SETTING);
                 password = passStr != null ? passStr.toCharArray() : null;
                 properties = loadSmtpProperties(settings);
+            }
+
+            /**
+             * Finds a setting, and then a secure setting if the setting is null, or returns null if one does not exist. This differs
+             * from other getSetting calls in that it allows for null whereas the other methods throw an exception.
+             */
+            private static String getNullableSetting(String settingName, Settings settings, Setting<SecureString> secureSetting) {
+                String value = settings.get(settingName);
+                if (value == null) {
+                    SecureString secureString = secureSetting.get(settings);
+                    if (secureString != null && secureString.length() > 0) {
+                        value = secureString.toString();
+                    }
+                }
+
+                return value;
             }
 
             /**
@@ -232,7 +254,10 @@ public class Account {
                 settings = builder.build();
                 Properties props = new Properties();
                 for (String key : settings.keySet()) {
-                    props.setProperty(SMTP_SETTINGS_PREFIX + key, settings.get(key));
+                    // Secure strings can not be retreived out of a settings object and should be handled differently
+                    if (key.startsWith("secure_") == false) {
+                        props.setProperty(SMTP_SETTINGS_PREFIX + key, settings.get(key));
+                    }
                 }
                 return props;
             }

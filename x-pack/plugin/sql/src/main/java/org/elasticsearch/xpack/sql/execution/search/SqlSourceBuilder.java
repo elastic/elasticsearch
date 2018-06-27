@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 
 import java.util.LinkedHashMap;

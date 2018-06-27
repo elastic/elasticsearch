@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
@@ -30,7 +31,7 @@ public class TransportRefreshTokenAction extends HandledTransportAction<CreateTo
     }
 
     @Override
-    protected void doExecute(CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
+    protected void doExecute(Task task, CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
         tokenService.refreshToken(request.getRefreshToken(), ActionListener.wrap(tuple -> {
             final String tokenStr = tokenService.getUserTokenString(tuple.v1());
             final String scope = getResponseScopeValue(request.getScope());

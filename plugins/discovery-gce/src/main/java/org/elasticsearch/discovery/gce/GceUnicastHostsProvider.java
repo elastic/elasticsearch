@@ -93,7 +93,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
      * Information can be cached using `cloud.gce.refresh_interval` property if needed.
      */
     @Override
-    public List<TransportAddress> buildDynamicHosts() {
+    public List<TransportAddress> buildDynamicHosts(HostsResolver hostsResolver) {
         // We check that needed properties have been set
         if (this.project == null || this.project.isEmpty() || this.zones == null || this.zones.isEmpty()) {
             throw new IllegalArgumentException("one or more gce discovery settings are missing. " +

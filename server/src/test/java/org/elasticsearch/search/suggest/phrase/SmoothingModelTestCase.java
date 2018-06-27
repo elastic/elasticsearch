@@ -95,12 +95,13 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         contentBuilder.startObject();
         testModel.innerToXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
         contentBuilder.endObject();
-        XContentParser parser = createParser(shuffleXContent(contentBuilder));
-        parser.nextToken();  // go to start token, real parsing would do that in the outer element parser
-        SmoothingModel parsedModel = fromXContent(parser);
-        assertNotSame(testModel, parsedModel);
-        assertEquals(testModel, parsedModel);
-        assertEquals(testModel.hashCode(), parsedModel.hashCode());
+        try (XContentParser parser = createParser(shuffleXContent(contentBuilder))) {
+            parser.nextToken();  // go to start token, real parsing would do that in the outer element parser
+            SmoothingModel parsedModel = fromXContent(parser);
+            assertNotSame(testModel, parsedModel);
+            assertEquals(testModel, parsedModel);
+            assertEquals(testModel.hashCode(), parsedModel.hashCode());
+        }
     }
 
     /**

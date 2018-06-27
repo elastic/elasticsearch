@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -35,7 +36,7 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
     }
 
     @Override
-    protected void doExecute(AuthenticateRequest request, ActionListener<AuthenticateResponse> listener) {
+    protected void doExecute(Task task, AuthenticateRequest request, ActionListener<AuthenticateResponse> listener) {
         final User runAsUser = securityContext.getUser();
         final User authUser = runAsUser == null ? null : runAsUser.authenticatedUser();
         if (authUser == null) {

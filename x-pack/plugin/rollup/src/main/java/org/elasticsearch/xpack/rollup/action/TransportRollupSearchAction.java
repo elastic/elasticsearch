@@ -99,7 +99,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     }
 
     @Override
-    protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
+    protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         RollupSearchContext rollupSearchContext = separateIndices(request.indices(),
                 clusterService.state().getMetaData().indices());
 
@@ -398,11 +398,6 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     }
 
     class TransportHandler implements TransportRequestHandler<SearchRequest> {
-
-        @Override
-        public final void messageReceived(SearchRequest request, TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("the task parameter is required for this operation");
-        }
 
         @Override
         public final void messageReceived(final SearchRequest request, final TransportChannel channel, Task task) throws Exception {

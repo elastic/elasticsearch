@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -92,7 +93,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
     }
 
     @Override
-    protected void doExecute(GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
+    protected void doExecute(Task task, GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
         if (licenseState.isGraphAllowed()) {
             new AsyncGraphAction(request, listener).start();
         } else {

@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -285,7 +286,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
     class BanParentRequestHandler implements TransportRequestHandler<BanParentTaskRequest> {
         @Override
-        public void messageReceived(final BanParentTaskRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final BanParentTaskRequest request, final TransportChannel channel, Task task) throws Exception {
             if (request.ban) {
                 logger.debug("Received ban for the parent [{}] on the node [{}], reason: [{}]", request.parentTaskId,
                     clusterService.localNode().getId(), request.reason);

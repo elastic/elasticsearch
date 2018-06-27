@@ -51,10 +51,6 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     }
 
     @Override
-    protected final void doExecute(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        throw new UnsupportedOperationException("the task parameter is required");
-    }
-    @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());

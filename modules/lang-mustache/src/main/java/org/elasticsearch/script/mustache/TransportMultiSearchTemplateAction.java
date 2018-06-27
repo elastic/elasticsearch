@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -54,7 +55,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
     }
 
     @Override
-    protected void doExecute(MultiSearchTemplateRequest request, ActionListener<MultiSearchTemplateResponse> listener) {
+    protected void doExecute(Task task, MultiSearchTemplateRequest request, ActionListener<MultiSearchTemplateResponse> listener) {
         List<Integer> originalSlots = new ArrayList<>();
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         multiSearchRequest.indicesOptions(request.indicesOptions());

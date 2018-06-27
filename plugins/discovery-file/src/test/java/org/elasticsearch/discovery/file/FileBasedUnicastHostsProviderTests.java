@@ -24,7 +24,9 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -123,8 +125,10 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
                                       .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                                       .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
-        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(environment, transportService, executorService);
-        final List<TransportAddress> addresses = provider.buildDynamicHosts();
+        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(environment);
+        final List<TransportAddress> addresses = provider.buildDynamicHosts((hosts, limitPortCounts) ->
+            UnicastZenPing.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
+                TimeValue.timeValueSeconds(10)));
         assertEquals(0, addresses.size());
     }
 
@@ -163,6 +167,8 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         }
 
         return new FileBasedUnicastHostsProvider(
-                new Environment(settings, configPath), transportService, executorService).buildDynamicHosts();
+                new Environment(settings, configPath)).buildDynamicHosts((hosts, limitPortCounts) ->
+                    UnicastZenPing.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
+                        TimeValue.timeValueSeconds(10)));
     }
 }

@@ -34,6 +34,7 @@ Doc value fields can work on fields that have doc-values enabled, regardless of 
 ==== Custom formats
 
 While most fields do not support custom formats, some of them do:
+
  - <<date,Date>> fields can take any <<mapping-date-format,date format>>.
  - <<number,Numeric>> fields accept a https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat pattern].
 

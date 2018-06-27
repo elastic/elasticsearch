@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
@@ -33,7 +34,7 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
     }
 
     @Override
-    protected void doExecute(UpdateCalendarJobAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
+    protected void doExecute(Task task, UpdateCalendarJobAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
         Set<String> jobIdsToAdd = Strings.tokenizeByCommaToSet(request.getJobIdsToAddExpression());
         Set<String> jobIdsToRemove = Strings.tokenizeByCommaToSet(request.getJobIdsToRemoveExpression());
 

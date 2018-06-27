@@ -116,12 +116,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected abstract ClusterBlockException checkBlock(Request request, ClusterState state);
 
     @Override
-    protected final void doExecute(final Request request, ActionListener<Response> listener) {
-        logger.warn("attempt to execute a master node operation without task");
-        throw new UnsupportedOperationException("task parameter is required for this operation");
-    }
-
-    @Override
     protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
         new AsyncSingleAction(task, request, listener).start();
     }

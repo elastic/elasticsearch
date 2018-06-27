@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -47,6 +48,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -104,6 +106,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private static List<BlacklistedPathPatternMatcher> blacklistPathMatchers;
     private static ClientYamlTestExecutionContext restTestExecutionContext;
     private static ClientYamlTestExecutionContext adminExecutionContext;
+    private static ClientYamlTestClient clientYamlTestClient;
 
     private final ClientYamlTestCandidate testCandidate;
 
@@ -122,7 +125,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     public void initAndResetContext() throws Exception {
         if (restTestExecutionContext == null) {
             // Sniff host metadata in case we need it in the yaml tests
-            List<Node> nodesWithMetadata = sniffHostMetadata(adminClient());
+            List<Node> nodesWithMetadata = sniffHostMetadata();
             client().setNodes(nodesWithMetadata);
             adminClient().setNodes(nodesWithMetadata);
 
@@ -135,7 +138,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final Version esVersion = versionVersionTuple.v1();
             final Version masterVersion = versionVersionTuple.v2();
             logger.info("initializing client, minimum es version [{}], master version, [{}], hosts {}", esVersion, masterVersion, hosts);
-            final ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
@@ -163,8 +166,21 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final RestClient restClient,
             final List<HttpHost> hosts,
             final Version esVersion,
-            final Version masterVersion) throws IOException {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion);
+            final Version masterVersion) {
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion,
+                restClientBuilder -> configureClient(restClientBuilder, restClientSettings()));
+    }
+
+    @AfterClass
+    public static void closeClient() throws IOException {
+        try {
+            IOUtils.close(clientYamlTestClient);
+        } finally {
+            blacklistPathMatchers = null;
+            restTestExecutionContext = null;
+            adminExecutionContext = null;
+            clientYamlTestClient = null;
+        }
     }
 
     /**
@@ -195,8 +211,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
 
         //sort the candidates so they will always be in the same order before being shuffled, for repeatability
-        Collections.sort(tests,
-            (o1, o2) -> ((ClientYamlTestCandidate)o1[0]).getTestPath().compareTo(((ClientYamlTestCandidate)o2[0]).getTestPath()));
+        tests.sort(Comparator.comparing(o -> ((ClientYamlTestCandidate) o[0]).getTestPath()));
         return tests;
     }
 
@@ -263,13 +278,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 throw new IllegalArgumentException(errorMessage.toString());
             }
         }
-    }
-
-    @AfterClass
-    public static void clearStatic() {
-        blacklistPathMatchers = null;
-        restTestExecutionContext = null;
-        adminExecutionContext = null;
     }
 
     private static Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
@@ -401,7 +409,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     /**
      * Sniff the cluster for host metadata.
      */
-    private List<Node> sniffHostMetadata(RestClient client) throws IOException {
+    private List<Node> sniffHostMetadata() throws IOException {
         ElasticsearchNodesSniffer.Scheme scheme =
             ElasticsearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
         ElasticsearchNodesSniffer sniffer = new ElasticsearchNodesSniffer(

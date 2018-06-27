@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -63,8 +64,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     @Override
-    protected void doExecute(FieldCapabilitiesRequest request,
-                             final ActionListener<FieldCapabilitiesResponse> listener) {
+    protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
         final ClusterState clusterState = clusterService.state();
         final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(),
             request.indices(), idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));

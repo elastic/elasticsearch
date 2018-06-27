@@ -429,29 +429,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         securityIndex.get().addIndexStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
 
-        AuthenticationFailureHandler failureHandler = null;
-        String extensionName = null;
-        for (SecurityExtension extension : securityExtensions) {
-            AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler();
-            if (extensionFailureHandler != null && failureHandler != null) {
-                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] " +
-                    "both set an authentication failure handler");
-            }
-            failureHandler = extensionFailureHandler;
-            extensionName = extension.toString();
-        }
-        if (failureHandler == null) {
-            logger.debug("Using default authentication failure handler");
-            final LinkedHashSet<String> supportedWWWAuthenticateResponseHeaderValues = new LinkedHashSet<>();
-            realms.asList().stream()
-                    .forEach((realm) -> supportedWWWAuthenticateResponseHeaderValues.add(realm.getWWWAuthenticateHeaderValue()));
-            if (TokenService.isTokenServiceEnabled(settings)) {
-                supportedWWWAuthenticateResponseHeaderValues.add("Bearer realm=\"" + XPackField.SECURITY + "\"");
-            }
-            failureHandler = new DefaultAuthenticationFailureHandler(new ArrayList<>(supportedWWWAuthenticateResponseHeaderValues));
-        } else {
-            logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
-        }
+        final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
 
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
                 anonymousUser, tokenService));
@@ -499,6 +477,37 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
 
         return components;
+    }
+
+    private AuthenticationFailureHandler createAuthenticationFailureHandler(final Realms realms) {
+        AuthenticationFailureHandler failureHandler = null;
+        String extensionName = null;
+        for (SecurityExtension extension : securityExtensions) {
+            AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler();
+            if (extensionFailureHandler != null && failureHandler != null) {
+                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] "
+                        + "both set an authentication failure handler");
+            }
+            failureHandler = extensionFailureHandler;
+            extensionName = extension.toString();
+        }
+        if (failureHandler == null) {
+            logger.debug("Using default authentication failure handler");
+            final LinkedHashSet<String> supportedWWWAuthenticateResponseHeaderValues = new LinkedHashSet<>();
+            if (realms.asList().isEmpty()) {
+                supportedWWWAuthenticateResponseHeaderValues.add("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"");
+            } else {
+                realms.asList().stream()
+                        .forEach((realm) -> supportedWWWAuthenticateResponseHeaderValues.add(realm.getWWWAuthenticateHeaderValue()));
+            }
+            if (TokenService.isTokenServiceEnabled(settings)) {
+                supportedWWWAuthenticateResponseHeaderValues.add("Bearer realm=\"" + XPackField.SECURITY + "\"");
+            }
+            failureHandler = new DefaultAuthenticationFailureHandler(new ArrayList<>(supportedWWWAuthenticateResponseHeaderValues));
+        } else {
+            logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
+        }
+        return failureHandler;
     }
 
     @Override

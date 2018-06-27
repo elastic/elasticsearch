@@ -39,7 +39,7 @@ public abstract class AbstractComponent {
         this.settings = settings;
     }
 
-    public AbstractComponent(Settings settings, Class customClass) {
+    public AbstractComponent(Settings settings, Class<?> customClass) {
         this.logger = LogManager.getLogger(customClass);
         this.deprecationLogger = new DeprecationLogger(logger);
         this.settings = settings;

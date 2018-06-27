@@ -174,8 +174,10 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference shuffled = toShuffledXContent(testInstance, xContentType, params, false);
 
-        XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled);
-        PersistentTasksCustomMetaData newInstance = doParseInstance(parser);
+        PersistentTasksCustomMetaData newInstance;
+        try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
+            newInstance = doParseInstance(parser);
+        }
         assertNotSame(newInstance, testInstance);
 
         assertEquals(testInstance.tasks().size(), newInstance.tasks().size());

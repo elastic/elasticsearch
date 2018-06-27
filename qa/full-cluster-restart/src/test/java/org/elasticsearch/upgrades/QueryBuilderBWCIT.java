@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.bwc;
+package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
@@ -153,7 +153,23 @@ public class QueryBuilderBWCIT extends ESRestTestCase {
         return true;
     }
 
+    @Override
+    protected boolean preserveSnapshotsUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveReposUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
     public void testQueryBuilderBWC() throws Exception {
+        assumeTrue("5.x not supported", oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1));
         String index = "queries";
         if (runningAgainstOldCluster) {
             XContentBuilder mappingsAndSettings = jsonBuilder();

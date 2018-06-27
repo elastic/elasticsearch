@@ -91,7 +91,6 @@ for (Version version : bwcVersions.indexCompatible) {
     systemProperty 'tests.is_old_cluster', 'false'
     systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
     systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
-
   }
 
   Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
@@ -115,4 +114,3 @@ task integTest {
 }
 
 check.dependsOn(integTest)
-

@@ -1442,7 +1442,7 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("preference", preference);
         }
         if (randomBoolean()) {
-            String[] storedFields = generateRandomStringArray(10, 5, false);
+            String[] storedFields = generateRandomStringArray(10, 5, false, false);
             String storedFieldsParams = randomFields(storedFields);
             explainRequest.storedFields(storedFields);
             expectedParams.put("stored_fields", storedFieldsParams);

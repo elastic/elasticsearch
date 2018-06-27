@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
@@ -1986,6 +1987,28 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(endpoint, equalTo(request.getEndpoint()));
         assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(expectedParams, equalTo(request.getParameters()));
+    }
+
+    public void testCreateSnapshot() throws IOException {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String snapshot = "snapshot-" + generateRandomStringArray(1, randomInt(10), false, false)[0];
+        String endpoint = "/_snapshot/" + repository + "/" + snapshot;
+
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
+        setRandomMasterTimeout(createSnapshotRequest, expectedParams);
+        Boolean waitForCompletion = randomBoolean();
+        createSnapshotRequest.waitForCompletion(waitForCompletion);
+
+        if (waitForCompletion) {
+            expectedParams.put("wait_for_completion", waitForCompletion.toString());
+        }
+
+        Request request = RequestConverters.createSnapshot(createSnapshotRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertToXContentBody(createSnapshotRequest, request.getEntity());
     }
 
     public void testDeleteSnapshot() {

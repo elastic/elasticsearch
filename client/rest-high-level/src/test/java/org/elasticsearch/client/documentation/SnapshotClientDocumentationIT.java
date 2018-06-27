@@ -29,6 +29,10 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
@@ -41,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -362,6 +367,90 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             // tag::verify-repository-execute-async
             client.snapshot().verifyRepositoryAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::verify-repository-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testSnapshotCreate() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("test-index0");
+        client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndexRequest = new CreateIndexRequest("test-index1");
+        client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+
+        createTestRepositories();
+
+        // tag::create-snapshot-request
+        CreateSnapshotRequest request = new CreateSnapshotRequest();
+        // end::create-snapshot-request
+
+        // tag::create-snapshot-request-repositoryName
+        request.repository(repositoryName); // <1>
+        // end::create-snapshot-request-repositoryName
+        // tag::create-snapshot-request-snapshotName
+        request.snapshot(snapshotName); // <1>
+        // end::create-snapshot-request-snapshotName
+        // tag::create-snapshot-request-indices
+        request.indices("test-index0", "test-index1"); // <1>
+        // end::create-snapshot-request-indices
+        // tag::create-snapshot-request-indicesOptions
+        request.indicesOptions(IndicesOptions.fromOptions(false, false, true, true)); // <1>
+        // end::create-snapshot-request-indicesOptions
+        // tag::create-snapshot-request-partial
+        request.partial(false); // <1>
+        // end::create-snapshot-request-partial
+        // tag::create-snapshot-request-includeGlobalState
+        request.includeGlobalState(true); // <1>
+        // end::create-snapshot-request-includeGlobalState
+
+        // tag::create-snapshot-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::create-snapshot-request-masterTimeout
+        // tag::create-snapshot-request-waitForCompletion
+        request.waitForCompletion(true); // <1>
+        // end::create-snapshot-request-waitForCompletion
+
+        // tag::create-snapshot-execute
+        CreateSnapshotResponse response = client.snapshot().createSnapshot(request, RequestOptions.DEFAULT);
+        // end::create-snapshot-execute
+
+        // tag::create-snapshot-response
+        RestStatus status = response.status(); // <1>
+        // end::create-snapshot-response
+
+        assertEquals(RestStatus.OK, status);
+    }
+
+    public void testSnapshotCreateAsync() throws InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            CreateSnapshotRequest request = new CreateSnapshotRequest(repositoryName, snapshotName);
+
+            // tag::create-snapshot-execute-listener
+            ActionListener<CreateSnapshotResponse> listener =
+                new ActionListener<CreateSnapshotResponse>() {
+                    @Override
+                    public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception exception) {
+                        // <2>
+                    }
+                };
+            // end::create-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::create-snapshot-execute-async
+            client.snapshot().createSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::create-snapshot-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

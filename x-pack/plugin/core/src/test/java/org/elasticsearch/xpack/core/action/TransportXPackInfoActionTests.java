@@ -15,6 +15,7 @@ import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.action.LicenseStatus;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 
 import java.util.Collections;
@@ -60,7 +61,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         License license = mock(License.class);
         long expiryDate = randomLong();
         when(license.expiryDate()).thenReturn(expiryDate);
-        License.Status status = randomFrom(License.Status.values());
+        LicenseStatus status = randomFrom(LicenseStatus.values());
         when(license.status()).thenReturn(status);
         String type = randomAlphaOfLength(10);
         when(license.type()).thenReturn(type);

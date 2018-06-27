@@ -16,6 +16,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.action.LicenseStatus;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackInfoRequest;
 
@@ -136,7 +137,7 @@ public class MlRemoteLicenseChecker {
 
     static boolean licenseSupportsML(XPackInfoResponse.LicenseInfo licenseInfo) {
         License.OperationMode mode = License.OperationMode.resolve(licenseInfo.getMode());
-        return licenseInfo.getStatus() == License.Status.ACTIVE &&
+        return licenseInfo.getStatus() == LicenseStatus.ACTIVE &&
                 (mode == License.OperationMode.PLATINUM || mode == License.OperationMode.TRIAL);
     }
 
@@ -173,7 +174,7 @@ public class MlRemoteLicenseChecker {
 
     public static String buildErrorMessage(RemoteClusterLicenseInfo clusterLicenseInfo) {
         StringBuilder error = new StringBuilder();
-        if (clusterLicenseInfo.licenseInfo.getStatus() != License.Status.ACTIVE) {
+        if (clusterLicenseInfo.licenseInfo.getStatus() != LicenseStatus.ACTIVE) {
             error.append("The license on cluster [").append(clusterLicenseInfo.clusterName)
                     .append("] is not active. ");
         } else {

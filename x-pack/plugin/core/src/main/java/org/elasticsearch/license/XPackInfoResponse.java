@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.action.LicenseStatus;
 import org.elasticsearch.xpack.core.XPackBuild;
 
 import java.io.IOException;
@@ -82,7 +83,7 @@ public class XPackInfoResponse extends ActionResponse {
         private final String type;
         private final String mode;
         private final long expiryDate;
-        private final License.Status status;
+        private final LicenseStatus status;
 
         public LicenseInfo(License license) {
             this(license.uid(), license.type(), license.operationMode().name().toLowerCase(Locale.ROOT),
@@ -90,10 +91,10 @@ public class XPackInfoResponse extends ActionResponse {
         }
 
         public LicenseInfo(StreamInput in) throws IOException {
-            this(in.readString(), in.readString(), in.readString(), License.Status.readFrom(in), in.readLong());
+            this(in.readString(), in.readString(), in.readString(), LicenseStatus.readFrom(in), in.readLong());
         }
 
-        public LicenseInfo(String uid, String type, String mode, License.Status status, long expiryDate) {
+        public LicenseInfo(String uid, String type, String mode, LicenseStatus status, long expiryDate) {
             this.uid = uid;
             this.type = type;
             this.mode = mode;
@@ -117,7 +118,7 @@ public class XPackInfoResponse extends ActionResponse {
             return expiryDate;
         }
 
-        public License.Status getStatus() {
+        public LicenseStatus getStatus() {
             return status;
         }
 

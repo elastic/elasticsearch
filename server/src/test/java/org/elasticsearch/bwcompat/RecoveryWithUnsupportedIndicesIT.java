@@ -81,8 +81,8 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
         return builder.build();
     }
 
-    public void testUpgradeStartClusterOn_0_20_6() throws Exception {
-        String indexName = "unsupported-0.20.6";
+    public void testUpgradeStartClusterOn_2_4_5() throws Exception {
+        String indexName = "unsupported-2.4.5";
 
         logger.info("Checking static index {}", indexName);
         Settings nodeSettings = prepareBackwardsDataDir(getBwcIndicesPath().resolve(indexName + ".zip"));
@@ -90,7 +90,7 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
             internalCluster().startNode(nodeSettings);
             fail();
         } catch (Exception ex) {
-            assertThat(ex.getCause().getCause().getMessage(), containsString(" was created before v2.0.0.beta1 and wasn't upgraded"));
+            assertThat(ex.getCause().getCause().getMessage(), containsString("Format version is not supported"));
         }
     }
 }

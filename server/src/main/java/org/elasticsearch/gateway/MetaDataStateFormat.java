@@ -67,9 +67,8 @@ public abstract class MetaDataStateFormat<T> {
     public static final String STATE_FILE_EXTENSION = ".st";
 
     private static final String STATE_FILE_CODEC = "state";
-    private static final int MIN_COMPATIBLE_STATE_FILE_VERSION = 0;
+    private static final int MIN_COMPATIBLE_STATE_FILE_VERSION = 1;
     private static final int STATE_FILE_VERSION = 1;
-    private static final int STATE_FILE_VERSION_ES_2X_AND_BELOW = 0;
     private static final int BUFFER_SIZE = 4096;
     private final String prefix;
     private final Pattern stateFilePattern;
@@ -183,15 +182,10 @@ public abstract class MetaDataStateFormat<T> {
             try (IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
                  // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
-                final int fileVersion = CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION,
-                    STATE_FILE_VERSION);
+                CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION, STATE_FILE_VERSION);
                 final XContentType xContentType = XContentType.values()[indexInput.readInt()];
                 if (xContentType != FORMAT) {
                     throw new IllegalStateException("expected state in " + file + " to be " + FORMAT + " format but was " + xContentType);
-                }
-                if (fileVersion == STATE_FILE_VERSION_ES_2X_AND_BELOW) {
-                    // format version 0, wrote a version that always came from the content state file and was never used
-                    indexInput.readLong(); // version currently unused
                 }
                 long filePointer = indexInput.getFilePointer();
                 long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;

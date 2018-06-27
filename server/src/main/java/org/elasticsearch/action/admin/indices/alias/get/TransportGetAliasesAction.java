@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
+import com.carrotsearch.hppc.ObjectHashSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -27,12 +28,14 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
 import java.util.List;
 
 public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
@@ -63,6 +66,16 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         ImmutableOpenMap<String, List<AliasMetaData>> result = state.metaData().findAliases(request.aliases(), concreteIndices);
-        listener.onResponse(new GetAliasesResponse(result));
+
+        // in case all aliases are requested then it is desired to return the concrete index with no aliases (#25114):
+        ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder(result);
+        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), state.metaData().indices().keys());
+        for (String index : intersection) {
+            if (result.get(index) == null && request.isAliasesProvided() == false) {
+                mapBuilder.put(index, Collections.emptyList());
+            }
+        }
+
+        listener.onResponse(new GetAliasesResponse(mapBuilder.build()));
     }
 }

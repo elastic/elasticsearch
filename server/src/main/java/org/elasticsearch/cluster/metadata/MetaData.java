@@ -263,7 +263,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return ImmutableOpenMap.of();
         }
 
-        boolean matchAllAliases = matchAllAliases(aliases);
+        boolean matchAllAliases = Strings.isAllOrWildcard(aliases);
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
@@ -276,22 +276,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 }
             }
 
-            if (!filteredValues.isEmpty()) {
+            if (filteredValues.isEmpty() == false) {
                 // Make the list order deterministic
                 CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasMetaData::alias));
+                mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
             }
-            mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
         }
         return mapBuilder.build();
-    }
-
-    private static boolean matchAllAliases(final String[] aliases) {
-        for (String alias : aliases) {
-            if (alias.equals(ALL)) {
-                return true;
-            }
-        }
-        return aliases.length == 0;
     }
 
     /**

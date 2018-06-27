@@ -40,6 +40,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -60,6 +61,7 @@ import static org.elasticsearch.action.support.TransportActions.isShardNotAvaila
  */
 public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse> extends TransportAction<Request, Response> {
 
+    protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -70,7 +72,8 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected TransportSingleShardAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                          Supplier<Request> request, String executor) {
-        super(settings, actionName, threadPool, actionFilters, transportService.getTaskManager());
+        super(settings, actionName, actionFilters, transportService.getTaskManager());
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -94,7 +97,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     }
 
     @Override
-    protected void doExecute(Request request, ActionListener<Response> listener) {
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new AsyncSingleAction(request, listener).start();
     }
 
@@ -269,7 +272,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     private class TransportHandler implements TransportRequestHandler<Request> {
 
         @Override
-        public void messageReceived(Request request, final TransportChannel channel) throws Exception {
+        public void messageReceived(Request request, final TransportChannel channel, Task task) throws Exception {
             // if we have a local operation, execute it on a thread since we don't spawn
             execute(request, new ActionListener<Response>() {
                 @Override
@@ -296,7 +299,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     private class ShardTransportHandler implements TransportRequestHandler<Request> {
 
         @Override
-        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
             if (logger.isTraceEnabled()) {
                 logger.trace("executing [{}] on shard [{}]", request, request.internalShardId);
             }

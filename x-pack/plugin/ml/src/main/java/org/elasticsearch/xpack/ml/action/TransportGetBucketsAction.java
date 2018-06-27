@@ -5,20 +5,20 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import java.util.function.Supplier;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+
+import java.util.function.Supplier;
 
 public class TransportGetBucketsAction extends HandledTransportAction<GetBucketsAction.Request, GetBucketsAction.Response> {
 
@@ -27,9 +27,9 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
     private final Client client;
 
     @Inject
-    public TransportGetBucketsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportGetBucketsAction(Settings settings, TransportService transportService,
                                      ActionFilters actionFilters, JobProvider jobProvider, JobManager jobManager, Client client) {
-        super(settings, GetBucketsAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, GetBucketsAction.NAME, transportService, actionFilters,
             (Supplier<GetBucketsAction.Request>) GetBucketsAction.Request::new);
         this.jobProvider = jobProvider;
         this.jobManager = jobManager;
@@ -37,7 +37,7 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
     }
 
     @Override
-    protected void doExecute(GetBucketsAction.Request request, ActionListener<GetBucketsAction.Response> listener) {
+    protected void doExecute(Task task, GetBucketsAction.Request request, ActionListener<GetBucketsAction.Response> listener) {
         jobManager.getJobOrThrowIfUnknown(request.getJobId());
 
         BucketsQueryBuilder query =

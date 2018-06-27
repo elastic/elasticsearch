@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -65,6 +66,7 @@ import java.util.function.Supplier;
  */
 public class TransportGraphExploreAction extends HandledTransportAction<GraphExploreRequest, GraphExploreResponse> {
 
+    private final ThreadPool threadPool;
     private final NodeClient client;
     protected final XPackLicenseState licenseState;
 
@@ -83,16 +85,15 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
     @Inject
     public TransportGraphExploreAction(Settings settings, ThreadPool threadPool, NodeClient client,
-            TransportService transportService, ActionFilters actionFilters,
-            XPackLicenseState licenseState) {
-        super(settings, GraphExploreAction.NAME, threadPool, transportService, actionFilters,
-              (Supplier<GraphExploreRequest>)GraphExploreRequest::new);
+            TransportService transportService, ActionFilters actionFilters, XPackLicenseState licenseState) {
+        super(settings, GraphExploreAction.NAME, transportService, actionFilters, (Supplier<GraphExploreRequest>)GraphExploreRequest::new);
+        this.threadPool = threadPool;
         this.client = client;
         this.licenseState = licenseState;
     }
 
     @Override
-    protected void doExecute(GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
+    protected void doExecute(Task task, GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
         if (licenseState.isGraphAllowed()) {
             new AsyncGraphAction(request, listener).start();
         } else {

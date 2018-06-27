@@ -12,6 +12,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -32,19 +33,22 @@ import java.util.List;
 public class TransportDeleteExpiredDataAction extends HandledTransportAction<DeleteExpiredDataAction.Request,
         DeleteExpiredDataAction.Response> {
 
+    private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
 
     @Inject
     public TransportDeleteExpiredDataAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                             ActionFilters actionFilters, Client client, ClusterService clusterService) {
-        super(settings, DeleteExpiredDataAction.NAME, threadPool, transportService, actionFilters, DeleteExpiredDataAction.Request::new);
+        super(settings, DeleteExpiredDataAction.NAME, transportService, actionFilters, DeleteExpiredDataAction.Request::new);
+        this.threadPool = threadPool;
         this.client = ClientHelper.clientWithOrigin(client, ClientHelper.ML_ORIGIN);
         this.clusterService = clusterService;
     }
 
     @Override
-    protected void doExecute(DeleteExpiredDataAction.Request request, ActionListener<DeleteExpiredDataAction.Response> listener) {
+    protected void doExecute(Task task, DeleteExpiredDataAction.Request request,
+                             ActionListener<DeleteExpiredDataAction.Response> listener) {
         logger.info("Deleting expired data");
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> deleteExpiredData(listener));
     }

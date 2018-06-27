@@ -71,6 +71,7 @@ import static java.time.Clock.systemUTC;
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -162,7 +163,7 @@ public class TokenServiceTests extends ESTestCase {
         mockGetTokenFromId(token);
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
+        requestContext.putHeader("Authorization", randomFrom("Bearer ", "BEARER ", "bearer ") + tokenService.getUserTokenString(token));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -180,6 +181,21 @@ public class TokenServiceTests extends ESTestCase {
             anotherService.getAndValidateToken(requestContext, future);
             UserToken fromOtherService = future.get();
             assertEquals(authentication, fromOtherService.getAuthentication());
+        }
+    }
+
+    public void testInvalidAuthorizationHeader() throws Exception {
+        TokenService tokenService = new TokenService(tokenServiceEnabledSettings, systemUTC(), client, securityIndex, clusterService);
+        ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
+        String token = randomFrom("", "          ");
+        String authScheme = randomFrom("Bearer ", "BEARER ", "bearer ", "Basic ");
+        requestContext.putHeader("Authorization", authScheme + token);
+
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
+            tokenService.getAndValidateToken(requestContext, future);
+            UserToken serialized = future.get();
+            assertThat(serialized, nullValue());
         }
     }
 

@@ -62,10 +62,10 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
     private final NodeClient client;
 
     @Inject
-    public TransportUpgradeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportUpgradeAction(Settings settings, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver, NodeClient client) {
-        super(settings, UpgradeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, UpgradeRequest::new, ThreadPool.Names.FORCE_MERGE);
+        super(settings, UpgradeAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver, UpgradeRequest::new, ThreadPool.Names.FORCE_MERGE);
         this.indicesService = indicesService;
         this.client = client;
     }

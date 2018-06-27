@@ -53,6 +53,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -111,13 +112,13 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected void doExecute(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
+    protected void doExecute(Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
             client.admin().indices().create(new CreateIndexRequest().index(request.index()).cause("auto(update api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
-                    innerExecute(request, listener);
+                    innerExecute(task, request, listener);
                 }
 
                 @Override
@@ -125,7 +126,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     if (unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                         // we have the index, do it
                         try {
-                            innerExecute(request, listener);
+                            innerExecute(task, request, listener);
                         } catch (Exception inner) {
                             inner.addSuppressed(e);
                             listener.onFailure(inner);
@@ -136,12 +137,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 }
             });
         } else {
-            innerExecute(request, listener);
+            innerExecute(task, request, listener);
         }
     }
 
-    private void innerExecute(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
-        super.doExecute(request, listener);
+    private void innerExecute(final Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
+        super.doExecute(task, request, listener);
     }
 
     @Override

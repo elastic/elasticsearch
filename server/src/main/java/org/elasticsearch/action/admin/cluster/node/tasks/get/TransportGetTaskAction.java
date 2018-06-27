@@ -64,6 +64,7 @@ import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportLi
  * </ul>
  */
 public class TransportGetTaskAction extends HandledTransportAction<GetTaskRequest, GetTaskResponse> {
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Client client;
@@ -72,16 +73,12 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     @Inject
     public TransportGetTaskAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
             ClusterService clusterService, Client client, NamedXContentRegistry xContentRegistry) {
-        super(settings, GetTaskAction.NAME, threadPool, transportService, actionFilters, GetTaskRequest::new);
+        super(settings, GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.client = client;
         this.xContentRegistry = xContentRegistry;
-    }
-
-    @Override
-    protected void doExecute(GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        throw new UnsupportedOperationException("Task is required");
     }
 
     @Override

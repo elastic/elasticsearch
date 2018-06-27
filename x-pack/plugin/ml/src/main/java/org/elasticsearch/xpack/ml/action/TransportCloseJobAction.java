@@ -57,6 +57,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJobAction.JobTask, CloseJobAction.Request,
         CloseJobAction.Response, CloseJobAction.Response> {
 
+    private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
     private final Auditor auditor;
@@ -67,8 +68,9 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
                                    ClusterService clusterService, Client client, Auditor auditor,
                                    PersistentTasksService persistentTasksService) {
         // We fork in innerTaskOperation(...), so we can use ThreadPool.Names.SAME here:
-        super(settings, CloseJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(settings, CloseJobAction.NAME, clusterService, transportService, actionFilters,
             CloseJobAction.Request::new, CloseJobAction.Response::new, ThreadPool.Names.SAME);
+        this.threadPool = threadPool;
         this.client = client;
         this.clusterService = clusterService;
         this.auditor = auditor;

@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -43,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportFieldCapabilitiesIndexAction shardAction;
     private final RemoteClusterService remoteClusterService;
@@ -53,7 +55,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                             ClusterService clusterService, ThreadPool threadPool,
                                             TransportFieldCapabilitiesIndexAction shardAction,
                                             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, FieldCapabilitiesAction.NAME, threadPool, transportService, actionFilters, FieldCapabilitiesRequest::new);
+        super(settings, FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.shardAction = shardAction;
@@ -61,8 +64,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     @Override
-    protected void doExecute(FieldCapabilitiesRequest request,
-                             final ActionListener<FieldCapabilitiesResponse> listener) {
+    protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
         final ClusterState clusterState = clusterService.state();
         final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(),
             request.indices(), idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));

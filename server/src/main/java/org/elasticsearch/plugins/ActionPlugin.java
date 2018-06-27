@@ -19,9 +19,9 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -68,7 +68,7 @@ public interface ActionPlugin {
      * Client actions added by this plugin. This defaults to all of the {@linkplain Action} in
      * {@linkplain ActionPlugin#getActions()}.
      */
-    default List<Action> getClientActions() {
+    default List<Action<? extends ActionResponse>> getClientActions() {
         return getActions().stream().map(a -> a.action).collect(Collectors.toList());
     }
 

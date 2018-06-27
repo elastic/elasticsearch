@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
@@ -34,6 +35,7 @@ import java.util.stream.Collectors;
 
 public class TransportMonitoringBulkAction extends HandledTransportAction<MonitoringBulkRequest, MonitoringBulkResponse> {
 
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final Exporters exportService;
     private final MonitoringService monitoringService;
@@ -42,14 +44,15 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
     public TransportMonitoringBulkAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters, Exporters exportService,
                                          MonitoringService monitoringService) {
-        super(settings, MonitoringBulkAction.NAME, threadPool, transportService, actionFilters, MonitoringBulkRequest::new);
+        super(settings, MonitoringBulkAction.NAME, transportService, actionFilters, MonitoringBulkRequest::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.exportService = exportService;
         this.monitoringService = monitoringService;
     }
 
     @Override
-    protected void doExecute(MonitoringBulkRequest request, ActionListener<MonitoringBulkResponse> listener) {
+    protected void doExecute(Task task, MonitoringBulkRequest request, ActionListener<MonitoringBulkResponse> listener) {
         clusterService.state().blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);
 
         // ignore incoming bulk requests when collection is disabled in ES

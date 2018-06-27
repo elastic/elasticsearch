@@ -56,7 +56,7 @@ public final class MockUncasedHostProvider implements UnicastHostsProvider, Clos
     }
 
     @Override
-    public List<TransportAddress> buildDynamicHosts() {
+    public List<TransportAddress> buildDynamicHosts(HostsResolver hostsResolver) {
         final DiscoveryNode localNode = getNode();
         assert localNode != null;
         synchronized (activeNodesPerCluster) {

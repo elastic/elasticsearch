@@ -513,13 +513,12 @@ public class RestClientTests extends RestClientTestCase {
     }
 
     private static void assertNodes(NodeTuple<List<Node>> nodeTuple, AtomicInteger lastNodeIndex, int runs) throws IOException {
-        int distance = lastNodeIndex.get();
-        int expectedOffset;
-        if (distance <= 0) {
-            expectedOffset =  Math.abs(distance % nodeTuple.nodes.size());
-        } else {
-            expectedOffset = nodeTuple.nodes.size() - (distance % nodeTuple.nodes.size());
-        }
+        int distance = lastNodeIndex.get() % nodeTuple.nodes.size();
+        /*
+         * Collections.rotate is not super intuitive: distance 1 means that the last element will become the first and so on,
+         * while distance -1 means that the second element will become the first and so on.
+         */
+        int expectedOffset = distance > 0 ? nodeTuple.nodes.size() - distance : Math.abs(distance);
         for (int i = 0; i < runs; i++) {
             Iterable<Node> selectedNodes = RestClient.selectNodes(nodeTuple, Collections.<HttpHost, DeadHostState>emptyMap(),
                     lastNodeIndex, NodeSelector.ANY);

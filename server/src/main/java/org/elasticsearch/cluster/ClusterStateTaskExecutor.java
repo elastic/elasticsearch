@@ -41,6 +41,9 @@ public interface ClusterStateTaskExecutor<T> {
     /**
      * Callback invoked after new cluster state is published. Note that
      * this method is not invoked if the cluster state was not updated.
+     *
+     * Note that this method will be executed using system context.
+     *
      * @param clusterChangedEvent the change event for this cluster state change, containing
      *                            both old and new states
      */

@@ -114,7 +114,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
     public void testApply_givenEmptyUpdate() {
         DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
-        DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId()).build().apply(datafeed, null);
+        DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId()).build().apply(datafeed, Collections.emptyMap());
         assertThat(datafeed, equalTo(updatedDatafeed));
     }
 
@@ -125,7 +125,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
         DatafeedUpdate.Builder updated = new DatafeedUpdate.Builder(datafeed.getId());
         updated.setScrollSize(datafeed.getScrollSize() + 1);
-        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, null);
+        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap());
 
         DatafeedConfig.Builder expectedDatafeed = new DatafeedConfig.Builder(datafeed);
         expectedDatafeed.setScrollSize(datafeed.getScrollSize() + 1);
@@ -149,7 +149,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         update.setScrollSize(8000);
         update.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)));
 
-        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, null);
+        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap());
 
         assertThat(updatedDatafeed.getJobId(), equalTo("bar"));
         assertThat(updatedDatafeed.getIndices(), equalTo(Collections.singletonList("i_2")));
@@ -175,7 +175,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         update.setAggregations(new AggregatorFactories.Builder().addAggregator(
                 AggregationBuilders.histogram("a").interval(300000).field("time").subAggregation(maxTime)));
 
-        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, null);
+        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap());
 
         assertThat(updatedDatafeed.getIndices(), equalTo(Collections.singletonList("i_1")));
         assertThat(updatedDatafeed.getTypes(), equalTo(Collections.singletonList("t_1")));

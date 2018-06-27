@@ -206,7 +206,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            PersistentTask task = tasks.getTask(MlMetadata.jobTaskId(jobId));
+            PersistentTask<?> task = tasks.getTask(MlMetadata.jobTaskId(jobId));
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             assertThat(node.getAttributes(), hasEntry(MachineLearning.ML_ENABLED_NODE_ATTR, "true"));

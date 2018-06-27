@@ -25,6 +25,12 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
+import org.elasticsearch.action.ingest.SimulateDocumentResult;
+import org.elasticsearch.action.ingest.SimulateDocumentVerboseResult;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.elasticsearch.action.ingest.SimulateProcessorResult;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
@@ -272,6 +278,111 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-pipeline-execute-async
             client.ingest().deletePipelineAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::delete-pipeline-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testSimulatePipeline() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::simulate-pipeline-request
+            String source =
+                "{\"" +
+                    "pipeline\":{" +
+                        "\"description\":\"_description\"," +
+                        "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]" +
+                    "}," +
+                    "\"docs\":[" +
+                        "{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"bar\"}}," +
+                        "{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}" +
+                    "]" +
+                "}";
+            SimulatePipelineRequest request = new SimulatePipelineRequest(
+                new BytesArray(source.getBytes(StandardCharsets.UTF_8)), // <1>
+                XContentType.JSON // <2>
+            );
+            // end::simulate-pipeline-request
+
+            // tag::simulate-pipeline-request-pipeline-id
+            request.setId("my-pipeline-id"); // <1>
+            // end::simulate-pipeline-request-pipeline-id
+
+            // For testing we set this back to null
+            request.setId(null);
+
+            // tag::simulate-pipeline-request-verbose
+            request.setVerbose(true); // <1>
+            // end::simulate-pipeline-request-verbose
+
+            // tag::simulate-pipeline-execute
+            SimulatePipelineResponse response = client.ingest().simulatePipeline(request, RequestOptions.DEFAULT); // <1>
+            // end::simulate-pipeline-execute
+
+            // tag::simulate-pipeline-response
+            for (SimulateDocumentResult result: response.getResults()) { // <1>
+                if (request.isVerbose()) {
+                    assert result instanceof SimulateDocumentVerboseResult;
+                    SimulateDocumentVerboseResult verboseResult = (SimulateDocumentVerboseResult)result; // <2>
+                    for (SimulateProcessorResult processorResult: verboseResult.getProcessorResults()) { // <3>
+                        processorResult.getIngestDocument(); // <4>
+                        processorResult.getFailure(); // <5>
+                    }
+                } else {
+                    assert result instanceof SimulateDocumentBaseResult;
+                    SimulateDocumentBaseResult baseResult = (SimulateDocumentBaseResult)result; // <6>
+                    baseResult.getIngestDocument(); // <7>
+                    baseResult.getFailure(); // <8>
+                }
+            }
+            // end::simulate-pipeline-response
+            assert(response.getResults().size() > 0);
+        }
+    }
+
+    public void testSimulatePipelineAsync() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            String source =
+                "{\"" +
+                    "pipeline\":{" +
+                    "\"description\":\"_description\"," +
+                    "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]" +
+                    "}," +
+                    "\"docs\":[" +
+                    "{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"bar\"}}," +
+                    "{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}" +
+                    "]" +
+                    "}";
+            SimulatePipelineRequest request = new SimulatePipelineRequest(
+                new BytesArray(source.getBytes(StandardCharsets.UTF_8)),
+                XContentType.JSON
+            );
+
+            // tag::simulate-pipeline-execute-listener
+            ActionListener<SimulatePipelineResponse> listener =
+                new ActionListener<SimulatePipelineResponse>() {
+                    @Override
+                    public void onResponse(SimulatePipelineResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::simulate-pipeline-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::simulate-pipeline-execute-async
+            client.ingest().simulatePipelineAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::simulate-pipeline-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

@@ -139,17 +139,18 @@ public class HighlightBuilderTests extends ESTestCase {
                 shuffled = shuffleXContent(builder, "fields");
             }
 
-            XContentParser parser = createParser(shuffled);
-            parser.nextToken();
-            HighlightBuilder secondHighlightBuilder;
-            try {
-                secondHighlightBuilder = HighlightBuilder.fromXContent(parser);
-            } catch (RuntimeException e) {
-                throw new RuntimeException("Error parsing " + highlightBuilder, e);
+            try (XContentParser parser = createParser(shuffled)) {
+                parser.nextToken();
+                HighlightBuilder secondHighlightBuilder;
+                try {
+                    secondHighlightBuilder = HighlightBuilder.fromXContent(parser);
+                } catch (RuntimeException e) {
+                    throw new RuntimeException("Error parsing " + highlightBuilder, e);
+                }
+                assertNotSame(highlightBuilder, secondHighlightBuilder);
+                assertEquals(highlightBuilder, secondHighlightBuilder);
+                assertEquals(highlightBuilder.hashCode(), secondHighlightBuilder.hashCode());
             }
-            assertNotSame(highlightBuilder, secondHighlightBuilder);
-            assertEquals(highlightBuilder, secondHighlightBuilder);
-            assertEquals(highlightBuilder.hashCode(), secondHighlightBuilder.hashCode());
         }
     }
 
@@ -179,8 +180,9 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
     private <T extends Throwable> T expectParseThrows(Class<T> exceptionClass, String highlightElement) throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
-        return expectThrows(exceptionClass, () -> HighlightBuilder.fromXContent(parser));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
+            return expectThrows(exceptionClass, () -> HighlightBuilder.fromXContent(parser));
+        }
     }
 
     /**
@@ -389,30 +391,32 @@ public class HighlightBuilderTests extends ESTestCase {
         String highlightElement = "{\n" +
                 "    \"tags_schema\" : \"styled\"\n" +
                 "}\n";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
 
-        HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
-        assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
+            HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
+            assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
                 highlightBuilder.preTags());
-        assertArrayEquals("setting tags_schema 'styled' should alter post_tags", HighlightBuilder.DEFAULT_STYLED_POST_TAGS,
+            assertArrayEquals("setting tags_schema 'styled' should alter post_tags", HighlightBuilder.DEFAULT_STYLED_POST_TAGS,
                 highlightBuilder.postTags());
 
-        highlightElement = "{\n" +
+            highlightElement = "{\n" +
                 "    \"tags_schema\" : \"default\"\n" +
                 "}\n";
-        parser = createParser(JsonXContent.jsonXContent, highlightElement);
+        }
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
 
-        highlightBuilder = HighlightBuilder.fromXContent(parser);
-        assertArrayEquals("setting tags_schema 'default' should alter pre_tags", HighlightBuilder.DEFAULT_PRE_TAGS,
+            HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
+            assertArrayEquals("setting tags_schema 'default' should alter pre_tags", HighlightBuilder.DEFAULT_PRE_TAGS,
                 highlightBuilder.preTags());
-        assertArrayEquals("setting tags_schema 'default' should alter post_tags", HighlightBuilder.DEFAULT_POST_TAGS,
+            assertArrayEquals("setting tags_schema 'default' should alter post_tags", HighlightBuilder.DEFAULT_POST_TAGS,
                 highlightBuilder.postTags());
 
-        XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
+            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
                 "    \"tags_schema\" : \"somthing_else\"\n" +
                 "}\n");
-        assertThat(e.getMessage(), containsString("[highlight] failed to parse field [tags_schema]"));
-        assertEquals("Unknown tag schema [somthing_else]", e.getCause().getMessage());
+            assertThat(e.getMessage(), containsString("[highlight] failed to parse field [tags_schema]"));
+            assertEquals("Unknown tag schema [somthing_else]", e.getCause().getMessage());
+        }
     }
 
     /**
@@ -420,22 +424,22 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testParsingEmptyStructure() throws IOException {
         String highlightElement = "{ }";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
-
-        HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
-        assertEquals("expected plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
+            HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
+            assertEquals("expected plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
+        }
 
         highlightElement = "{ \"fields\" : { } }";
-        parser = createParser(JsonXContent.jsonXContent, highlightElement);
-
-        highlightBuilder = HighlightBuilder.fromXContent(parser);
-        assertEquals("defining no field should return plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
+            HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
+            assertEquals("defining no field should return plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
+        }
 
         highlightElement = "{ \"fields\" : { \"foo\" : { } } }";
-        parser = createParser(JsonXContent.jsonXContent, highlightElement);
-
-        highlightBuilder = HighlightBuilder.fromXContent(parser);
-        assertEquals("expected HighlightBuilder with field", new HighlightBuilder().field(new Field("foo")), highlightBuilder);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
+            HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
+            assertEquals("expected HighlightBuilder with field", new HighlightBuilder().field(new Field("foo")), highlightBuilder);
+        }
     }
 
     public void testPreTagsWithoutPostTags() throws IOException {

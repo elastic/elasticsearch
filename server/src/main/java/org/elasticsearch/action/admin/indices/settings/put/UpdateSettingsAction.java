@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.elasticsearch.action.Action;
 
-public class UpdateSettingsAction extends Action<UpdateSettingsRequest, UpdateSettingsResponse> {
+public class UpdateSettingsAction extends Action<UpdateSettingsResponse> {
 
     public static final UpdateSettingsAction INSTANCE = new UpdateSettingsAction();
     public static final String NAME = "indices:admin/settings/update";

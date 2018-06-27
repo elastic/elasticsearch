@@ -11,11 +11,10 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -38,11 +37,10 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
     private final Auditor auditor;
 
     @Inject
-    public TransportDeleteModelSnapshotAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+    public TransportDeleteModelSnapshotAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
                                               JobProvider jobProvider, ClusterService clusterService, Client client, Auditor auditor) {
-        super(settings, DeleteModelSnapshotAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                DeleteModelSnapshotAction.Request::new);
+        super(settings, DeleteModelSnapshotAction.NAME, transportService, actionFilters,
+              DeleteModelSnapshotAction.Request::new);
         this.client = client;
         this.jobProvider = jobProvider;
         this.clusterService = clusterService;
@@ -50,7 +48,8 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
     }
 
     @Override
-    protected void doExecute(DeleteModelSnapshotAction.Request request, ActionListener<DeleteModelSnapshotAction.Response> listener) {
+    protected void doExecute(Task task, DeleteModelSnapshotAction.Request request,
+                             ActionListener<DeleteModelSnapshotAction.Response> listener) {
         // Verify the snapshot exists
         jobProvider.modelSnapshots(
                 request.getJobId(), 0, 1, null, null, null, true, request.getSnapshotId(),

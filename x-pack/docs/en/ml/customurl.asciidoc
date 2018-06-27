@@ -48,7 +48,7 @@ using the {ml} APIs.
 
 [float]
 [[ml-configuring-url-strings]]
-==== String Substitution in Custom URLs
+==== String substitution in custom URLs
 
 You can use dollar sign ($) delimited tokens in a custom URL. These tokens are
 substituted for the values of the corresponding fields in the anomaly records.

@@ -456,7 +456,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     @Override
-    protected void masterOperation(Task task, OpenJobAction.Request request, ClusterState state, ActionListener<OpenJobAction.Response> listener) {
+    protected void masterOperation(Task task, OpenJobAction.Request request, ClusterState state,
+                                   ActionListener<OpenJobAction.Response> listener) {
         OpenJobAction.JobParams jobParams = request.getJobParams();
         if (licenseState.isMachineLearningAllowed()) {
             // Step 5. Wait for job to be started and respond

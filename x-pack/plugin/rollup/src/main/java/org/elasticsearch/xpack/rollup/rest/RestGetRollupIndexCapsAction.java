@@ -19,18 +19,18 @@ import org.elasticsearch.xpack.rollup.Rollup;
 import java.io.IOException;
 
 public class RestGetRollupIndexCapsAction extends BaseRestHandler {
-    public static final ParseField ID = new ParseField("id");
+    public static final ParseField INDEX = new ParseField("index");
 
     public RestGetRollupIndexCapsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/{id}/_xpack/rollup/caps", this);
+        controller.registerHandler(RestRequest.Method.GET, "/{index}/_xpack/rollup/data", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        String id = restRequest.param(ID.getPreferredName());
+        String index = restRequest.param(INDEX.getPreferredName());
         IndicesOptions options = IndicesOptions.fromRequest(restRequest, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED);
-        GetRollupIndexCapsAction.Request request = new GetRollupIndexCapsAction.Request(id, options);
+        GetRollupIndexCapsAction.Request request = new GetRollupIndexCapsAction.Request(index, options);
         return channel -> client.execute(GetRollupIndexCapsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

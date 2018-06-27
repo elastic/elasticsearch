@@ -17,7 +17,7 @@ This API will allow you to determine:
 
 ==== Request
 
-`GET {index}/_xpack/rollup/caps`
+`GET {index}/_xpack/rollup/data`
 
 //===== Description
 
@@ -81,7 +81,7 @@ Index API:
 
 [source,js]
 --------------------------------------------------
-GET /sensor_rollup/_xpack/rollup/caps
+GET /sensor_rollup/_xpack/rollup/data
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -154,7 +154,7 @@ Like other APIs that interact with indices, you can specify index patterns inste
 
 [source,js]
 --------------------------------------------------
-GET /*_rollup/_xpack/rollup/caps
+GET /*_rollup/_xpack/rollup/data
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

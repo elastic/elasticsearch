@@ -3,8 +3,8 @@
     "documentation": "",
     "methods": [ "GET" ],
     "url": {
-      "path": "/{index}/_xpack/rollup/caps}",
-      "paths": [ "/{index}/_xpack/rollup/caps}" ],
+      "path": "/{index}/_xpack/rollup/data",
+      "paths": [ "/{index}/_xpack/rollup/data" ],
       "parts": {
         "index": {
           "type": "string",

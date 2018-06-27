@@ -33,6 +33,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -79,27 +81,8 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         }
 
         if (randomBoolean()) {
-            List<WildcardStates> wildcardStates = new ArrayList<>();
-
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    wildcardStates.add(WildcardStates.OPEN);
-                }
-
-                if (randomBoolean()) {
-                    wildcardStates.add(WildcardStates.CLOSED);
-                }
-            }
-
-            List<Option> options = new ArrayList<>();
-
-            if (randomBoolean()) {
-                options.add(Option.ALLOW_NO_INDICES);
-            }
-
-            if (randomBoolean()) {
-                options.add(Option.IGNORE_UNAVAILABLE);
-            }
+            Collection<WildcardStates> wildcardStates = randomSubsetOf(Arrays.asList(WildcardStates.values()));
+            Collection<Option> options = randomSubsetOf(Arrays.asList(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE));
 
             original.indicesOptions(new IndicesOptions(
                     options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),

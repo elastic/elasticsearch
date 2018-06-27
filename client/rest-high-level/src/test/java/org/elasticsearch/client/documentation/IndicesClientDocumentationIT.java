@@ -2246,7 +2246,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::analyze-custom-normalizer-request
             AnalyzeRequest request = new AnalyzeRequest();
             request.text("<b>BaR</b>");
-            request.addCharFilter("html_strip");
             request.addTokenFilter("lowercase");
             // end::analyze-custom-normalizer-request
 

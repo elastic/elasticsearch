@@ -167,7 +167,7 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
     }
 
     static final ConstructingObjectParser<DetailAnalyzeResponse, Void> PARSER = new ConstructingObjectParser<>("detail",
-        args -> new DetailAnalyzeResponse((boolean)args[0], (AnalyzeTokenList)args[1],
+        true, args -> new DetailAnalyzeResponse((boolean)args[0], (AnalyzeTokenList)args[1],
                                             ((List<CharFilteredText>)args[2]).toArray(new CharFilteredText[0]),
                                             (AnalyzeTokenList)args[3],
                                             ((List<AnalyzeTokenList>)args[4]).toArray(new AnalyzeTokenList[0])));
@@ -304,7 +304,7 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         }
 
         private static final ConstructingObjectParser<AnalyzeTokenList, Void> PARSER = new ConstructingObjectParser<>("token_list",
-            args -> new AnalyzeTokenList((String)args[0],
+            true, args -> new AnalyzeTokenList((String)args[0],
                                          ((List<AnalyzeResponse.AnalyzeToken>)args[1]).toArray(new AnalyzeResponse.AnalyzeToken[0])));
         static {
             PARSER.declareString(constructorArg(), new ParseField(Fields.NAME));
@@ -375,7 +375,7 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         }
 
         private static final ConstructingObjectParser<CharFilteredText, Void> PARSER = new ConstructingObjectParser<>("char_filtered_text",
-            args -> new CharFilteredText((String)args[0], ((List<String>)args[1]).toArray(new String[0])));
+            true, args -> new CharFilteredText((String)args[0], ((List<String>)args[1]).toArray(new String[0])));
         static {
             PARSER.declareString(constructorArg(), new ParseField(Fields.NAME));
             PARSER.declareStringArray(constructorArg(), new ParseField(Fields.FILTERED_TEXT));

@@ -174,7 +174,16 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
                     type = parser.text();
                 }
                 else {
-                    attributes.put(field, parser.text());
+                    if (t == XContentParser.Token.VALUE_STRING) {
+                        attributes.put(field, parser.text());
+                    }
+                    else if (t == XContentParser.Token.VALUE_NUMBER) {
+                        attributes.put(field, parser.numberValue());
+                    }
+                    else if (t == XContentParser.Token.VALUE_BOOLEAN) {
+                        attributes.put(field, parser.booleanValue());
+                    }
+                    // TODO: Can we parse arbitrary objects into maps?
                 }
             }
             return new AnalyzeToken(term, position, startOffset, endOffset, positionLength, type, attributes);
@@ -258,7 +267,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
     }
 
     private static final ConstructingObjectParser<AnalyzeResponse, Void> PARSER = new ConstructingObjectParser<>("analyze_response",
-        args -> new AnalyzeResponse((List<AnalyzeToken>) args[0], (DetailAnalyzeResponse) args[1]));
+        true, args -> new AnalyzeResponse((List<AnalyzeToken>) args[0], (DetailAnalyzeResponse) args[1]));
     static {
         PARSER.declareObjectArray(constructorArg(), (p, c) -> AnalyzeToken.fromXContent(p), new ParseField(Fields.TOKENS));
         PARSER.declareObject(constructorArg(), DetailAnalyzeResponse.PARSER, new ParseField(Fields.DETAIL));

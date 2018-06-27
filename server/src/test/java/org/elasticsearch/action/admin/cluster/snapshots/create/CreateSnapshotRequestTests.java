@@ -24,6 +24,8 @@ import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent.MapParams;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,6 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -69,6 +72,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
                 settings.put(randomAlphaOfLength(randomInt(3) + 2), randomAlphaOfLength(randomInt(3) + 2));
             }
 
+            original.settings(settings);
         }
 
         if (randomBoolean()) {
@@ -111,7 +115,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
             original.masterNodeTimeout("60s");
         }
 
-        XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), null);
+        XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new MapParams(Collections.emptyMap()));
         XContentParser parser = XContentType.JSON.xContent().createParser(
                 NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
         Map<String, Object> map = parser.mapOrdered();

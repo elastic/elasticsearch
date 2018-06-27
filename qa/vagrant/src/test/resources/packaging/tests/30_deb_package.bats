@@ -72,6 +72,14 @@ setup() {
     [ "$status" -eq 1 ]
 }
 
+@test "[DEB] temporarily remove java and ensure the install fails" {
+    move_java
+    run dpkg -i elasticsearch-oss-$(cat version).deb
+    output=$status
+    unmove_java
+    [ "$output" -eq 1 ]
+}
+
 @test "[DEB] install package" {
     dpkg -i elasticsearch-oss-$(cat version).deb
 }

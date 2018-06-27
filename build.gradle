@@ -326,6 +326,9 @@ gradle.projectsEvaluated {
       // :test:framework:test cannot run before and after :server:test
       return
     }
+    if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
+      integTest.mustRunAfter test
+    }
     configurations.all { Configuration configuration ->
       /*
        * The featureAwarePlugin configuration has a dependency on x-pack:plugin:core and x-pack:plugin:core has a dependency on the
@@ -598,12 +601,5 @@ if (System.properties.get("build.compare") != null) {
       // use -Dorg.gradle.java.home= to alter jdk versions
       arguments = ["-Dbuild.compare_friendly=true"]
     }
-  }
-}
-
-// make sure integration tests run after unit tests
-allprojects {
-  if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
-      integTest.mustRunAfter test
   }
 }

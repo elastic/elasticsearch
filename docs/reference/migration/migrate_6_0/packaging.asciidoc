@@ -87,3 +87,17 @@ environment used to start Elasticsearch (and various supporting scripts). This
 legacy feature could be useful when there were several environment variables
 useful for configuring JVM options; this functionality had previously been
 replaced by <<jvm-options>>. Therefore, `ES_INCLUDE` has been removed.
+
+==== Logging configuration
+
+Previously Elasticsearch exposed a single system property (`es.logs`) that
+included the absolute path to the configured logs directory, and the prefix of
+the filenames used for the various logging files (the main log file, the
+deprecation log, and the slow logs). This property has been replaced in favor of
+three properties:
+
+ * `es.logs.base_path`: the absolute path to the configured logs directory
+ * `es.logs.cluster_name`: the default prefix of the filenames used for the
+   various logging files
+ * `es.logs.node_name`: exposed if `node.name` is configured for inclusion in
+   the filenames of the various logging files (if you prefer)

@@ -63,6 +63,8 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'README.asciidoc'
 }
 
+listSnippets.docs = buildRestTests.docs
+
 Closure setupTwitter = { String name, int count ->
   buildRestTests.setups[name] = '''
   - do:

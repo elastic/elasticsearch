@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -104,6 +105,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private static List<BlacklistedPathPatternMatcher> blacklistPathMatchers;
     private static ClientYamlTestExecutionContext restTestExecutionContext;
     private static ClientYamlTestExecutionContext adminExecutionContext;
+    private static ClientYamlTestClient clientYamlTestClient;
 
     private final ClientYamlTestCandidate testCandidate;
 
@@ -142,7 +144,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     throw ex;
                 }
             }
-            ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+            clientYamlTestClient = initClientYamlTestClient(restSpec, restClient, hosts, esVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
             String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
@@ -172,6 +174,18 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final Version esVersion) {
         return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion,
                 restClientBuilder -> configureClient(restClientBuilder, restClientSettings()));
+    }
+
+    @AfterClass
+    public static void closeClient() throws IOException {
+        try {
+            IOUtils.close(clientYamlTestClient);
+        } finally {
+            blacklistPathMatchers = null;
+            restTestExecutionContext = null;
+            adminExecutionContext = null;
+            clientYamlTestClient = null;
+        }
     }
 
     /**
@@ -269,13 +283,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 throw new IllegalArgumentException(errorMessage.toString());
             }
         }
-    }
-
-    @AfterClass
-    public static void clearStatic() {
-        blacklistPathMatchers = null;
-        restTestExecutionContext = null;
-        adminExecutionContext = null;
     }
 
     private static Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {

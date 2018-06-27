@@ -27,6 +27,8 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.explain.ExplainRequest;
+import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -44,6 +46,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.join.aggregations.Children;
@@ -63,6 +66,7 @@ import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.Suggest;
@@ -135,7 +139,44 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         client().performRequest(HttpPut.METHOD_NAME, "/index3/doc/5", Collections.emptyMap(), doc);
         doc = new StringEntity("{\"field\":\"value2\"}", ContentType.APPLICATION_JSON);
         client().performRequest(HttpPut.METHOD_NAME, "/index3/doc/6", Collections.emptyMap(), doc);
-        client().performRequest(HttpPost.METHOD_NAME, "/index1,index2,index3/_refresh");
+
+        mappings = new StringEntity(
+            "{" +
+                "  \"mappings\": {" +
+                "    \"doc\": {" +
+                "      \"properties\": {" +
+                "        \"field1\": {" +
+                "          \"type\":  \"keyword\"," +
+                "          \"store\":  true" +
+                "        }," +
+                "        \"field2\": {" +
+                "          \"type\":  \"keyword\"," +
+                "          \"store\":  true" +
+                "        }" +
+                "      }" +
+                "    }" +
+                "  }" +
+                "}}",
+            ContentType.APPLICATION_JSON);
+        client().performRequest(HttpPut.METHOD_NAME, "/index4", Collections.emptyMap(), mappings);
+        doc = new StringEntity("{\"field1\":\"value1\", \"field2\":\"value2\"}", ContentType.APPLICATION_JSON);
+        client().performRequest(HttpPut.METHOD_NAME, "/index4/doc/1", Collections.emptyMap(), doc);
+        StringEntity aliasFilter = new StringEntity(
+            "{" +
+                "    \"actions\" : [" +
+                "        {" +
+                "            \"add\" : {" +
+                "                 \"index\" : \"index4\"," +
+                "                 \"alias\" : \"alias4\"," +
+                "                 \"filter\" : { \"term\" : { \"field2\" : \"value1\" } }" +
+                "            }" +
+                "        }" +
+                "    ]" +
+                "}",
+        ContentType.APPLICATION_JSON);
+        client().performRequest(HttpPost.METHOD_NAME, "/_aliases", Collections.emptyMap(), aliasFilter);
+
+        client().performRequest(HttpPost.METHOD_NAME, "/index1,index2,index3,index4/_refresh");
     }
 
     public void testSearchNoQuery() throws IOException {
@@ -833,6 +874,174 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertNotNull(actualSource);
 
         assertToXContentEquivalent(expectedSource, actualSource, XContentType.JSON);
+    }
+
+    public void testExplain() throws IOException {
+        {
+            ExplainRequest explainRequest = new ExplainRequest("index1", "doc", "1");
+            explainRequest.query(QueryBuilders.matchAllQuery());
+
+            ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
+
+            assertThat(explainResponse.getIndex(), equalTo("index1"));
+            assertThat(explainResponse.getType(), equalTo("doc"));
+            assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
+            assertTrue(explainResponse.isExists());
+            assertTrue(explainResponse.isMatch());
+            assertTrue(explainResponse.hasExplanation());
+            assertThat(explainResponse.getExplanation().getValue(), equalTo(1.0f));
+            assertNull(explainResponse.getGetResult());
+        }
+        {
+            ExplainRequest explainRequest = new ExplainRequest("index1", "doc", "1");
+            explainRequest.query(QueryBuilders.termQuery("field", "value1"));
+
+            ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
+
+            assertThat(explainResponse.getIndex(), equalTo("index1"));
+            assertThat(explainResponse.getType(), equalTo("doc"));
+            assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
+            assertTrue(explainResponse.isExists());
+            assertTrue(explainResponse.isMatch());
+            assertTrue(explainResponse.hasExplanation());
+            assertThat(explainResponse.getExplanation().getValue(), greaterThan(0.0f));
+            assertNull(explainResponse.getGetResult());
+        }
+        {
+            ExplainRequest explainRequest = new ExplainRequest("index1", "doc", "1");
+            explainRequest.query(QueryBuilders.termQuery("field", "value2"));
+
+            ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
+
+            assertThat(explainResponse.getIndex(), equalTo("index1"));
+            assertThat(explainResponse.getType(), equalTo("doc"));
+            assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
+            assertTrue(explainResponse.isExists());
+            assertFalse(explainResponse.isMatch());
+            assertTrue(explainResponse.hasExplanation());
+            assertNull(explainResponse.getGetResult());
+        }
+        {
+            ExplainRequest explainRequest = new ExplainRequest("index1", "doc", "1");
+            explainRequest.query(QueryBuilders.boolQuery()
+                .must(QueryBuilders.termQuery("field", "value1"))
+                .must(QueryBuilders.termQuery("field", "value2")));
+
+            ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
+
+            assertThat(explainResponse.getIndex(), equalTo("index1"));
+            assertThat(explainResponse.getType(), equalTo("doc"));
+            assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
+            assertTrue(explainResponse.isExists());
+            assertFalse(explainResponse.isMatch());
+            assertTrue(explainResponse.hasExplanation());
+            assertThat(explainResponse.getExplanation().getDetails().length, equalTo(2));
+            assertNull(explainResponse.getGetResult());
+        }
+    }
+
+    public void testExplainNonExistent() throws IOException {
+        {
+            ExplainRequest explainRequest = new ExplainRequest("non_existent_index", "doc", "1");
+            explainRequest.query(QueryBuilders.matchQuery("field", "value"));
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync));
+            assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
+            assertThat(exception.getIndex().getName(), equalTo("non_existent_index"));
+            assertThat(exception.getDetailedMessage(),
+                containsString("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+        }
+        {
+            ExplainRequest explainRequest = new ExplainRequest("index1", "doc", "999");
+            explainRequest.query(QueryBuilders.matchQuery("field", "value1"));
+
+            ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
+
+            assertThat(explainResponse.getIndex(), equalTo("index1"));
+            assertThat(explainResponse.getType(), equalTo("doc"));
+            assertThat(explainResponse.getId(), equalTo("999"));
+            assertFalse(explainResponse.isExists());
+            assertFalse(explainResponse.isMatch());
+            assertFalse(explainResponse.hasExplanation());
+            assertNull(explainResponse.getGetResult());
+        }
+    }
+
+    public void testExplainWithStoredFields() throws IOException {
+        {
+            ExplainRequest explainRequest = new ExplainRequest("index4", "doc", "1");
+            explainRequest.query(QueryBuilders.matchAllQuery());
+            explainRequest.storedFields(new String[]{"field1"});
+
+            ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
+
+            assertTrue(explainResponse.isExists());
+            assertTrue(explainResponse.isMatch());
+            assertTrue(explainResponse.hasExplanation());
+            assertThat(explainResponse.getExplanation().getValue(), equalTo(1.0f));
+            assertTrue(explainResponse.getGetResult().isExists());
+            assertThat(explainResponse.getGetResult().getFields().keySet(), equalTo(Collections.singleton("field1")));
+            assertThat(explainResponse.getGetResult().getFields().get("field1").getValue().toString(), equalTo("value1"));
+            assertTrue(explainResponse.getGetResult().isSourceEmpty());
+        }
+        {
+            ExplainRequest explainRequest = new ExplainRequest("index4", "doc", "1");
+            explainRequest.query(QueryBuilders.matchAllQuery());
+            explainRequest.storedFields(new String[]{"field1", "field2"});
+
+            ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
+
+            assertTrue(explainResponse.isExists());
+            assertTrue(explainResponse.isMatch());
+            assertTrue(explainResponse.hasExplanation());
+            assertThat(explainResponse.getExplanation().getValue(), equalTo(1.0f));
+            assertTrue(explainResponse.getGetResult().isExists());
+            assertThat(explainResponse.getGetResult().getFields().keySet().size(), equalTo(2));
+            assertThat(explainResponse.getGetResult().getFields().get("field1").getValue().toString(), equalTo("value1"));
+            assertThat(explainResponse.getGetResult().getFields().get("field2").getValue().toString(), equalTo("value2"));
+            assertTrue(explainResponse.getGetResult().isSourceEmpty());
+        }
+    }
+
+    public void testExplainWithFetchSource() throws IOException {
+        {
+            ExplainRequest explainRequest = new ExplainRequest("index4", "doc", "1");
+            explainRequest.query(QueryBuilders.matchAllQuery());
+            explainRequest.fetchSourceContext(new FetchSourceContext(true, new String[]{"field1"}, null));
+
+            ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
+
+            assertTrue(explainResponse.isExists());
+            assertTrue(explainResponse.isMatch());
+            assertTrue(explainResponse.hasExplanation());
+            assertThat(explainResponse.getExplanation().getValue(), equalTo(1.0f));
+            assertTrue(explainResponse.getGetResult().isExists());
+            assertThat(explainResponse.getGetResult().getSource(), equalTo(Collections.singletonMap("field1", "value1")));
+        }
+        {
+            ExplainRequest explainRequest = new ExplainRequest("index4", "doc", "1");
+            explainRequest.query(QueryBuilders.matchAllQuery());
+            explainRequest.fetchSourceContext(new FetchSourceContext(true, null, new String[] {"field2"}));
+
+            ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
+
+            assertTrue(explainResponse.isExists());
+            assertTrue(explainResponse.isMatch());
+            assertTrue(explainResponse.hasExplanation());
+            assertThat(explainResponse.getExplanation().getValue(), equalTo(1.0f));
+            assertTrue(explainResponse.getGetResult().isExists());
+            assertThat(explainResponse.getGetResult().getSource(), equalTo(Collections.singletonMap("field1", "value1")));
+        }
+    }
+
+    public void testExplainWithAliasFilter() throws IOException {
+        ExplainRequest explainRequest = new ExplainRequest("alias4", "doc", "1");
+        explainRequest.query(QueryBuilders.matchAllQuery());
+
+        ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
+
+        assertTrue(explainResponse.isExists());
+        assertFalse(explainResponse.isMatch());
     }
 
     public void testFieldCaps() throws IOException {

@@ -6,4 +6,4 @@
     - is_true:    cluster_uuid
     - is_true:    tagline
     - is_true:    version
-    - is_false:    version.number
+    - is_true:    version.number

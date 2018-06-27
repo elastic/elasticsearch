@@ -10,8 +10,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 
-import static org.hamcrest.Matchers.containsString;
-
 public class PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCase {
 
     public void testPasswordHashingAlgorithmBootstrapCheck() {

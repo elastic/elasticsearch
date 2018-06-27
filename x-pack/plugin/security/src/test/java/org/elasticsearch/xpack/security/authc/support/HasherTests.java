@@ -10,7 +10,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class HasherTests extends ESTestCase {

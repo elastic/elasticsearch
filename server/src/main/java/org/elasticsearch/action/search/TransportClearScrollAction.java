@@ -22,11 +22,10 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportClearScrollAction extends HandledTransportAction<ClearScrollRequest, ClearScrollResponse> {
@@ -35,18 +34,17 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
     private final SearchTransportService searchTransportService;
 
     @Inject
-    public TransportClearScrollAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportClearScrollAction(Settings settings, TransportService transportService,
                                       ClusterService clusterService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver,
                                       SearchTransportService searchTransportService) {
-        super(settings, ClearScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+        super(settings, ClearScrollAction.NAME, transportService, actionFilters,
             ClearScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
     }
 
     @Override
-    protected void doExecute(ClearScrollRequest request, final ActionListener<ClearScrollResponse> listener) {
+    protected void doExecute(Task task, ClearScrollRequest request, final ActionListener<ClearScrollResponse> listener) {
         Runnable runnable = new ClearScrollController(request, listener, clusterService.state().nodes(), logger, searchTransportService);
         runnable.run();
     }

@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class PutRollupJobAction extends Action<PutRollupJobAction.Request, PutRollupJobAction.Response> {
+public class PutRollupJobAction extends Action<PutRollupJobAction.Response> {
 
     public static final PutRollupJobAction INSTANCE = new PutRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/put";

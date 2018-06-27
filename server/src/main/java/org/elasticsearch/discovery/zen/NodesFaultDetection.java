@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -276,7 +277,7 @@ public class NodesFaultDetection extends FaultDetection {
 
     class PingRequestHandler implements TransportRequestHandler<PingRequest> {
         @Override
-        public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(PingRequest request, TransportChannel channel, Task task) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
             if (!localNode.equals(request.targetNode())) {

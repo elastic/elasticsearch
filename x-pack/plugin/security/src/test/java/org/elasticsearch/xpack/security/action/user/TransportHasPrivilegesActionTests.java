@@ -11,12 +11,12 @@ import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.mock.orig.Mockito;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -75,8 +75,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             return null;
         }).when(authorizationService).roles(eq(user), any(ActionListener.class));
 
-        action = new TransportHasPrivilegesAction(settings, threadPool, transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), authorizationService);
+        action = new TransportHasPrivilegesAction(settings, threadPool, transportService, mock(ActionFilters.class), authorizationService);
     }
 
     /**
@@ -94,7 +93,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 .privileges(DeleteAction.NAME, IndexAction.NAME)
                 .build());
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
 
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
@@ -130,7 +129,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 .privileges("delete", "index", "manage")
                 .build());
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
 
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
@@ -232,7 +231,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                         .build()
         );
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
 
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
@@ -300,7 +299,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         request.clusterPrivileges(clusterPrivileges);
         request.indexPrivileges(indicesPrivileges);
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
-        action.doExecute(request, future);
+        action.doExecute(mock(Task.class), request, future);
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
         return response;

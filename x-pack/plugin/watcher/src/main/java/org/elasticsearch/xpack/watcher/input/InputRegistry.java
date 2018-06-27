@@ -33,7 +33,7 @@ public class InputRegistry {
      * @param parser                The parser containing the input definition
      * @return                      A new input instance from the parser
      */
-    public ExecutableInput parse(String watchId, XContentParser parser) throws IOException {
+    public ExecutableInput<?, ?> parse(String watchId, XContentParser parser) throws IOException {
         String type = null;
 
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
@@ -42,7 +42,7 @@ public class InputRegistry {
         }
 
         XContentParser.Token token;
-        ExecutableInput input = null;
+        ExecutableInput<?, ?> input = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
@@ -50,7 +50,7 @@ public class InputRegistry {
                 throw new ElasticsearchParseException("could not parse input for watch [{}]. expected field indicating the input type, " +
                         "but found [{}] instead", watchId, token);
             } else if (token == XContentParser.Token.START_OBJECT) {
-                InputFactory factory = factories.get(type);
+                InputFactory<?, ?, ?> factory = factories.get(type);
                 if (factory == null) {
                     throw new ElasticsearchParseException("could not parse input for watch [{}]. unknown input type [{}]", watchId, type);
                 }

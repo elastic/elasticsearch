@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.Action;
 
-public class XPackUsageAction extends Action<XPackUsageRequest, XPackUsageResponse> {
+public class XPackUsageAction extends Action<XPackUsageResponse> {
 
     public static final String NAME = "cluster:monitor/xpack/usage";
     public static final XPackUsageAction INSTANCE = new XPackUsageAction();

@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 
-public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response> {
+public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Response> {
 
     public static final PreviewDatafeedAction INSTANCE = new PreviewDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/preview";

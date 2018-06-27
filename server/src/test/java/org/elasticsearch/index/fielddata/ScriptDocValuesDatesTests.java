@@ -26,17 +26,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.PermissionCollection;
-import java.security.Permissions;
-import java.security.PrivilegedAction;
-import java.security.ProtectionDomain;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class ScriptDocValuesDatesTests extends ESTestCase {
     public void test() throws IOException {

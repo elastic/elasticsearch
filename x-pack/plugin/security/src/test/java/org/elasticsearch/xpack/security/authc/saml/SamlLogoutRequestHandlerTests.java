@@ -213,7 +213,7 @@ public class SamlLogoutRequestHandlerTests extends SamlTestCase {
         final X509Credential spCredential = (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0);
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Collections.singleton("*"), spCredential);
         final SpConfiguration sp = new SpConfiguration("https://sp.test/", "https://sp.test/saml/asc", LOGOUT_URL,
-                signingConfiguration, Arrays.asList(spCredential));
+            signingConfiguration, Arrays.asList(spCredential), Collections.emptyList());
         final Environment env = TestEnvironment.newEnvironment(globalSettings);
         return new SamlLogoutRequestHandler(
                 new RealmConfig("saml_test", realmSettings, globalSettings, env, new ThreadContext(globalSettings)),

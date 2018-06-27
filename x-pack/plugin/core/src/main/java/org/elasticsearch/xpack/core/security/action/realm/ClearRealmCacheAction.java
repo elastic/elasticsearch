@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.security.action.realm;
 
 import org.elasticsearch.action.Action;
 
-public class ClearRealmCacheAction extends Action<ClearRealmCacheRequest, ClearRealmCacheResponse> {
+public class ClearRealmCacheAction extends Action<ClearRealmCacheResponse> {
 
     public static final ClearRealmCacheAction INSTANCE = new ClearRealmCacheAction();
     public static final String NAME = "cluster:admin/xpack/security/realm/cache/clear";

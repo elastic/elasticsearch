@@ -23,12 +23,10 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.HttpTransportSettings;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
@@ -491,7 +489,8 @@ public final class ThreadContext implements Closeable, Writeable {
             final List<String> existingValues = newResponseHeaders.get(key);
             if (existingValues != null) {
                 final Set<String> existingUniqueValues = existingValues.stream().map(uniqueValue).collect(Collectors.toSet());
-                assert existingValues.size() == existingUniqueValues.size();
+                assert existingValues.size() == existingUniqueValues.size() :
+                        "existing values: [" + existingValues + "], existing unique values [" + existingUniqueValues + "]";
                 if (existingUniqueValues.contains(uniqueValue.apply(value))) {
                     return this;
                 }

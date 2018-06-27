@@ -22,7 +22,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -70,14 +69,16 @@ public final class AnalysisRegistry implements Closeable {
                             Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers,
                             Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
                             Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
-                            Map<String, PreConfiguredTokenizer> preConfiguredTokenizers) {
+                            Map<String, PreConfiguredTokenizer> preConfiguredTokenizers,
+                            Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers) {
         this.environment = environment;
         this.charFilters = unmodifiableMap(charFilters);
         this.tokenFilters = unmodifiableMap(tokenFilters);
         this.tokenizers = unmodifiableMap(tokenizers);
         this.analyzers = unmodifiableMap(analyzers);
         this.normalizers = unmodifiableMap(normalizers);
-        prebuiltAnalysis = new PrebuiltAnalysis(preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers);
+        prebuiltAnalysis =
+            new PrebuiltAnalysis(preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers, preConfiguredAnalyzers);
     }
 
     /**
@@ -165,7 +166,18 @@ public final class AnalysisRegistry implements Closeable {
          */
         tokenFilters.put("synonym", requiresAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings)));
         tokenFilters.put("synonym_graph", requiresAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings)));
-        return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.preConfiguredTokenFilters);
+
+        Map<String, TokenFilterFactory> mappings
+            = buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.preConfiguredTokenFilters);
+
+        // ReferringTokenFilters require references to other tokenfilters, so we pass these in
+        // after all factories have been registered
+        for (TokenFilterFactory tff : mappings.values()) {
+            if (tff instanceof ReferringFilterFactory) {
+                ((ReferringFilterFactory)tff).setReferences(mappings);
+            }
+        }
+        return mappings;
     }
 
     public Map<String, TokenizerFactory> buildTokenizerFactories(IndexSettings indexSettings) throws IOException {
@@ -398,13 +410,15 @@ public final class AnalysisRegistry implements Closeable {
         private PrebuiltAnalysis(
                 Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
                 Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
-                Map<String, PreConfiguredTokenizer> preConfiguredTokenizers) {
-            Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = new HashMap<>();
+                Map<String, PreConfiguredTokenizer> preConfiguredTokenizers,
+                Map<String, PreBuiltAnalyzerProviderFactory> preConfiguredAnalyzers) {
 
-            // Analyzers
+            Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = new HashMap<>();
+            analyzerProviderFactories.putAll(preConfiguredAnalyzers);
+            // Pre-build analyzers
             for (PreBuiltAnalyzers preBuiltAnalyzerEnum : PreBuiltAnalyzers.values()) {
                 String name = preBuiltAnalyzerEnum.name().toLowerCase(Locale.ROOT);
-                analyzerProviderFactories.put(name, new PreBuiltAnalyzerProviderFactory(name, AnalyzerScope.INDICES, preBuiltAnalyzerEnum.getAnalyzer(Version.CURRENT)));
+                analyzerProviderFactories.put(name, new PreBuiltAnalyzerProviderFactory(name, preBuiltAnalyzerEnum));
             }
 
             this.analyzerProviderFactories = Collections.unmodifiableMap(analyzerProviderFactories);
@@ -429,17 +443,10 @@ public final class AnalysisRegistry implements Closeable {
             return analyzerProviderFactories.get(name);
         }
 
-        Analyzer analyzer(String name) {
-            PreBuiltAnalyzerProviderFactory  analyzerProviderFactory = (PreBuiltAnalyzerProviderFactory) analyzerProviderFactories.get(name);
-            if (analyzerProviderFactory == null) {
-                return null;
-            }
-            return analyzerProviderFactory.analyzer();
-        }
-
         @Override
         public void close() throws IOException {
-            IOUtils.close(analyzerProviderFactories.values().stream().map((a) -> ((PreBuiltAnalyzerProviderFactory)a).analyzer()).collect(Collectors.toList()));
+            IOUtils.close(analyzerProviderFactories.values().stream()
+                .map((a) -> ((PreBuiltAnalyzerProviderFactory)a)).collect(Collectors.toList()));
         }
     }
 

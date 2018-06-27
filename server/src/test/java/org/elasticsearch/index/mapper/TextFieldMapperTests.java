@@ -37,6 +37,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -54,7 +55,6 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -86,6 +86,9 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             .putList("index.analysis.filter.mySynonyms.synonyms", Collections.singletonList("car, auto"))
             .put("index.analysis.analyzer.synonym.tokenizer", "standard")
             .put("index.analysis.analyzer.synonym.filter", "mySynonyms")
+            // Stop filter remains in server as it is part of lucene-core
+            .put("index.analysis.analyzer.my_stop_analyzer.tokenizer", "standard")
+            .put("index.analysis.analyzer.my_stop_analyzer.filter", "stop")
             .build();
         indexService = createIndex("test", settings);
         parser = indexService.mapperService().documentMapperParser();
@@ -620,7 +623,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
-                .field("analyzer", "english")
+                .field("analyzer", "standard")
                 .startObject("index_prefixes").endObject()
                 .field("index_options", "offsets")
                 .endObject().endObject().endObject().endObject());
@@ -636,9 +639,9 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
-                .field("analyzer", "english")
+                .field("analyzer", "standard")
                 .startObject("index_prefixes").endObject()
-                .field("index_options", "positions")
+                .field("index_options", "freqs")
                 .endObject().endObject().endObject().endObject());
 
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -653,7 +656,28 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
-                .field("analyzer", "english")
+                .field("analyzer", "standard")
+                .startObject("index_prefixes").endObject()
+                .field("index_options", "positions")
+                .endObject().endObject().endObject().endObject());
+
+            DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+            FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
+                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
+            } else {
+                assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            }
+            assertFalse(ft.storeTermVectors());
+        }
+
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("analyzer", "standard")
                 .startObject("index_prefixes").endObject()
                 .field("term_vector", "with_positions_offsets")
                 .endObject().endObject().endObject().endObject());
@@ -662,7 +686,11 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
             FieldType ft = prefix.fieldType;
-            assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
+                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
+            } else {
+                assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            }
             assertTrue(ft.storeTermVectorOffsets());
         }
 
@@ -670,7 +698,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
-                .field("analyzer", "english")
+                .field("analyzer", "standard")
                 .startObject("index_prefixes").endObject()
                 .field("term_vector", "with_positions")
                 .endObject().endObject().endObject().endObject());
@@ -679,7 +707,11 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
             FieldType ft = prefix.fieldType;
-            assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
+                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
+            } else {
+                assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            }
             assertFalse(ft.storeTermVectorOffsets());
         }
     }
@@ -695,7 +727,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
-            .field("analyzer", "english")
+            .field("analyzer", "my_stop_analyzer")
             .field("index_phrases", true)
             .endObject()
             .startObject("synfield")
@@ -712,20 +744,20 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         queryShardContext.getMapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
         Query q = new MatchPhraseQueryBuilder("field", "two words").toQuery(queryShardContext);
-        assertThat(q, is(new PhraseQuery("field._index_phrase", "two word")));
+        assertThat(q, is(new PhraseQuery("field._index_phrase", "two words")));
 
         Query q2 = new MatchPhraseQueryBuilder("field", "three words here").toQuery(queryShardContext);
-        assertThat(q2, is(new PhraseQuery("field._index_phrase", "three word", "word here")));
+        assertThat(q2, is(new PhraseQuery("field._index_phrase", "three words", "words here")));
 
         Query q3 = new MatchPhraseQueryBuilder("field", "two words").slop(1).toQuery(queryShardContext);
-        assertThat(q3, is(new PhraseQuery(1, "field", "two", "word")));
+        assertThat(q3, is(new PhraseQuery(1, "field", "two", "words")));
 
         Query q4 = new MatchPhraseQueryBuilder("field", "singleton").toQuery(queryShardContext);
         assertThat(q4, is(new TermQuery(new Term("field", "singleton"))));
 
         Query q5 = new MatchPhraseQueryBuilder("field", "sparkle a stopword").toQuery(queryShardContext);
         assertThat(q5,
-            is(new PhraseQuery.Builder().add(new Term("field", "sparkl")).add(new Term("field", "stopword"), 2).build()));
+            is(new PhraseQuery.Builder().add(new Term("field", "sparkle")).add(new Term("field", "stopword"), 2).build()));
 
         Query q6 = new MatchPhraseQueryBuilder("synfield", "motor car").toQuery(queryShardContext);
         assertThat(q6, is(new MultiPhraseQuery.Builder()
@@ -748,7 +780,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             assertTrue(ts.incrementToken());
-            assertEquals("some english", termAtt.toString());
+            assertEquals("Some English", termAtt.toString());
         }
 
         {
@@ -791,7 +823,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
-                .field("analyzer", "english")
+                .field("analyzer", "standard")
                 .startObject("index_prefixes")
                 .field("min_chars", 1)
                 .field("max_chars", 10)
@@ -825,7 +857,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
-                .field("analyzer", "english")
+                .field("analyzer", "standard")
                 .startObject("index_prefixes").endObject()
                 .endObject().endObject()
                 .endObject().endObject());
@@ -850,7 +882,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             String illegalMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
-                .field("analyzer", "english")
+                .field("analyzer", "standard")
                 .startObject("index_prefixes")
                 .field("min_chars", 1)
                 .field("max_chars", 10)
@@ -873,7 +905,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             String badConfigMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
-                .field("analyzer", "english")
+                .field("analyzer", "standard")
                 .startObject("index_prefixes")
                 .field("min_chars", 11)
                 .field("max_chars", 10)
@@ -890,7 +922,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             String badConfigMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
-                .field("analyzer", "english")
+                .field("analyzer", "standard")
                 .startObject("index_prefixes")
                 .field("min_chars", 0)
                 .field("max_chars", 10)
@@ -907,7 +939,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             String badConfigMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
-                .field("analyzer", "english")
+                .field("analyzer", "standard")
                 .startObject("index_prefixes")
                 .field("min_chars", 1)
                 .field("max_chars", 25)
@@ -924,7 +956,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             String badConfigMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
-                .field("analyzer", "english")
+                .field("analyzer", "standard")
                 .field("index_prefixes", (String) null)
                 .endObject().endObject()
                 .endObject().endObject());

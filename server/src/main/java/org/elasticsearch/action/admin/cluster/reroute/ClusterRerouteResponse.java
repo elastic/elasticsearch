@@ -63,7 +63,7 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             super.readFrom(in);
             state = ClusterState.readFrom(in, null);
             explanations = RoutingExplanations.readFrom(in);
@@ -76,7 +76,7 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             super.writeTo(out);
             state.writeTo(out);
             RoutingExplanations.writeTo(explanations, out);

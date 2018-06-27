@@ -14,7 +14,6 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -49,15 +48,16 @@ import java.util.stream.Stream;
 public class TransportStopDatafeedAction extends TransportTasksAction<TransportStartDatafeedAction.DatafeedTask, StopDatafeedAction.Request,
         StopDatafeedAction.Response, StopDatafeedAction.Response> {
 
+    private final ThreadPool threadPool;
     private final PersistentTasksService persistentTasksService;
 
     @Inject
     public TransportStopDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       ClusterService clusterService, PersistentTasksService persistentTasksService) {
-        super(settings, StopDatafeedAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, StopDatafeedAction.Request::new, StopDatafeedAction.Response::new,
-                MachineLearning.UTILITY_THREAD_POOL_NAME);
+                                       ActionFilters actionFilters, ClusterService clusterService,
+                                       PersistentTasksService persistentTasksService) {
+        super(settings, StopDatafeedAction.NAME, clusterService, transportService, actionFilters,
+            StopDatafeedAction.Request::new, StopDatafeedAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
+        this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;
     }
 
@@ -222,10 +222,10 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
     }
 
     @Override
-    protected void taskOperation(StopDatafeedAction.Request request, TransportStartDatafeedAction.DatafeedTask datafeedTaskTask,
+    protected void taskOperation(StopDatafeedAction.Request request, TransportStartDatafeedAction.DatafeedTask datafeedTask,
                                  ActionListener<StopDatafeedAction.Response> listener) {
-        DatafeedState taskStatus = DatafeedState.STOPPING;
-        datafeedTaskTask.updatePersistentStatus(taskStatus, ActionListener.wrap(task -> {
+        DatafeedState taskState = DatafeedState.STOPPING;
+        datafeedTask.updatePersistentTaskState(taskState, ActionListener.wrap(task -> {
                     // we need to fork because we are now on a network threadpool
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                         @Override
@@ -235,7 +235,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
 
                         @Override
                         protected void doRun() throws Exception {
-                            datafeedTaskTask.stop("stop_datafeed (api)", request.getStopTimeout());
+                            datafeedTask.stop("stop_datafeed (api)", request.getStopTimeout());
                             listener.onResponse(new StopDatafeedAction.Response(true));
                         }
                     });

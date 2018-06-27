@@ -57,8 +57,6 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
-
 
     @Inject
     public TransportPutRollupJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
@@ -70,7 +68,6 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -95,8 +92,8 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
-                .indices(request.getConfig().getIndexPattern())
-                .fields(request.getConfig().getAllFields().toArray(new String[0]));
+            .indices(request.getConfig().getIndexPattern())
+            .fields(request.getConfig().getAllFields().toArray(new String[0]));
 
         client.fieldCaps(fieldCapsRequest, new ActionListener<FieldCapabilitiesResponse>() {
             @Override

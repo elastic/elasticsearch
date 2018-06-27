@@ -98,6 +98,7 @@ by the value of the `access_token`.
 --------------------------------------------------
 curl -H "Authorization: Bearer dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==" http://localhost:9200/_cluster/health
 --------------------------------------------------
+// NOTCONSOLE
 
 [[security-api-refresh-token]]
 To extend the life of an existing token, the token api may be called again with the refresh

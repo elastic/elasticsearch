@@ -31,7 +31,7 @@ import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocumen
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractStringProcessorTestCase extends ESTestCase {
+public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
 
     protected abstract AbstractStringProcessor newProcessor(String field, boolean ignoreMissing, String targetField);
 
@@ -39,7 +39,7 @@ public abstract class AbstractStringProcessorTestCase extends ESTestCase {
         return input;
     }
 
-    protected abstract String expectedResult(String input);
+    protected abstract T expectedResult(String input);
 
     public void testProcessor() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());

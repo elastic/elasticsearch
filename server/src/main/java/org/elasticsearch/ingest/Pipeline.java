@@ -32,10 +32,10 @@ import java.util.Map;
  */
 public final class Pipeline {
 
-    static final String DESCRIPTION_KEY = "description";
-    static final String PROCESSORS_KEY = "processors";
-    static final String VERSION_KEY = "version";
-    static final String ON_FAILURE_KEY = "on_failure";
+    public static final String DESCRIPTION_KEY = "description";
+    public static final String PROCESSORS_KEY = "processors";
+    public static final String VERSION_KEY = "version";
+    public static final String ON_FAILURE_KEY = "on_failure";
 
     private final String id;
     @Nullable

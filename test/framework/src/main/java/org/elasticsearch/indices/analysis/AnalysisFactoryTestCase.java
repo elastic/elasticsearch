@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
-import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
 import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
@@ -79,7 +78,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // exposed in ES
         .put("classic", MovedToAnalysisCommon.class)
         .put("edgengram", MovedToAnalysisCommon.class)
-        .put("keyword", KeywordTokenizerFactory.class)
+        .put("keyword", MovedToAnalysisCommon.class)
         .put("letter", MovedToAnalysisCommon.class)
         .put("lowercase", MovedToAnalysisCommon.class)
         .put("ngram", MovedToAnalysisCommon.class)
@@ -217,6 +216,11 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // should we expose it, or maybe think about higher level integration of the
         // fake term frequency feature (LUCENE-7854)
         .put("delimitedtermfrequency",    Void.class)
+        // LUCENE-8273: ProtectedTermFilterFactory allows analysis chains to skip
+        // particular token filters based on the attributes of the current token.
+        .put("protectedterm", Void.class)
+        // LUCENE-8332
+        .put("concatenategraph", Void.class)
 
         .immutableMap();
 

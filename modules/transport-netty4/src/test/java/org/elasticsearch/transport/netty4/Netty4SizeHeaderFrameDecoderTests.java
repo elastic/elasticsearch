@@ -70,7 +70,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
         nettyTransport.start();
 
         TransportAddress[] boundAddresses = nettyTransport.boundAddress().boundAddresses();
-        TransportAddress transportAddress = (TransportAddress) randomFrom(boundAddresses);
+        TransportAddress transportAddress = randomFrom(boundAddresses);
         port = transportAddress.address().getPort();
         host = transportAddress.address().getAddress();
     }

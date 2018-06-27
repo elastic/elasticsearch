@@ -1,0 +1,81 @@
+[[java-rest-high-snapshot-verify-repository]]
+=== Snapshot Verify Repository API
+
+The Snapshot Verify Repository API allows to verify a registered repository.
+
+[[java-rest-high-snapshot-verify-repository-request]]
+==== Snapshot Verify Repository Request
+
+A `VerifyRepositoryRequest`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[verify-repository-request]
+--------------------------------------------------
+
+==== Optional Arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-repository-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the settings were applied
+as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the settings were applied
+as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[verify-repository-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+[[java-rest-high-snapshot-verify-repository-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[verify-repository-execute]
+--------------------------------------------------
+
+[[java-rest-high-snapshot-verify-repository-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a snapshot verify repository requires both the
+`VerifyRepositoryRequest` instance and an `ActionListener` instance to be
+passed to the asynchronous method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[verify-repository-execute-async]
+--------------------------------------------------
+<1> The `VerifyRepositoryRequest` to execute and the `ActionListener`
+to use when the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `VerifyRepositoryResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[verify-repository-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of a failure. The raised exception is provided as an argument
+
+[[java-rest-high-cluster-verify-repository-response]]
+==== Snapshot Verify Repository Response
+
+The returned `VerifyRepositoryResponse` allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[verify-repository-response]
+--------------------------------------------------

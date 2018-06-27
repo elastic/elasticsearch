@@ -19,7 +19,7 @@ answers for frequently asked questions.
 * <<trb-security-setup>>
 
 
-To get help, see <<xpack-help>>.
+To get help, see <<help>>.
 
 [[security-trb-settings]]
 === Some settings are not returned via the nodes settings API

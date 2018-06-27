@@ -20,8 +20,7 @@ import java.util.TimeZone;
 /**
  * Builder for the request for the sql action for translating SQL queries into ES requests
  */
-public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslateRequest, SqlTranslateResponse,
-        SqlTranslateRequestBuilder> {
+public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslateRequest, SqlTranslateResponse> {
     public SqlTranslateRequestBuilder(ElasticsearchClient client, SqlTranslateAction action) {
         this(client, action, Mode.PLAIN, null, null, Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE,
             Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT);

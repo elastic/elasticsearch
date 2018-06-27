@@ -378,7 +378,8 @@ PUT /catalan_example
       "filter": {
         "catalan_elision": {
           "type":       "elision",
-          "articles":   [ "d", "l", "m", "n", "s", "t"]
+          "articles":   [ "d", "l", "m", "n", "s", "t"],
+          "articles_case": true
         },
         "catalan_stop": {
           "type":       "stop",
@@ -1156,7 +1157,8 @@ PUT /italian_example
                 "nell", "sull", "coll", "pell",
                 "gl", "agl", "dagl", "degl", "negl",
                 "sugl", "un", "m", "t", "s", "v", "d"
-          ]
+          ],
+          "articles_case": true
         },
         "italian_stop": {
           "type":       "stop",

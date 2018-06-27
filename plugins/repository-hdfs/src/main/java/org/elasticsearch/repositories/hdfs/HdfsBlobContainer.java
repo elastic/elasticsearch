@@ -23,7 +23,6 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -31,14 +30,12 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
+import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -69,33 +66,28 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlob(String blobName) throws IOException {
-        if (!blobExists(blobName)) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+        try {
+            if (store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true)) == false) {
+                throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+            }
+        } catch (FileNotFoundException fnfe) {
+            throw new NoSuchFileException("[" + blobName + "] blob not found");
         }
-
-        store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true));
-    }
-
-    @Override
-    public void move(String sourceBlobName, String targetBlobName) throws IOException {
-        store.execute((Operation<Void>) fileContext -> {
-            fileContext.rename(new Path(path, sourceBlobName), new Path(path, targetBlobName));
-            return null;
-        });
     }
 
     @Override
     public InputStream readBlob(String blobName) throws IOException {
-        if (!blobExists(blobName)) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
-        }
         // FSDataInputStream does buffering internally
         // FSDataInputStream can open connections on read() or skip() so we wrap in
         // HDFSPrivilegedInputSteam which will ensure that underlying methods will
         // be called with the proper privileges.
-        return store.execute(fileContext ->
-            new HDFSPrivilegedInputSteam(fileContext.open(new Path(path, blobName), bufferSize), securityContext)
-        );
+        try {
+            return store.execute(fileContext ->
+                new HDFSPrivilegedInputSteam(fileContext.open(new Path(path, blobName), bufferSize), securityContext)
+            );
+        } catch (FileNotFoundException fnfe) {
+            throw new NoSuchFileException("[" + blobName + "] blob not found");
+        }
     }
 
     @Override

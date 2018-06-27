@@ -59,14 +59,14 @@ public class TransportDeleteRollupJobAction
         TimeValue timeout = new TimeValue(60, TimeUnit.SECONDS); // TODO make this a config option
 
         // Step 1. Cancel the persistent task
-        persistentTasksService.cancelPersistentTask(jobId, new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
+        persistentTasksService.sendRemoveRequest(jobId, new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
             @Override
             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
                 logger.debug("Request to cancel Task for Rollup job [" + jobId + "] successful.");
 
                 // Step 2. Wait for the task to finish cancellation internally
-                persistentTasksService.waitForPersistentTaskStatus(jobId, Objects::isNull, timeout,
-                        new PersistentTasksService.WaitForPersistentTaskStatusListener<RollupJob>() {
+                persistentTasksService.waitForPersistentTaskCondition(jobId, Objects::isNull, timeout,
+                        new PersistentTasksService.WaitForPersistentTaskListener<RollupJob>() {
                             @Override
                             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<RollupJob> task) {
                                 logger.debug("Task for Rollup job [" + jobId + "] successfully canceled.");

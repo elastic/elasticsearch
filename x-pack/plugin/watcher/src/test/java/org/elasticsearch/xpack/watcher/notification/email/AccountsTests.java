@@ -10,7 +10,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.HashSet;
 
 import static org.hamcrest.Matchers.equalTo;

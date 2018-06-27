@@ -23,7 +23,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import io.netty.util.internal.StringUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -35,7 +34,6 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportStatus;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 
 final class ESLoggingHandler extends LoggingHandler {
 
@@ -103,6 +101,10 @@ final class ESLoggingHandler extends LoggingHandler {
                             // the first bytes in the message is the context headers
                             try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
                                 context.readHeaders(in);
+                            }
+                            // now we decode the features
+                            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+                                in.readStringArray();
                             }
                             // now we can decode the action name
                             sb.append(", action: ").append(in.readString());

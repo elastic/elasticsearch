@@ -19,7 +19,6 @@
 package org.elasticsearch.indices.flush;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -55,6 +54,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -502,18 +502,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         if (indexShard.routingEntry().primary() == false) {
             throw new IllegalStateException("[" + request.shardId() +"] expected a primary shard");
         }
-        if (Assertions.ENABLED) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("in flight operations {}, acquirers {}", indexShard.getActiveOperationsCount(), indexShard.getActiveOperations());
-            }
-        }
         int opCount = indexShard.getActiveOperationsCount();
-        // Need to snapshot the debug info twice as it's updated concurrently with the permit count.
-        if (Assertions.ENABLED) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("in flight operations {}, acquirers {}", indexShard.getActiveOperationsCount(), indexShard.getActiveOperations());
-            }
-        }
         return new InFlightOpsResponse(opCount);
     }
 
@@ -790,7 +779,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     private final class PreSyncedFlushTransportHandler implements TransportRequestHandler<PreShardSyncedFlushRequest> {
 
         @Override
-        public void messageReceived(PreShardSyncedFlushRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(PreShardSyncedFlushRequest request, TransportChannel channel, Task task) throws Exception {
             channel.sendResponse(performPreSyncedFlush(request));
         }
     }
@@ -798,7 +787,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     private final class SyncedFlushTransportHandler implements TransportRequestHandler<ShardSyncedFlushRequest> {
 
         @Override
-        public void messageReceived(ShardSyncedFlushRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(ShardSyncedFlushRequest request, TransportChannel channel, Task task) throws Exception {
             channel.sendResponse(performSyncedFlush(request));
         }
     }
@@ -806,7 +795,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     private final class InFlightOpCountTransportHandler implements TransportRequestHandler<InFlightOpsRequest> {
 
         @Override
-        public void messageReceived(InFlightOpsRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(InFlightOpsRequest request, TransportChannel channel, Task task) throws Exception {
             channel.sendResponse(performInFlightOps(request));
         }
     }

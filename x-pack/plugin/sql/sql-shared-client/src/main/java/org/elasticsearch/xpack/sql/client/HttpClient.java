@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.client;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
@@ -30,6 +28,8 @@ import org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.AccessController;
@@ -67,8 +67,8 @@ public class HttpClient {
     public SqlQueryResponse queryInit(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         SqlQueryRequest sqlRequest = new SqlQueryRequest(Mode.PLAIN, query, Collections.emptyList(), null,
-                TimeZone.getTimeZone("UTC"), fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()),
-                TimeValue.timeValueMillis(cfg.pageTimeout()));
+            TimeZone.getTimeZone("UTC"), fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()),
+            TimeValue.timeValueMillis(cfg.pageTimeout()));
         return query(sqlRequest);
     }
 
@@ -84,83 +84,92 @@ public class HttpClient {
 
     public boolean queryClose(String cursor) throws SQLException {
         SqlClearCursorResponse response = post(Protocol.CLEAR_CURSOR_REST_ENDPOINT,
-                new SqlClearCursorRequest(Mode.PLAIN, cursor),
-                SqlClearCursorResponse::fromXContent);
+            new SqlClearCursorRequest(Mode.PLAIN, cursor),
+            SqlClearCursorResponse::fromXContent);
         return response.isSucceeded();
     }
 
     private <Request extends AbstractSqlRequest, Response> Response post(String path, Request request,
             CheckedFunction<XContentParser, Response, IOException> responseParser)
             throws SQLException {
-        BytesReference requestBytes = toXContent(request);
+        byte[] requestBytes = toXContent(request);
         String query = "error_trace&mode=" + request.mode();
-        Tuple<XContentType, BytesReference> response =
-                AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Tuple<XContentType, BytesReference>>>) () ->
+        Tuple<XContentType, byte[]> response =
+            AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Tuple<XContentType, byte[]>>>) () ->
                 JreHttpUrlConnection.http(path, query, cfg, con ->
-                        con.request(
-                                requestBytes::writeTo,
-                                this::readFrom,
-                                "POST"
-                        )
+                    con.request(
+                        (out) -> out.write(requestBytes),
+                        this::readFrom,
+                        "POST"
+                    )
                 )).getResponseOrThrowException();
         return fromXContent(response.v1(), response.v2(), responseParser);
     }
 
     private boolean head(String path, long timeoutInMs) throws SQLException {
         ConnectionConfiguration pingCfg = new ConnectionConfiguration(cfg.baseUri(), cfg.connectionString(),
-                cfg.connectTimeout(), timeoutInMs, cfg.queryTimeout(), cfg.pageTimeout(), cfg.pageSize(),
-                cfg.authUser(), cfg.authPass(), cfg.sslConfig(), cfg.proxyConfig());
+            cfg.connectTimeout(), timeoutInMs, cfg.queryTimeout(), cfg.pageTimeout(), cfg.pageSize(),
+            cfg.authUser(), cfg.authPass(), cfg.sslConfig(), cfg.proxyConfig());
         try {
             return AccessController.doPrivileged((PrivilegedAction<Boolean>) () ->
-                    JreHttpUrlConnection.http(path, "error_trace", pingCfg, JreHttpUrlConnection::head));
+                JreHttpUrlConnection.http(path, "error_trace", pingCfg, JreHttpUrlConnection::head));
         } catch (ClientException ex) {
             throw new SQLException("Cannot ping server", ex);
         }
     }
 
     private <Response> Response get(String path, CheckedFunction<XContentParser, Response, IOException> responseParser)
-            throws SQLException {
-        Tuple<XContentType, BytesReference> response =
-                AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Tuple<XContentType, BytesReference>>>) () ->
+        throws SQLException {
+        Tuple<XContentType, byte[]> response =
+            AccessController.doPrivileged((PrivilegedAction<ResponseOrException<Tuple<XContentType, byte[]>>>) () ->
                 JreHttpUrlConnection.http(path, "error_trace", cfg, con ->
-                        con.request(
-                                null,
-                                this::readFrom,
-                                "GET"
-                        )
+                    con.request(
+                        null,
+                        this::readFrom,
+                        "GET"
+                    )
                 )).getResponseOrThrowException();
         return fromXContent(response.v1(), response.v2(), responseParser);
     }
 
-    private static <Request extends ToXContent> BytesReference toXContent(Request xContent) {
-        try {
-            return XContentHelper.toXContent(xContent, REQUEST_BODY_CONTENT_TYPE, false);
+    private static <Request extends ToXContent> byte[] toXContent(Request xContent) {
+        try(ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
+            try (XContentBuilder xContentBuilder = new XContentBuilder(REQUEST_BODY_CONTENT_TYPE.xContent(), buffer)) {
+                if (xContent.isFragment()) {
+                    xContentBuilder.startObject();
+                }
+                xContent.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+                if (xContent.isFragment()) {
+                    xContentBuilder.endObject();
+                }
+            }
+            return buffer.toByteArray();
         } catch (IOException ex) {
             throw new ClientException("Cannot serialize request", ex);
         }
     }
 
-    private Tuple<XContentType, BytesReference> readFrom(InputStream inputStream, Function<String, String> headers) {
+    private Tuple<XContentType, byte[]> readFrom(InputStream inputStream, Function<String, String> headers) {
         String contentType = headers.apply("Content-Type");
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + contentType);
         }
-        BytesStreamOutput out = new BytesStreamOutput();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             Streams.copy(inputStream, out);
         } catch (IOException ex) {
             throw new ClientException("Cannot deserialize response", ex);
         }
-        return new Tuple<>(xContentType, out.bytes());
+        return new Tuple<>(xContentType, out.toByteArray());
 
     }
 
-    private <Response> Response fromXContent(XContentType xContentType, BytesReference bytesReference,
+    private <Response> Response fromXContent(XContentType xContentType, byte[] bytesReference,
                                              CheckedFunction<XContentParser, Response, IOException> responseParser) {
-        try (InputStream stream = bytesReference.streamInput();
+        try (InputStream stream = new ByteArrayInputStream(bytesReference);
              XContentParser parser = xContentType.xContent().createParser(registry,
-                     LoggingDeprecationHandler.INSTANCE, stream)) {
+                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
             return responseParser.apply(parser);
         } catch (IOException ex) {
             throw new ClientException("Cannot parse response", ex);

@@ -59,6 +59,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     private static String indexedShapeType;
     private static String indexedShapePath;
     private static String indexedShapeIndex;
+    private static String indexedShapeRouting;
     private static ShapeBuilder indexedShapeToReturn;
 
     @Override
@@ -84,6 +85,10 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             if (randomBoolean()) {
                 indexedShapePath = randomAlphaOfLengthBetween(3, 20);
                 builder.indexedShapePath(indexedShapePath);
+            }
+            if (randomBoolean()) {
+                indexedShapeRouting = randomAlphaOfLengthBetween(3, 20);
+                builder.indexedShapeRouting(indexedShapeRouting);
             }
         }
         if (randomBoolean()) {
@@ -112,6 +117,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         assertThat(indexedShapeType, notNullValue());
         assertThat(getRequest.id(), equalTo(indexedShapeId));
         assertThat(getRequest.type(), equalTo(indexedShapeType));
+        assertThat(getRequest.routing(), equalTo(indexedShapeRouting));
         String expectedShapeIndex = indexedShapeIndex == null ? GeoShapeQueryBuilder.DEFAULT_SHAPE_INDEX_NAME : indexedShapeIndex;
         assertThat(getRequest.index(), equalTo(expectedShapeIndex));
         String expectedShapePath = indexedShapePath == null ? GeoShapeQueryBuilder.DEFAULT_SHAPE_FIELD_NAME : indexedShapePath;
@@ -136,6 +142,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         indexedShapeType = null;
         indexedShapePath = null;
         indexedShapeIndex = null;
+        indexedShapeRouting = null;
     }
 
     @Override

@@ -11,10 +11,8 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -24,7 +22,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedStateDocIdsIterator;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
@@ -84,12 +81,7 @@ public class UnusedStateRemover implements MlDataRemover {
     }
 
     private Set<String> getJobIds() {
-        ClusterState clusterState = clusterService.state();
-        MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
-        if (mlMetadata != null) {
-            return mlMetadata.getJobs().keySet();
-        }
-        return Collections.emptySet();
+        return MlMetadata.getMlMetadata(clusterService.state()).getJobs().keySet();
     }
 
     private void executeDeleteUnusedStateDocs(BulkRequestBuilder deleteUnusedStateRequestBuilder, ActionListener<Boolean> listener) {

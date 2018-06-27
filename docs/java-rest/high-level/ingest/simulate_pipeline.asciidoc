@@ -1,0 +1,90 @@
+[[java-rest-high-ingest-simulate-pipeline]]
+=== Simulate Pipeline API
+
+[[java-rest-high-ingest-simulate-pipeline-request]]
+==== Simulate Pipeline Request
+
+A `SimulatePipelineRequest` requires a source and a `XContentType`. The source consists
+of the request body. See the https://www.elastic.co/guide/en/elasticsearch/reference/master/simulate-pipeline-api.html[docs]
+for more details on the request body.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[simulate-pipeline-request]
+--------------------------------------------------
+<1> The request body as a `ByteArray`.
+<2> The XContentType for the request body supplied above.
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[simulate-pipeline-request-pipeline-id]
+--------------------------------------------------
+<1> You can either specify an existing pipeline to execute against the provided documents, or supply a
+pipeline definition in the body of the request. This option sets the id for an existing pipeline.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[simulate-pipeline-request-verbose]
+--------------------------------------------------
+<1> To see the intermediate results of each processor in the simulate request, you can add the verbose parameter
+to the request.
+
+[[java-rest-high-ingest-simulate-pipeline-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[simulate-pipeline-execute]
+--------------------------------------------------
+<1> Execute the request and get back the response in a `SimulatePipelineResponse` object.
+
+[[java-rest-high-ingest-simulate-pipeline-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a simulate pipeline request requires both the `SimulatePipelineRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[simulate-pipeline-execute-async]
+--------------------------------------------------
+<1> The `SimulatePipelineRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `SimulatePipelineResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[simulate-pipeline-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-ingest-simulate-pipeline-response]]
+==== Simulate Pipeline Response
+
+The returned `SimulatePipelineResponse` allows to retrieve information about the executed
+ operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[simulate-pipeline-response]
+--------------------------------------------------
+<1> Get results for each of the documents provided as instance of `List<SimulateDocumentResult>`.
+<2> If the request was in verbose mode cast the response to `SimulateDocumentVerboseResult`.
+<3> Check the result after each processor is applied.
+<4> Get the ingest document for the result obtained in 3.
+<5> Or get the failure for the result obtained in 3.
+<6> Get the result as `SimulateDocumentBaseResult` if the result was not verbose.
+<7> Get the ingest document for the result obtained in 6.
+<8> Or get the failure for the result obtained in 6.

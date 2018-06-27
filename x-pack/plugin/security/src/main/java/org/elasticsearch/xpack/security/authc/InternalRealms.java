@@ -93,9 +93,9 @@ public final class InternalRealms {
                                                           SecurityIndexManager securityIndex) {
 
         Map<String, Realm.Factory> map = new HashMap<>();
-        map.put(FileRealmSettings.TYPE, config -> new FileRealm(config, resourceWatcherService));
+        map.put(FileRealmSettings.TYPE, config -> new FileRealm(config, resourceWatcherService, threadPool));
         map.put(NativeRealmSettings.TYPE, config -> {
-            final NativeRealm nativeRealm = new NativeRealm(config, nativeUsersStore);
+            final NativeRealm nativeRealm = new NativeRealm(config, nativeUsersStore, threadPool);
             securityIndex.addIndexStateListener(nativeRealm::onSecurityIndexStateChange);
             return nativeRealm;
         });

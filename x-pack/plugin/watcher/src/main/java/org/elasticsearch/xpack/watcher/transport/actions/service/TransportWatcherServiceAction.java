@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
@@ -86,6 +87,8 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
 
                     @Override
                     public ClusterState execute(ClusterState clusterState) {
+                        XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+
                         WatcherMetaData newWatcherMetaData = new WatcherMetaData(manuallyStopped);
                         WatcherMetaData currentMetaData = clusterState.metaData().custom(WatcherMetaData.TYPE);
 

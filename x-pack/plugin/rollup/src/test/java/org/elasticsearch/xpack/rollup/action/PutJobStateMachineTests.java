@@ -300,11 +300,11 @@ public class PutJobStateMachineTests extends ESTestCase {
         doAnswer(invocation -> {
             requestCaptor.getValue().onFailure(new ResourceAlreadyExistsException(job.getConfig().getRollupIndex()));
             return null;
-        }).when(tasksService).startPersistentTask(eq(job.getConfig().getId()),
+        }).when(tasksService).sendStartRequest(eq(job.getConfig().getId()),
                 eq(RollupField.TASK_NAME), eq(job), requestCaptor.capture());
 
         TransportPutRollupJobAction.startPersistentTask(job, testListener, tasksService);
-        verify(tasksService).startPersistentTask(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), any());
+        verify(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -326,18 +326,18 @@ public class PutJobStateMachineTests extends ESTestCase {
                     mock(PersistentTasksCustomMetaData.Assignment.class));
             requestCaptor.getValue().onResponse(response);
             return null;
-        }).when(tasksService).startPersistentTask(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), requestCaptor.capture());
+        }).when(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), requestCaptor.capture());
 
-        ArgumentCaptor<PersistentTasksService.WaitForPersistentTaskStatusListener> requestCaptor2
-                = ArgumentCaptor.forClass(PersistentTasksService.WaitForPersistentTaskStatusListener.class);
+        ArgumentCaptor<PersistentTasksService.WaitForPersistentTaskListener> requestCaptor2
+                = ArgumentCaptor.forClass(PersistentTasksService.WaitForPersistentTaskListener.class);
         doAnswer(invocation -> {
             // Bail here with an error, further testing will happen through tests of #startPersistentTask
             requestCaptor2.getValue().onFailure(new RuntimeException("Ending"));
             return null;
-        }).when(tasksService).waitForPersistentTaskStatus(eq(job.getConfig().getId()), any(), any(), requestCaptor2.capture());
+        }).when(tasksService).waitForPersistentTaskCondition(eq(job.getConfig().getId()), any(), any(), requestCaptor2.capture());
 
         TransportPutRollupJobAction.startPersistentTask(job, testListener, tasksService);
-        verify(tasksService).startPersistentTask(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), any());
-        verify(tasksService).waitForPersistentTaskStatus(eq(job.getConfig().getId()), any(), any(), any());
+        verify(tasksService).sendStartRequest(eq(job.getConfig().getId()), eq(RollupField.TASK_NAME), eq(job), any());
+        verify(tasksService).waitForPersistentTaskCondition(eq(job.getConfig().getId()), any(), any(), any());
     }
 }

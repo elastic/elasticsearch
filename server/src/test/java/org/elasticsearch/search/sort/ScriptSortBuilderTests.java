@@ -24,7 +24,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -178,20 +177,21 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                     "\"mode\" : \"max\",\n" +
                     "\"order\" : \"asc\"\n" +
                 "} }\n";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort);
-        parser.nextToken();
-        parser.nextToken();
-        parser.nextToken();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
 
-        ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(parser, null);
-        assertEquals("doc['field_name'].value * factor", builder.script().getIdOrCode());
-        assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
-        assertEquals(1.1, builder.script().getParams().get("factor"));
-        assertEquals(ScriptType.INLINE, builder.script().getType());
-        assertEquals(ScriptSortType.NUMBER, builder.type());
-        assertEquals(SortOrder.ASC, builder.order());
-        assertEquals(SortMode.MAX, builder.sortMode());
-        assertNull(builder.getNestedSort());
+            ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(parser, null);
+            assertEquals("doc['field_name'].value * factor", builder.script().getIdOrCode());
+            assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
+            assertEquals(1.1, builder.script().getParams().get("factor"));
+            assertEquals(ScriptType.INLINE, builder.script().getType());
+            assertEquals(ScriptSortType.NUMBER, builder.type());
+            assertEquals(SortOrder.ASC, builder.order());
+            assertEquals(SortMode.MAX, builder.sortMode());
+            assertNull(builder.getNestedSort());
+        }
     }
 
     public void testParseJson_simple() throws IOException {
@@ -202,54 +202,58 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 "\"mode\" : \"max\",\n" +
                 "\"order\" : \"asc\"\n" +
                 "} }\n";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort);
-        parser.nextToken();
-        parser.nextToken();
-        parser.nextToken();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
 
-        ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(parser, null);
-        assertEquals("doc['field_name'].value", builder.script().getIdOrCode());
-        assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
-        assertEquals(builder.script().getParams(), Collections.emptyMap());
-        assertEquals(ScriptType.INLINE, builder.script().getType());
-        assertEquals(ScriptSortType.NUMBER, builder.type());
-        assertEquals(SortOrder.ASC, builder.order());
-        assertEquals(SortMode.MAX, builder.sortMode());
-        assertNull(builder.getNestedSort());
+            ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(parser, null);
+            assertEquals("doc['field_name'].value", builder.script().getIdOrCode());
+            assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
+            assertEquals(builder.script().getParams(), Collections.emptyMap());
+            assertEquals(ScriptType.INLINE, builder.script().getType());
+            assertEquals(ScriptSortType.NUMBER, builder.type());
+            assertEquals(SortOrder.ASC, builder.order());
+            assertEquals(SortMode.MAX, builder.sortMode());
+            assertNull(builder.getNestedSort());
+        }
     }
 
     public void testParseBadFieldNameExceptions() throws IOException {
         String scriptSort = "{\"_script\" : {" + "\"bad_field\" : \"number\"" + "} }";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort);
-        parser.nextToken();
-        parser.nextToken();
-        parser.nextToken();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
 
-        Exception e = expectThrows(IllegalArgumentException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
-        assertEquals("[_script] unknown field [bad_field], parser not found", e.getMessage());
+            XContentParseException e = expectThrows(XContentParseException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
+            assertEquals("[1:15] [_script] unknown field [bad_field], parser not found", e.getMessage());
+        }
     }
 
     public void testParseBadFieldNameExceptionsOnStartObject() throws IOException {
 
         String scriptSort = "{\"_script\" : {" + "\"bad_field\" : { \"order\" : \"asc\" } } }";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort);
-        parser.nextToken();
-        parser.nextToken();
-        parser.nextToken();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
 
-        Exception e = expectThrows(IllegalArgumentException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
-        assertEquals("[_script] unknown field [bad_field], parser not found", e.getMessage());
+            XContentParseException e = expectThrows(XContentParseException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
+            assertEquals("[1:15] [_script] unknown field [bad_field], parser not found", e.getMessage());
+        }
     }
 
     public void testParseUnexpectedToken() throws IOException {
         String scriptSort = "{\"_script\" : {" + "\"script\" : [ \"order\" : \"asc\" ] } }";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort);
-        parser.nextToken();
-        parser.nextToken();
-        parser.nextToken();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
 
-        Exception e = expectThrows(XContentParseException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
-        assertThat(e.getMessage(), containsString("[_script] script doesn't support values of type: START_ARRAY"));
+            Exception e = expectThrows(XContentParseException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
+            assertThat(e.getMessage(), containsString("[_script] script doesn't support values of type: START_ARRAY"));
+        }
     }
 
     /**
@@ -374,7 +378,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             }
         };
         sortBuilder.setNestedPath("path").setNestedFilter(rangeQuery);
-        ScriptSortBuilder rewritten = (ScriptSortBuilder) sortBuilder
+        ScriptSortBuilder rewritten = sortBuilder
                 .rewrite(createMockShardContext());
         assertNotSame(rangeQuery, rewritten.getNestedFilter());
     }
@@ -391,7 +395,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             }
         };
         sortBuilder.setNestedSort(new NestedSortBuilder("path").setFilter(rangeQuery));
-        ScriptSortBuilder rewritten = (ScriptSortBuilder) sortBuilder
+        ScriptSortBuilder rewritten = sortBuilder
                 .rewrite(createMockShardContext());
         assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
     }

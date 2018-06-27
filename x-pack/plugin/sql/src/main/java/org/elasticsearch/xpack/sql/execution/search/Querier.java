@@ -341,12 +341,12 @@ public class Querier {
         private HitExtractor createExtractor(FieldExtraction ref) {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
-                return new FieldHitExtractor(f.name(), f.useDocValue(), f.hitName());
+                return new FieldHitExtractor(f.name(), f.getDataType(), f.useDocValue(), f.hitName());
             }
 
             if (ref instanceof ScriptFieldRef) {
                 ScriptFieldRef f = (ScriptFieldRef) ref;
-                return new FieldHitExtractor(f.name(), true);
+                return new FieldHitExtractor(f.name(), null, true);
             }
 
             if (ref instanceof ComputedRef) {

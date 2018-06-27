@@ -273,7 +273,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         try (Netty4HttpServerTransport transport =
                      new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
             transport.start();
-            final TransportAddress remoteAddress = randomFrom(transport.boundAddress.boundAddresses());
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             try (Netty4HttpClient client = new Netty4HttpClient()) {
                 final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
@@ -289,40 +289,6 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
         assertNotNull(causeReference.get());
         assertThat(causeReference.get(), instanceOf(TooLongFrameException.class));
-    }
-
-    public void testDispatchDoesNotModifyThreadContext() throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                threadContext.putHeader("foo", "bar");
-                threadContext.putTransient("bar", "baz");
-            }
-
-            @Override
-            public void dispatchBadRequest(final RestRequest request,
-                                           final RestChannel channel,
-                                           final ThreadContext threadContext,
-                                           final Throwable cause) {
-                threadContext.putHeader("foo_bad", "bar");
-                threadContext.putTransient("bar_bad", "baz");
-            }
-
-        };
-
-        try (Netty4HttpServerTransport transport =
-                 new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
-            transport.start();
-
-            transport.dispatchRequest(null, null);
-            assertNull(threadPool.getThreadContext().getHeader("foo"));
-            assertNull(threadPool.getThreadContext().getTransient("bar"));
-
-            transport.dispatchBadRequest(null, null, null);
-            assertNull(threadPool.getThreadContext().getHeader("foo_bad"));
-            assertNull(threadPool.getThreadContext().getTransient("bar_bad"));
-        }
     }
 
     public void testReadTimeout() throws Exception {
@@ -352,7 +318,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         try (Netty4HttpServerTransport transport =
                  new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
             transport.start();
-            final TransportAddress remoteAddress = randomFrom(transport.boundAddress.boundAddresses());
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             AtomicBoolean channelClosed = new AtomicBoolean(false);
 

@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoriesService.VerifyResponse;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -146,7 +147,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
 
     class VerifyNodeRepositoryRequestHandler implements TransportRequestHandler<VerifyNodeRepositoryRequest> {
         @Override
-        public void messageReceived(VerifyNodeRepositoryRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(VerifyNodeRepositoryRequest request, TransportChannel channel, Task task) throws Exception {
             DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
             try {
                 doVerify(request.repository, request.verificationToken, localNode);

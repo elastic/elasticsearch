@@ -37,6 +37,7 @@ import java.util.Map;
 public class CreateSnapshotRequestTests extends ESTestCase {
 
     // tests creating XContent and parsing with source(Map) equivalency
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31625")
     public void testToXContent() throws IOException {
         String repo = randomAlphaOfLength(5);
         String snap = randomAlphaOfLength(10);

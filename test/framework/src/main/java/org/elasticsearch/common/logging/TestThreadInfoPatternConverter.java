@@ -28,8 +28,6 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESIntegTestCase;
 
 /**
@@ -55,26 +53,9 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
         super("TestInfo", "test_thread_info");
     }
 
-    /**
-     * Cache of the string to output for this thread. It is a thread local
-     * because Elasticsearch's tests log synchronously so the formatting
-     * thread should be the same as the logging thread so the cache
-     * *should* only miss when a thread changes its name. Which they do.
-     *
-     * Having the cache saves a couple of milliseconds off of a test run
-     * of a few minutes.
-     */
-    private static final CloseableThreadLocal<Tuple<String, String>> cache = new CloseableThreadLocal<>();
-
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        String threadName = event.getThreadName();
-        Tuple<String, String> t = cache.get();
-        if (t == null || false == t.v1().equals(threadName)) {
-            t = new Tuple<>(threadName, threadInfo(threadName));
-            cache.set(t);
-        }
-        toAppendTo.append(t.v2());
+        toAppendTo.append(threadInfo(event.getThreadName()));
     }
 
     private static final Pattern ELASTICSEARCH_THREAD_NAME_PATTERN =

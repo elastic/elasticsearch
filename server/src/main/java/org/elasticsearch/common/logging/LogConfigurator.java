@@ -123,7 +123,7 @@ public class LogConfigurator {
     /**
      * Load logging plugins so we can have {@code node_name} in the pattern.
      */
-    public static void loadPlugins() {
+    public static void loadLog4jPlugins() {
         PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
     }
 
@@ -143,7 +143,7 @@ public class LogConfigurator {
         Objects.requireNonNull(configsPath);
         Objects.requireNonNull(logsPath);
 
-        loadPlugins();
+        loadLog4jPlugins();
 
         setLogConfigurationSystemProperty(logsPath, settings);
         // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context

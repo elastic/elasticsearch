@@ -70,7 +70,7 @@ public class BootstrapForTesting {
     // without making things complex???
 
     static {
-        LogConfigurator.loadPlugins();
+        LogConfigurator.loadLog4jPlugins();
 
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
         Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"),

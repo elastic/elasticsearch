@@ -49,7 +49,6 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.index.search.MultiMatchQuery;
 import org.elasticsearch.join.aggregations.Children;
 import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
@@ -877,7 +876,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertToXContentEquivalent(expectedSource, actualSource, XContentType.JSON);
     }
 
-    public void testExplainSimple() throws IOException {
+    public void testExplain() throws IOException {
         {
             ExplainRequest explainRequest = new ExplainRequest("index1", "doc", "1");
             explainRequest.query(QueryBuilders.matchAllQuery());

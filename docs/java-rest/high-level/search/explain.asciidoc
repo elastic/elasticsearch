@@ -15,7 +15,6 @@ and a query represented by `QueryBuilder` to run against it (the way of <<java-r
 include-tagged::{doc-tests}/SearchDocumentationIT.java[explain-request]
 --------------------------------------------------
 
-[[java-rest-high-explain-request-optional]]
 ===== Optional arguments
 
 ["source","java",subs="attributes,callouts,macros"]

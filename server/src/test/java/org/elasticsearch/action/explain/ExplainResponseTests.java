@@ -74,7 +74,7 @@ public class ExplainResponseTests extends AbstractStreamableXContentTestCase<Exp
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> field.startsWith("get");
+        return field -> field.equals("get") || field.startsWith("get.fields") || field.startsWith("get._source");
     }
 
     public void testToXContent() throws IOException {

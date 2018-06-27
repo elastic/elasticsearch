@@ -600,13 +600,13 @@ public class SlackMessageTests extends ESTestCase {
         }
     }
 
-    public void canHaveNullText()  throws Exception {
+    public void testCanHaveNullText()  throws Exception {
         SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", new Attachment[1]);
         assertNull(slackMessage.getText());
         assertNotNull(slackMessage.getAttachments());
     }
 
-    public void canHaveNullAttachments()  throws Exception {
+    public void testCanHaveNullAttachments()  throws Exception {
         SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", "text");
         assertNotNull(slackMessage.getText());
         assertNull(slackMessage.getAttachments());

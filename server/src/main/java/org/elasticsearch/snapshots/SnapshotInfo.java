@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -504,7 +503,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         // write snapshot info to repository snapshot blob format
         if (CONTEXT_MODE_SNAPSHOT.equals(params.param(CONTEXT_MODE_PARAM))) {
-            return toXContentSnapshot(builder, params);
+            return toXContentInternal(builder, params);
         }
 
         final boolean verbose = params.paramAsBoolean("verbose", GetSnapshotsRequest.DEFAULT_VERBOSE_MODE);
@@ -559,7 +558,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         return builder;
     }
 
-    private XContentBuilder toXContentSnapshot(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
+    private XContentBuilder toXContentInternal(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
         builder.startObject(SNAPSHOT);
         builder.field(NAME, snapshotId.getName());
         builder.field(UUID, snapshotId.getUUID());
@@ -592,21 +591,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         return builder;
     }
 
+    /**
+     * This method creates a SnapshotInfo from external x-content.  It does not
+     * handle x-content written with the internal version.
+     */
     public static SnapshotInfo fromXContent(final XContentParser parser) throws IOException {
-//        if (parser.currentToken() != Token.START_OBJECT) {
-//            parser.nextToken(); // // move to '{'
-//        }
-
-//        if (parser.currentToken() != Token.START_OBJECT) {
-//            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "], expected ['{']");
-//        }
-
-        //        if (parser.currentToken() != Token.END_OBJECT) {
-//            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "], expected ['}']");
-//        }
-
-//        parser.nextToken(); // move past '}'
-
         return SNAPSHOT_INFO_PARSER.parse(parser, null).build();
     }
 

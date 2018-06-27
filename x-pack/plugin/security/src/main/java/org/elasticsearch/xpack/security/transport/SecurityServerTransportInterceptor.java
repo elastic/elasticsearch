@@ -318,10 +318,5 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                 }
             }
         }
-
-        @Override
-        public void messageReceived(T request, TransportChannel channel) throws Exception {
-            throw new UnsupportedOperationException("task parameter is required for this operation");
-        }
     }
 }

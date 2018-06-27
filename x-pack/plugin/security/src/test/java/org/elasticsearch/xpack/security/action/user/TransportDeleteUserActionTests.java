@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
@@ -53,7 +54,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<DeleteUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<DeleteUserResponse>() {
             @Override
             public void onResponse(DeleteUserResponse response) {
                 responseRef.set(response);
@@ -82,7 +83,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<DeleteUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<DeleteUserResponse>() {
             @Override
             public void onResponse(DeleteUserResponse response) {
                 responseRef.set(response);
@@ -112,7 +113,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<DeleteUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<DeleteUserResponse>() {
             @Override
             public void onResponse(DeleteUserResponse response) {
                 responseRef.set(response);
@@ -152,7 +153,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<DeleteUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<DeleteUserResponse>() {
             @Override
             public void onResponse(DeleteUserResponse response) {
                 responseRef.set(response);
@@ -192,7 +193,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<DeleteUserResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<DeleteUserResponse>() {
             @Override
             public void onResponse(DeleteUserResponse response) {
                 responseRef.set(response);

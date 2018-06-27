@@ -108,7 +108,7 @@ public class GceDiscoveryTests extends ESTestCase {
         GceUnicastHostsProvider provider = new GceUnicastHostsProvider(nodeSettings, gceInstancesService,
             transportService, new NetworkService(Collections.emptyList()));
 
-        List<TransportAddress> dynamicHosts = provider.buildDynamicHosts();
+        List<TransportAddress> dynamicHosts = provider.buildDynamicHosts(null);
         logger.info("--> addresses found: {}", dynamicHosts);
         return dynamicHosts;
     }

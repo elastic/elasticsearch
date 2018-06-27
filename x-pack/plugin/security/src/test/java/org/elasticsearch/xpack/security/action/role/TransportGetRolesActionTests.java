@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesRequest;
@@ -64,7 +65,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetRolesResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<GetRolesResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<GetRolesResponse>() {
             @Override
             public void onResponse(GetRolesResponse response) {
                 responseRef.set(response);
@@ -105,7 +106,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetRolesResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<GetRolesResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<GetRolesResponse>() {
             @Override
             public void onResponse(GetRolesResponse response) {
                 responseRef.set(response);
@@ -173,7 +174,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetRolesResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<GetRolesResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<GetRolesResponse>() {
             @Override
             public void onResponse(GetRolesResponse response) {
                 responseRef.set(response);
@@ -221,7 +222,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetRolesResponse> responseRef = new AtomicReference<>();
-        action.doExecute(request, new ActionListener<GetRolesResponse>() {
+        action.doExecute(mock(Task.class), request, new ActionListener<GetRolesResponse>() {
             @Override
             public void onResponse(GetRolesResponse response) {
                 responseRef.set(response);

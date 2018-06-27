@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
@@ -74,7 +75,8 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     }
 
     @Override
-    protected void doExecute(GetOverallBucketsAction.Request request, ActionListener<GetOverallBucketsAction.Response> listener) {
+    protected void doExecute(Task task, GetOverallBucketsAction.Request request,
+                             ActionListener<GetOverallBucketsAction.Response> listener) {
         QueryPage<Job> jobsPage = jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), clusterService.state());
         if (jobsPage.count() == 0) {
             listener.onResponse(new GetOverallBucketsAction.Response());

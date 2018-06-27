@@ -2024,14 +2024,14 @@ public class RequestConvertersTests extends ESTestCase {
         getSnapshotsRequest.repository(repository);
         getSnapshotsRequest.snapshots(Arrays.asList(snapshot1, snapshot2).toArray(new String[0]));
         setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
-        if (randomBoolean()) {
-            getSnapshotsRequest.ignoreUnavailable(true);
-            expectedParams.put("ignore_unavailable", Boolean.TRUE.toString());
-        }
-        if (randomBoolean()) {
-            getSnapshotsRequest.verbose(false);
-            expectedParams.put("verbose", Boolean.FALSE.toString());
-        }
+
+        boolean ignoreUnavailable = randomBoolean();
+        getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
+        expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+
+        boolean verbose = randomBoolean();
+        getSnapshotsRequest.verbose(verbose);
+        expectedParams.put("verbose", Boolean.toString(verbose));
 
         Request request = RequestConverters.getSnapshots(getSnapshotsRequest);
         assertThat(endpoint, equalTo(request.getEndpoint()));
@@ -2048,14 +2048,14 @@ public class RequestConvertersTests extends ESTestCase {
 
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(repository);
         setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
-        if (randomBoolean()) {
-            getSnapshotsRequest.ignoreUnavailable(true);
-            expectedParams.put("ignore_unavailable", Boolean.TRUE.toString());
-        }
-        if (randomBoolean()) {
-            getSnapshotsRequest.verbose(false);
-            expectedParams.put("verbose", Boolean.FALSE.toString());
-        }
+
+        boolean ignoreUnavailable = randomBoolean();
+        getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
+        expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+
+        boolean verbose = randomBoolean();
+        getSnapshotsRequest.verbose(verbose);
+        expectedParams.put("verbose", Boolean.toString(verbose));
 
         Request request = RequestConverters.getSnapshots(getSnapshotsRequest);
         assertThat(endpoint, equalTo(request.getEndpoint()));

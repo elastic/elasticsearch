@@ -909,12 +909,9 @@ final class RequestConverters {
 
         Params parameters = new Params(request);
         parameters.withMasterTimeout(getSnapshotsRequest.masterNodeTimeout());
-        if (getSnapshotsRequest.ignoreUnavailable()) {
-            parameters.putParam("ignore_unavailable", Boolean.TRUE.toString());
-        }
-        if (getSnapshotsRequest.verbose() == false) {
-            parameters.putParam("verbose", Boolean.FALSE.toString());
-        }
+        parameters.putParam("ignore_unavailable", Boolean.toString(getSnapshotsRequest.ignoreUnavailable()));
+        parameters.putParam("verbose", Boolean.toString(getSnapshotsRequest.verbose()));
+
         return request;
     }
 

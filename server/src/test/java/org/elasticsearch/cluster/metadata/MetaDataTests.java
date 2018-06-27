@@ -44,7 +44,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -174,17 +173,22 @@ public class MetaDataTests extends ESTestCase {
             assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
         }
 
-        // test alias pointing to multiple indices with write index set explicitly
-        MetaData multiFalseMetaData = MetaData.builder(metaData).put(IndexMetaData.builder("index2")
+        // test alias pointing to multiple indices
+        MetaData multiMetaData = MetaData.builder(metaData).put(IndexMetaData.builder("index2")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetaData.builder("alias0").writeIndex(randomBoolean()))).build();
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> multiFalseMetaData.resolveIndexRouting("1", "alias0"));
-        assertThat(exception.getMessage(), startsWith("Alias [alias0] has more than one index associated with it"));
-        assertThat(exception.getMessage(), containsString("index"));
-        assertThat(exception.getMessage(), containsString("index2"));
+        assertEquals(multiMetaData.resolveIndexRouting("1", "alias0"), "1");
+
+        // test alias pointing to multiple indices with one specifying index routing
+        MetaData routingMetaData = MetaData.builder(metaData).put(IndexMetaData.builder("index2")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder("alias0").indexRouting("exists").writeIndex(randomBoolean()))).build();
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> routingMetaData.resolveIndexRouting("1", "alias0"));
+        assertThat(exception.getMessage(), equalTo("Alias [alias0] references multiple indices and provides an index routing for index [index2]"));
     }
 
     public void testUnknownFieldClusterMetaData() throws IOException {

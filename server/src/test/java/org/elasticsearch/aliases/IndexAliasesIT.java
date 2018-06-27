@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasA
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -57,6 +58,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
+import static org.elasticsearch.client.Requests.deleteRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_METADATA_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_READ_ONLY_BLOCK;
@@ -117,6 +119,12 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(exception.getMessage(),
             equalTo("Alias [alias1] points to multiple indices with none set as a write-index [is_write_index=true]"));
 
+        logger.info("--> deleting against [alias1], should fail now");
+        exception = expectThrows(IllegalArgumentException.class,
+            () -> client().delete(deleteRequest("alias1").type("type1").id("1")).actionGet());
+        assertThat(exception.getMessage(),
+            equalTo("Alias [alias1] points to multiple indices with none set as a write-index [is_write_index=true]"));
+
         logger.info("--> add index [test_x] with [alias1] as write-index");
         assertAcked(admin().indices().prepareAliases().addAlias("test_x", "alias1", true));
 
@@ -124,6 +132,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
         indexResponse = client().index(indexRequest("alias1").type("type1").id("1")
             .source(source("1", "test"), XContentType.JSON)).actionGet();
         assertThat(indexResponse.getIndex(), equalTo("test_x"));
+
+        logger.info("--> deleting against [alias1], should fail now");
+        DeleteResponse deleteResponse = client().delete(deleteRequest("alias1").type("type1").id("1")).actionGet();
+        assertThat(deleteResponse.getIndex(), equalTo("test_x"));
 
         logger.info("--> remove [alias1], Aliasing index [test_x] with [alias1]");
         assertAcked(admin().indices().prepareAliases().removeAlias("test", "alias1").addAlias("test_x", "alias1"));

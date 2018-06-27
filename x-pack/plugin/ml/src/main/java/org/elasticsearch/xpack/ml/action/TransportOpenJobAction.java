@@ -45,6 +45,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -455,7 +456,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     @Override
-    protected void masterOperation(OpenJobAction.Request request, ClusterState state, ActionListener<OpenJobAction.Response> listener) {
+    protected void masterOperation(Task task, OpenJobAction.Request request, ClusterState state, ActionListener<OpenJobAction.Response> listener) {
         OpenJobAction.JobParams jobParams = request.getJobParams();
         if (licenseState.isMachineLearningAllowed()) {
             // Step 5. Wait for job to be started and respond

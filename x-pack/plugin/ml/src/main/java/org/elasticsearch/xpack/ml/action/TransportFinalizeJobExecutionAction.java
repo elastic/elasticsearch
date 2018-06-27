@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -50,7 +51,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
     }
 
     @Override
-    protected void masterOperation(FinalizeJobExecutionAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, FinalizeJobExecutionAction.Request request, ClusterState state,
                                    ActionListener<FinalizeJobExecutionAction.Response> listener) throws Exception {
         String jobIdString = String.join(",", request.getJobIds());
         String source = "finalize_job_execution [" + jobIdString + "]";

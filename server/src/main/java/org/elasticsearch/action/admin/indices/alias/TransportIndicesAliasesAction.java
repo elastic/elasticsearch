@@ -38,6 +38,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -85,7 +86,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     }
 
     @Override
-    protected void masterOperation(final IndicesAliasesRequest request, final ClusterState state, final ActionListener<IndicesAliasesResponse> listener) {
+    protected void masterOperation(Task task, final IndicesAliasesRequest request, final ClusterState state, final ActionListener<IndicesAliasesResponse> listener) {
 
         //Expand the indices names
         List<AliasActions> actions = request.aliasActions();

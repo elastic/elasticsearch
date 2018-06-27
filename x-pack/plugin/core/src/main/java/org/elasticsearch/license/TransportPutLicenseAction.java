@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,8 +49,8 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
     }
 
     @Override
-    protected void masterOperation(final PutLicenseRequest request, ClusterState state, final ActionListener<PutLicenseResponse>
-            listener) throws ElasticsearchException {
+    protected void masterOperation(Task task, final PutLicenseRequest request, ClusterState state, final ActionListener<PutLicenseResponse>
+        listener) throws ElasticsearchException {
         licenseService.registerLicense(request, listener);
     }
 

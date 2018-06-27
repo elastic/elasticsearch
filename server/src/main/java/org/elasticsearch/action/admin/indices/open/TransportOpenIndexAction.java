@@ -79,7 +79,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     }
 
     @Override
-    protected void masterOperation(final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) {
+    protected void masterOperation(Task task, final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new OpenIndexResponse(true, true));

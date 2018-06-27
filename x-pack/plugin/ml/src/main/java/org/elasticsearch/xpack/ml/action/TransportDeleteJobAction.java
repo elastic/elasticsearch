@@ -109,12 +109,6 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     }
 
     @Override
-    protected void masterOperation(DeleteJobAction.Request request, ClusterState state,
-                                   ActionListener<DeleteJobAction.Response> listener) throws Exception {
-        throw new UnsupportedOperationException("the Task parameter is required");
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(DeleteJobAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }

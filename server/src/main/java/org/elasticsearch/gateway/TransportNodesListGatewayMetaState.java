@@ -39,6 +39,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -89,7 +90,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     }
 
     @Override
-    protected NodeGatewayMetaState nodeOperation(NodeRequest request) {
+    protected NodeGatewayMetaState nodeOperation(NodeRequest request, Task task) {
         try {
             return new NodeGatewayMetaState(clusterService.localNode(), metaState.loadMetaState());
         } catch (Exception e) {

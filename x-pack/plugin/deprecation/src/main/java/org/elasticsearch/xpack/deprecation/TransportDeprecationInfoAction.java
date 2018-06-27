@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -65,7 +66,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     }
 
     @Override
-    protected final void masterOperation(final DeprecationInfoAction.Request request, ClusterState state,
+    protected final void masterOperation(Task task, final DeprecationInfoAction.Request request, ClusterState state,
                                          final ActionListener<DeprecationInfoAction.Response> listener) {
         if (licenseState.isDeprecationAllowed()) {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest("_local").settings(true).plugins(true);

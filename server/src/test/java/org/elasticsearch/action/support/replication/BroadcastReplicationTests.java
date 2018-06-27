@@ -73,6 +73,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.Mockito.mock;
 
 public class BroadcastReplicationTests extends ESTestCase {
 
@@ -81,6 +82,7 @@ public class BroadcastReplicationTests extends ESTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
     private TestBroadcastReplicationAction broadcastReplicationAction;
+    private Task task;
 
     @BeforeClass
     public static void beforeClass() {
@@ -102,6 +104,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         transportService.acceptIncomingRequests();
         broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, clusterService, transportService,
                 new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), null);
+        task = mock(Task.class);
     }
 
     @Override
@@ -123,7 +126,7 @@ public class BroadcastReplicationTests extends ESTestCase {
                 randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED, ShardRoutingState.UNASSIGNED));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
-        broadcastReplicationAction.execute(new DummyBroadcastRequest().indices(index), response);
+        broadcastReplicationAction.execute(task, new DummyBroadcastRequest().indices(index), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             if (randomBoolean()) {
                 shardRequests.v2().onFailure(new NoShardAvailableActionException(shardRequests.v1()));
@@ -143,7 +146,7 @@ public class BroadcastReplicationTests extends ESTestCase {
                 ShardRoutingState.STARTED));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
-        broadcastReplicationAction.execute(new DummyBroadcastRequest().indices(index), response);
+        broadcastReplicationAction.execute(task, new DummyBroadcastRequest().indices(index), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             ReplicationResponse replicationResponse = new ReplicationResponse();
             replicationResponse.setShardInfo(new ReplicationResponse.ShardInfo(1, 1));
@@ -159,7 +162,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         setState(clusterService, stateWithAssignedPrimariesAndOneReplica(index, numShards));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
-        broadcastReplicationAction.execute(new DummyBroadcastRequest().indices(index), response);
+        broadcastReplicationAction.execute(task, new DummyBroadcastRequest().indices(index), response);
         int succeeded = 0;
         int failed = 0;
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
@@ -249,7 +252,7 @@ public class BroadcastReplicationTests extends ESTestCase {
             TransportBroadcastReplicationAction<DummyBroadcastRequest, BroadcastResponse, ?, ?> broadcastAction,
             DummyBroadcastRequest request) {
         PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
-        broadcastAction.execute(request, response);
+        broadcastAction.execute(task, request, response);
         return response.actionGet("5s");
     }
 

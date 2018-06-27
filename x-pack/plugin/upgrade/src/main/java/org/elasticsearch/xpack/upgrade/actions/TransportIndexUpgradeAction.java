@@ -59,11 +59,4 @@ public class TransportIndexUpgradeAction extends TransportMasterNodeAction<Index
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
         indexUpgradeService.upgrade(taskId, request.index(), state, listener);
     }
-
-    @Override
-    protected final void masterOperation(IndexUpgradeAction.Request request, ClusterState state,
-                                         ActionListener<BulkByScrollResponse> listener) {
-        throw new UnsupportedOperationException("the task parameter is required");
-    }
-
 }

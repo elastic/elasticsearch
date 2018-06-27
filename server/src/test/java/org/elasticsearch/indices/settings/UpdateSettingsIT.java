@@ -48,6 +48,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -251,9 +252,9 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
             @Override
             protected void masterOperation(
-                    final UpdateInternalIndexAction.Request request,
-                    final ClusterState state,
-                    final ActionListener<UpdateInternalIndexAction.Response> listener) throws Exception {
+                Task task, final UpdateInternalIndexAction.Request request,
+                final ClusterState state,
+                final ActionListener<UpdateInternalIndexAction.Response> listener) throws Exception {
                 clusterService.submitStateUpdateTask("update-index-internal", new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(final ClusterState currentState) throws Exception {

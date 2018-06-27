@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -71,7 +72,7 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
     }
 
     @Override
-    protected void masterOperation(PutPipelineRequest request, ClusterState state, ActionListener<WritePipelineResponse> listener) throws Exception {
+    protected void masterOperation(Task task, PutPipelineRequest request, ClusterState state, ActionListener<WritePipelineResponse> listener) throws Exception {
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.clear();
         nodesInfoRequest.ingest(true);

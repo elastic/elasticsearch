@@ -39,6 +39,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -178,7 +179,7 @@ public class UpdatePersistentTaskStatusAction extends Action<PersistentTaskRespo
         }
 
         @Override
-        protected final void masterOperation(final Request request,
+        protected final void masterOperation(Task task, final Request request,
                                              final ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
             persistentTasksClusterService.updatePersistentTaskState(request.taskId, request.allocationId, request.state,

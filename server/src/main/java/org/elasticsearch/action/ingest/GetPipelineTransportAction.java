@@ -31,6 +31,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -57,7 +58,7 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
     }
 
     @Override
-    protected void masterOperation(GetPipelineRequest request, ClusterState state, ActionListener<GetPipelineResponse> listener) throws Exception {
+    protected void masterOperation(Task task, GetPipelineRequest request, ClusterState state, ActionListener<GetPipelineResponse> listener) throws Exception {
         listener.onResponse(new GetPipelineResponse(pipelineStore.getPipelines(state, request.getIds())));
     }
 

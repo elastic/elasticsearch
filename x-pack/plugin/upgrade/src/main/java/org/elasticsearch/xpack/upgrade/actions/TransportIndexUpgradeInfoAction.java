@@ -17,6 +17,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -62,7 +63,7 @@ public class TransportIndexUpgradeInfoAction extends TransportMasterNodeReadActi
     }
 
     @Override
-    protected final void masterOperation(final IndexUpgradeInfoAction.Request request, ClusterState state,
+    protected final void masterOperation(Task task, final IndexUpgradeInfoAction.Request request, ClusterState state,
                                          final ActionListener<IndexUpgradeInfoAction.Response> listener) {
         if (licenseState.isUpgradeAllowed()) {
             Map<String, UpgradeActionRequired> results =

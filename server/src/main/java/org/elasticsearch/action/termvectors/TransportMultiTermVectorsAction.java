@@ -95,7 +95,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
 
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
         for (final MultiTermVectorsShardRequest shardRequest : shardRequests.values()) {
-            shardAction.execute(shardRequest, new ActionListener<MultiTermVectorsShardResponse>() {
+            shardAction.execute(task, shardRequest, new ActionListener<MultiTermVectorsShardResponse>() {
                 @Override
                 public void onResponse(MultiTermVectorsShardResponse response) {
                     for (int i = 0; i < response.locations.size(); i++) {

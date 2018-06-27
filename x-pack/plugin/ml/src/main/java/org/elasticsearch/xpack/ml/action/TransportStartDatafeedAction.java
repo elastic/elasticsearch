@@ -25,6 +25,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -109,7 +110,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     @Override
-    protected void masterOperation(StartDatafeedAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, StartDatafeedAction.Request request, ClusterState state,
                                    ActionListener<StartDatafeedAction.Response> listener) {
         StartDatafeedAction.DatafeedParams params = request.getParams();
         if (licenseState.isMachineLearningAllowed()) {

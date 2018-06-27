@@ -94,7 +94,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     }
 
     @Override
-    protected void masterOperation(final CloseIndexRequest request, final ClusterState state, final ActionListener<CloseIndexResponse> listener) {
+    protected void masterOperation(Task task, final CloseIndexRequest request, final ClusterState state, final ActionListener<CloseIndexResponse> listener) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new CloseIndexResponse(true));

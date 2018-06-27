@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
@@ -52,7 +53,7 @@ public class TransportDeleteRollupJobAction
     }
 
     @Override
-    protected void masterOperation(DeleteRollupJobAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, DeleteRollupJobAction.Request request, ClusterState state,
                                    ActionListener<DeleteRollupJobAction.Response> listener) throws Exception {
 
         String jobId = request.getId();

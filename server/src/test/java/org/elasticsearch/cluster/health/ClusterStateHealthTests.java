@@ -47,6 +47,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -75,6 +76,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.Mockito.mock;
 
 public class ClusterStateHealthTests extends ESTestCase {
     private final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
@@ -142,7 +144,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         TransportClusterHealthAction action = new TransportClusterHealthAction(Settings.EMPTY, transportService,
             clusterService, threadPool, new ActionFilters(new HashSet<>()), indexNameExpressionResolver, new TestGatewayAllocator());
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
-        action.execute(new ClusterHealthRequest().waitForGreenStatus(), listener);
+        action.execute(mock(Task.class), new ClusterHealthRequest().waitForGreenStatus(), listener);
 
         assertFalse(listener.isDone());
 

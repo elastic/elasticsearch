@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
@@ -65,7 +66,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
     }
 
     @Override
-    protected void masterOperation(RevertModelSnapshotAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, RevertModelSnapshotAction.Request request, ClusterState state,
                                    ActionListener<RevertModelSnapshotAction.Response> listener) throws Exception {
         logger.debug("Received request to revert to snapshot id '{}' for job '{}', deleting intervening results: {}",
                 request.getSnapshotId(), request.getJobId(), request.getDeleteInterveningResults());

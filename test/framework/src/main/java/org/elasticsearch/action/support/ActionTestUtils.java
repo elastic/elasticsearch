@@ -21,8 +21,10 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.tasks.Task;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
+import static org.mockito.Mockito.mock;
 
 public class ActionTestUtils {
 
@@ -31,7 +33,7 @@ public class ActionTestUtils {
     public static <Request extends ActionRequest, Response extends ActionResponse>
     Response executeBlocking(TransportAction<Request, Response> action, Request request) {
         PlainActionFuture<Response> future = newFuture();
-        action.execute(request, future);
+        action.execute(mock(Task.class), request, future);
         return future.actionGet();
     }
 }

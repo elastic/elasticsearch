@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -59,7 +60,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected void masterOperation(DeleteDatafeedAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, DeleteDatafeedAction.Request request, ClusterState state,
                                    ActionListener<DeleteDatafeedAction.Response> listener) throws Exception {
         if (request.isForce()) {
             forceDeleteDatafeed(request, state, listener);

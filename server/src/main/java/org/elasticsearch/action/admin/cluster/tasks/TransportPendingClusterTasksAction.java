@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -63,7 +64,7 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadA
     }
 
     @Override
-    protected void masterOperation(PendingClusterTasksRequest request, ClusterState state, ActionListener<PendingClusterTasksResponse> listener) {
+    protected void masterOperation(Task task, PendingClusterTasksRequest request, ClusterState state, ActionListener<PendingClusterTasksResponse> listener) {
         logger.trace("fetching pending tasks from cluster service");
         final List<PendingClusterTask> pendingTasks = clusterService.getMasterService().pendingTasks();
         logger.trace("done fetching pending tasks from cluster service");

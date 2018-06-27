@@ -99,7 +99,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
 
         for (final MultiGetShardRequest shardRequest : shardRequests.values()) {
-            shardAction.execute(shardRequest, new ActionListener<MultiGetShardResponse>() {
+            shardAction.execute(task, shardRequest, new ActionListener<MultiGetShardResponse>() {
                 @Override
                 public void onResponse(MultiGetShardResponse response) {
                     for (int i = 0; i < response.locations.size(); i++) {

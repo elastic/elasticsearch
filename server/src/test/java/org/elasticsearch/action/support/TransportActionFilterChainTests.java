@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public class TransportActionFilterChainTests extends ESTestCase {
 
@@ -106,7 +107,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         PlainActionFuture<TestResponse> future = PlainActionFuture.newFuture();
 
-        transportAction.execute(new TestRequest(), future);
+        transportAction.execute(mock(Task.class), new TestRequest(), future);
         try {
             assertThat(future.get(), notNullValue());
             assertThat("shouldn't get here if an error is expected", errorExpected, equalTo(false));
@@ -169,7 +170,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         final AtomicInteger responses = new AtomicInteger();
         final List<Throwable> failures = new CopyOnWriteArrayList<>();
 
-        transportAction.execute(new TestRequest(), new ActionListener<TestResponse>() {
+        transportAction.execute(mock(Task.class), new TestRequest(), new ActionListener<TestResponse>() {
             @Override
             public void onResponse(TestResponse testResponse) {
                 responses.incrementAndGet();

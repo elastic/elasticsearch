@@ -47,6 +47,7 @@ import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -84,7 +85,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
     }
 
     @Override
-    protected void masterOperation(IndicesShardStoresRequest request, ClusterState state, ActionListener<IndicesShardStoresResponse> listener) {
+    protected void masterOperation(Task task, IndicesShardStoresRequest request, ClusterState state, ActionListener<IndicesShardStoresResponse> listener) {
         final RoutingTable routingTables = state.routingTable();
         final RoutingNodes routingNodes = state.getRoutingNodes();
         final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);

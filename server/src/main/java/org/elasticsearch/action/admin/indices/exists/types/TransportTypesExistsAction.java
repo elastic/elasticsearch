@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -61,7 +62,7 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadAction<Ty
     }
 
     @Override
-    protected void masterOperation(final TypesExistsRequest request, final ClusterState state, final ActionListener<TypesExistsResponse> listener) {
+    protected void masterOperation(Task task, final TypesExistsRequest request, final ClusterState state, final ActionListener<TypesExistsResponse> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), request.indices());
         if (concreteIndices.length == 0) {
             listener.onResponse(new TypesExistsResponse(false));

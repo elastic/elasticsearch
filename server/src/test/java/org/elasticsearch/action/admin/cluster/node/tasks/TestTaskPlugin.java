@@ -313,12 +313,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
             logger.info("Test task finished on the node {}", clusterService.localNode());
             return new NodeResponse(clusterService.localNode());
         }
-
-        @Override
-        protected NodeResponse nodeOperation(NodeRequest request) {
-            throw new UnsupportedOperationException("the task parameter is required");
-        }
-
     }
 
     public static class TestTaskAction extends Action<NodesResponse> {

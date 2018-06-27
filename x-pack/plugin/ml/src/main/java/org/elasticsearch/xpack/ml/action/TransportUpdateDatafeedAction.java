@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MLMetadataField;
@@ -50,7 +51,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
     }
 
     @Override
-    protected void masterOperation(UpdateDatafeedAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, UpdateDatafeedAction.Request request, ClusterState state,
                                    ActionListener<PutDatafeedAction.Response> listener) {
         final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
 

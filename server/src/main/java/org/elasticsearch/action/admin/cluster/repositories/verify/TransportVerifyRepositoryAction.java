@@ -31,6 +31,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryVerificationException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -66,7 +67,7 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
     }
 
     @Override
-    protected void masterOperation(final VerifyRepositoryRequest request, ClusterState state, final ActionListener<VerifyRepositoryResponse> listener) {
+    protected void masterOperation(Task task, final VerifyRepositoryRequest request, ClusterState state, final ActionListener<VerifyRepositoryResponse> listener) {
         repositoriesService.verifyRepository(request.name(), new  ActionListener<RepositoriesService.VerifyResponse>() {
             @Override
             public void onResponse(RepositoriesService.VerifyResponse verifyResponse) {

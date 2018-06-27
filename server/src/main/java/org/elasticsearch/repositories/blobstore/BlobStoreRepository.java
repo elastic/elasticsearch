@@ -261,7 +261,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
         indexMetaDataFormat = new ChecksumBlobStoreFormat<>(INDEX_METADATA_CODEC, METADATA_NAME_FORMAT,
             IndexMetaData::fromXContent, namedXContentRegistry, isCompress());
         snapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
-            SnapshotInfo::fromXContent, namedXContentRegistry, isCompress());
+            SnapshotInfo::fromXContentInternal, namedXContentRegistry, isCompress());
     }
 
     @Override

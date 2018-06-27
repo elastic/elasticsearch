@@ -167,7 +167,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
         public final boolean requestPositions;
         public final boolean requestOffsets;
         public final boolean requestPayloads;
-        public Class expectedException = null;
+        public Class<? extends Exception> expectedException = null;
 
         public TestConfig(TestDoc doc, String[] selectedFields, boolean requestPositions, boolean requestOffsets, boolean requestPayloads) {
             this.doc = doc;
@@ -177,7 +177,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
             this.requestPayloads = requestPayloads;
         }
 
-        public TestConfig expectedException(Class exceptionClass) {
+        public TestConfig expectedException(Class<? extends Exception> exceptionClass) {
             this.expectedException = exceptionClass;
             return this;
         }

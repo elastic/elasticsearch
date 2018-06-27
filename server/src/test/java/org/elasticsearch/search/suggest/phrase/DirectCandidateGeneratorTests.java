@@ -124,12 +124,13 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
                 builder.prettyPrint();
             }
             generator.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentParser parser = createParser(shuffleXContent(builder));
-            parser.nextToken();
-            DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.PARSER.apply(parser, null);
-            assertNotSame(generator, secondGenerator);
-            assertEquals(generator, secondGenerator);
-            assertEquals(generator.hashCode(), secondGenerator.hashCode());
+            try (XContentParser parser = createParser(shuffleXContent(builder))) {
+                parser.nextToken();
+                DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.PARSER.apply(parser, null);
+                assertNotSame(generator, secondGenerator);
+                assertEquals(generator, secondGenerator);
+                assertEquals(generator.hashCode(), secondGenerator.hashCode());
+            }
         }
     }
 
@@ -187,9 +188,10 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
 
     private void assertIllegalXContent(String directGenerator, Class<? extends Exception> exceptionClass, String exceptionMsg)
             throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, directGenerator);
-        Exception e = expectThrows(exceptionClass, () -> DirectCandidateGeneratorBuilder.PARSER.apply(parser, null));
-        assertThat(e.getMessage(), containsString(exceptionMsg));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, directGenerator)) {
+            Exception e = expectThrows(exceptionClass, () -> DirectCandidateGeneratorBuilder.PARSER.apply(parser, null));
+            assertThat(e.getMessage(), containsString(exceptionMsg));
+        }
     }
 
     /**

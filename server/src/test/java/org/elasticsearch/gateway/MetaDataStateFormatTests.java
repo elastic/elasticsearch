@@ -91,7 +91,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Files.copy(resource, dst);
         MetaData read = format.read(xContentRegistry(), dst);
         assertThat(read, notNullValue());
-        assertThat(read.clusterUUID(), equalTo("3O1tDF1IRB6fSJ-GrTMUtg"));
+        assertThat(read.clusterUUID(), equalTo("y9XcwLJGTROoOEfixlRwfQ"));
         // indices are empty since they are serialized separately
     }
 

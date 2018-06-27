@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndicesOptions.Option;
+import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +40,6 @@ import java.util.Map;
 public class CreateSnapshotRequestTests extends ESTestCase {
 
     // tests creating XContent and parsing with source(Map) equivalency
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31625")
     public void testToXContent() throws IOException {
         String repo = randomAlphaOfLength(5);
         String snap = randomAlphaOfLength(10);
@@ -55,11 +57,11 @@ public class CreateSnapshotRequestTests extends ESTestCase {
             original.indices(indices);
         }
 
-        if (randomBoolean()) { // replace
+        if (randomBoolean()) {
             original.partial(randomBoolean());
         }
 
-        if (randomBoolean()) { // replace
+        if (randomBoolean()) {
             Map<String, Object> settings = new HashMap<>();
             int count = randomInt(3) + 1;
 
@@ -69,26 +71,43 @@ public class CreateSnapshotRequestTests extends ESTestCase {
 
         }
 
-        if (randomBoolean()) { // replace
+        if (randomBoolean()) {
             original.includeGlobalState(randomBoolean());
         }
 
-        if (randomBoolean()) { // replace
-            IndicesOptions[] indicesOptions = new IndicesOptions[] {
-                    IndicesOptions.STRICT_EXPAND_OPEN,
-                    IndicesOptions.STRICT_EXPAND_OPEN_CLOSED,
-                    IndicesOptions.LENIENT_EXPAND_OPEN,
-                    IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED,
-                    IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED};
+        if (randomBoolean()) {
+            List<WildcardStates> wildcardStates = new ArrayList<>();
 
-            original.indicesOptions(randomFrom(indicesOptions));
+            if (randomBoolean()) {
+                if (randomBoolean()) {
+                    wildcardStates.add(WildcardStates.OPEN);
+                }
+
+                if (randomBoolean()) {
+                    wildcardStates.add(WildcardStates.CLOSED);
+                }
+            }
+
+            List<Option> options = new ArrayList<>();
+
+            if (randomBoolean()) {
+                options.add(Option.ALLOW_NO_INDICES);
+            }
+
+            if (randomBoolean()) {
+                options.add(Option.IGNORE_UNAVAILABLE);
+            }
+
+            original.indicesOptions(new IndicesOptions(
+                    options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
+                    wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates)));
         }
 
-        if (randomBoolean()) { // replace
+        if (randomBoolean()) {
             original.waitForCompletion(randomBoolean());
         }
 
-        if (randomBoolean()) { // replace
+        if (randomBoolean()) {
             original.masterNodeTimeout("60s");
         }
 

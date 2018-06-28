@@ -142,17 +142,12 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
             }
         } else {
             if (numConcurrentReads == 0) {
-                LOGGER.trace("{} scheduling peek read", params.getFollowShardId());
-                scheduler.accept(TimeValue.timeValueMillis(500), () -> {
-                    synchronized (this) {
-                        // We sneak peek if there is any thing new in the leader primary.
-                        // If there is we will happily accept
-                        numConcurrentReads++;
-                        long from = lastRequestedSeqno + 1;
-                        LOGGER.trace("{}[{}] peek read [{}]", params.getFollowShardId(), numConcurrentReads, from);
-                        sendShardChangesRequest(from, maxReadSize, null);
-                    }
-                });
+                // We sneak peek if there is any thing new in the leader primary.
+                // If there is we will happily accept
+                numConcurrentReads++;
+                long from = lastRequestedSeqno + 1;
+                LOGGER.trace("{}[{}] peek read [{}]", params.getFollowShardId(), numConcurrentReads, from);
+                sendShardChangesRequest(from, maxReadSize, null);
             }
         }
     }
@@ -223,7 +218,8 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
                         if (numConcurrentWrites == 0) {
                             coordinateWrites();
                         }
-                        coordinateReads();
+                        LOGGER.trace("{} received no ops, scheduling to coordinate reads", params.getFollowShardId());
+                        scheduler.accept(TimeValue.timeValueMillis(500), this::coordinateReads);
                     }
                 } else {
                     Translog.Operation firstOp = response.getOperations()[0];

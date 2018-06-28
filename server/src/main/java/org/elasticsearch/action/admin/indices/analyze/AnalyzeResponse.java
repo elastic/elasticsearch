@@ -21,12 +21,11 @@ package org.elasticsearch.action.admin.indices.analyze;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,11 +34,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, ToXContentObject {
@@ -126,7 +128,8 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
                 builder.field(Fields.POSITION_LENGTH, positionLength);
             }
             if (attributes != null && !attributes.isEmpty()) {
-                for (Map.Entry<String, Object> entity : attributes.entrySet()) {
+                Map<String, Object> sortedAttributes = new TreeMap<>(attributes);
+                for (Map.Entry<String, Object> entity : sortedAttributes.entrySet()) {
                     builder.field(entity.getKey(), entity.getValue());
                 }
             }
@@ -203,8 +206,11 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
                     positionLength = 1;
                 }
             }
+            else {
+                positionLength = 1;
+            }
             type = in.readOptionalString();
-            attributes = (Map<String, Object>) in.readGenericValue();
+            attributes = in.readMap();
         }
 
         @Override
@@ -217,7 +223,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
                 out.writeOptionalVInt(positionLength > 1 ? positionLength : null);
             }
             out.writeOptionalString(type);
-            out.writeGenericValue(attributes);
+            out.writeMapWithConsistentOrder(attributes);
         }
     }
 
@@ -270,7 +276,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         true, args -> new AnalyzeResponse((List<AnalyzeToken>) args[0], (DetailAnalyzeResponse) args[1]));
     static {
         PARSER.declareObjectArray(constructorArg(), (p, c) -> AnalyzeToken.fromXContent(p), new ParseField(Fields.TOKENS));
-        PARSER.declareObject(constructorArg(), DetailAnalyzeResponse.PARSER, new ParseField(Fields.DETAIL));
+        PARSER.declareObject(optionalConstructorArg(), DetailAnalyzeResponse.PARSER, new ParseField(Fields.DETAIL));
     }
 
     public static AnalyzeResponse fromXContent(XContentParser parser) throws IOException {
@@ -314,6 +320,11 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
     @Override
     public int hashCode() {
         return Objects.hash(detail, tokens);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 
     static final class Fields {

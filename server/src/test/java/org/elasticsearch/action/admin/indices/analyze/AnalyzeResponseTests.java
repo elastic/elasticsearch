@@ -24,9 +24,9 @@ import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.function.Predicate;
 
 public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<AnalyzeResponse> {
@@ -48,19 +48,46 @@ public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<Ana
 
     @Override
     protected AnalyzeResponse createTestInstance() {
-        AnalyzeResponse.AnalyzeToken[] tokens = new AnalyzeResponse.AnalyzeToken[]{
-            new AnalyzeResponse.AnalyzeToken("one", 0, 0, 3, 1, "<ALPHANUM>", Collections.emptyMap()),
-            new AnalyzeResponse.AnalyzeToken("two", 1, 4, 7, 1, "<ALPHANUM>", Collections.emptyMap())
-        };
-        DetailAnalyzeResponse dar = new DetailAnalyzeResponse();
-        dar.charfilters(new DetailAnalyzeResponse.CharFilteredText[]{
-            new DetailAnalyzeResponse.CharFilteredText("my_charfilter", new String[]{"one two"})
-        });
-        dar.tokenizer(new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenizer", tokens));
-        dar.tokenfilters(new DetailAnalyzeResponse.AnalyzeTokenList[]{
-            new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenfilter_1", tokens),
-            new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenfilter_2", tokens)
-        });
+        int tokenCount = randomIntBetween(1, 30);
+        AnalyzeResponse.AnalyzeToken[] tokens = new AnalyzeResponse.AnalyzeToken[tokenCount];
+        for (int i = 0; i < tokenCount; i++) {
+            tokens[i] = randomToken();
+        }
+        DetailAnalyzeResponse dar = null;
+        if (randomBoolean()) {
+            dar = new DetailAnalyzeResponse();
+            if (randomBoolean()) {
+                dar.charfilters(new DetailAnalyzeResponse.CharFilteredText[]{
+                    new DetailAnalyzeResponse.CharFilteredText("my_charfilter", new String[]{"one two"})
+                });
+            }
+            dar.tokenizer(new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenizer", tokens));
+            if (randomBoolean()) {
+                dar.tokenfilters(new DetailAnalyzeResponse.AnalyzeTokenList[]{
+                    new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenfilter_1", tokens),
+                    new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenfilter_2", tokens)
+                });
+            }
+        }
         return new AnalyzeResponse(Arrays.asList(tokens), dar);
+    }
+
+    private AnalyzeResponse.AnalyzeToken randomToken() {
+        String token = randomAlphaOfLengthBetween(1, 20);
+        int position = randomIntBetween(0, 1000);
+        int startOffset = randomIntBetween(0, 1000);
+        int endOffset = randomIntBetween(0, 1000);
+        int posLength = randomIntBetween(1, 5);
+        String type = randomAlphaOfLengthBetween(1, 20);
+        Map<String, Object> extras = new HashMap<>();
+        if (randomBoolean()) {
+            int entryCount = randomInt(6);
+            for (int i = 0; i < entryCount; i++) {
+                String key = randomAlphaOfLength(5);
+                String value = randomAlphaOfLength(10);
+                extras.put(key, value);
+            }
+        }
+        return new AnalyzeResponse.AnalyzeToken(token, position, startOffset, endOffset, posLength, type, extras);
     }
 }

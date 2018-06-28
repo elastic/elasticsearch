@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.security.ingest;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.ingest.HashProcessor.Method;
 
 import javax.crypto.Mac;
@@ -74,7 +72,7 @@ public class HashProcessorTests extends ESTestCase {
         String targetField = randomAlphaOfLength(6);
         Method method = randomFrom(Method.values());
         Mac mac = createMac(method);
-        byte[] salt = CharArrays.toUtf8Bytes(Hasher.SaltProvider.salt(5));
+        byte[] salt = randomByteArrayOfLength(5);
         HashProcessor processor = new HashProcessor("_tag", fields, targetField, salt, method, mac, false);
         IngestDocument ingestDocument = new IngestDocument(docFields, new HashMap<>());
         processor.execute(ingestDocument);
@@ -102,7 +100,7 @@ public class HashProcessorTests extends ESTestCase {
         String targetField = randomAlphaOfLength(6);
         Method method = randomFrom(Method.values());
         Mac mac = createMac(method);
-        byte[] salt = CharArrays.toUtf8Bytes(Hasher.SaltProvider.salt(5));
+        byte[] salt = randomByteArrayOfLength(5);
         HashProcessor processor = new HashProcessor("_tag", fields, targetField, salt, method, mac, false);
         IngestDocument ingestDocument = new IngestDocument(docFields, new HashMap<>());
         processor.execute(ingestDocument);

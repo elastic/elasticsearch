@@ -92,7 +92,7 @@ public final class QueryParserHelper {
     public static FieldMapper getFieldMapper(MapperService mapperService, String field) {
         DocumentMapper mapper = mapperService.documentMapper();
         if (mapper != null) {
-            FieldMapper fieldMapper = mapper.mappers().getMapper(field);
+            FieldMapper fieldMapper = mapper.mappers().getFieldMapper(field);
             if (fieldMapper != null) {
                 return fieldMapper;
             }

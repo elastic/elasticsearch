@@ -832,7 +832,7 @@ final class DocumentParser {
 
     /** Creates an copy of the current field with given field name and boost */
     private static void parseCopy(String field, ParseContext context) throws IOException {
-        FieldMapper fieldMapper = context.docMapper().mappers().getMapper(field);
+        FieldMapper fieldMapper = context.docMapper().mappers().getFieldMapper(field);
         if (fieldMapper != null) {
             fieldMapper.parse(context);
         } else {
@@ -857,7 +857,7 @@ final class DocumentParser {
             ObjectMapper parent = mapper;
             for (int i = 0; i < paths.length-1; i++) {
             String currentPath = context.path().pathAsText(paths[i]);
-            FieldMapper existingFieldMapper = context.docMapper().mappers().getMapper(currentPath);
+            FieldMapper existingFieldMapper = context.docMapper().mappers().getFieldMapper(currentPath);
             if (existingFieldMapper != null) {
                 throw new MapperParsingException(
                         "Could not dynamically add mapping for field [{}]. Existing mapping for [{}] must be of type object but found [{}].",

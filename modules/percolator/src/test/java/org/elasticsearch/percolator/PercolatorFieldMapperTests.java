@@ -181,7 +181,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         bq.add(termQuery2, Occur.SHOULD);
 
         DocumentMapper documentMapper = mapperService.documentMapper("doc");
-        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
+        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getFieldMapper(fieldName);
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(Settings.EMPTY,
                 mapperService.documentMapperParser(), documentMapper, null, null);
         fieldMapper.processQuery(bq.build(), parseContext);
@@ -224,15 +224,15 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     public void testExtractRanges() throws Exception {
         addQueryFieldMappings();
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        Query rangeQuery1 = mapperService.documentMapper("doc").mappers().getMapper("number_field1").fieldType()
+        Query rangeQuery1 = mapperService.documentMapper("doc").mappers().getFieldMapper("number_field1").fieldType()
             .rangeQuery(10, 20, true, true, null, null, null, null);
         bq.add(rangeQuery1, Occur.MUST);
-        Query rangeQuery2 = mapperService.documentMapper("doc").mappers().getMapper("number_field1").fieldType()
+        Query rangeQuery2 = mapperService.documentMapper("doc").mappers().getFieldMapper("number_field1").fieldType()
             .rangeQuery(15, 20, true, true, null, null, null, null);
         bq.add(rangeQuery2, Occur.MUST);
 
         DocumentMapper documentMapper = mapperService.documentMapper("doc");
-        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
+        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getFieldMapper(fieldName);
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(Settings.EMPTY,
             mapperService.documentMapperParser(), documentMapper, null, null);
         fieldMapper.processQuery(bq.build(), parseContext);
@@ -255,7 +255,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         // Range queries on different fields:
         bq = new BooleanQuery.Builder();
         bq.add(rangeQuery1, Occur.MUST);
-        rangeQuery2 = mapperService.documentMapper("doc").mappers().getMapper("number_field2").fieldType()
+        rangeQuery2 = mapperService.documentMapper("doc").mappers().getFieldMapper("number_field2").fieldType()
             .rangeQuery(15, 20, true, true, null, null, null, null);
         bq.add(rangeQuery2, Occur.MUST);
 
@@ -282,7 +282,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         addQueryFieldMappings();
         TermRangeQuery query = new TermRangeQuery("field1", new BytesRef("a"), new BytesRef("z"), true, true);
         DocumentMapper documentMapper = mapperService.documentMapper("doc");
-        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
+        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getFieldMapper(fieldName);
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(Settings.EMPTY,
                 mapperService.documentMapperParser(), documentMapper, null, null);
         fieldMapper.processQuery(query, parseContext);
@@ -297,7 +297,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         addQueryFieldMappings();
         PhraseQuery phraseQuery = new PhraseQuery("field", "term");
         DocumentMapper documentMapper = mapperService.documentMapper("doc");
-        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
+        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getFieldMapper(fieldName);
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(Settings.EMPTY,
                 mapperService.documentMapperParser(), documentMapper, null, null);
         fieldMapper.processQuery(phraseQuery, parseContext);

@@ -56,11 +56,11 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         docMapper = index.mapperService().documentMapper("person");
         DocumentFieldMappers mappers = docMapper.mappers();
 
-        assertThat(mappers.getMapper("s"), Matchers.notNullValue());
-        assertEquals(IndexOptions.NONE, mappers.getMapper("s").fieldType().indexOptions());
+        assertThat(mappers.getFieldMapper("s"), Matchers.notNullValue());
+        assertEquals(IndexOptions.NONE, mappers.getFieldMapper("s").fieldType().indexOptions());
 
-        assertThat(mappers.getMapper("l"), Matchers.notNullValue());
-        assertNotSame(IndexOptions.NONE, mappers.getMapper("l").fieldType().indexOptions());
+        assertThat(mappers.getFieldMapper("l"), Matchers.notNullValue());
+        assertNotSame(IndexOptions.NONE, mappers.getFieldMapper("l").fieldType().indexOptions());
 
 
     }
@@ -84,7 +84,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        FieldMapper fieldMapper = docMapper.mappers().getMapper("name");
+        FieldMapper fieldMapper = docMapper.mappers().getFieldMapper("name");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi1");
@@ -93,7 +93,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMapper = docMapper.mappers().getMapper("multi1");
+        fieldMapper = docMapper.mappers().getFieldMapper("multi1");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi1.org");
@@ -102,7 +102,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMapper = docMapper.mappers().getMapper("multi1.org");
+        fieldMapper = docMapper.mappers().getFieldMapper("multi1.org");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi2");
@@ -111,7 +111,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMapper = docMapper.mappers().getMapper("multi2");
+        fieldMapper = docMapper.mappers().getFieldMapper("multi2");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi2.org");
@@ -120,7 +120,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMapper = docMapper.mappers().getMapper("multi2.org");
+        fieldMapper = docMapper.mappers().getFieldMapper("multi2.org");
         assertNotNull(fieldMapper);
     }
 
@@ -143,7 +143,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        FieldMapper fieldMapper = docMapper.mappers().getMapper("name");
+        FieldMapper fieldMapper = docMapper.mappers().getFieldMapper("name");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi1");
@@ -152,7 +152,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMapper = docMapper.mappers().getMapper("multi1");
+        fieldMapper = docMapper.mappers().getFieldMapper("multi1");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi1.org");
@@ -161,7 +161,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMapper = docMapper.mappers().getMapper("multi1.org");
+        fieldMapper = docMapper.mappers().getFieldMapper("multi1.org");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi2");
@@ -170,7 +170,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMapper = docMapper.mappers().getMapper("multi2");
+        fieldMapper = docMapper.mappers().getFieldMapper("multi2");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi2.org");
@@ -179,7 +179,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMapper = docMapper.mappers().getMapper("multi2.org");
+        fieldMapper = docMapper.mappers().getFieldMapper("multi2.org");
         assertNotNull(fieldMapper);
     }
 }

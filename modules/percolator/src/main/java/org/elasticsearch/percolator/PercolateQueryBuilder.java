@@ -618,7 +618,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             docSearcher.setQueryCache(null);
         }
 
-        PercolatorFieldMapper percolatorFieldMapper = (PercolatorFieldMapper) docMapper.mappers().getMapper(field);
+        PercolatorFieldMapper percolatorFieldMapper = (PercolatorFieldMapper) docMapper.mappers().getFieldMapper(field);
         boolean mapUnmappedFieldsAsString = percolatorFieldMapper.isMapUnmappedFieldAsText();
         QueryShardContext percolateShardContext = wrap(context);
 

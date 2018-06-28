@@ -61,9 +61,8 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
         this.searchAnalyzer = new FieldNameAnalyzer(searchAnalyzers);
         this.searchQuoteAnalyzer = new FieldNameAnalyzer(searchQuoteAnalyzers);
     }
-
-    /** Returns the mapper for the given field */
-    public FieldMapper getMapper(String field) {
+    
+    public FieldMapper getFieldMapper(String field) {
         return fieldMappers.get(field);
     }
 

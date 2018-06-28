@@ -1001,7 +1001,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
 
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getFieldMapper("name.first").fieldType().name()), equalTo("shay"));
         doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
     }
 
@@ -1015,7 +1015,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = builtDocMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(docMapper.idFieldMapper().fieldType().name()), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getFieldMapper("name.first").fieldType().name()), equalTo("shay"));
     }
 
     public void testSimpleParser() throws Exception {
@@ -1027,7 +1027,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(docMapper.idFieldMapper().fieldType().name()), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getFieldMapper("name.first").fieldType().name()), equalTo("shay"));
     }
 
     public void testSimpleParserNoTypeNoId() throws Exception {
@@ -1036,7 +1036,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
         Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(docMapper.idFieldMapper().fieldType().name()), equalTo(Uid.encodeId("1")));
-        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
+        assertThat(doc.get(docMapper.mappers().getFieldMapper("name.first").fieldType().name()), equalTo("shay"));
     }
 
     public void testAttributes() throws Exception {

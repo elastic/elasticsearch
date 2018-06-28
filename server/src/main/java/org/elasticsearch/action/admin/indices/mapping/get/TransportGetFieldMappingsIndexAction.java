@@ -186,7 +186,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
                 }
             } else {
                 // not a pattern
-                FieldMapper fieldMapper = allFieldMappers.getMapper(field);
+                FieldMapper fieldMapper = allFieldMappers.getFieldMapper(field);
                 if (fieldMapper != null) {
                     addFieldMapper(fieldPredicate, field, fieldMapper, fieldMappings, request.includeDefaults());
                 } else if (request.probablySingleFieldRequest()) {

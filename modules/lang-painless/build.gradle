@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.test.RestIntegTestTask
+
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
@@ -25,15 +25,6 @@ esplugin {
 }
 
 integTestCluster {
-  module project.project(':modules:mapper-extras')
-}
-
-Task additionalClusterTest = tasks.create(
-        name: "additionalClusterTest", type: RestIntegTestTask)
-additionalClusterTestCluster {
-  systemProperty 'es.script.exception_for_missing_value', 'true'
-  distribution = 'integ-test-zip'
-  module project // add the lang-painless module itself
   module project.project(':modules:mapper-extras')
 }
 

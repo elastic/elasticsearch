@@ -36,7 +36,3 @@ dependencyLicenses {
 
 compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes"
 compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes"
-
-test.configure {
-    systemProperty 'es.script.exception_for_missing_value', 'true'
-}

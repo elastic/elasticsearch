@@ -339,6 +339,12 @@ if (isEclipse == false || project.path == ":server-tests") {
   integTest.mustRunAfter test
 }
 
-test.configure {
-  systemProperty 'es.script.exception_for_missing_value', 'true'
+// TODO: remove ScriptDocValuesMissingV6BehaviourTests in 7.0
+additionalTest('testScriptDocValuesMissingV6Behaviour'){
+  include '**/ScriptDocValuesMissingV6BehaviourTests.class'
+  systemProperty 'es.script.exception_for_missing_value', 'false'
+}
+test {
+  // these are tested explicitly in separate test tasks
+  exclude '**/*ScriptDocValuesMissingV6BehaviourTests.class'
 }

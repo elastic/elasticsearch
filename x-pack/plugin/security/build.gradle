@@ -225,7 +225,6 @@ test {
      * other if we allow them to set the number of available processors as it's set-once in Netty.
      */
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
-    systemProperty 'es.script.exception_for_missing_value', 'true'
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

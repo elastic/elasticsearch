@@ -21,6 +21,3 @@ esplugin {
     description 'Adds advanced field mappers'
     classname 'org.elasticsearch.index.mapper.MapperExtrasPlugin'
 }
-test.configure {
-    systemProperty 'es.script.exception_for_missing_value', 'true'
-}

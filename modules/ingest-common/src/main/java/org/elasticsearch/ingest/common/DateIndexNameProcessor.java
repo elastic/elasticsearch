@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -85,13 +86,13 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("unable to parse date [" + date + "]", lastException);
         }
 
-        DateTimeFormatter formatter = DateFormatters.forPattern(indexNameFormat);
+        DateFormatter formatter = DateFormatters.forPattern(indexNameFormat);
         String zoneId = timezone.equals(ZoneOffset.UTC) ? "UTC" : timezone.toString();
         StringBuilder builder = new StringBuilder()
                 .append('<')
                 .append(indexNamePrefix)
                     .append('{')
-                        .append(dateTime.format(formatter)).append("||/").append(dateRounding)
+                        .append(formatter.format(dateTime)).append("||/").append(dateRounding)
                             .append('{').append(indexNameFormat).append('|').append(zoneId).append('}')
                     .append('}')
                 .append('>');

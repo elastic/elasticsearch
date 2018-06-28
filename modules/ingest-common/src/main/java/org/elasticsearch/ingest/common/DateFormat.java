@@ -19,12 +19,12 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
@@ -34,8 +34,8 @@ enum DateFormat {
     Iso8601 {
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
-            DateTimeFormatter formatter = DateFormatters.forPattern("date_time_no_millis");
-            return (date) -> ZonedDateTime.parse(date, formatter).withZoneSameInstant(timezone);
+            DateFormatter formatter = DateFormatters.forPattern("date_time_no_millis");
+            return (date) -> ZonedDateTime.from(formatter.parse(date)).withZoneSameInstant(timezone);
         }
     },
     Unix {
@@ -69,7 +69,7 @@ enum DateFormat {
     Time {
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
-            DateTimeFormatter formatter = DateFormatters.forPattern(format, locale).withZone(timezone);
+            DateFormatter formatter = DateFormatters.forPattern(format, locale).withZone(timezone);
             return text -> {
                 TemporalAccessor accessor = formatter.parse(text);
                 ZonedDateTime startOfThisYear = DateFormatters.EPOCH_ZONED_DATE_TIME.withYear(ZonedDateTime.now(timezone)

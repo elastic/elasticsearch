@@ -27,6 +27,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -38,7 +39,6 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -52,7 +52,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateFormatters.forPattern("strictDateOptionalTime");
+    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatters.forPattern("strictDateOptionalTime");
     private static final String SNAPSHOT = "snapshot";
     private static final String UUID = "uuid";
     private static final String INDICES = "indices";
@@ -532,11 +532,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             builder.field(REASON, reason);
         }
         if (verbose || startTime != 0) {
-            builder.field(START_TIME, Instant.ofEpochMilli(startTime).atZone(ZoneOffset.UTC).format(DATE_TIME_FORMATTER));
+            builder.field(START_TIME, DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(startTime).atZone(ZoneOffset.UTC)));
             builder.field(START_TIME_IN_MILLIS, startTime);
         }
         if (verbose || endTime != 0) {
-            builder.field(END_TIME, Instant.ofEpochMilli(endTime).atZone(ZoneOffset.UTC).format(DATE_TIME_FORMATTER));
+            builder.field(END_TIME, DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(endTime).atZone(ZoneOffset.UTC)));
             builder.field(END_TIME_IN_MILLIS, endTime);
             builder.humanReadableField(DURATION_IN_MILLIS, DURATION, new TimeValue(endTime - startTime));
         }

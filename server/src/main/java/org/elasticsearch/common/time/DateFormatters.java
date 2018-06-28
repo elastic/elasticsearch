@@ -50,14 +50,21 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 public class DateFormatters {
 
     private static final DateTimeFormatter TIME_ZONE_FORMATTER = new DateTimeFormatterBuilder()
-        .parseLenient()
-        .optionalStart()
+        .optionalStart().appendZoneId().optionalEnd()
+        .optionalStart().appendOffset("+HHmm", "Z").optionalEnd()
+        .optionalStart().appendOffset("+HH:mm", "Z").optionalEnd()
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter TIME_ZONE_FORMATTER_ZONE_ID = new DateTimeFormatterBuilder()
+        .appendZoneId()
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter TIME_ZONE_FORMATTER_WITHOUT_COLON = new DateTimeFormatterBuilder()
+        .appendOffset("+HHmm", "Z")
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter TIME_ZONE_FORMATTER_WITH_COLON = new DateTimeFormatterBuilder()
         .appendOffset("+HH:mm", "Z")
-        .optionalEnd()
-        .optionalStart()
-        .appendOffset("+HHMM", "Z")
-        .optionalEnd()
-        .parseStrict()
         .toFormatter(Locale.ROOT);
 
     public static final DateTimeFormatter OPTIONAL_TIME_ZONE_FORMATTER = new DateTimeFormatterBuilder()
@@ -272,6 +279,30 @@ public class DateFormatters {
         .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
         .appendFraction(MILLI_OF_SECOND, 1, 3, true)
         .append(TIME_ZONE_FORMATTER)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter TIME_PREFIX = new DateTimeFormatterBuilder()
+        .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendFraction(MILLI_OF_SECOND, 1, 3, true)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter TIME_ZONE_ID = new DateTimeFormatterBuilder()
+        .append(TIME_PREFIX)
+        .append(TIME_ZONE_FORMATTER_ZONE_ID)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter TIME_ZONE_WITH_COLON = new DateTimeFormatterBuilder()
+        .append(TIME_PREFIX)
+        .append(TIME_ZONE_FORMATTER_WITH_COLON)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter TIME_ZONE_WITHOUT_COLON = new DateTimeFormatterBuilder()
+        .append(TIME_PREFIX)
+        .append(TIME_ZONE_FORMATTER_WITHOUT_COLON)
         .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter T_TIME = new DateTimeFormatterBuilder()
@@ -536,11 +567,11 @@ public class DateFormatters {
         .appendValue(WeekFields.ISO.dayOfWeek())
         .toFormatter(Locale.ROOT);
 
-    public static DateTimeFormatter forPattern(String input) {
+    public static DateFormatter forPattern(String input) {
         return forPattern(input, Locale.ROOT);
     }
 
-    public static DateTimeFormatter forPattern(String input, Locale locale) {
+    public static DateFormatter forPattern(String input, Locale locale) {
         if (Strings.hasLength(input)) {
             input = input.trim();
         }
@@ -548,177 +579,185 @@ public class DateFormatters {
             throw new IllegalArgumentException("No date pattern provided");
         }
 
+        // TODO prevent creation of all those new objects, make them static
         if ("basicDate".equals(input) || "basic_date".equals(input)) {
-            return DateTimeFormatter.BASIC_ISO_DATE;
+            return new DateFormatter(DateTimeFormatter.BASIC_ISO_DATE);
         } else if ("basicDateTime".equals(input) || "basic_date_time".equals(input)) {
-            return BASIC_DATE_TIME;
+            return new DateFormatter(BASIC_DATE_TIME);
         } else if ("basicDateTimeNoMillis".equals(input) || "basic_date_time_no_millis".equals(input)) {
-            return BASIC_DATE_TIME_NO_MILLIS;
+            return new DateFormatter(BASIC_DATE_TIME_NO_MILLIS);
         } else if ("basicOrdinalDate".equals(input) || "basic_ordinal_date".equals(input)) {
-            return BASIC_ORDINAL_DATE;
+            return new DateFormatter(BASIC_ORDINAL_DATE);
         } else if ("basicOrdinalDateTime".equals(input) || "basic_ordinal_date_time".equals(input)) {
-            return BASIC_ORDINAL_DATE_TIME;
+            return new DateFormatter(BASIC_ORDINAL_DATE_TIME);
         } else if ("basicOrdinalDateTimeNoMillis".equals(input) || "basic_ordinal_date_time_no_millis".equals(input)) {
-            return BASIC_ORDINAL_DATE_TIME_NO_MILLIS;
+            return new DateFormatter(BASIC_ORDINAL_DATE_TIME_NO_MILLIS);
         } else if ("basicTime".equals(input) || "basic_time".equals(input)) {
-            return BASIC_TIME;
+            return new DateFormatter(BASIC_TIME);
         } else if ("basicTimeNoMillis".equals(input) || "basic_time_no_millis".equals(input)) {
-            return BASIC_TIME_NO_MILLIS;
+            return new DateFormatter(BASIC_TIME_NO_MILLIS);
         } else if ("basicTTime".equals(input) || "basic_t_time".equals(input)) {
-            return BASIC_T_TIME;
+            return new DateFormatter(BASIC_T_TIME);
         } else if ("basicTTimeNoMillis".equals(input) || "basic_t_time_no_millis".equals(input)) {
-            return BASIC_T_TIME_NO_MILLIS;
+            return new DateFormatter(BASIC_T_TIME_NO_MILLIS);
         } else if ("basicWeekDate".equals(input) || "basic_week_date".equals(input)) {
-            return BASIC_WEEK_DATE;
+            return new DateFormatter(BASIC_WEEK_DATE);
         } else if ("basicWeekDateTime".equals(input) || "basic_week_date_time".equals(input)) {
-            return BASIC_WEEK_DATE_TIME;
+            return new DateFormatter(BASIC_WEEK_DATE_TIME);
         } else if ("basicWeekDateTimeNoMillis".equals(input) || "basic_week_date_time_no_millis".equals(input)) {
-            return BASIC_WEEK_DATE_TIME_NO_MILLIS;
+            return new DateFormatter(BASIC_WEEK_DATE_TIME_NO_MILLIS);
         } else if ("date".equals(input)) {
-            return DATE;
+            return new DateFormatter(DATE);
         } else if ("dateHour".equals(input) || "date_hour".equals(input)) {
-            return DATE_HOUR;
+            return new DateFormatter(DATE_HOUR);
         } else if ("dateHourMinute".equals(input) || "date_hour_minute".equals(input)) {
-            return DATE_HOUR_MINUTE;
+            return new DateFormatter(DATE_HOUR_MINUTE);
         } else if ("dateHourMinuteSecond".equals(input) || "date_hour_minute_second".equals(input)) {
-            return DATE_HOUR_MINUTE_SECOND;
+            return new DateFormatter(DATE_HOUR_MINUTE_SECOND);
         } else if ("dateHourMinuteSecondFraction".equals(input) || "date_hour_minute_second_fraction".equals(input)) {
-            return DATE_HOUR_MINUTE_SECOND_FRACTION;
+            return new DateFormatter(DATE_HOUR_MINUTE_SECOND_FRACTION);
         } else if ("dateHourMinuteSecondMillis".equals(input) || "date_hour_minute_second_millis".equals(input)) {
-            return DATE_HOUR_MINUTE_SECOND_MILLIS;
+            return new DateFormatter(DATE_HOUR_MINUTE_SECOND_MILLIS);
         } else if ("dateOptionalTime".equals(input) || "date_optional_time".equals(input)) {
-            return DATE_OPTIONAL_TIME;
+            return new DateFormatter(DATE_OPTIONAL_TIME);
         } else if ("dateTime".equals(input) || "date_time".equals(input)) {
-            return DATE_TIME;
+            return new DateFormatter(DATE_TIME);
         } else if ("dateTimeNoMillis".equals(input) || "date_time_no_millis".equals(input)) {
-            return DATE_TIME_NO_MILLIS;
+            return new DateFormatter(DATE_TIME_NO_MILLIS);
         } else if ("hour".equals(input)) {
-            return HOUR;
+            return new DateFormatter(HOUR);
         } else if ("hourMinute".equals(input) || "hour_minute".equals(input)) {
-            return HOUR_MINUTE;
+            return new DateFormatter(HOUR_MINUTE);
         } else if ("hourMinuteSecond".equals(input) || "hour_minute_second".equals(input)) {
-            return HOUR_MINUTE_SECOND;
+            return new DateFormatter(HOUR_MINUTE_SECOND);
         } else if ("hourMinuteSecondFraction".equals(input) || "hour_minute_second_fraction".equals(input)) {
-            return HOUR_MINUTE_SECOND_MILLIS;
+            return new DateFormatter(HOUR_MINUTE_SECOND_MILLIS);
         } else if ("hourMinuteSecondMillis".equals(input) || "hour_minute_second_millis".equals(input)) {
-            return HOUR_MINUTE_SECOND_MILLIS;
+            return new DateFormatter(HOUR_MINUTE_SECOND_MILLIS);
         } else if ("ordinalDate".equals(input) || "ordinal_date".equals(input)) {
-            return ORDINAL_DATE;
+            return new DateFormatter(ORDINAL_DATE);
         } else if ("ordinalDateTime".equals(input) || "ordinal_date_time".equals(input)) {
-            return ORDINAL_DATE_TIME;
+            return new DateFormatter(ORDINAL_DATE_TIME);
         } else if ("ordinalDateTimeNoMillis".equals(input) || "ordinal_date_time_no_millis".equals(input)) {
-            return ORDINAL_DATE_TIME_NO_MILLIS;
+            return new DateFormatter(ORDINAL_DATE_TIME_NO_MILLIS);
         } else if ("time".equals(input)) {
-            return TIME;
+            return new DateFormatter(TIME_ZONE_FORMATTER_ZONE_ID, TIME_ZONE_FORMATTER_WITH_COLON, TIME_ZONE_FORMATTER_WITHOUT_COLON);
         } else if ("timeNoMillis".equals(input) || "time_no_millis".equals(input)) {
-            return TIME_NO_MILLIS;
+            return new DateFormatter(TIME_NO_MILLIS);
         } else if ("tTime".equals(input) || "t_time".equals(input)) {
-            return T_TIME;
+            return new DateFormatter(T_TIME);
         } else if ("tTimeNoMillis".equals(input) || "t_time_no_millis".equals(input)) {
-            return T_TIME_NO_MILLIS;
+            return new DateFormatter(T_TIME_NO_MILLIS);
         } else if ("weekDate".equals(input) || "week_date".equals(input)) {
-            return WEEK_DATE;
+            return new DateFormatter(WEEK_DATE);
         } else if ("weekDateTime".equals(input) || "week_date_time".equals(input)) {
-            return WEEK_DATE_TIME;
+            return new DateFormatter(WEEK_DATE_TIME);
         } else if ("weekDateTimeNoMillis".equals(input) || "week_date_time_no_millis".equals(input)) {
-            return WEEK_DATE_TIME_NO_MILLIS;
+            return new DateFormatter(WEEK_DATE_TIME_NO_MILLIS);
         } else if ("weekyear".equals(input) || "week_year".equals(input)) {
-            return WEEK_YEAR;
+            return new DateFormatter(WEEK_YEAR);
         } else if ("weekyearWeek".equals(input) || "weekyear_week".equals(input)) {
-            return WEEKYEAR_WEEK;
+            return new DateFormatter(WEEKYEAR_WEEK);
         } else if ("weekyearWeekDay".equals(input) || "weekyear_week_day".equals(input)) {
-            return WEEKYEAR_WEEK_DAY;
+            return new DateFormatter(WEEKYEAR_WEEK_DAY);
         } else if ("year".equals(input)) {
-            return YEAR;
+            return new DateFormatter(YEAR);
         } else if ("yearMonth".equals(input) || "year_month".equals(input)) {
-            return YEAR_MONTH;
+            return new DateFormatter(YEAR_MONTH);
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
-            return YEAR_MONTH_DAY;
+            return new DateFormatter(YEAR_MONTH_DAY);
         } else if ("epoch_second".equals(input)) {
-            return EPOCH_SECOND;
+            return new DateFormatter(EPOCH_SECOND);
         } else if ("epoch_millis".equals(input)) {
-            return EPOCH_MILLIS;
+            return new DateFormatter(EPOCH_MILLIS);
         // strict date formats here, must be at least 4 digits for year and two for months and two for day
         } else if ("strictBasicWeekDate".equals(input) || "strict_basic_week_date".equals(input)) {
-            return STRICT_BASIC_WEEK_DATE;
+            return new DateFormatter(STRICT_BASIC_WEEK_DATE);
         } else if ("strictBasicWeekDateTime".equals(input) || "strict_basic_week_date_time".equals(input)) {
-            return STRICT_BASIC_WEEK_DATE_TIME;
+            return new DateFormatter(STRICT_BASIC_WEEK_DATE_TIME);
         } else if ("strictBasicWeekDateTimeNoMillis".equals(input) || "strict_basic_week_date_time_no_millis".equals(input)) {
-            return STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS;
+            return new DateFormatter(STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS);
         } else if ("strictDate".equals(input) || "strict_date".equals(input)) {
-            return STRICT_DATE;
+            return new DateFormatter(STRICT_DATE);
         } else if ("strictDateHour".equals(input) || "strict_date_hour".equals(input)) {
-            return STRICT_DATE_HOUR;
+            return new DateFormatter(STRICT_DATE_HOUR);
         } else if ("strictDateHourMinute".equals(input) || "strict_date_hour_minute".equals(input)) {
-            return STRICT_DATE_HOUR_MINUTE;
+            return new DateFormatter(STRICT_DATE_HOUR_MINUTE);
         } else if ("strictDateHourMinuteSecond".equals(input) || "strict_date_hour_minute_second".equals(input)) {
-            return DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT);
+            // TODO make this static
+            return new DateFormatter(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT));
         } else if ("strictDateHourMinuteSecondFraction".equals(input) || "strict_date_hour_minute_second_fraction".equals(input)) {
-            return STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION;
+            return new DateFormatter(STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION);
         } else if ("strictDateHourMinuteSecondMillis".equals(input) || "strict_date_hour_minute_second_millis".equals(input)) {
-            return STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS;
+            return new DateFormatter(STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS);
         } else if ("strictDateOptionalTime".equals(input) || "strict_date_optional_time".equals(input)) {
-            return STRICT_DATE_OPTIONAL_TIME;
+            return new DateFormatter(STRICT_DATE_OPTIONAL_TIME);
         } else if ("strictDateTime".equals(input) || "strict_date_time".equals(input)) {
-            return STRICT_DATE_TIME;
+            return new DateFormatter(STRICT_DATE_TIME);
         } else if ("strictDateTimeNoMillis".equals(input) || "strict_date_time_no_millis".equals(input)) {
-            return STRICT_DATE_TIME_NO_MILLIS;
+            return new DateFormatter(STRICT_DATE_TIME_NO_MILLIS);
         } else if ("strictHour".equals(input) || "strict_hour".equals(input)) {
-            return STRICT_HOUR;
+            return new DateFormatter(STRICT_HOUR);
         } else if ("strictHourMinute".equals(input) || "strict_hour_minute".equals(input)) {
-            return STRICT_HOUR_MINUTE;
+            return new DateFormatter(STRICT_HOUR_MINUTE);
         } else if ("strictHourMinuteSecond".equals(input) || "strict_hour_minute_second".equals(input)) {
-            return STRICT_HOUR_MINUTE_SECOND;
+            return new DateFormatter(STRICT_HOUR_MINUTE_SECOND);
         } else if ("strictHourMinuteSecondFraction".equals(input) || "strict_hour_minute_second_fraction".equals(input)) {
-            return STRICT_HOUR_MINUTE_SECOND_FRACTION;
+            return new DateFormatter(STRICT_HOUR_MINUTE_SECOND_FRACTION);
         } else if ("strictHourMinuteSecondMillis".equals(input) || "strict_hour_minute_second_millis".equals(input)) {
-            return STRICT_HOUR_MINUTE_SECOND_MILLIS;
+            return new DateFormatter(STRICT_HOUR_MINUTE_SECOND_MILLIS);
         } else if ("strictOrdinalDate".equals(input) || "strict_ordinal_date".equals(input)) {
-            return DateTimeFormatter.ISO_ORDINAL_DATE;
+            return new DateFormatter(DateTimeFormatter.ISO_ORDINAL_DATE);
         } else if ("strictOrdinalDateTime".equals(input) || "strict_ordinal_date_time".equals(input)) {
-            return STRICT_ORDINAL_DATE_TIME;
+            return new DateFormatter(STRICT_ORDINAL_DATE_TIME);
         } else if ("strictOrdinalDateTimeNoMillis".equals(input) || "strict_ordinal_date_time_no_millis".equals(input)) {
-            return STRICT_ORDINAL_DATE_TIME_NO_MILLIS;
+            return new DateFormatter(STRICT_ORDINAL_DATE_TIME_NO_MILLIS);
         } else if ("strictTime".equals(input) || "strict_time".equals(input)) {
-            return STRICT_TIME;
+            return new DateFormatter(STRICT_TIME);
         } else if ("strictTimeNoMillis".equals(input) || "strict_time_no_millis".equals(input)) {
-            return STRICT_TIME_NO_MILLIS;
+            return new DateFormatter(STRICT_TIME_NO_MILLIS);
         } else if ("strictTTime".equals(input) || "strict_t_time".equals(input)) {
-            return STRICT_T_TIME;
+            return new DateFormatter(STRICT_T_TIME);
         } else if ("strictTTimeNoMillis".equals(input) || "strict_t_time_no_millis".equals(input)) {
-            return STRICT_T_TIME_NO_MILLIS;
+            return new DateFormatter(STRICT_T_TIME_NO_MILLIS);
         } else if ("strictWeekDate".equals(input) || "strict_week_date".equals(input)) {
-            return STRICT_WEEK_DATE;
+            return new DateFormatter(STRICT_WEEK_DATE);
         } else if ("strictWeekDateTime".equals(input) || "strict_week_date_time".equals(input)) {
-            return STRICT_WEEK_DATE_TIME;
+            return new DateFormatter(STRICT_WEEK_DATE_TIME);
         } else if ("strictWeekDateTimeNoMillis".equals(input) || "strict_week_date_time_no_millis".equals(input)) {
-            return STRICT_WEEK_DATE_TIME_NO_MILLIS;
+            return new DateFormatter(STRICT_WEEK_DATE_TIME_NO_MILLIS);
         } else if ("strictWeekyear".equals(input) || "strict_weekyear".equals(input)) {
-            return STRICT_WEEKYEAR;
+            return new DateFormatter(STRICT_WEEKYEAR);
         } else if ("strictWeekyearWeek".equals(input) || "strict_weekyear_week".equals(input)) {
-            return STRICT_WEEKYEAR_WEEK;
+            return new DateFormatter(STRICT_WEEKYEAR_WEEK);
         } else if ("strictWeekyearWeekDay".equals(input) || "strict_weekyear_week_day".equals(input)) {
-            return STRICT_WEEKYEAR_WEEK_DAY;
+            return new DateFormatter(STRICT_WEEKYEAR_WEEK_DAY);
         } else if ("strictYear".equals(input) || "strict_year".equals(input)) {
-            return STRICT_YEAR;
+            return new DateFormatter(STRICT_YEAR);
         } else if ("strictYearMonth".equals(input) || "strict_year_month".equals(input)) {
-            return STRICT_YEAR_MONTH;
+            return new DateFormatter(STRICT_YEAR_MONTH);
         } else if ("strictYearMonthDay".equals(input) || "strict_year_month_day".equals(input)) {
-            return STRICT_YEAR_MONTH_DAY;
+            return new DateFormatter(STRICT_YEAR_MONTH_DAY);
         } else if (Strings.hasLength(input) && input.contains("||")) {
             String[] formats = Strings.delimitedListToStringArray(input, "||");
             if (formats.length == 1) {
                 return forPattern(formats[0], locale);
             } else {
-                DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
-                for (String format : formats) {
-                    builder.appendOptional(forPattern(format)).toFormatter(locale);
+                DateTimeFormatter[] formatters = new DateTimeFormatter[formats.length];
+                for (int i = 0; i < formats.length; i++) {
+                    try {
+//                        formatters[i] = new DateTimeFormatterBuilder().appendPattern(input).toFormatter(locale);
+                        formatters[i] = forPattern(input, locale).formatters()[0];
+                    } catch (IllegalArgumentException e) {
+                        throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
+                    }
                 }
-                return builder.toFormatter(locale);
+
+                return new DateFormatter(formatters);
             }
         } else {
             try {
-                return new DateTimeFormatterBuilder().appendPattern(input).toFormatter(locale);
+                return new DateFormatter(new DateTimeFormatterBuilder().appendPattern(input).toFormatter(locale));
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
             }

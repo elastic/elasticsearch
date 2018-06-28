@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.joda;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 
@@ -43,23 +45,39 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     // https://github.com/dmlloyd/openjdk/commit/c4a9c77a0314826b49a98a991035545f768a421a
     // https://github.com/dmlloyd/openjdk/commit/dd0368122c35c6a34f322a633bf98c91b50a3c30
     public void testBrokenWithJava8ButWorksWithJava10() {
+        logger.info("jvm version [{}]", JvmInfo.jvmInfo().version());
         // works
-        DateTimeFormatter f1 = new DateTimeFormatterBuilder().appendOffset("+HH:mm", "Z").toFormatter(Locale.ROOT);
+        DateTimeFormatter f1 = new DateTimeFormatterBuilder().optionalStart().appendOffset("+HH:mm", "Z").optionalEnd().toFormatter(Locale.ROOT);
         f1.parse("Z");
         f1.parse("-08");
         f1.parse("+08:00");
 
         // works
-        DateTimeFormatter f2 = new DateTimeFormatterBuilder().appendOffset("+HHmm", "Z").toFormatter(Locale.ROOT);
+        DateTimeFormatter f2 = new DateTimeFormatterBuilder().optionalStart().appendOffset("+HHmm", "Z").optionalEnd().toFormatter(Locale.ROOT);
         f2.parse("Z");
         f2.parse("-0800");
 
         // fails, only the first formatter is able top parse in java8
-        DateTimeFormatter f3 = new DateTimeFormatterBuilder().appendOptional(f1).appendOptional(f2).toFormatter(Locale.ROOT);
+//        DateTimeFormatter f3 = new DateTimeFormatterBuilder().appendOptional(f1).appendOptional(f2).toFormatter(Locale.ROOT);
+//        DateTimeFormatter f3 = new DateTimeFormatterBuilder().appendOptional(f2).appendOptional(f1).toFormatter(Locale.ROOT);
+        DateTimeFormatter f3 = new DateTimeFormatterBuilder()
+            .optionalStart().appendZoneId().optionalEnd()
+            .optionalStart().appendOffset("+HHmm", "Z").optionalEnd()
+            .optionalStart().appendOffset("+HH:mm", "Z").optionalEnd()
+            .toFormatter(Locale.ROOT);
         f3.parse("Z");
         f3.parse("-08");
         f3.parse("+08:00");
         f3.parse("-0800");
+    }
+
+    public void testFoo() {
+//        DateTimeFormatter formatter = DateFormatters.forPattern("date_time_no_millis");
+//        formatter.parse("2001-01-01T00:00:00-0800");
+
+        DateFormatter formatter = DateFormatters.forPattern("time");
+        formatter.parse("10:15:3.1");
+        DateFormatters.toZonedDateTime(formatter.parse("10:15:3.1"));
     }
 
     public void testTimeZoneFormatting() {
@@ -388,7 +406,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format);
         DateTime jodaDateTime = jodaFormatter.parser().parseDateTime(input);
 
-        DateTimeFormatter javaTimeFormatter = DateFormatters.forPattern(format);
+        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
         TemporalAccessor javaTimeAccessor = javaTimeFormatter.parse(input);
         ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(javaTimeAccessor);
 
@@ -408,7 +426,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertJavaTimeParseException(String input, String format, String expectedMessage) {
-        DateTimeFormatter javaTimeFormatter = DateFormatters.forPattern(format);
+        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
         DateTimeParseException dateTimeParseException = expectThrows(DateTimeParseException.class, () -> javaTimeFormatter.parse(input));
         assertThat(dateTimeParseException.getMessage(), startsWith(expectedMessage));
     }

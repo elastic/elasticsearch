@@ -67,8 +67,9 @@ public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<Ana
                     new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenfilter_2", tokens)
                 });
             }
+            return new AnalyzeResponse(null, dar);
         }
-        return new AnalyzeResponse(Arrays.asList(tokens), dar);
+        return new AnalyzeResponse(Arrays.asList(tokens), null);
     }
 
     private AnalyzeResponse.AnalyzeToken randomToken() {

@@ -274,7 +274,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
     private static final ConstructingObjectParser<AnalyzeResponse, Void> PARSER = new ConstructingObjectParser<>("analyze_response",
         true, args -> new AnalyzeResponse((List<AnalyzeToken>) args[0], (DetailAnalyzeResponse) args[1]));
     static {
-        PARSER.declareObjectArray(constructorArg(), (p, c) -> AnalyzeToken.fromXContent(p), new ParseField(Fields.TOKENS));
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> AnalyzeToken.fromXContent(p), new ParseField(Fields.TOKENS));
         PARSER.declareObject(optionalConstructorArg(), DetailAnalyzeResponse.PARSER, new ParseField(Fields.DETAIL));
     }
 
@@ -289,6 +289,9 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         tokens = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             tokens.add(AnalyzeToken.readAnalyzeToken(in));
+        }
+        if (tokens.size() == 0) {
+            tokens = null;
         }
         detail = in.readOptionalStreamable(DetailAnalyzeResponse::new);
     }

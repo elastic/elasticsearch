@@ -104,9 +104,16 @@ The returned `AnalyzeResponse` allows you to retrieve details of the analysis as
 follows:
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-response]
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-response-tokens]
 ---------------------------------------------------
 <1> `AnalyzeToken` holds information about the individual tokens produced by analysis
-<2> `DetailAnalyzeResponse` holds more detailed information about tokens produced by
-the various substeps in the analysis chain.  If `explain` was set to `false` in the
-request, this method will return `null`
+
+If `explain` was set to `true`, then information is instead returned from the `detail()`
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-response-detail]
+---------------------------------------------------
+<1> `DetailAnalyzeResponse` holds more detailed information about tokens produced by
+the various substeps in the analysis chain.

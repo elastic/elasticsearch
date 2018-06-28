@@ -2258,13 +2258,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             AnalyzeResponse response = client.indices().analyze(request, RequestOptions.DEFAULT);
             // end::analyze-request-sync
 
-            // tag::analyze-response
+            // tag::analyze-response-tokens
             List<AnalyzeResponse.AnalyzeToken> tokens = response.getTokens();   // <1>
+            // end::analyze-response-tokens
+            // tag::analyze-response-detail
             DetailAnalyzeResponse detail = response.detail();                   // <2>
-            // end::analyze-response
+            // end::analyze-response-detail
 
-            assertEquals(tokens.size(), 1);
-            assertEquals(tokens.get(0).getTerm(), "bar");
+            assertNull(tokens);
             assertNotNull(detail.tokenizer());
         }
 
@@ -2274,6 +2275,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         PutMappingRequest pmReq = new PutMappingRequest()
             .indices("my_index")
+            .type("_doc")
             .source("my_field", "type=text,analyzer=english");
         PutMappingResponse pmResp = client.indices().putMapping(pmReq, RequestOptions.DEFAULT);
         assertTrue(pmResp.isAcknowledged());
@@ -2300,15 +2302,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             };
             // end::analyze-execute-listener
 
+            // use a built-in analyzer in the test
+            request = new AnalyzeRequest();
+            request.index("my_index");
+            request.field("my_field");
+            request.text("some text to analyze");
             // Use a blocking listener in the test
             final CountDownLatch latch = new CountDownLatch(1);
-            final ActionListener<AnalyzeResponse> blockingListener = new LatchedActionListener<>(listener, latch);
-            listener = ActionListener.wrap(r -> {
-                assertThat(r.getTokens(), hasSize(4));
-            }, e-> {
-                blockingListener.onFailure(e);
-                fail("should not fail");
-            });
+            listener = new LatchedActionListener<>(listener, latch);
 
             // tag::analyze-request-async
             client.indices().analyzeAsync(request, RequestOptions.DEFAULT, listener);

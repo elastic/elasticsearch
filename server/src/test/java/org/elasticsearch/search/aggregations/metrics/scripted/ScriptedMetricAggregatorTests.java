@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
@@ -107,7 +106,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             });
         SCRIPTS.put("mapScriptScore", params -> {
             Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            ((List<Double>) agg.get("collector")).add(((ScoreAccessor) params.get("_score")).doubleValue());
+            ((List<Double>) agg.get("collector")).add(((Number) params.get("_score")).doubleValue());
             return agg;
         });
         SCRIPTS.put("combineScriptScore", params -> {

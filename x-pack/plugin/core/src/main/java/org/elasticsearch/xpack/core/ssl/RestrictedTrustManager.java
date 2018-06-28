@@ -132,7 +132,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
      * Decodes the otherName CN from the certificate
      *
      * @param value       The DER Encoded Subject Alternative Name
-     * @param certificate
+     * @param certificate The certificate
      * @return the CN or null if it could not be parsed
      */
     private String decodeDerValue(byte[] value, X509Certificate certificate) {

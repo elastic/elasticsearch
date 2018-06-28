@@ -583,7 +583,7 @@ if (System.properties.get("build.compare") != null) {
       }
     }
     sourceBuild {
-      gradleVersion = "4.7" // does not default to gradle weapper of project dir, but current version
+      gradleVersion = "4.8.1" // does not default to gradle weapper of project dir, but current version
       projectDir = referenceProject
       tasks = ["clean", "assemble"]
       arguments = ["-Dbuild.compare_friendly=true"]

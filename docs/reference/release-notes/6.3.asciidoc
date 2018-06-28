@@ -82,7 +82,6 @@ Stats::
 Aggregations::
 * Adds the ability to specify a format on composite date_histogram source {pull}28310[#28310] (issue: {issue}27923[#27923])
 * Calculate sum in Kahan summation algorithm in aggregations (#27807) {pull}27848[#27848] (issue: {issue}27807[#27807])
-* Adds a new auto-interval date histogram {pull}26659[#26659] (issue: {issue}9572[#9572])
 
 Discovery-Plugins::
 * Update ec2 secure settings {pull}29134[#29134]

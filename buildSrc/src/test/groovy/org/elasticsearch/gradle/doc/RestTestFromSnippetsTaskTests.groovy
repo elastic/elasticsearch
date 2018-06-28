@@ -26,7 +26,6 @@ import org.junit.rules.ExpectedException
 
 import static org.elasticsearch.gradle.doc.RestTestsFromSnippetsTask.replaceBlockQuote
 import static org.elasticsearch.gradle.doc.RestTestsFromSnippetsTask.shouldAddShardFailureCheck
-import static org.junit.Assert.*
 
 class RestTestFromSnippetsTaskTests extends GradleUnitTestCase {
 

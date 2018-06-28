@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.test;
 import com.carrotsearch.randomizedtesting.JUnit4MethodProvider;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
+import org.junit.Assert;
 import org.junit.runner.RunWith;
 
 @RunWith(RandomizedRunner.class)
@@ -28,5 +29,5 @@ import org.junit.runner.RunWith;
     JUnit4MethodProvider.class,
     JUnit3MethodProvider.class
 })
-public abstract class BaseTestCase {
+public abstract class BaseTestCase extends Assert {
 }

@@ -3,8 +3,6 @@ package org.elasticsearch.gradle
 import org.elasticsearch.gradle.test.GradleUnitTestCase
 import org.junit.Test
 
-import static org.junit.Assert.*
-
 class VersionCollectionTests extends GradleUnitTestCase {
 
   String formatVersion(String version) {

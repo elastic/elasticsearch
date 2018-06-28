@@ -175,7 +175,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
                 clusterPrivileges,
                 indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]),
                 applicationPrivileges.toArray(new RoleDescriptor.ApplicationResourcePrivileges[applicationPrivileges.size()]),
-                runAs,
+            null, runAs,
                 metadata,
                 Collections.emptyMap());
     }

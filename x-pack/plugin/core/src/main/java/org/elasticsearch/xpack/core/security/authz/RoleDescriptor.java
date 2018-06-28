@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authz.role.SecurityPrivilegesDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
@@ -49,6 +50,7 @@ public class RoleDescriptor implements ToXContentObject {
     private final String[] clusterPrivileges;
     private final IndicesPrivileges[] indicesPrivileges;
     private final ApplicationResourcePrivileges[] applicationPrivileges;
+    private final SecurityPrivilegesDescriptor securityPrivileges;
     private final String[] runAs;
     private final Map<String, Object> metadata;
     private final Map<String, Object> transientMetadata;
@@ -61,7 +63,8 @@ public class RoleDescriptor implements ToXContentObject {
     }
 
     /**
-     * @deprecated Use {@link #RoleDescriptor(String, String[], IndicesPrivileges[], ApplicationResourcePrivileges[], String[], Map, Map)}
+     * @deprecated Use {@link #RoleDescriptor(String, String[], IndicesPrivileges[], ApplicationResourcePrivileges[],
+     * SecurityPrivilegesDescriptor, String[], Map, Map)}
      */
     @Deprecated
     public RoleDescriptor(String name,
@@ -73,7 +76,8 @@ public class RoleDescriptor implements ToXContentObject {
     }
 
     /**
-     * @deprecated Use {@link #RoleDescriptor(String, String[], IndicesPrivileges[], ApplicationResourcePrivileges[], String[], Map, Map)}
+     * @deprecated Use {@link #RoleDescriptor(String, String[], IndicesPrivileges[], ApplicationResourcePrivileges[],
+     * SecurityPrivilegesDescriptor, String[], Map, Map)}
      */
     @Deprecated
     public RoleDescriptor(String name,
@@ -82,13 +86,14 @@ public class RoleDescriptor implements ToXContentObject {
                           @Nullable String[] runAs,
                           @Nullable Map<String, Object> metadata,
                           @Nullable Map<String, Object> transientMetadata) {
-        this(name, clusterPrivileges, indicesPrivileges, null, runAs, metadata, transientMetadata);
+        this(name, clusterPrivileges, indicesPrivileges, null, null, runAs, metadata, transientMetadata);
     }
 
     public RoleDescriptor(String name,
                           @Nullable String[] clusterPrivileges,
                           @Nullable IndicesPrivileges[] indicesPrivileges,
                           @Nullable ApplicationResourcePrivileges[] applicationPrivileges,
+                          @Nullable SecurityPrivilegesDescriptor securityPrivileges,
                           @Nullable String[] runAs,
                           @Nullable Map<String, Object> metadata,
                           @Nullable Map<String, Object> transientMetadata) {
@@ -96,6 +101,7 @@ public class RoleDescriptor implements ToXContentObject {
         this.clusterPrivileges = clusterPrivileges != null ? clusterPrivileges : Strings.EMPTY_ARRAY;
         this.indicesPrivileges = indicesPrivileges != null ? indicesPrivileges : IndicesPrivileges.NONE;
         this.applicationPrivileges = applicationPrivileges != null ? applicationPrivileges : ApplicationResourcePrivileges.NONE;
+        this.securityPrivileges = securityPrivileges != null ? securityPrivileges : SecurityPrivilegesDescriptor.EMPTY;
         this.runAs = runAs != null ? runAs : Strings.EMPTY_ARRAY;
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
         this.transientMetadata = transientMetadata != null ? Collections.unmodifiableMap(transientMetadata) :
@@ -147,7 +153,8 @@ public class RoleDescriptor implements ToXContentObject {
         for (ApplicationResourcePrivileges privilege : applicationPrivileges) {
             sb.append(privilege.toString()).append(",");
         }
-        sb.append("], runAs=[").append(Strings.arrayToCommaDelimitedString(runAs));
+        sb.append("], security=").append(this.securityPrivileges);
+        sb.append(", runAs=[").append(Strings.arrayToCommaDelimitedString(runAs));
         sb.append("], metadata=[");
         MetadataUtils.writeValue(sb, metadata);
         sb.append("]]");
@@ -165,6 +172,7 @@ public class RoleDescriptor implements ToXContentObject {
         if (!Arrays.equals(clusterPrivileges, that.clusterPrivileges)) return false;
         if (!Arrays.equals(indicesPrivileges, that.indicesPrivileges)) return false;
         if (!Arrays.equals(applicationPrivileges, that.applicationPrivileges)) return false;
+        if (!securityPrivileges.equals(that.securityPrivileges)) return false;
         if (!metadata.equals(that.getMetadata())) return false;
         return Arrays.equals(runAs, that.runAs);
     }
@@ -175,6 +183,7 @@ public class RoleDescriptor implements ToXContentObject {
         result = 31 * result + Arrays.hashCode(clusterPrivileges);
         result = 31 * result + Arrays.hashCode(indicesPrivileges);
         result = 31 * result + Arrays.hashCode(applicationPrivileges);
+        result = 31 * result + securityPrivileges.hashCode();
         result = 31 * result + Arrays.hashCode(runAs);
         result = 31 * result + metadata.hashCode();
         return result;
@@ -201,6 +210,9 @@ public class RoleDescriptor implements ToXContentObject {
         builder.array(Fields.CLUSTER.getPreferredName(), clusterPrivileges);
         builder.array(Fields.INDICES.getPreferredName(), (Object[]) indicesPrivileges);
         builder.array(Fields.APPLICATIONS.getPreferredName(), (Object[]) applicationPrivileges);
+        if(securityPrivileges.isEmpty() == false) {
+            builder.field(Fields.SECURITY.getPreferredName(), securityPrivileges);
+        }
         if (runAs != null) {
             builder.array(Fields.RUN_AS.getPreferredName(), runAs);
         }
@@ -232,13 +244,17 @@ public class RoleDescriptor implements ToXContentObject {
         }
 
         final ApplicationResourcePrivileges[] applicationPrivileges;
+        final SecurityPrivilegesDescriptor securityPrivileges;
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             applicationPrivileges = in.readArray(ApplicationResourcePrivileges::createFrom, ApplicationResourcePrivileges[]::new);
+            securityPrivileges = SecurityPrivilegesDescriptor.createFrom(in);
         } else {
             applicationPrivileges = ApplicationResourcePrivileges.NONE;
+            securityPrivileges = SecurityPrivilegesDescriptor.EMPTY;
         }
 
-        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, applicationPrivileges, runAs, metadata, transientMetadata);
+        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, applicationPrivileges, securityPrivileges,
+            runAs, metadata, transientMetadata);
     }
 
     public static void writeTo(RoleDescriptor descriptor, StreamOutput out) throws IOException {
@@ -255,6 +271,7 @@ public class RoleDescriptor implements ToXContentObject {
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeArray(ApplicationResourcePrivileges::write, descriptor.applicationPrivileges);
+            descriptor.securityPrivileges.writeTo(out);
         }
     }
 
@@ -287,6 +304,7 @@ public class RoleDescriptor implements ToXContentObject {
         IndicesPrivileges[] indicesPrivileges = null;
         String[] clusterPrivileges = null;
         ApplicationResourcePrivileges[] applicationPrivileges = null;
+        SecurityPrivilegesDescriptor securityPrivileges = null;
         String[] runAsUsers = null;
         Map<String, Object> metadata = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -302,6 +320,8 @@ public class RoleDescriptor implements ToXContentObject {
             } else if (Fields.APPLICATIONS.match(currentFieldName, parser.getDeprecationHandler())
                     || Fields.APPLICATION.match(currentFieldName, parser.getDeprecationHandler())) {
                 applicationPrivileges = parseApplicationPrivileges(name, parser);
+            } else if (Fields.SECURITY.match(currentFieldName, parser.getDeprecationHandler())) {
+                securityPrivileges = SecurityPrivilegesDescriptor.parse(name, parser);
             } else if (Fields.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new ElasticsearchParseException(
@@ -321,7 +341,7 @@ public class RoleDescriptor implements ToXContentObject {
                 throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
             }
         }
-        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, applicationPrivileges, runAsUsers, metadata, null);
+        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, applicationPrivileges, null, runAsUsers, metadata, null);
     }
 
     private static String[] readStringArray(String roleName, XContentParser parser, boolean allowNull) throws IOException {
@@ -376,7 +396,7 @@ public class RoleDescriptor implements ToXContentObject {
                     throw new ElasticsearchParseException("Field [{}] is not supported in a has_privileges request", Fields.QUERY);
                 }
             }
-            return new RoleDescriptor(description, clusterPrivileges, indexPrivileges, applicationPrivileges, null, null, null);
+            return new RoleDescriptor(description, clusterPrivileges, indexPrivileges, applicationPrivileges, null, null, null, null);
         }
     }
 
@@ -938,6 +958,7 @@ public class RoleDescriptor implements ToXContentObject {
         ParseField INDEX = new ParseField("index");
         ParseField INDICES = new ParseField("indices");
         ParseField APPLICATIONS = new ParseField("applications");
+        ParseField SECURITY = new ParseField("security");
         ParseField RUN_AS = new ParseField("run_as");
         ParseField NAMES = new ParseField("names");
         ParseField RESOURCES = new ParseField("resources");

@@ -58,11 +58,11 @@ public class RoleDescriptorTests extends ESTestCase {
                 .build()
         };
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
-            new String[] { "sudo" }, Collections.emptyMap(), Collections.emptyMap());
+            null, new String[] { "sudo" }, Collections.emptyMap(), Collections.emptyMap());
         assertThat(descriptor.toString(), is("Role[name=test, cluster=[all,none], indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], " +
                 "privileges=[read], field_security=[grant=[body,title], except=null], query={\"query\": {\"match_all\": {}}}],]" +
                 ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]" +
-                ", runAs=[sudo], metadata=[{}]]"));
+                ", security={}, runAs=[sudo], metadata=[{}]]"));
     }
 
     public void testToXContent() throws Exception {
@@ -83,7 +83,7 @@ public class RoleDescriptorTests extends ESTestCase {
         };
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
-            new String[]{ "sudo" }, metadata, Collections.emptyMap());
+            null, new String[]{ "sudo" }, metadata, Collections.emptyMap());
         XContentBuilder builder = descriptor.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
         RoleDescriptor parsed = RoleDescriptor.parse("test", BytesReference.bytes(builder), false, XContentType.JSON);
         assertEquals(parsed, descriptor);

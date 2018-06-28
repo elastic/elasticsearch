@@ -16,9 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.search;
+package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,12 +35,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSearchResponse> {
+public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<MultiSearchTemplateResponse> {
 
     @Override
-    protected MultiSearchResponse createTestInstance() {
+    protected MultiSearchTemplateResponse createTestInstance() {
         int numItems = randomIntBetween(0, 128);
-        MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numItems];
+        long overallTookInMillis = randomNonNegativeLong();
+        MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[numItems];
         for (int i = 0; i < numItems; i++) {
             // Creating a minimal response is OK, because SearchResponse self
             // is tested elsewhere.
@@ -48,16 +51,20 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
             int skippedShards = totalShards - successfulShards;
             InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
             SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalShards, successfulShards, skippedShards);
+            SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
                     successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
-            items[i] = new MultiSearchResponse.Item(searchResponse, null);
+            searchTemplateResponse.setResponse(searchResponse);
+            items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
         }
-        return new MultiSearchResponse(items, randomNonNegativeLong());
+        return new MultiSearchTemplateResponse(items, overallTookInMillis);
     }
+    
 
-    private static MultiSearchResponse createTestInstanceWithFailures() {
+    private static  MultiSearchTemplateResponse createTestInstanceWithFailures() {
         int numItems = randomIntBetween(0, 128);
-        MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numItems];
+        long overallTookInMillis = randomNonNegativeLong();
+        MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[numItems];
         for (int i = 0; i < numItems; i++) {
             if (randomBoolean()) {
                 // Creating a minimal response is OK, because SearchResponse self
@@ -68,36 +75,21 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
                 int skippedShards = totalShards - successfulShards;
                 InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
                 SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalShards, successfulShards, skippedShards);
+                SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
                 SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
                         successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
-                items[i] = new MultiSearchResponse.Item(searchResponse, null);
+                searchTemplateResponse.setResponse(searchResponse);
+                items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
             } else {
-                items[i] = new MultiSearchResponse.Item(null, new ElasticsearchException("an error"));
+                items[i] = new MultiSearchTemplateResponse.Item(null, new ElasticsearchException("an error"));
             }
         }
-        return new MultiSearchResponse(items, randomNonNegativeLong());
+        return new MultiSearchTemplateResponse(items, overallTookInMillis);
     }
 
     @Override
-    protected MultiSearchResponse doParseInstance(XContentParser parser) throws IOException {
-        return MultiSearchResponse.fromXContext(parser);
-    }
-    
-    @Override
-    protected void assertEqualInstances(MultiSearchResponse expected, MultiSearchResponse actual) {
-        assertThat(actual.getTook(), equalTo(expected.getTook()));
-        assertThat(actual.getResponses().length, equalTo(expected.getResponses().length));
-        for (int i = 0; i < expected.getResponses().length; i++) {
-            MultiSearchResponse.Item expectedItem = expected.getResponses()[i];
-            MultiSearchResponse.Item actualItem = actual.getResponses()[i];
-            if (expectedItem.isFailure()) {
-                assertThat(actualItem.getResponse(), nullValue());
-                assertThat(actualItem.getFailureMessage(), containsString(expectedItem.getFailureMessage()));
-            } else {
-                assertThat(actualItem.getResponse().toString(), equalTo(expectedItem.getResponse().toString()));
-                assertThat(actualItem.getFailure(), nullValue());
-            }
-        }
+    protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) throws IOException {
+        return MultiSearchTemplateResponse.fromXContext(parser);
     }
 
     @Override
@@ -107,15 +99,32 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
 
     protected Predicate<String> getRandomFieldsExcludeFilterWhenResultHasErrors() {
         return field -> field.startsWith("responses");
-    }     
+    }    
 
+    @Override
+    protected void assertEqualInstances(MultiSearchTemplateResponse expectedInstance, MultiSearchTemplateResponse newInstance) {
+        assertThat(newInstance.getTook(), equalTo(expectedInstance.getTook()));
+        assertThat(newInstance.getResponses().length, equalTo(expectedInstance.getResponses().length));
+        for (int i = 0; i < expectedInstance.getResponses().length; i++) {
+            MultiSearchTemplateResponse.Item expectedItem = expectedInstance.getResponses()[i];
+            MultiSearchTemplateResponse.Item actualItem = newInstance.getResponses()[i];
+            if (expectedItem.isFailure()) {
+                assertThat(actualItem.getResponse(), nullValue());
+                assertThat(actualItem.getFailureMessage(), containsString(expectedItem.getFailureMessage()));
+            } else {
+                assertThat(actualItem.getResponse().toString(), equalTo(expectedItem.getResponse().toString()));
+                assertThat(actualItem.getFailure(), nullValue());
+            }
+        }
+    }
+    
     /**
-     * Test parsing {@link MultiSearchResponse} with inner failures as they don't support asserting on xcontent equivalence, given that
+     * Test parsing {@link MultiSearchTemplateResponse} with inner failures as they don't support asserting on xcontent equivalence, given
      * exceptions are not parsed back as the same original class. We run the usual {@link AbstractXContentTestCase#testFromXContent()}
      * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.
      */
     public void testFromXContentWithFailures() throws IOException {
-        Supplier<MultiSearchResponse> instanceSupplier = MultiSearchResponseTests::createTestInstanceWithFailures;
+        Supplier<MultiSearchTemplateResponse> instanceSupplier = MultiSearchTemplateResponseTests::createTestInstanceWithFailures;
         //with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
         //but that does not bother our assertions, as we only want to test that we don't break.
         boolean supportsUnknownFields = true;
@@ -124,6 +133,6 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
         AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
                 getRandomFieldsExcludeFilterWhenResultHasErrors(), this::createParser, this::doParseInstance,
                 this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
-    }       
+    }    
 
 }

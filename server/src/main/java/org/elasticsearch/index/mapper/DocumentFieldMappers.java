@@ -61,8 +61,17 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
         this.searchAnalyzer = new FieldNameAnalyzer(searchAnalyzers);
         this.searchQuoteAnalyzer = new FieldNameAnalyzer(searchQuoteAnalyzers);
     }
-    
+
+    /**
+     * @deprecated Use {@link DocumentFieldMappers#getMapper} instead. To access a field's
+     * type information, instead use {@link MapperService#fullName}.
+     */
+    @Deprecated
     public FieldMapper getFieldMapper(String field) {
+        return fieldMappers.get(field);
+    }
+
+    public Mapper getMapper(String field) {
         return fieldMappers.get(field);
     }
 

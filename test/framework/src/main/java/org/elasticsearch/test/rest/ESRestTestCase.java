@@ -385,8 +385,8 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected Settings restClientSettings() {
         Settings.Builder builder = Settings.builder();
-        if (System.getProperty("tests.rest.client.path.prefix") != null) {
-            builder.put(CLIENT_PATH_PREFIX, System.getProperty("tests.rest.client.path.prefix"));
+        if (System.getProperty("tests.rest.client_path_prefix") != null) {
+            builder.put(CLIENT_PATH_PREFIX, System.getProperty("tests.rest.client_path_prefix"));
         }
         return builder.build();
     }

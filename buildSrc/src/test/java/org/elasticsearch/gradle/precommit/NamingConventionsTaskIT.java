@@ -17,7 +17,8 @@ public class NamingConventionsTaskIT extends GradleIntegrationTestCase {
             .build();
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":hello").getOutcome());
-        assertTrue(result.getOutput().contains("build plugin can be applied"));
+        String output = result.getOutput();
+        assertTrue(output, output.contains("build plugin can be applied"));
     }
 
     public void testNameCheckFailsAsItShould() {
@@ -29,6 +30,7 @@ public class NamingConventionsTaskIT extends GradleIntegrationTestCase {
 
         assertNotNull("task did not run", result.task(":namingConventions"));
         assertEquals(TaskOutcome.FAILED, result.task(":namingConventions").getOutcome());
+        String output = result.getOutput();
         for (String line : Arrays.asList(
             "Found inner classes that are tests, which are excluded from the test runner:",
             "* org.elasticsearch.test.NamingConventionsCheckInMainIT$InternalInvalidTests",
@@ -38,8 +40,8 @@ public class NamingConventionsTaskIT extends GradleIntegrationTestCase {
             "Not all subclasses of UnitTestCase match the naming convention. Concrete classes must end with [Tests]:",
             "* org.elasticsearch.test.WrongName")) {
             assertTrue(
-                "expected:  '" + line + "' but it was not found in the output",
-                result.getOutput().contains(line)
+                "expected:  '" + line + "' but it was not found in the output:\n" + output,
+                output.contains(line)
             );
         }
     }
@@ -54,6 +56,7 @@ public class NamingConventionsTaskIT extends GradleIntegrationTestCase {
         assertNotNull("task did not run", result.task(":namingConventions"));
         assertEquals(TaskOutcome.FAILED, result.task(":namingConventions").getOutcome());
 
+        String output = result.getOutput();
         for (String line : Arrays.asList(
             "Classes ending with [Tests] or [IT] or extending [UnitTestCase] must be in src/test/java:",
             "* org.elasticsearch.test.NamingConventionsCheckBadClasses$DummyInterfaceTests",
@@ -63,8 +66,8 @@ public class NamingConventionsTaskIT extends GradleIntegrationTestCase {
             "* org.elasticsearch.test.NamingConventionsCheckBadClasses$WrongNameTheSecond",
             "* org.elasticsearch.test.NamingConventionsCheckBadClasses$WrongName")) {
             assertTrue(
-                "expected:  '" + line + "' but it was not found in the output",
-                result.getOutput().contains(line)
+                "expected:  '" + line + "' but it was not found in the output:\n"+output,
+                output.contains(line)
             );
         }
     }

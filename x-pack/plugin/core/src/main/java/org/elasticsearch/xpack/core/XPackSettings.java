@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
@@ -117,7 +118,7 @@ public class XPackSettings {
      */
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
         "xpack.security.authc.password_hashing.algorithm", "bcrypt", Function.identity(), (v, s) -> {
-        if (Hasher.getAvailableAlgoStoredHash().contains(v) == false) {
+        if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
             throw new IllegalArgumentException("Invalid algorithm: " + v + ". Only pbkdf2 or bcrypt family algorithms can be used for " +
                 "password hashing.");
         }

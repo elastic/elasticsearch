@@ -369,6 +369,7 @@ public enum Hasher {
     private static final String SSHA256_PREFIX = "{SSHA256}";
     private static final String PBKDF2_PREFIX = "{PBKDF2}";
     private static final int PBKDF2_DEFAULT_COST = 10000;
+    private static final int PBKDF2_KEY_LENGTH = 256;
     private static final int BCRYPT_DEFAULT_COST = 10;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -481,7 +482,8 @@ public enum Hasher {
 
     private static char[] getPbkdf2Hash(SecureString data, int cost) {
         try {
-            // Base64 string length : (4*(n/3)) rounded up to the next multiple of 4 because of padding, i.e. 44 for 32 bytes
+            // Base64 string length : (4*(n/3)) rounded up to the next multiple of 4 because of padding.
+            // n is 32 (PBKDF2_KEY_LENGTH in bytes) and 2 is because of the dollar sign delimiters.
             CharBuffer result = CharBuffer.allocate(PBKDF2_PREFIX.length() + String.valueOf(cost).length() + 2 + 44 + 44);
             result.put(PBKDF2_PREFIX);
             result.put(String.valueOf(cost));
@@ -490,7 +492,7 @@ public enum Hasher {
             result.put(Base64.getEncoder().encodeToString(salt));
             result.put("$");
             SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
-            PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), salt, cost, 256);
+            PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), salt, cost, PBKDF2_KEY_LENGTH);
             result.put(Base64.getEncoder().encodeToString(secretKeyFactory.generateSecret(keySpec).getEncoded()));
             return result.array();
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
@@ -499,10 +501,12 @@ public enum Hasher {
     }
 
     private static boolean verifyPbkdf2Hash(SecureString data, char[] hash) {
-        // Base64 string length : (4*(n/3)) rounded up to the next multiple of 4 because of padding,  i.e. 44 for 32 bytes
+        // Base64 string length : (4*(n/3)) rounded up to the next multiple of 4 because of padding.
+        // n is 32 (PBKDF2_KEY_LENGTH in bytes), so tokenLength is 44
         final int tokenLength = 44;
         char[] hashChars = null;
         char[] saltChars = null;
+        char[] computedPwdHash = null;
         try {
             if (CharArrays.charsBeginsWith(PBKDF2_PREFIX, hash) == false) {
                 return false;
@@ -512,11 +516,10 @@ public enum Hasher {
             int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, PBKDF2_PREFIX.length(), hash.length - (2 * tokenLength + 2))));
             SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
             PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), Base64.getDecoder().decode(CharArrays.toUtf8Bytes(saltChars)),
-                cost, 256);
-            char[] computedPwdHash = CharArrays.utf8BytesToChars(Base64.getEncoder()
+                cost, PBKDF2_KEY_LENGTH);
+            computedPwdHash = CharArrays.utf8BytesToChars(Base64.getEncoder()
                 .encode(secretKeyFactory.generateSecret(keySpec).getEncoded()));
             final boolean result = CharArrays.constantTimeEquals(computedPwdHash, hashChars);
-            Arrays.fill(computedPwdHash, '\u0000');
             return result;
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
             throw new ElasticsearchException("Can't use PBKDF2 for password hashing", e);
@@ -526,6 +529,9 @@ public enum Hasher {
             }
             if (null != saltChars) {
                 Arrays.fill(saltChars, '\u0000');
+            }
+            if (null != computedPwdHash) {
+                Arrays.fill(computedPwdHash, '\u0000');
             }
         }
     }
@@ -561,5 +567,4 @@ public enum Hasher {
         SECURE_RANDOM.nextBytes(salt);
         return salt;
     }
-
 }

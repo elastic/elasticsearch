@@ -36,6 +36,8 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.explain.ExplainRequest;
+import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -617,6 +619,42 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
+     * Executes a request using the Explain API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-explain.html">Explain API on elastic.co</a>
+     * @param explainRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final ExplainResponse explain(ExplainRequest explainRequest, RequestOptions options) throws IOException {
+        return performRequest(explainRequest, RequestConverters::explain, options,
+            response -> {
+                CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser =
+                    parser -> ExplainResponse.fromXContent(parser, convertExistsResponse(response));
+                return parseEntity(response.getEntity(), entityParser);
+            },
+            singleton(404));
+    }
+
+    /**
+     * Asynchronously executes a request using the Explain API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-explain.html">Explain API on elastic.co</a>
+     * @param explainRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void explainAsync(ExplainRequest explainRequest, RequestOptions options, ActionListener<ExplainResponse> listener) {
+        performRequestAsync(explainRequest, RequestConverters::explain, options,
+            response -> {
+                CheckedFunction<XContentParser, ExplainResponse, IOException> entityParser =
+                    parser -> ExplainResponse.fromXContent(parser, convertExistsResponse(response));
+                return parseEntity(response.getEntity(), entityParser);
+            },
+            listener, singleton(404));
+    }
+
+    /**
      * Executes a request using the Ranking Evaluation API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-rank-eval.html">Ranking Evaluation API
      * on elastic.co</a>
@@ -716,7 +754,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Puts an stored script using the Scripting API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/6.2/modules-scripting.html"> Scripting API
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html"> Scripting API
      * on elastic.co</a>
      * @param putStoredScriptRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -731,7 +769,7 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously puts an stored script using the Scripting API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/6.2/modules-scripting.html"> Scripting API
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting-using.html"> Scripting API
      * on elastic.co</a>
      * @param putStoredScriptRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

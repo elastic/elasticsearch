@@ -37,7 +37,9 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
@@ -69,6 +71,7 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -112,6 +115,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
@@ -1419,6 +1423,49 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
+    public void testExplain() throws IOException {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+
+        ExplainRequest explainRequest = new ExplainRequest(index, type, id);
+        explainRequest.query(QueryBuilders.termQuery(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10)));
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        if (randomBoolean()) {
+            String routing = randomAlphaOfLengthBetween(3, 10);
+            explainRequest.routing(routing);
+            expectedParams.put("routing", routing);
+        }
+        if (randomBoolean()) {
+            String preference = randomAlphaOfLengthBetween(3, 10);
+            explainRequest.preference(preference);
+            expectedParams.put("preference", preference);
+        }
+        if (randomBoolean()) {
+            String[] storedFields = generateRandomStringArray(10, 5, false, false);
+            String storedFieldsParams = randomFields(storedFields);
+            explainRequest.storedFields(storedFields);
+            expectedParams.put("stored_fields", storedFieldsParams);
+        }
+        if (randomBoolean()) {
+            randomizeFetchSourceContextParams(explainRequest::fetchSourceContext, expectedParams);
+        }
+
+        Request request = RequestConverters.explain(explainRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add(index)
+            .add(type)
+            .add(id)
+            .add("_explain");
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(explainRequest, request.getEntity());
+    }
+
     public void testFieldCaps() {
         // Create a random request.
         String[] indices = randomIndicesNames(0, 5);
@@ -1942,6 +1989,80 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(endpoint, equalTo(request.getEndpoint()));
         assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(expectedParams, equalTo(request.getParameters()));
+    }
+
+    public void testCreateSnapshot() throws IOException {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String snapshot = "snapshot-" + generateRandomStringArray(1, randomInt(10), false, false)[0];
+        String endpoint = "/_snapshot/" + repository + "/" + snapshot;
+
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
+        setRandomMasterTimeout(createSnapshotRequest, expectedParams);
+        Boolean waitForCompletion = randomBoolean();
+        createSnapshotRequest.waitForCompletion(waitForCompletion);
+
+        if (waitForCompletion) {
+            expectedParams.put("wait_for_completion", waitForCompletion.toString());
+        }
+
+        Request request = RequestConverters.createSnapshot(createSnapshotRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertToXContentBody(createSnapshotRequest, request.getEntity());
+    }
+
+    public void testGetSnapshots() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String snapshot1 = "snapshot1-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+        String snapshot2 = "snapshot2-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+
+        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s,%s", repository, snapshot1, snapshot2);
+
+        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest();
+        getSnapshotsRequest.repository(repository);
+        getSnapshotsRequest.snapshots(Arrays.asList(snapshot1, snapshot2).toArray(new String[0]));
+        setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
+
+        boolean ignoreUnavailable = randomBoolean();
+        getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
+        expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+
+        boolean verbose = randomBoolean();
+        getSnapshotsRequest.verbose(verbose);
+        expectedParams.put("verbose", Boolean.toString(verbose));
+
+        Request request = RequestConverters.getSnapshots(getSnapshotsRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertNull(request.getEntity());
+    }
+
+    public void testGetAllSnapshots() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+
+        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/_all", repository);
+
+        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(repository);
+        setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
+
+        boolean ignoreUnavailable = randomBoolean();
+        getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
+        expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+
+        boolean verbose = randomBoolean();
+        getSnapshotsRequest.verbose(verbose);
+        expectedParams.put("verbose", Boolean.toString(verbose));
+
+        Request request = RequestConverters.getSnapshots(getSnapshotsRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertNull(request.getEntity());
     }
 
     public void testDeleteSnapshot() {

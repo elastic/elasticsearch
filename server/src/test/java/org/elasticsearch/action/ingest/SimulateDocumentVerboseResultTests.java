@@ -31,7 +31,7 @@ import java.util.function.Supplier;
 public class SimulateDocumentVerboseResultTests extends AbstractXContentTestCase<SimulateDocumentVerboseResult> {
 
     static SimulateDocumentVerboseResult createTestInstance(boolean withFailures) {
-        int numDocs = randomIntBetween(0, 10);
+        int numDocs = randomIntBetween(0, 5);
         List<SimulateProcessorResult> results = new ArrayList<>();
         for (int i = 0; i<numDocs; i++) {
             boolean isSuccessful = !(withFailures && randomBoolean());

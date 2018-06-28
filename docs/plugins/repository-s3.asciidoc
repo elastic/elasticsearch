@@ -213,7 +213,7 @@ The following settings are supported:
     All new objects created will use the set storage class.
     Changing this setting on an existing repository only affects the storage class for newly created objects,
     resulting in a mixed usage of storage classes. Alternatively, S3 Lifecycle Policies can be used 
-    to manage storage classes.
+    to manage storage class.
     Due to the extra complexity with the Glacier class lifecycle, it is not
     currently supported by the plugin. For more information about the
     different classes, see http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide]

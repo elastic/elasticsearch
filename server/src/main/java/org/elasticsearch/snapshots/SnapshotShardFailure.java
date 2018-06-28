@@ -23,8 +23,10 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -60,11 +62,23 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
      * @param reason  failure reason
      */
     public SnapshotShardFailure(@Nullable String nodeId, ShardId shardId, String reason) {
+        this(nodeId, shardId, reason, RestStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    /**
+     * Constructs new snapshot shard failure object
+     *
+     * @param nodeId  node where failure occurred
+     * @param shardId shard id
+     * @param reason  failure reason
+     * @param status  rest status
+     */
+    private SnapshotShardFailure(@Nullable String nodeId, ShardId shardId, String reason, RestStatus status) {
+        assert reason != null;
         this.nodeId = nodeId;
         this.shardId = shardId;
         this.reason = reason;
-        assert reason != null;
-        status = RestStatus.INTERNAL_SERVER_ERROR;
+        this.status = status;
     }
 
     /**
@@ -100,7 +114,7 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
     /**
      * Returns REST status corresponding to this failure
      *
-     * @return REST status
+     * @return REST STATUS
      */
     @Override
     public RestStatus status() {
@@ -173,6 +187,57 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
         builder.endObject();
     }
 
+    static final ConstructingObjectParser<SnapshotShardFailure, Void> SNAPSHOT_SHARD_FAILURE_PARSER =
+        new ConstructingObjectParser<>("shard_failure", true, SnapshotShardFailure::constructSnapshotShardFailure);
+
+    static {
+        SNAPSHOT_SHARD_FAILURE_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("index"));
+        SNAPSHOT_SHARD_FAILURE_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("index_uuid"));
+        SNAPSHOT_SHARD_FAILURE_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("node_id"));
+        // Workaround for https://github.com/elastic/elasticsearch/issues/25878
+        // Some old snapshot might still have null in shard failure reasons
+        SNAPSHOT_SHARD_FAILURE_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("reason"));
+        SNAPSHOT_SHARD_FAILURE_PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField("shard_id"));
+        SNAPSHOT_SHARD_FAILURE_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("status"));
+    }
+
+    private static SnapshotShardFailure constructSnapshotShardFailure(Object[] args) {
+        String index = (String) args[0];
+        String indexUuid = (String) args[1];
+        String nodeId = (String) args[2];
+        String reason = (String) args[3];
+        Integer intShardId = (Integer) args[4];
+        String status = (String) args[5];
+
+        if (index == null) {
+            throw new ElasticsearchParseException("index name was not set");
+        }
+        if (intShardId == null) {
+            throw new ElasticsearchParseException("index shard was not set");
+        }
+
+        ShardId shardId = new ShardId(index, indexUuid != null ? indexUuid : IndexMetaData.INDEX_UUID_NA_VALUE, intShardId);
+
+        // Workaround for https://github.com/elastic/elasticsearch/issues/25878
+        // Some old snapshot might still have null in shard failure reasons
+        String nonNullReason;
+        if (reason != null) {
+            nonNullReason = reason;
+        } else {
+            nonNullReason = "";
+        }
+
+
+        RestStatus restStatus;
+        if (status != null) {
+            restStatus = RestStatus.valueOf(status);
+        } else {
+            restStatus = RestStatus.INTERNAL_SERVER_ERROR;
+        }
+
+        return new SnapshotShardFailure(nodeId, shardId, nonNullReason, restStatus);
+    }
+
     /**
      * Deserializes snapshot failure information from JSON
      *
@@ -180,56 +245,7 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
      * @return snapshot failure information
      */
     public static SnapshotShardFailure fromXContent(XContentParser parser) throws IOException {
-        SnapshotShardFailure snapshotShardFailure = new SnapshotShardFailure();
-
-        XContentParser.Token token = parser.currentToken();
-        String index = null;
-        String index_uuid = IndexMetaData.INDEX_UUID_NA_VALUE;
-        int shardId = -1;
-        if (token == XContentParser.Token.START_OBJECT) {
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    String currentFieldName = parser.currentName();
-                    token = parser.nextToken();
-                    if (token.isValue()) {
-                        if ("index".equals(currentFieldName)) {
-                            index = parser.text();
-                        } else if ("index_uuid".equals(currentFieldName)) {
-                            index_uuid = parser.text();
-                        } else if ("node_id".equals(currentFieldName)) {
-                            snapshotShardFailure.nodeId = parser.text();
-                        } else if ("reason".equals(currentFieldName)) {
-                            // Workaround for https://github.com/elastic/elasticsearch/issues/25878
-                            // Some old snapshot might still have null in shard failure reasons
-                            snapshotShardFailure.reason = parser.textOrNull();
-                        } else if ("shard_id".equals(currentFieldName)) {
-                            shardId = parser.intValue();
-                        } else if ("status".equals(currentFieldName)) {
-                            snapshotShardFailure.status = RestStatus.valueOf(parser.text());
-                        } else {
-                            throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
-                        }
-                    }
-                } else {
-                    throw new ElasticsearchParseException("unexpected token [{}]", token);
-                }
-            }
-        } else {
-            throw new ElasticsearchParseException("unexpected token [{}]", token);
-        }
-        if (index == null) {
-            throw new ElasticsearchParseException("index name was not set");
-        }
-        if (shardId == -1) {
-            throw new ElasticsearchParseException("index shard was not set");
-        }
-        snapshotShardFailure.shardId = new ShardId(index, index_uuid, shardId);
-        // Workaround for https://github.com/elastic/elasticsearch/issues/25878
-        // Some old snapshot might still have null in shard failure reasons
-        if (snapshotShardFailure.reason == null) {
-            snapshotShardFailure.reason = "";
-        }
-        return snapshotShardFailure;
+        return SNAPSHOT_SHARD_FAILURE_PARSER.parse(parser, null);
     }
 
     @Override

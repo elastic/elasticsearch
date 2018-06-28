@@ -122,23 +122,8 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         LOGGER.trace("{} coordinate reads, lastRequestedSeqno={}, leaderGlobalCheckpoint={}",
             params.getFollowShardId(), lastRequestedSeqno, leaderGlobalCheckpoint);
         final long maxReadSize = params.getMaxReadSize();
-        final long maxConcurrentReads = params.getMaxConcurrentReads();
         if (lastRequestedSeqno < leaderGlobalCheckpoint) {
-            while (true) {
-                if (lastRequestedSeqno >= leaderGlobalCheckpoint) {
-                    LOGGER.trace("{} no new reads to coordinate lastRequestedSeqno [{}] leaderGlobalCheckpoint [{}]",
-                        params.getLeaderShardId(), lastRequestedSeqno, leaderGlobalCheckpoint);
-                    break;
-                }
-                if (numConcurrentReads >= maxConcurrentReads) {
-                    LOGGER.trace("{} no new reads, maximum number of concurrent reads have been reached [{}]",
-                        params.getFollowShardId(), numConcurrentReads);
-                    break;
-                }
-                if (buffer.size() > params.getMaxBufferSize()) {
-                    LOGGER.trace("{} no new reads, buffer limit has been reached [{}]", params.getFollowShardId(), buffer.size());
-                    break;
-                }
+            while (hasReadBudget() && lastRequestedSeqno < leaderGlobalCheckpoint) {
                 numConcurrentReads++;
                 long from = lastRequestedSeqno + 1;
                 long size;
@@ -172,12 +157,22 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
     }
 
+    private boolean hasReadBudget() {
+        assert Thread.holdsLock(this);
+        if (numConcurrentReads >= params.getMaxConcurrentReads()) {
+            LOGGER.trace("{} no new reads, maximum number of concurrent reads have been reached [{}]",
+                params.getFollowShardId(), numConcurrentReads);
+            return false;
+        }
+        if (buffer.size() > params.getMaxBufferSize()) {
+            LOGGER.trace("{} no new reads, buffer limit has been reached [{}]", params.getFollowShardId(), buffer.size());
+            return false;
+        }
+        return true;
+    }
+
     private synchronized void coordinateWrites() {
-        while (true) {
-            if (buffer.isEmpty()) {
-                LOGGER.trace("{} no writes to coordinate, because buffer is empty", params.getFollowShardId());
-                break;
-            }
+        while (hasWriteBudget() && buffer.isEmpty() == false) {
             if (numConcurrentWrites >= params.getMaxConcurrentWrites()) {
                 LOGGER.trace("{} maximum number of concurrent writes have been reached [{}]",
                     params.getFollowShardId(), numConcurrentWrites);
@@ -194,6 +189,17 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
     }
 
+    private boolean hasWriteBudget() {
+        assert Thread.holdsLock(this);
+        if (numConcurrentWrites >= params.getMaxConcurrentWrites()) {
+            LOGGER.trace("{} maximum number of concurrent writes have been reached [{}]",
+                params.getFollowShardId(), numConcurrentWrites);
+            return false;
+        }
+        return true;
+    }
+
+
     private void sendShardChangesRequest(long from, long size, Long targetSeqNo) {
         innerSendShardChangesRequest(from, size,
             response -> {
@@ -203,7 +209,7 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
             e -> handleFailure(e, () -> sendShardChangesRequest(from, size, targetSeqNo)));
     }
 
-    private synchronized void handleResponse(long from, long size, Long targetSeqNo, ShardChangesAction.Response response) {
+    private void handleResponse(long from, long size, Long targetSeqNo, ShardChangesAction.Response response) {
         maybeUpdateMapping(response.getIndexMetadataVersion(), () -> {
             synchronized (ShardFollowNodeTask.this) {
                 leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getLeaderGlobalCheckpoint());
@@ -268,8 +274,7 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         coordinateWrites();
     }
 
-    private void maybeUpdateMapping(Long minimumRequiredIndexMetadataVersion, Runnable task) {
-        assert Thread.holdsLock(this);
+    private synchronized void maybeUpdateMapping(Long minimumRequiredIndexMetadataVersion, Runnable task) {
         if (currentIndexMetadataVersion >= minimumRequiredIndexMetadataVersion) {
             LOGGER.trace("{} index metadata version [{}] is higher or equal than minimum required index metadata version [{}]",
                 params.getFollowShardId(), currentIndexMetadataVersion, minimumRequiredIndexMetadataVersion);

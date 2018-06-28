@@ -40,8 +40,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     public void testAWSCredentialsDefaultToInstanceProviders() {
         final String inexistentClientName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, inexistentClientName);
-        final AWSCredentialsProvider credentialsProvider = InternalAwsS3Service.buildCredentials(logger, clientSettings);
-        assertThat(credentialsProvider, instanceOf(InternalAwsS3Service.PrivilegedInstanceProfileCredentialsProvider.class));
+        final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, clientSettings);
+        assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
     public void testAWSCredentialsFromKeystore() {
@@ -60,15 +60,15 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         for (int i = 0; i < clientsCount; i++) {
             final String clientName = clientNamePrefix + i;
             final S3ClientSettings someClientSettings = allClientsSettings.get(clientName);
-            final AWSCredentialsProvider credentialsProvider = InternalAwsS3Service.buildCredentials(logger, someClientSettings);
+            final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
             assertThat(credentialsProvider, instanceOf(StaticCredentialsProvider.class));
             assertThat(credentialsProvider.getCredentials().getAWSAccessKeyId(), is(clientName + "_aws_access_key"));
             assertThat(credentialsProvider.getCredentials().getAWSSecretKey(), is(clientName + "_aws_secret_key"));
         }
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AWSCredentialsProvider defaultCredentialsProvider = InternalAwsS3Service.buildCredentials(logger, defaultClientSettings);
-        assertThat(defaultCredentialsProvider, instanceOf(InternalAwsS3Service.PrivilegedInstanceProfileCredentialsProvider.class));
+        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
+        assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
     public void testSetDefaultCredential() {
@@ -82,7 +82,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(allClientsSettings.size(), is(1));
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AWSCredentialsProvider defaultCredentialsProvider = InternalAwsS3Service.buildCredentials(logger, defaultClientSettings);
+        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
         assertThat(defaultCredentialsProvider, instanceOf(StaticCredentialsProvider.class));
         assertThat(defaultCredentialsProvider.getCredentials().getAWSAccessKeyId(), is(awsAccessKey));
         assertThat(defaultCredentialsProvider.getCredentials().getAWSSecretKey(), is(awsSecretKey));
@@ -152,7 +152,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
                                             int expectedReadTimeout) {
 
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
-        final ClientConfiguration configuration = InternalAwsS3Service.buildConfiguration(clientSettings);
+        final ClientConfiguration configuration = S3Service.buildConfiguration(clientSettings);
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
         assertThat(configuration.getProtocol(), is(expectedProtocol));

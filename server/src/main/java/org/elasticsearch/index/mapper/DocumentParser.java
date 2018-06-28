@@ -832,9 +832,16 @@ final class DocumentParser {
 
     /** Creates an copy of the current field with given field name and boost */
     private static void parseCopy(String field, ParseContext context) throws IOException {
-        FieldMapper fieldMapper = context.docMapper().mappers().getFieldMapper(field);
-        if (fieldMapper != null) {
-            fieldMapper.parse(context);
+        Mapper mapper = context.docMapper().mappers().getMapper(field);
+        if (mapper != null) {
+            if (mapper instanceof FieldMapper) {
+                ((FieldMapper) mapper).parse(context);
+            } else if (mapper instanceof FieldAliasMapper) {
+                throw new IllegalArgumentException("Cannot copy to a field alias [" + mapper.name() + "].");
+            } else {
+                throw new IllegalStateException("The provided mapper [" + mapper.name() +
+                    "] has an unrecognized type [" + mapper.getClass().getSimpleName() + "].");
+            }
         } else {
             // The path of the dest field might be completely different from the current one so we need to reset it
             context = context.overridePath(new ContentPath(0));
@@ -842,8 +849,8 @@ final class DocumentParser {
             final String[] paths = splitAndValidatePath(field);
             final String fieldName = paths[paths.length-1];
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, null);
-            ObjectMapper mapper = parentMapperTuple.v2();
-            parseDynamicValue(context, mapper, fieldName, context.parser().currentToken());
+            ObjectMapper objectMapper = parentMapperTuple.v2();
+            parseDynamicValue(context, objectMapper, fieldName, context.parser().currentToken());
             for (int i = 0; i < parentMapperTuple.v1(); i++) {
                 context.path().remove();
             }

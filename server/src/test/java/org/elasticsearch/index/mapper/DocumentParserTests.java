@@ -1390,7 +1390,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertThat(ExceptionsHelper.detailedMessage(err), containsString("field name cannot be an empty string"));
     }
 
-    public void testFieldAlias() throws Exception {
+    public void testWriteToFieldAlias() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
                 .startObject("type")
@@ -1417,6 +1417,39 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
 
         assertEquals("Cannot write to a field alias [alias-field].", exception.getCause().getMessage());
+    }
+
+     public void testCopyToFieldAlias() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("alias-field")
+                            .field("type", "alias")
+                            .field("path", "concrete-field")
+                        .endObject()
+                        .startObject("concrete-field")
+                            .field("type", "keyword")
+                        .endObject()
+                        .startObject("text-field")
+                            .field("type", "text")
+                            .field("copy_to", "alias-field")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+                .field("text-field", "value")
+            .endObject());
+        MapperParsingException exception = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(SourceToParse.source("test", "type", "1", bytes, XContentType.JSON)));
+
+        assertEquals("Cannot copy to a field alias [alias-field].", exception.getCause().getMessage());
     }
 
     public void testDynamicDottedFieldNameWithFieldAlias() throws Exception {

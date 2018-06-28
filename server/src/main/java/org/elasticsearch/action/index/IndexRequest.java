@@ -603,4 +603,5 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public IndexRequest setShardId(ShardId shardId) {
         throw new UnsupportedOperationException("shard id should never be set on IndexRequest");
     }
+
 }

@@ -34,10 +34,8 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.core.StringStartsWith.startsWith;
 
 public class AliasResolveRoutingIT extends ESIntegTestCase {
 
@@ -101,25 +99,19 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
             // Expected
         }
 
-        // test alias pointing to multiple indices with no write index
+        // test alias pointing to multiple indices safely
         client().admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("test2").alias("alias")
-            .writeIndex(randomFrom(false, null))).get();
+            .writeIndex(randomFrom(false, true, null))).get();
+        String routing = clusterService().state().metaData().resolveIndexRouting("1", "alias");
+        assertThat(routing, equalTo("1"));
+
+        // test alias pointing to multiple indices with one routing value specified
+        client().admin().indices().prepareAliases().addAliasAction(
+            AliasActions.add().index("test2").alias("alias").indexRouting("exists")).get();
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> clusterService().state().metaData().resolveIndexRouting("1", "alias"));
-        assertThat(exception.getMessage(), startsWith("Alias [alias] has more than one index associated with it"));
-        assertThat(exception.getMessage(), containsString("test1"));
-        assertThat(exception.getMessage(), containsString("test2"));
-
-        // test alias pointing to multiple indices with write index
-        client().admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("test2").alias("alias")
-            .writeIndex(true)).get();
-        assertThat(clusterService().state().metaData().resolveIndexRouting("1", "alias"),
-            equalTo("1"));
-        exception = expectThrows(IllegalArgumentException.class,
-            () -> clusterService().state().metaData().resolveIndexRouting("1", "alias"));
-        assertThat(exception.getMessage(), startsWith("Alias [alias] has more than one index associated with it"));
-        assertThat(exception.getMessage(), containsString("test1"));
-        assertThat(exception.getMessage(), containsString("test2"));
+        assertThat(exception.getMessage(),
+            equalTo("Alias [alias] references multiple indices and provides an index routing for index [test2]"));
     }
 
     public void testResolveSearchRouting() {

@@ -412,10 +412,10 @@ public class GrokTests extends ESTestCase {
         expected.put("num", "1");
         assertThat(grok.captures("12"), equalTo(expected));
     }
-    
+
     public void testExponentialExpressions() {
         AtomicBoolean run = new AtomicBoolean(true); // to avoid a lingering thread when test has completed
-        
+
         String grokPattern = "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] " +
             "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10} Datum->%{DATESTAMP_OTHER:param11}";
         String logLine = "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] " +
@@ -438,5 +438,14 @@ public class GrokTests extends ESTestCase {
         Exception e = expectThrows(RuntimeException.class, () -> grok.captures(logLine));
         run.set(false);
         assertThat(e.getMessage(), equalTo("grok pattern matching was interrupted after [200] ms"));
+    }
+
+    public void testUnicodeFieldnames() {
+        for(String fieldName : Arrays.asList("@metadata", "@metädata", "@metädat[a]")) {
+            String line = "foo";
+            Grok grok = new Grok(basePatterns, "%{WORD:" + fieldName + "}");
+            Map<String, Object> matches = grok.captures(line);
+            assertEquals("foo", matches.get(fieldName));
+        }
     }
 }

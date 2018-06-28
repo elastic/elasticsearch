@@ -23,12 +23,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -78,6 +80,155 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     private static final Comparator<SnapshotInfo> COMPARATOR =
         Comparator.comparing(SnapshotInfo::startTime).thenComparing(SnapshotInfo::snapshotId);
+
+    public static final class SnapshotInfoBuilder {
+        private String snapshotName = null;
+        private String snapshotUUID = null;
+        private String state = null;
+        private String reason = null;
+        private List<String> indices = null;
+        private long startTime = 0L;
+        private long endTime = 0L;
+        private ShardStatsBuilder shardStatsBuilder = null;
+        private Boolean includeGlobalState = null;
+        private int version = -1;
+        private List<SnapshotShardFailure> shardFailures = null;
+
+        private void setSnapshotName(String snapshotName) {
+            this.snapshotName = snapshotName;
+        }
+
+        private void setSnapshotUUID(String snapshotUUID) {
+            this.snapshotUUID = snapshotUUID;
+        }
+
+        private void setState(String state) {
+            this.state = state;
+        }
+
+        private void setReason(String reason) {
+            this.reason = reason;
+        }
+
+        private void setIndices(List<String> indices) {
+            this.indices = indices;
+        }
+
+        private void setStartTime(long startTime) {
+            this.startTime = startTime;
+        }
+
+        private void setEndTime(long endTime) {
+            this.endTime = endTime;
+        }
+
+        private void setShardStatsBuilder(ShardStatsBuilder shardStatsBuilder) {
+            this.shardStatsBuilder = shardStatsBuilder;
+        }
+
+        private void setIncludeGlobalState(Boolean includeGlobalState) {
+            this.includeGlobalState = includeGlobalState;
+        }
+
+        private void setVersion(int version) {
+            this.version = version;
+        }
+
+        private void setShardFailures(List<SnapshotShardFailure> shardFailures) {
+            this.shardFailures = shardFailures;
+        }
+
+        private void ignoreVersion(String version) {
+            // ignore extra field
+        }
+
+        private void ignoreStartTime(String startTime) {
+            // ignore extra field
+        }
+
+        private void ignoreEndTime(String endTime) {
+            // ignore extra field
+        }
+
+        private void ignoreDurationInMillis(long durationInMillis) {
+            // ignore extra field
+        }
+
+        public SnapshotInfo build() {
+            SnapshotId snapshotId = new SnapshotId(snapshotName, snapshotUUID);
+
+            if (indices == null) {
+                indices = Collections.emptyList();
+            }
+
+            SnapshotState snapshotState = state == null ? null : SnapshotState.valueOf(state);
+            Version version = this.version == -1 ? Version.CURRENT : Version.fromId(this.version);
+
+            int totalShards = shardStatsBuilder == null ? 0 : shardStatsBuilder.getTotalShards();
+            int successfulShards = shardStatsBuilder == null ? 0 : shardStatsBuilder.getSuccessfulShards();
+
+            if (shardFailures == null) {
+                shardFailures = new ArrayList<>();
+            }
+
+            return new SnapshotInfo(snapshotId, indices, snapshotState, reason, version, startTime, endTime,
+                    totalShards, successfulShards, shardFailures, includeGlobalState);
+        }
+    }
+
+    private static final class ShardStatsBuilder {
+        private int totalShards;
+        private int successfulShards;
+
+        private void setTotalShards(int totalShards) {
+            this.totalShards = totalShards;
+        }
+
+        int getTotalShards() {
+            return totalShards;
+        }
+
+        private void setSuccessfulShards(int successfulShards) {
+            this.successfulShards = successfulShards;
+        }
+
+        int getSuccessfulShards() {
+            return successfulShards;
+        }
+
+        private void ignoreFailedShards(int failedShards) {
+            // ignore extra field
+        }
+    }
+
+    public static final ObjectParser<SnapshotInfoBuilder, Void> SNAPSHOT_INFO_PARSER =
+            new ObjectParser<>(SnapshotInfoBuilder.class.getName(), true, SnapshotInfoBuilder::new);
+
+    private static final ObjectParser<ShardStatsBuilder, Void> SHARD_STATS_PARSER =
+        new ObjectParser<>(ShardStatsBuilder.class.getName(), true, ShardStatsBuilder::new);
+
+    static {
+        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setSnapshotName, new ParseField(SNAPSHOT));
+        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setSnapshotUUID, new ParseField(UUID));
+        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setState, new ParseField(STATE));
+        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setReason, new ParseField(REASON));
+        SNAPSHOT_INFO_PARSER.declareStringArray(SnapshotInfoBuilder::setIndices, new ParseField(INDICES));
+        SNAPSHOT_INFO_PARSER.declareLong(SnapshotInfoBuilder::setStartTime, new ParseField(START_TIME_IN_MILLIS));
+        SNAPSHOT_INFO_PARSER.declareLong(SnapshotInfoBuilder::setEndTime, new ParseField(END_TIME_IN_MILLIS));
+        SNAPSHOT_INFO_PARSER.declareObject(SnapshotInfoBuilder::setShardStatsBuilder, SHARD_STATS_PARSER, new ParseField(SHARDS));
+        SNAPSHOT_INFO_PARSER.declareBoolean(SnapshotInfoBuilder::setIncludeGlobalState, new ParseField(INCLUDE_GLOBAL_STATE));
+        SNAPSHOT_INFO_PARSER.declareInt(SnapshotInfoBuilder::setVersion, new ParseField(VERSION_ID));
+        SNAPSHOT_INFO_PARSER.declareObjectArray(SnapshotInfoBuilder::setShardFailures, SnapshotShardFailure.SNAPSHOT_SHARD_FAILURE_PARSER,
+            new ParseField(FAILURES));
+        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreVersion, new ParseField(VERSION));
+        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreStartTime, new ParseField(START_TIME));
+        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreEndTime, new ParseField(END_TIME));
+        SNAPSHOT_INFO_PARSER.declareLong(SnapshotInfoBuilder::ignoreDurationInMillis, new ParseField(DURATION_IN_MILLIS));
+
+        SHARD_STATS_PARSER.declareInt(ShardStatsBuilder::setTotalShards, new ParseField(TOTAL));
+        SHARD_STATS_PARSER.declareInt(ShardStatsBuilder::setSuccessfulShards, new ParseField(SUCCESSFUL));
+        SHARD_STATS_PARSER.declareInt(ShardStatsBuilder::ignoreFailedShards, new ParseField(FAILED));
+    }
 
     private final SnapshotId snapshotId;
 
@@ -318,28 +469,20 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     @Override
-    public boolean equals(final Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        final SnapshotInfo that = (SnapshotInfo) o;
-        return startTime == that.startTime && snapshotId.equals(that.snapshotId);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = snapshotId.hashCode();
-        result = 31 * result + Long.hashCode(startTime);
-        return result;
-    }
-
-    @Override
     public String toString() {
-        return "SnapshotInfo[snapshotId=" + snapshotId + ", state=" + state + ", indices=" + indices + "]";
+        return "SnapshotInfo{" +
+            "snapshotId=" + snapshotId +
+            ", state=" + state +
+            ", reason='" + reason + '\'' +
+            ", indices=" + indices +
+            ", startTime=" + startTime +
+            ", endTime=" + endTime +
+            ", totalShards=" + totalShards +
+            ", successfulShards=" + successfulShards +
+            ", includeGlobalState=" + includeGlobalState +
+            ", version=" + version +
+            ", shardFailures=" + shardFailures +
+            '}';
     }
 
     /**
@@ -360,7 +503,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         // write snapshot info to repository snapshot blob format
         if (CONTEXT_MODE_SNAPSHOT.equals(params.param(CONTEXT_MODE_PARAM))) {
-            return toXContentSnapshot(builder, params);
+            return toXContentInternal(builder, params);
         }
 
         final boolean verbose = params.paramAsBoolean("verbose", GetSnapshotsRequest.DEFAULT_VERBOSE_MODE);
@@ -415,7 +558,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         return builder;
     }
 
-    private XContentBuilder toXContentSnapshot(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
+    private XContentBuilder toXContentInternal(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
         builder.startObject(SNAPSHOT);
         builder.field(NAME, snapshotId.getName());
         builder.field(UUID, snapshotId.getUUID());
@@ -449,11 +592,19 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     /**
+     * This method creates a SnapshotInfo from external x-content.  It does not
+     * handle x-content written with the internal version.
+     */
+    public static SnapshotInfo fromXContent(final XContentParser parser) throws IOException {
+        return SNAPSHOT_INFO_PARSER.parse(parser, null).build();
+    }
+
+    /**
      * This method creates a SnapshotInfo from internal x-content.  It does not
      * handle x-content written with the external version as external x-content
      * is only for display purposes and does not need to be parsed.
      */
-    public static SnapshotInfo fromXContent(final XContentParser parser) throws IOException {
+    public static SnapshotInfo fromXContentInternal(final XContentParser parser) throws IOException {
         String name = null;
         String uuid = null;
         Version version = Version.CURRENT;
@@ -607,4 +758,28 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SnapshotInfo that = (SnapshotInfo) o;
+        return startTime == that.startTime &&
+            endTime == that.endTime &&
+            totalShards == that.totalShards &&
+            successfulShards == that.successfulShards &&
+            Objects.equals(snapshotId, that.snapshotId) &&
+            state == that.state &&
+            Objects.equals(reason, that.reason) &&
+            Objects.equals(indices, that.indices) &&
+            Objects.equals(includeGlobalState, that.includeGlobalState) &&
+            Objects.equals(version, that.version) &&
+            Objects.equals(shardFailures, that.shardFailures);
+    }
+
+    @Override
+    public int hashCode() {
+
+        return Objects.hash(snapshotId, state, reason, indices, startTime, endTime,
+                totalShards, successfulShards, includeGlobalState, version, shardFailures);
+    }
 }

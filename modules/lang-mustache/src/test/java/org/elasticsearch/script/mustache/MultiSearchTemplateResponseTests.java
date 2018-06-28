@@ -40,7 +40,6 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
     @Override
     protected MultiSearchTemplateResponse createTestInstance() {
         int numItems = randomIntBetween(0, 128);
-        long overallTookInMillis = randomNonNegativeLong();
         MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[numItems];
         for (int i = 0; i < numItems; i++) {
             // Creating a minimal response is OK, because SearchResponse self
@@ -57,13 +56,12 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             searchTemplateResponse.setResponse(searchResponse);
             items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
         }
-        return new MultiSearchTemplateResponse(items, overallTookInMillis);
+        return new MultiSearchTemplateResponse(items);
     }
     
 
     private static  MultiSearchTemplateResponse createTestInstanceWithFailures() {
         int numItems = randomIntBetween(0, 128);
-        long overallTookInMillis = randomNonNegativeLong();
         MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[numItems];
         for (int i = 0; i < numItems; i++) {
             if (randomBoolean()) {
@@ -84,7 +82,7 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
                 items[i] = new MultiSearchTemplateResponse.Item(null, new ElasticsearchException("an error"));
             }
         }
-        return new MultiSearchTemplateResponse(items, overallTookInMillis);
+        return new MultiSearchTemplateResponse(items);
     }
 
     @Override
@@ -103,7 +101,6 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
 
     @Override
     protected void assertEqualInstances(MultiSearchTemplateResponse expectedInstance, MultiSearchTemplateResponse newInstance) {
-        assertThat(newInstance.getTook(), equalTo(expectedInstance.getTook()));
         assertThat(newInstance.getResponses().length, equalTo(expectedInstance.getResponses().length));
         for (int i = 0; i < expectedInstance.getResponses().length; i++) {
             MultiSearchTemplateResponse.Item expectedItem = expectedInstance.getResponses()[i];

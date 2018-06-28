@@ -1345,8 +1345,6 @@ public class DateHistogramIT extends ESIntegTestCase {
      * https://github.com/elastic/elasticsearch/issues/31392 demonstrates an edge case where a date field mapping with
      * "format" = "epoch_millis" can lead for the date histogram aggregation to throw an error if a non-UTC time zone
      * with daylight savings time is used. This test was added to check this is working now
-     * @throws ExecutionException
-     * @throws InterruptedException
      */
     public void testRewriteTimeZone_EpochMillisFormat() throws InterruptedException, ExecutionException {
         String index = "test31392";

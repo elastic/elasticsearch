@@ -32,10 +32,8 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,13 +45,24 @@ import java.util.Set;
  */
 public final class InternalRealms {
 
+    public static final Map<String, Class<? extends Realm>> TYPE_REALM_CLASS_REGISTRY;
+    static {
+        Map<String, Class<? extends Realm>> map = new HashMap<>();
+        map.put(ReservedRealm.TYPE, ReservedRealm.class);
+        map.put(NativeRealmSettings.TYPE, NativeRealm.class);
+        map.put(FileRealmSettings.TYPE, FileRealm.class);
+        map.put(LdapRealmSettings.AD_TYPE, LdapRealm.class);
+        map.put(LdapRealmSettings.LDAP_TYPE, LdapRealm.class);
+        map.put(SamlRealmSettings.TYPE, SamlRealm.class);
+        map.put(PkiRealmSettings.TYPE, PkiRealm.class);
+        TYPE_REALM_CLASS_REGISTRY = Collections.unmodifiableMap(map);
+    }
+
     /**
      * The list of all <em>internal</em> realm types, excluding {@link ReservedRealm#TYPE}.
      */
-    private static final Set<String> XPACK_TYPES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE,
-            SamlRealmSettings.TYPE
-    )));
+    private static final Set<String> XPACK_TYPES =
+            Collections.unmodifiableSet(Sets.difference(TYPE_REALM_CLASS_REGISTRY.keySet(), Collections.singleton(ReservedRealm.TYPE)));
 
     /**
      * The list of all standard realm types, which are those provided by x-pack and do not have extensive

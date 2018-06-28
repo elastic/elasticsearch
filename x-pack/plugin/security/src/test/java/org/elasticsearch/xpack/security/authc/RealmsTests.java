@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -33,10 +34,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
@@ -139,23 +140,6 @@ public class RealmsTests extends ESTestCase {
             assertThat(realm.order(), equalTo(1));
             assertThat(realm.type(), equalTo("type_" + nameToRealmId.get(expectedRealmName)));
             assertThat(realm.name(), equalTo(expectedRealmName));
-        }
-    }
-
-    public void testWithSettingsWithMultipleInternalRealmsOfSameType() throws Exception {
-        Settings settings = Settings.builder()
-                .put("xpack.security.authc.realms.realm_1.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.realm_1.order", 0)
-                .put("xpack.security.authc.realms.realm_2.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.realm_2.order", 1)
-                .put("path.home", createTempDir())
-                .build();
-        Environment env = TestEnvironment.newEnvironment(settings);
-        try {
-            new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("multiple [file] realms are configured"));
         }
     }
 
@@ -518,6 +502,32 @@ public class RealmsTests extends ESTestCase {
         }
     }
 
+    public void testWithSettingsWithLookupRealmsConfiguredForAnRealm() throws Exception {
+        factories.put(LdapRealmSettings.LDAP_TYPE, config -> new DummyRealm(LdapRealmSettings.LDAP_TYPE, config));
+        factories.put(PkiRealmSettings.TYPE, config -> new DummyRealm(PkiRealmSettings.TYPE, config));
+        final Settings settings = Settings.builder()
+                .put("xpack.security.authc.realms.realm_1.type", FileRealmSettings.TYPE)
+                .put("xpack.security.authc.realms.realm_1.order", 0)
+                .put("xpack.security.authc.realms.realm_2.type", LdapRealmSettings.LDAP_TYPE)
+                .put("xpack.security.authc.realms.realm_2.order", 1)
+                .put("xpack.security.authc.realms.realm_2.enabled", true)
+                .put("xpack.security.authc.realms.realm_3.type", PkiRealmSettings.TYPE)
+                .put("xpack.security.authc.realms.realm_3.order", 2)
+                .put("xpack.security.authc.realms.realm_3.lookup_realms", "realm_2")
+                .put("path.home", createTempDir())
+                .build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+        final Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        assertThat(realms, is(notNullValue()));
+        assertThat(realms.asList().size(), is(4));
+        List<Realm> pkiRealms = realms.asList().stream().filter((r) -> r.type().equals(PkiRealmSettings.TYPE)).collect(Collectors.toList());
+        assertThat(pkiRealms, is(notNullValue()));
+        assertThat(pkiRealms.size(), is(1));
+        assertThat(pkiRealms.get(0).hasLookupDependency(), is(true));
+        assertThat(((DummyRealm)pkiRealms.get(0)).lookupRealms().isEmpty(), is(false));
+        assertThat(((DummyRealm)pkiRealms.get(0)).lookupRealms().get(0).getType(), is(equalTo(LdapRealmSettings.LDAP_TYPE)));
+    }
+
     static class DummyRealm extends Realm {
 
         DummyRealm(String type, RealmConfig config) {
@@ -542,6 +552,11 @@ public class RealmsTests extends ESTestCase {
         @Override
         public void lookupUser(String username, ActionListener<User> listener) {
             listener.onResponse(null);
+        }
+
+        // For testing
+        public List<Realm> lookupRealms() {
+            return lookupRealms;
         }
     }
 }

@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * An authentication service that delegates the authentication process to its configured {@link Realm realms}.
@@ -379,7 +380,8 @@ public class AuthenticationService extends AbstractComponent {
          * names of users that exist using a timing attack
          */
         private void lookupRunAsUser(final User user, String runAsUsername, Consumer<User> userConsumer) {
-            final List<Realm> realmsList = realms.asList();
+            final List<Realm> realmsList =
+                    realms.asList().stream().filter((realm) -> realm.hasLookupDependency() == false).collect(Collectors.toList());
             final BiConsumer<Realm, ActionListener<User>> realmLookupConsumer = (realm, lookupUserListener) ->
                     realm.lookupUser(runAsUsername, ActionListener.wrap((lookedupUser) -> {
                         if (lookedupUser != null) {

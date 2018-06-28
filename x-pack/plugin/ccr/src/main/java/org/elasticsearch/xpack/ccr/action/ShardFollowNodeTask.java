@@ -10,6 +10,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,11 +22,9 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.ActionTransportException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -289,8 +288,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         // TODO: What other exceptions should be retried?
         return NetworkExceptionHelper.isConnectException(e) ||
             NetworkExceptionHelper.isCloseConnectionException(e) ||
-            e instanceof ActionTransportException ||
-            e instanceof NodeClosedException ||
+            TransportActions.isShardNotAvailableException(e) ||
             e instanceof UnavailableShardsException ||
             e instanceof NoShardAvailableActionException;
     }

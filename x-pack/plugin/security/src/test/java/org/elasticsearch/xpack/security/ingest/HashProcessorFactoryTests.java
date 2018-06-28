@@ -45,6 +45,7 @@ public class HashProcessorFactoryTests extends ESTestCase {
         HashProcessor.Factory factory = new HashProcessor.Factory(settings);
         Map<String, Object> config = new HashMap<>();
         config.put("target_field", "_target");
+        config.put("salt", "_salt");
         config.put("key_setting", "xpack.security.ingest.hash.processor.key");
         config.put("method", HashProcessor.Method.SHA1.toString());
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
@@ -59,6 +60,7 @@ public class HashProcessorFactoryTests extends ESTestCase {
         HashProcessor.Factory factory = new HashProcessor.Factory(settings);
         Map<String, Object> config = new HashMap<>();
         config.put("fields", Collections.singletonList("_field"));
+        config.put("salt", "_salt");
         config.put("key_setting", "xpack.security.ingest.hash.processor.key");
         config.put("method", HashProcessor.Method.SHA1.toString());
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
@@ -73,12 +75,27 @@ public class HashProcessorFactoryTests extends ESTestCase {
         HashProcessor.Factory factory = new HashProcessor.Factory(settings);
         Map<String, Object> config = new HashMap<>();
         config.put("fields", Collections.singletonList(randomBoolean() ? "" : null));
+        config.put("salt", "_salt");
         config.put("target_field", "_target");
         config.put("key_setting", "xpack.security.ingest.hash.processor.key");
         config.put("method", HashProcessor.Method.SHA1.toString());
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
             () -> factory.create(null, "_tag", config));
         assertThat(e.getMessage(), equalTo("[fields] a field-name entry is either empty or null"));
+    }
+
+    public void testProcessorMissingSalt() {
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        mockSecureSettings.setString("xpack.security.ingest.hash.processor.key", "my_key");
+        Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+        HashProcessor.Factory factory = new HashProcessor.Factory(settings);
+        Map<String, Object> config = new HashMap<>();
+        config.put("fields", Collections.singletonList("_field"));
+        config.put("target_field", "_target");
+        config.put("key_setting", "xpack.security.ingest.hash.processor.key");
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            () -> factory.create(null, "_tag", config));
+        assertThat(e.getMessage(), equalTo("[salt] required property is missing"));
     }
 
     public void testProcessorInvalidMethod() {
@@ -88,6 +105,7 @@ public class HashProcessorFactoryTests extends ESTestCase {
         HashProcessor.Factory factory = new HashProcessor.Factory(settings);
         Map<String, Object> config = new HashMap<>();
         config.put("fields", Collections.singletonList("_field"));
+        config.put("salt", "_salt");
         config.put("target_field", "_target");
         config.put("key_setting", "xpack.security.ingest.hash.processor.key");
         config.put("method", "invalid");
@@ -102,6 +120,7 @@ public class HashProcessorFactoryTests extends ESTestCase {
         HashProcessor.Factory factory = new HashProcessor.Factory(settings);
         Map<String, Object> config = new HashMap<>();
         config.put("fields", Collections.singletonList("_field"));
+        config.put("salt", "_salt");
         config.put("target_field", "_target");
         config.put("key_setting", "invalid");
         config.put("method", HashProcessor.Method.SHA1.toString());

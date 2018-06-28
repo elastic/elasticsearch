@@ -18,7 +18,6 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import javax.crypto.Mac;
 import javax.crypto.SecretKeyFactory;
@@ -148,8 +147,7 @@ public final class HashProcessor extends AbstractProcessor {
                 throw ConfigurationUtils.newConfigurationException(TYPE, processorTag, "key_setting",
                     "key [" + keySettingName + "] must match [xpack.security.ingest.hash.*.key]. It is not set");
             }
-            String saltString = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "salt",
-                new String(Hasher.SaltProvider.salt(8)));
+            String saltString = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "salt");
             byte[] salt = saltString.getBytes(StandardCharsets.UTF_8);
             String methodProperty = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "method", "SHA256");
             Method method = Method.fromString(processorTag, "method", methodProperty);

@@ -40,6 +40,7 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
@@ -56,18 +57,18 @@ import java.util.stream.Collectors;
  * {@link RestClient} instance used to send the REST requests. Holds the {@link ClientYamlSuiteRestSpec} used to translate api calls into
  * REST calls.
  */
-public class ClientYamlTestClient {
+public class ClientYamlTestClient implements Closeable {
     private static final Logger logger = Loggers.getLogger(ClientYamlTestClient.class);
 
     private static final ContentType YAML_CONTENT_TYPE = ContentType.create("application/yaml");
 
     private final ClientYamlSuiteRestSpec restSpec;
-    protected final Map<NodeSelector, RestClient> restClients = new HashMap<>();
+    private final Map<NodeSelector, RestClient> restClients = new HashMap<>();
     private final Version esVersion;
     private final Version masterVersion;
     private final CheckedConsumer<RestClientBuilder, IOException> clientBuilderConsumer;
 
-    public ClientYamlTestClient(
+    ClientYamlTestClient(
             final ClientYamlSuiteRestSpec restSpec,
             final RestClient restClient,
             final List<HttpHost> hosts,
@@ -202,10 +203,10 @@ public class ClientYamlTestClient {
             RestClientBuilder builder = RestClient.builder(anyClient.getNodes().toArray(new Node[0]));
             try {
                 clientBuilderConsumer.accept(builder);
-            } catch(IOException e) {
+            } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-            builder.setNodeSelector(nodeSelector);
+            builder.setNodeSelector(selector);
             return builder.build();
         });
     }
@@ -246,5 +247,12 @@ public class ClientYamlTestClient {
             throw new IllegalArgumentException("rest api [" + apiName + "] doesn't exist in the rest spec");
         }
         return restApi;
+    }
+
+    @Override
+    public void close() throws IOException {
+        for (RestClient restClient : restClients.values()) {
+            restClient.close();
+        }
     }
 }

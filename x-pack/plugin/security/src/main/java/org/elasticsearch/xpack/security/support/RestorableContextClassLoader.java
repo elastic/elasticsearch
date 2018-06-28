@@ -12,7 +12,7 @@ import java.security.PrivilegedExceptionAction;
 import org.elasticsearch.SpecialPermission;
 
 /**
- * A <em>try-with-resource</em> compatible object for configuring a thread {@link Thread#contextClassLoader}.
+ * A <em>try-with-resource</em> compatible object for configuring a thread {@link Thread#getContextClassLoader()}.
  * On construction this class will set the current (or provided) thread's context class loader.
  * On {@link #close()}, it restores the previous value of the class loader.
  */

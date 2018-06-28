@@ -62,14 +62,14 @@ public class HasherTests extends ESTestCase {
         assertThat(Hasher.resolve("bcrypt7"), sameInstance(Hasher.BCRYPT7));
         assertThat(Hasher.resolve("bcrypt8"), sameInstance(Hasher.BCRYPT8));
         assertThat(Hasher.resolve("bcrypt9"), sameInstance(Hasher.BCRYPT9));
-        assertThat(Hasher.resolve("bcrypt10"), sameInstance(Hasher.BCRYPT10));
+        assertThat(Hasher.resolve("bcrypt10"), sameInstance(Hasher.BCRYPT));
         assertThat(Hasher.resolve("bcrypt11"), sameInstance(Hasher.BCRYPT11));
         assertThat(Hasher.resolve("bcrypt12"), sameInstance(Hasher.BCRYPT12));
         assertThat(Hasher.resolve("bcrypt13"), sameInstance(Hasher.BCRYPT13));
         assertThat(Hasher.resolve("bcrypt14"), sameInstance(Hasher.BCRYPT14));
         assertThat(Hasher.resolve("pbkdf2"), sameInstance(Hasher.PBKDF2));
         assertThat(Hasher.resolve("pbkdf2_1000"), sameInstance(Hasher.PBKDF2_1000));
-        assertThat(Hasher.resolve("pbkdf2_10000"), sameInstance(Hasher.PBKDF2_10000));
+        assertThat(Hasher.resolve("pbkdf2_10000"), sameInstance(Hasher.PBKDF2));
         assertThat(Hasher.resolve("pbkdf2_50000"), sameInstance(Hasher.PBKDF2_50000));
         assertThat(Hasher.resolve("pbkdf2_100000"), sameInstance(Hasher.PBKDF2_100000));
         assertThat(Hasher.resolve("pbkdf2_500000"), sameInstance(Hasher.PBKDF2_500000));

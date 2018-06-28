@@ -800,6 +800,9 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         IndexResponse doc3 = client().prepareIndex("test", "type", "1").setSource("field", "value3")
             .setVersion(Versions.MATCH_DELETED).setVersionType(VersionType.INTERNAL).execute().actionGet();
         assertThat(doc3.getVersion(), equalTo(3L));
+        IndexResponse doc4 = client().prepareIndex("test", "type", "1").setSource("field", "value4")
+            .setVersion(4L).setVersionType(VersionType.EXTERNAL_GTE).execute().actionGet();
+        assertThat(doc4.getVersion(), equalTo(4L));
         // Make sure that these versions are replicated correctly
         client().admin().indices().prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();

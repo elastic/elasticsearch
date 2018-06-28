@@ -204,6 +204,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput()));
                 Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.v1().streamInput()));
                 // TODO: We haven't had timestamp for Index operations in Lucene yet, we need to loosen this check without timestamp.
+                // We don't store versionType in Lucene index, we need to exclude it from this check
                 final boolean sameOp;
                 if (newOp instanceof Translog.Index && prvOp instanceof Translog.Index) {
                     final Translog.Index o1 = (Translog.Index) newOp;
@@ -211,7 +212,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     sameOp = Objects.equals(o1.id(), o2.id()) && Objects.equals(o1.type(), o2.type())
                         && Objects.equals(o1.source(), o2.source()) && Objects.equals(o1.routing(), o2.routing())
                         && o1.primaryTerm() == o2.primaryTerm() && o1.seqNo() == o2.seqNo()
-                        && o1.version() == o2.version() && o1.versionType() == o2.versionType();
+                        && o1.version() == o2.version();
+                } else if (newOp instanceof Translog.Delete && prvOp instanceof Translog.Delete) {
+                    final Translog.Delete o1 = (Translog.Delete) newOp;
+                    final Translog.Delete o2 = (Translog.Delete) prvOp;
+                    sameOp = Objects.equals(o1.id(), o2.id()) && Objects.equals(o1.type(), o2.type())
+                        && o1.primaryTerm() == o2.primaryTerm() && o1.seqNo() == o2.seqNo() && o1.version() == o2.version();
                 } else {
                     sameOp = false;
                 }

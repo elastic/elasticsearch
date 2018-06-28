@@ -39,7 +39,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentFieldMappers;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -175,13 +174,13 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         final DocumentFieldMappers allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
-                for (FieldMapper fieldMapper : allFieldMappers) {
-                    addFieldMapper(fieldPredicate, fieldMapper.fieldType().name(), fieldMapper, fieldMappings, request.includeDefaults());
+                for (Mapper fieldMapper : allFieldMappers) {
+                    addFieldMapper(fieldPredicate, fieldMapper.name(), fieldMapper, fieldMappings, request.includeDefaults());
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
-                for (FieldMapper fieldMapper : allFieldMappers) {
-                    if (Regex.simpleMatch(field, fieldMapper.fieldType().name())) {
-                        addFieldMapper(fieldPredicate,  fieldMapper.fieldType().name(),
+                for (Mapper fieldMapper : allFieldMappers) {
+                    if (Regex.simpleMatch(field, fieldMapper.name())) {
+                        addFieldMapper(fieldPredicate,  fieldMapper.name(),
                                 fieldMapper, fieldMappings, request.includeDefaults());
                     }
                 }

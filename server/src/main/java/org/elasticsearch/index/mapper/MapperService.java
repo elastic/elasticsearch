@@ -621,6 +621,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return fieldTypes.simpleMatchToFullName(pattern);
     }
 
+    /**
+     * Returns all mapped field types.
+     */
+    public Iterable<MappedFieldType> fieldTypes() {
+        return fieldTypes;
+    }
+
     public ObjectMapper getObjectMapper(String name) {
         return fullPathObjectMappers.get(name);
     }

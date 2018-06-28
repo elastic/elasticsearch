@@ -359,14 +359,6 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return null;
         }
 
-        if (type != null && type.isInstance(val)) {
-            try {
-                return type.cast(val);
-            } catch (ClassCastException cce) {
-                throw new SQLException("unable to convert column " + columnIndex + " to " + type, cce);
-            }
-        }
-
         JDBCType columnType = cursor.columns().get(columnIndex - 1).type;
         
         return TypeConverter.convert(val, columnType, type);

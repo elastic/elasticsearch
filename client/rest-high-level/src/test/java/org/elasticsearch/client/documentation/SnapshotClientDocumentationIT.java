@@ -470,7 +470,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-snapshots-request
 
         // tag::get-snapshots-request-repositoryName
-        request.repository(repositoryName);
+        request.repository(repositoryName); // <1>
         // end::get-snapshots-request-repositoryName
 
         // tag::get-snapshots-request-snapshots

@@ -111,7 +111,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     public void testDeletingNonexistingUserAndRole() throws Exception {
         SecurityClient c = securityClient();
         // first create the index so it exists
-        c.preparePutUser("joe", "s3kirt".toCharArray(), "role1", "user").get();
+        c.preparePutUser("joe", "s3kirt".toCharArray(), getFastStoredHashAlgoForTests(), "role1", "user").get();
         DeleteUserResponse resp = c.prepareDeleteUser("missing").get();
         assertFalse("user shouldn't be found", resp.found());
         DeleteRoleResponse resp2 = c.prepareDeleteRole("role").get();
@@ -131,7 +131,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         final List<User> existingUsers = Arrays.asList(c.prepareGetUsers().get().users());
         final int existing = existingUsers.size();
         logger.error("--> creating user");
-        c.preparePutUser("joe", "s3kirt".toCharArray(), "role1", "user").get();
+        c.preparePutUser("joe", "s3kirt".toCharArray(), getFastStoredHashAlgoForTests(), "role1", "user").get();
         logger.error("--> waiting for .security index");
         ensureGreen(SECURITY_INDEX_NAME);
         logger.info("--> retrieving user");
@@ -142,8 +142,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertArrayEquals(joe.roles(), new String[]{"role1", "user"});
 
         logger.info("--> adding two more users");
-        c.preparePutUser("joe2", "s3kirt2".toCharArray(), "role2", "user").get();
-        c.preparePutUser("joe3", "s3kirt3".toCharArray(), "role3", "user").get();
+        c.preparePutUser("joe2", "s3kirt2".toCharArray(), getFastStoredHashAlgoForTests(), "role2", "user").get();
+        c.preparePutUser("joe3", "s3kirt3".toCharArray(), getFastStoredHashAlgoForTests(), "role3", "user").get();
         GetUsersResponse allUsersResp = c.prepareGetUsers().get();
         assertTrue("users should exist", allUsersResp.hasUsers());
         assertEquals("should be " + (3 + existing) + " users total", 3 + existing, allUsersResp.users().length);
@@ -237,7 +237,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                         new BytesArray("{\"match_all\": {}}"))
                 .get();
         logger.error("--> creating user");
-        c.preparePutUser("joe", "s3krit".toCharArray(), "test_role").get();
+        c.preparePutUser("joe", "s3krit".toCharArray(), getFastStoredHashAlgoForTests(), "test_role").get();
         logger.error("--> waiting for .security index");
         ensureGreen(SECURITY_INDEX_NAME);
         logger.info("--> retrieving user");
@@ -252,13 +252,13 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
-        assertEquals(searchResp.getHits().getTotalHits(), 1L);
+        assertEquals(1L, searchResp.getHits().getTotalHits());
     }
 
     public void testUpdatingUserAndAuthentication() throws Exception {
         SecurityClient c = securityClient();
         logger.error("--> creating user");
-        c.preparePutUser("joe", "s3krit".toCharArray(), SecuritySettingsSource.TEST_ROLE).get();
+        c.preparePutUser("joe", "s3krit".toCharArray(), getFastStoredHashAlgoForTests(), SecuritySettingsSource.TEST_ROLE).get();
         logger.error("--> waiting for .security index");
         ensureGreen(SECURITY_INDEX_NAME);
         logger.info("--> retrieving user");
@@ -273,9 +273,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
-        assertEquals(searchResp.getHits().getTotalHits(), 1L);
+        assertEquals(1L, searchResp.getHits().getTotalHits());
 
-        c.preparePutUser("joe", "s3krit2".toCharArray(), SecuritySettingsSource.TEST_ROLE).get();
+        c.preparePutUser("joe", "s3krit2".toCharArray(), getFastStoredHashAlgoForTests(), SecuritySettingsSource.TEST_ROLE).get();
 
         try {
             client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
@@ -287,13 +287,14 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         token = basicAuthHeaderValue("joe", new SecureString("s3krit2".toCharArray()));
         searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
-        assertEquals(searchResp.getHits().getTotalHits(), 1L);
+        assertEquals(1L, searchResp.getHits().getTotalHits());
     }
 
     public void testCreateDeleteAuthenticate() {
         SecurityClient c = securityClient();
         logger.error("--> creating user");
-        c.preparePutUser("joe", "s3krit".toCharArray(), SecuritySettingsSource.TEST_ROLE).get();
+        c.preparePutUser("joe", "s3krit".toCharArray(), getFastStoredHashAlgoForTests(),
+            SecuritySettingsSource.TEST_ROLE).get();
         logger.error("--> waiting for .security index");
         ensureGreen(SECURITY_INDEX_NAME);
         logger.info("--> retrieving user");
@@ -308,7 +309,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
-        assertEquals(searchResp.getHits().getTotalHits(), 1L);
+        assertEquals(1L, searchResp.getHits().getTotalHits());
 
         DeleteUserResponse response = c.prepareDeleteUser("joe").get();
         assertThat(response.found(), is(true));
@@ -331,7 +332,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                         new BytesArray("{\"match_all\": {}}"))
                 .get();
         logger.error("--> creating user");
-        c.preparePutUser("joe", "s3krit".toCharArray(), "test_role").get();
+        c.preparePutUser("joe", "s3krit".toCharArray(), getFastStoredHashAlgoForTests(), "test_role").get();
         logger.error("--> waiting for .security index");
         ensureGreen(SECURITY_INDEX_NAME);
 
@@ -380,7 +381,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 .addIndices(new String[]{"*"}, new String[]{"read"}, new String[]{"body", "title"}, null,
                         new BytesArray("{\"match_all\": {}}"))
                 .get();
-        c.preparePutUser("joe", "s3krit".toCharArray(), "test_role").get();
+        c.preparePutUser("joe", "s3krit".toCharArray(), getFastStoredHashAlgoForTests(), "test_role").get();
         logger.error("--> waiting for .security index");
         ensureGreen(SECURITY_INDEX_NAME);
 
@@ -414,7 +415,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(client.prepareGetUsers("joes").get().hasUsers(), is(false));
         // check that putting a user without a password fails if the user doesn't exist
         try {
-            client.preparePutUser("joe", null, "admin_role").get();
+            client.preparePutUser("joe", null, getFastStoredHashAlgoForTests(), "admin_role").get();
             fail("cannot create a user without a password");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("password must be specified"));
@@ -423,7 +424,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(client.prepareGetUsers("joes").get().hasUsers(), is(false));
 
         // create joe with a password and verify the user works
-        client.preparePutUser("joe", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), "admin_role").get();
+        client.preparePutUser("joe", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(),
+            getFastStoredHashAlgoForTests(), "admin_role").get();
         assertThat(client.prepareGetUsers("joe").get().hasUsers(), is(true));
         final String token = basicAuthHeaderValue("joe", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
@@ -431,7 +433,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertFalse(response.isTimedOut());
 
         // modify joe without sending the password
-        client.preparePutUser("joe", null, "read_role").fullName("Joe Smith").get();
+        client.preparePutUser("joe", null, getFastStoredHashAlgoForTests(), "read_role").fullName("Joe Smith").get();
         GetUsersResponse getUsersResponse = client.prepareGetUsers("joe").get();
         assertThat(getUsersResponse.hasUsers(), is(true));
         assertThat(getUsersResponse.users().length, is(1));
@@ -452,7 +454,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         // update the user with password and admin role again
         String secondPassword = SecuritySettingsSourceField.TEST_PASSWORD + "2";
-        client.preparePutUser("joe", secondPassword.toCharArray(), "admin_role").fullName("Joe Smith").get();
+        client.preparePutUser("joe", secondPassword.toCharArray(), getFastStoredHashAlgoForTests(), "admin_role").
+            fullName("Joe Smith").get();
         getUsersResponse = client.prepareGetUsers("joe").get();
         assertThat(getUsersResponse.hasUsers(), is(true));
         assertThat(getUsersResponse.users().length, is(1));
@@ -480,7 +483,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     public void testCannotCreateUserWithShortPassword() throws Exception {
         SecurityClient client = securityClient();
         try {
-            client.preparePutUser("joe", randomAlphaOfLengthBetween(0, 5).toCharArray(), "admin_role").get();
+            client.preparePutUser("joe", randomAlphaOfLengthBetween(0, 5).toCharArray(), getFastStoredHashAlgoForTests(),
+                "admin_role").get();
             fail("cannot create a user without a password < 6 characters");
         } catch (ValidationException v) {
             assertThat(v.getMessage().contains("password"), is(true));
@@ -490,7 +494,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     public void testCannotCreateUserWithInvalidCharactersInName() throws Exception {
         SecurityClient client = securityClient();
         ValidationException v = expectThrows(ValidationException.class,
-                () -> client.preparePutUser("fóóbár", "my-am@zing-password".toCharArray(), "admin_role").get()
+            () -> client.preparePutUser("fóóbár", "my-am@zing-password".toCharArray(), getFastStoredHashAlgoForTests(),
+                "admin_role").get()
         );
         assertThat(v.getMessage(), containsString("names must be"));
     }
@@ -500,7 +505,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         SecurityClient client = securityClient();
         if (randomBoolean()) {
-            client.preparePutUser("joe", "s3krit".toCharArray(), SecuritySettingsSource.TEST_ROLE).get();
+            client.preparePutUser("joe", "s3krit".toCharArray(), getFastStoredHashAlgoForTests(),
+                SecuritySettingsSource.TEST_ROLE).get();
         } else {
             client.preparePutRole("read_role")
                     .cluster("none")
@@ -520,7 +526,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         final String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> securityClient().preparePutUser(username, randomBoolean() ? SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()
-                        : null, "admin").get());
+                    : null, getFastStoredHashAlgoForTests(), "admin").get());
         assertThat(exception.getMessage(), containsString("Username [" + username + "] is reserved"));
 
         exception = expectThrows(IllegalArgumentException.class,
@@ -532,19 +538,22 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
         exception = expectThrows(IllegalArgumentException.class,
-                () -> securityClient().prepareChangePassword(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar".toCharArray()).get());
+            () -> securityClient().prepareChangePassword(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar".toCharArray(),
+                getFastStoredHashAlgoForTests()).get());
         assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
         exception = expectThrows(IllegalArgumentException.class,
-                () -> securityClient().preparePutUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar".toCharArray()).get());
+            () -> securityClient().preparePutUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar".toCharArray(),
+                getFastStoredHashAlgoForTests()).get());
         assertThat(exception.getMessage(), containsString("Username [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is reserved"));
 
         exception = expectThrows(IllegalArgumentException.class,
-                () -> securityClient().preparePutUser(SystemUser.NAME, "foobar".toCharArray()).get());
+            () -> securityClient().preparePutUser(SystemUser.NAME, "foobar".toCharArray(), getFastStoredHashAlgoForTests()).get());
         assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
 
         exception = expectThrows(IllegalArgumentException.class,
-                () -> securityClient().prepareChangePassword(SystemUser.NAME, "foobar".toCharArray()).get());
+            () -> securityClient().prepareChangePassword(SystemUser.NAME, "foobar".toCharArray(),
+                getFastStoredHashAlgoForTests()).get());
         assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
 
         exception = expectThrows(IllegalArgumentException.class,
@@ -582,7 +591,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testCreateAndChangePassword() throws Exception {
-        securityClient().preparePutUser("joe", "s3krit".toCharArray(), SecuritySettingsSource.TEST_ROLE).get();
+        securityClient().preparePutUser("joe", "s3krit".toCharArray(), getFastStoredHashAlgoForTests(),
+            SecuritySettingsSource.TEST_ROLE).get();
         final String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token))
                 .admin().cluster().prepareHealth().get();
@@ -590,8 +600,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         ChangePasswordResponse passwordResponse = securityClient(
                 client().filterWithHeader(Collections.singletonMap("Authorization", token)))
-                .prepareChangePassword("joe", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
-                .get();
+            .prepareChangePassword("joe", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), getFastStoredHashAlgoForTests()).get();
         assertThat(passwordResponse, notNullValue());
 
 
@@ -671,7 +680,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         final int numNativeUsers = scaledRandomIntBetween(1, 32);
         SecurityClient securityClient = new SecurityClient(client());
         for (int i = 0; i < numNativeUsers; i++) {
-            securityClient.preparePutUser("joe" + i, "s3krit".toCharArray(), "superuser").get();
+            securityClient.preparePutUser("joe" + i, "s3krit".toCharArray(), getFastStoredHashAlgoForTests(),
+                "superuser").get();
         }
 
         XPackUsageResponse response = new XPackUsageRequestBuilder(client()).get();
@@ -690,7 +700,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testSetEnabled() throws Exception {
-        securityClient().preparePutUser("joe", "s3krit".toCharArray(), SecuritySettingsSource.TEST_ROLE).get();
+
+        securityClient().preparePutUser("joe", "s3krit".toCharArray(), getFastStoredHashAlgoForTests(),
+            SecuritySettingsSource.TEST_ROLE).get();
         final String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token))
                 .admin().cluster().prepareHealth().get();
@@ -714,7 +726,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
     public void testNegativeLookupsThenCreateRole() throws Exception {
         SecurityClient securityClient = new SecurityClient(client());
-        securityClient.preparePutUser("joe", "s3krit".toCharArray(), "unknown_role").get();
+        securityClient.preparePutUser("joe", "s3krit".toCharArray(), getFastStoredHashAlgoForTests(), "unknown_role").get();
 
         final int negativeLookups = scaledRandomIntBetween(1, 10);
         for (int i = 0; i < negativeLookups; i++) {
@@ -750,8 +762,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
      * the loader returned a null value, while the other caller(s) would get a null value unexpectedly
      */
     public void testConcurrentRunAs() throws Exception {
-        securityClient().preparePutUser("joe", "s3krit".toCharArray(), SecuritySettingsSource.TEST_ROLE).get();
-        securityClient().preparePutUser("executor", "s3krit".toCharArray(), "superuser").get();
+        securityClient().preparePutUser("joe", "s3krit".toCharArray(), getFastStoredHashAlgoForTests(), SecuritySettingsSource
+            .TEST_ROLE).get();
+        securityClient().preparePutUser("executor", "s3krit".toCharArray(), getFastStoredHashAlgoForTests(), "superuser").get();
         final String token = basicAuthHeaderValue("executor", new SecureString("s3krit".toCharArray()));
         final Client client = client().filterWithHeader(MapBuilder.<String, String>newMapBuilder()
                 .put("Authorization", token)

@@ -8,14 +8,8 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,17 +20,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.ActionTransportException;
-import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
-import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
-import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -53,7 +42,7 @@ import java.util.function.LongConsumer;
  * The node task that fetch the write operations from a leader shard and
  * persists these ops in the follower shard.
  */
-public class ShardFollowNodeTask extends AllocatedPersistentTask {
+public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     static final int DEFAULT_MAX_READ_SIZE = 1024;
     static final int DEFAULT_MAX_WRITE_SIZE = 1024;
@@ -66,8 +55,6 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private static final Logger LOGGER = Loggers.getLogger(ShardFollowNodeTask.class);
 
-    final Client leaderClient;
-    final Client followerClient;
     private final ShardFollowTask params;
     private final BiConsumer<TimeValue, Runnable> scheduler;
 
@@ -87,13 +74,9 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
                         String description,
                         TaskId parentTask,
                         Map<String, String> headers,
-                        Client leaderClient,
-                        Client followerClient,
                         ShardFollowTask params,
                         BiConsumer<TimeValue, Runnable> scheduler) {
         super(id, type, action, description, parentTask, headers);
-        this.leaderClient = leaderClient;
-        this.followerClient = followerClient;
         this.params = params;
         this.scheduler = scheduler;
     }
@@ -286,7 +269,7 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
     }
 
-    private void handleFailure(Exception e, Runnable task) {
+    void handleFailure(Exception e, Runnable task) {
         assert e != null;
         if (shouldRetry(e)) {
             if (isStopped() == false && retryCounter.incrementAndGet() <= RETRY_LIMIT) {
@@ -313,68 +296,13 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     // These methods are protected for testing purposes:
-    protected void updateMapping(LongConsumer handler) {
-        Index leaderIndex = params.getLeaderShardId().getIndex();
-        Index followIndex = params.getFollowShardId().getIndex();
+    protected abstract void updateMapping(LongConsumer handler);
 
-        ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.clear();
-        clusterStateRequest.metaData(true);
-        clusterStateRequest.indices(leaderIndex.getName());
+    protected abstract void innerSendBulkShardOperationsRequest(Translog.Operation[] operations, LongConsumer handler,
+                                                                Consumer<Exception> errorHandler);
 
-        leaderClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(clusterStateResponse -> {
-            IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
-            assert indexMetaData.getMappings().size() == 1;
-            MappingMetaData mappingMetaData = indexMetaData.getMappings().iterator().next().value;
-
-            PutMappingRequest putMappingRequest = new PutMappingRequest(followIndex.getName());
-            putMappingRequest.type(mappingMetaData.type());
-            putMappingRequest.source(mappingMetaData.source().string(), XContentType.JSON);
-            followerClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(
-                putMappingResponse -> handler.accept(indexMetaData.getVersion()),
-                e -> handleFailure(e, () -> updateMapping(handler))));
-        }, e -> handleFailure(e, () -> updateMapping(handler))));
-    }
-
-    protected void innerSendBulkShardOperationsRequest(Translog.Operation[] operations,
-                                                     LongConsumer handler,
-                                                     Consumer<Exception> errorHandler) {
-        final BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(), operations);
-        followerClient.execute(BulkShardOperationsAction.INSTANCE, request,
-            new ActionListener<BulkShardOperationsResponse>() {
-                @Override
-                public void onResponse(BulkShardOperationsResponse response) {
-                    handler.accept(response.getLocalCheckpoint());
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    errorHandler.accept(e);
-                }
-            }
-        );
-    }
-
-    protected void innerSendShardChangesRequest(long from,
-                                                long size,
-                                                Consumer<ShardChangesAction.Response> handler,
-                                                Consumer<Exception> errorHandler) {
-        ShardChangesAction.Request request = new ShardChangesAction.Request(params.getLeaderShardId());
-        request.setFromSeqNo(from);
-        request.setMaxOperationCount(size);
-        request.setMaxOperationSizeInBytes(params.getMaxOperationSizeInBytes());
-        leaderClient.execute(ShardChangesAction.INSTANCE, request, new ActionListener<ShardChangesAction.Response>() {
-            @Override
-            public void onResponse(ShardChangesAction.Response response) {
-                handler.accept(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                errorHandler.accept(e);
-            }
-        });
-    }
+    protected abstract void innerSendShardChangesRequest(long from, long size, Consumer<ShardChangesAction.Response> handler,
+                                                         Consumer<Exception> errorHandler);
 
     @Override
     protected void onCancelled() {

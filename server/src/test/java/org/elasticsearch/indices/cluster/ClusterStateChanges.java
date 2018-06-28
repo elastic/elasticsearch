@@ -139,7 +139,7 @@ public class ClusterStateChanges extends AbstractComponent {
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Environment environment = TestEnvironment.newEnvironment(settings);
-        Transport transport = null; // it's not used
+        Transport transport = mock(Transport.class); // it's not used
 
         // mocks
         clusterService = mock(ClusterService.class);

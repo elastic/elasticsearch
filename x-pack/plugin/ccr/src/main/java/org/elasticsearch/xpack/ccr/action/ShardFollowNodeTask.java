@@ -67,14 +67,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final AtomicInteger retryCounter = new AtomicInteger(0);
     private final Queue<Translog.Operation> buffer = new LinkedList<>();
 
-    ShardFollowNodeTask(long id,
-                        String type,
-                        String action,
-                        String description,
-                        TaskId parentTask,
-                        Map<String, String> headers,
-                        ShardFollowTask params,
-                        BiConsumer<TimeValue, Runnable> scheduler) {
+    ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
+                        ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler) {
         super(id, type, action, description, parentTask, headers);
         this.params = params;
         this.scheduler = scheduler;

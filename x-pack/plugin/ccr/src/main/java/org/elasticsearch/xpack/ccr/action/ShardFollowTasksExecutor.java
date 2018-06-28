@@ -37,7 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
-import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -124,18 +123,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                                Consumer<Exception> errorHandler) {
                 final BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(), operations);
                 followerClient.execute(BulkShardOperationsAction.INSTANCE, request,
-                    new ActionListener<BulkShardOperationsResponse>() {
-                        @Override
-                        public void onResponse(BulkShardOperationsResponse response) {
-                            handler.accept(response.getLocalCheckpoint());
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            errorHandler.accept(e);
-                        }
-                    }
-                );
+                    ActionListener.wrap(response -> handler.accept(response.getLocalCheckpoint()), errorHandler));
             }
 
             @Override
@@ -145,17 +133,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 request.setFromSeqNo(from);
                 request.setMaxOperationCount(size);
                 request.setMaxOperationSizeInBytes(params.getMaxOperationSizeInBytes());
-                leaderClient.execute(ShardChangesAction.INSTANCE, request, new ActionListener<ShardChangesAction.Response>() {
-                    @Override
-                    public void onResponse(ShardChangesAction.Response response) {
-                        handler.accept(response);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        errorHandler.accept(e);
-                    }
-                });
+                leaderClient.execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
             }
         };
     }

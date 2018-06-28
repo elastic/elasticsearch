@@ -19,31 +19,41 @@
 
 package org.elasticsearch.gradle.doc
 
-import static org.elasticsearch.gradle.doc.RestTestsFromSnippetsTask.shouldAddShardFailureCheck
-import static org.elasticsearch.gradle.doc.RestTestsFromSnippetsTask.replaceBlockQuote
+import org.elasticsearch.gradle.test.GradleUnitTestCase
+import org.gradle.api.InvalidUserDataException
+import org.junit.Rule
+import org.junit.rules.ExpectedException
 
-class RestTestFromSnippetsTaskTest extends GroovyTestCase {
+import static org.elasticsearch.gradle.doc.RestTestsFromSnippetsTask.replaceBlockQuote
+import static org.elasticsearch.gradle.doc.RestTestsFromSnippetsTask.shouldAddShardFailureCheck
+
+class RestTestFromSnippetsTaskTests extends GradleUnitTestCase {
+
+    @Rule
+    public ExpectedException expectedEx = ExpectedException.none()
+
     void testInvalidBlockQuote() {
-        String input = "\"foo\": \"\"\"bar\"";
-        String message = shouldFail({ replaceBlockQuote(input) });
-        assertEquals("Invalid block quote starting at 7 in:\n$input", message);
+        String input = "\"foo\": \"\"\"bar\""
+        expectedEx.expect(InvalidUserDataException.class)
+        expectedEx.expectMessage("Invalid block quote starting at 7 in:\n$input")
+        replaceBlockQuote(input)
     }
 
     void testSimpleBlockQuote() {
         assertEquals("\"foo\": \"bort baz\"",
-            replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\""));
+            replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\""))
     }
 
     void testMultipleBlockQuotes() {
         assertEquals("\"foo\": \"bort baz\", \"bar\": \"other\"",
-            replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\", \"bar\": \"\"\"other\"\"\""));
+            replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\", \"bar\": \"\"\"other\"\"\""))
     }
 
     void testEscapingInBlockQuote() {
         assertEquals("\"foo\": \"bort\\\" baz\"",
-            replaceBlockQuote("\"foo\": \"\"\"bort\" baz\"\"\""));
+            replaceBlockQuote("\"foo\": \"\"\"bort\" baz\"\"\""))
         assertEquals("\"foo\": \"bort\\n baz\"",
-            replaceBlockQuote("\"foo\": \"\"\"bort\n baz\"\"\""));
+            replaceBlockQuote("\"foo\": \"\"\"bort\n baz\"\"\""))
     }
 
     void testIsDocWriteRequest() {

@@ -89,7 +89,7 @@ class RandomizedTestingPlugin implements Plugin<Project> {
             description = 'Runs unit tests with the randomized testing framework'
             dependsOn oldTestTask.dependsOn, 'testClasses'
             classpath = oldTestTask.classpath
-            testClassesDir = oldTestTask.project.sourceSets.test.output.classesDir
+            testClassesDirs = oldTestTask.project.sourceSets.test.output.classesDirs
         }
 
         // hack so check task depends on custom test

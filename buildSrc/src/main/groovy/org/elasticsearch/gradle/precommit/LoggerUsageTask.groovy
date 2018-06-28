@@ -50,11 +50,11 @@ public class LoggerUsageTask extends LoggedExec {
                 List files = []
                 // But only if the source sets that will make them exist
                 if (project.sourceSets.findByName("main")) {
-                    files.add(project.sourceSets.main.output.classesDir)
+                    files.addAll(project.sourceSets.main.output.classesDirs.getFiles())
                     dependsOn project.tasks.classes
                 }
                 if (project.sourceSets.findByName("test")) {
-                    files.add(project.sourceSets.test.output.classesDir)
+                    files.addAll(project.sourceSets.test.output.classesDirs.getFiles())
                     dependsOn project.tasks.testClasses
                 }
                 /* In an extra twist, it isn't good enough that the source set

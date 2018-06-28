@@ -27,6 +27,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
 import java.io.IOException;
@@ -42,9 +44,13 @@ import java.util.Objects;
  */
 public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
 
-    public ClientYamlDocsTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts, Version esVersion)
-            throws IOException {
-        super(restSpec, restClient, hosts, esVersion);
+    public ClientYamlDocsTestClient(
+            final ClientYamlSuiteRestSpec restSpec,
+            final RestClient restClient,
+            final List<HttpHost> hosts,
+            final Version esVersion,
+            final CheckedConsumer<RestClientBuilder, IOException> clientBuilderConsumer) {
+        super(restSpec, restClient, hosts, esVersion, clientBuilderConsumer);
     }
 
     @Override
@@ -62,9 +68,9 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
                 request.addParameter(param.getKey(), param.getValue());
             }
             request.setEntity(entity);
-            setOptions(request, headers, nodeSelector);
+            setOptions(request, headers);
             try {
-                Response response = restClient.performRequest(request);
+                Response response = getRestClient(nodeSelector).performRequest(request);
                 return new ClientYamlTestResponse(response);
             } catch (ResponseException e) {
                 throw new ClientYamlTestResponseException(e);

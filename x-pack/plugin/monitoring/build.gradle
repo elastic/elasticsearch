@@ -62,7 +62,7 @@ task internalClusterTest(type: RandomizedTestingTask,
                          dependsOn: test.dependsOn) {
   configure(BuildPlugin.commonTestConfig(project))
   classpath = project.test.classpath
-  testClassesDir = project.test.testClassesDir
+  testClassesDirs = project.test.testClassesDirs
   include '**/*IT.class'
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }

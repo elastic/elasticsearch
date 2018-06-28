@@ -26,12 +26,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.ml.action.util.ForecastStats;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -47,6 +47,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
 
     private static final String DATA_COUNTS = "data_counts";
     private static final String MODEL_SIZE_STATS = "model_size_stats";
+    private static final String FORECASTS_STATS = "forecasts_stats";
     private static final String STATE = "state";
     private static final String NODE = "node";
 
@@ -235,7 +236,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
                     builder.field(MODEL_SIZE_STATS, modelSizeStats);
                 }
                 if (forecastStats != null) {
-                    builder.field("forecast", forecastStats);
+                    builder.field(FORECASTS_STATS, forecastStats);
                 }
                 
                 builder.field(STATE, state.toString());

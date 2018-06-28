@@ -270,42 +270,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         for (SearchRequest request : multiSearchRequest.requests()) {
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
-                xContentBuilder.startObject();
-                if (request.indices() != null) {
-                    xContentBuilder.field("index", request.indices());
-                }
-                if (request.indicesOptions() != null && request.indicesOptions() != SearchRequest.DEFAULT_INDICES_OPTIONS) {
-                    if (request.indicesOptions().expandWildcardsOpen() && request.indicesOptions().expandWildcardsClosed()) {
-                        xContentBuilder.field("expand_wildcards", "all");
-                    } else if (request.indicesOptions().expandWildcardsOpen()) {
-                        xContentBuilder.field("expand_wildcards", "open");
-                    } else if (request.indicesOptions().expandWildcardsClosed()) {
-                        xContentBuilder.field("expand_wildcards", "closed");
-                    } else {
-                        xContentBuilder.field("expand_wildcards", "none");
-                    }
-                    xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
-                    xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());
-                }
-                if (request.types() != null) {
-                    xContentBuilder.field("types", request.types());
-                }
-                if (request.searchType() != null) {
-                    xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));
-                }
-                if (request.requestCache() != null) {
-                    xContentBuilder.field("request_cache", request.requestCache());
-                }
-                if (request.preference() != null) {
-                    xContentBuilder.field("preference", request.preference());
-                }
-                if (request.routing() != null) {
-                    xContentBuilder.field("routing", request.routing());
-                }
-                if (request.allowPartialSearchResults() != null) {
-                    xContentBuilder.field("allow_partial_search_results", request.allowPartialSearchResults());
-                }
-                xContentBuilder.endObject();
+                writeSearchRequestParams(request, xContentBuilder);
                 BytesReference.bytes(xContentBuilder).writeTo(output);
             }
             output.write(xContent.streamSeparator());
@@ -321,6 +286,45 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             output.write(xContent.streamSeparator());
         }
         return output.toByteArray();
+    }
+    
+    public static void writeSearchRequestParams(SearchRequest request, XContentBuilder xContentBuilder) throws IOException {
+        xContentBuilder.startObject();
+        if (request.indices() != null) {
+            xContentBuilder.field("index", request.indices());
+        }
+        if (request.indicesOptions() != null && request.indicesOptions() != SearchRequest.DEFAULT_INDICES_OPTIONS) {
+            if (request.indicesOptions().expandWildcardsOpen() && request.indicesOptions().expandWildcardsClosed()) {
+                xContentBuilder.field("expand_wildcards", "all");
+            } else if (request.indicesOptions().expandWildcardsOpen()) {
+                xContentBuilder.field("expand_wildcards", "open");
+            } else if (request.indicesOptions().expandWildcardsClosed()) {
+                xContentBuilder.field("expand_wildcards", "closed");
+            } else {
+                xContentBuilder.field("expand_wildcards", "none");
+            }
+            xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
+            xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());
+        }
+        if (request.types() != null) {
+            xContentBuilder.field("types", request.types());
+        }
+        if (request.searchType() != null) {
+            xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));
+        }
+        if (request.requestCache() != null) {
+            xContentBuilder.field("request_cache", request.requestCache());
+        }
+        if (request.preference() != null) {
+            xContentBuilder.field("preference", request.preference());
+        }
+        if (request.routing() != null) {
+            xContentBuilder.field("routing", request.routing());
+        }
+        if (request.allowPartialSearchResults() != null) {
+            xContentBuilder.field("allow_partial_search_results", request.allowPartialSearchResults());
+        }
+        xContentBuilder.endObject();
     }
 
 }

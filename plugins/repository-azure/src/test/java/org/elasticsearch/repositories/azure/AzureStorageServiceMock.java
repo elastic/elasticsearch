@@ -22,7 +22,6 @@ package org.elasticsearch.repositories.azure;
 import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
-
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -72,9 +71,11 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     }
 
     @Override
-    public void deleteFiles(String account, String container, String path) {
+    public void deleteFiles(String account, String container, String path) throws URISyntaxException, StorageException {
         final Map<String, BlobMetaData> blobs = listBlobsByPrefix(account, container, path, null);
-        blobs.keySet().forEach(key -> deleteBlob(account, container, key));
+        for (String key : blobs.keySet()) {
+            deleteBlob(account, container, key);
+        }
     }
 
     @Override
@@ -83,8 +84,10 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     }
 
     @Override
-    public void deleteBlob(String account, String container, String blob) {
-        blobs.remove(blob);
+    public void deleteBlob(String account, String container, String blob) throws URISyntaxException, StorageException {
+        if (blobs.remove(blob) == null) {
+            throw new StorageException("BlobNotFound", "[" + blob + "] does not exist.", 404, null, null);
+        }
     }
 
     @Override

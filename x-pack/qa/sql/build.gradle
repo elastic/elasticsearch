@@ -89,7 +89,7 @@ subprojects {
     testRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
     testRuntime "com.h2database:h2:1.4.197"
     testRuntime project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
-    testRuntime xpackProject('plugin:sql:sql-shared-client')
+    testRuntime xpackProject('plugin:sql:sql-client')
 
 
     // TODO check if needed
@@ -99,7 +99,7 @@ subprojects {
 
     // CLI testing dependencies
     testRuntime project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
-    testRuntime (xpackProject('plugin:sql:sql-proto')) {
+    testRuntime (xpackProject('plugin:sql:sql-action')) {
       transitive = false
     }
     testRuntime "org.jline:jline:3.6.0"

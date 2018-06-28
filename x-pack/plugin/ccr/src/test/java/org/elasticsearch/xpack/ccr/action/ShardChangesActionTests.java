@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardChangesActionTests extends ESSingleNodeTestCase {
@@ -48,24 +47,21 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         IndexShard indexShard = indexService.getShard(0);
         for (int iter = 0; iter < iters; iter++) {
             int min = randomIntBetween(0, numWrites - 1);
-            long max = randomIntBetween(min, numWrites - 1);
+            int max = randomIntBetween(min, numWrites - 1);
             final Translog.Operation[] operations = ShardChangesAction.getOperationsBetween(indexShard, min, max, Long.MAX_VALUE);
             final List<Long> seenSeqNos = Arrays.stream(operations).map(Translog.Operation::seqNo).collect(Collectors.toList());
             final List<Long> expectedSeqNos = LongStream.range(min, max + 1).boxed().collect(Collectors.toList());
             assertThat(seenSeqNos, equalTo(expectedSeqNos));
         }
 
+
         // get operations for a range no operations exists:
-        Exception e = expectThrows(IllegalStateException.class,
-                () -> ShardChangesAction.getOperationsBetween(indexShard, numWrites, (long) numWrites + 1, Long.MAX_VALUE));
-        assertThat(e.getMessage(), containsString("Not all operations between min_seqno [" + numWrites + "] and max_seqno [" +
-                (numWrites + 1) +"] found"));
+        Translog.Operation[] operations =  ShardChangesAction.getOperationsBetween(indexShard, numWrites, numWrites + 1, Long.MAX_VALUE);
+        assertThat(operations.length, equalTo(0));
 
         // get operations for a range some operations do not exist:
-        e = expectThrows(IllegalStateException.class,
-                () -> ShardChangesAction.getOperationsBetween(indexShard, numWrites  - 10, (long) numWrites + 10, Long.MAX_VALUE));
-        assertThat(e.getMessage(), containsString("Not all operations between min_seqno [" + (numWrites - 10) + "] and max_seqno [" +
-                (numWrites + 10) +"] found"));
+        operations = ShardChangesAction.getOperationsBetween(indexShard, numWrites  - 10, numWrites + 10, Long.MAX_VALUE);
+        assertThat(operations.length, equalTo(10));
     }
 
     public void testGetOperationsBetweenWhenShardNotStarted() throws Exception {
@@ -81,7 +77,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
 
         ShardRouting shardRouting = TestShardRouting.newShardRouting("index", 0, "_node_id", true, ShardRoutingState.INITIALIZING);
         Mockito.when(indexShard.routingEntry()).thenReturn(shardRouting);
-        expectThrows(IndexShardNotStartedException.class, () -> ShardChangesAction.getOperationsBetween(indexShard, 0, 1L, Long.MAX_VALUE));
+        expectThrows(IndexShardNotStartedException.class, () -> ShardChangesAction.getOperationsBetween(indexShard, 0, 1, Long.MAX_VALUE));
     }
 
     public void testGetOperationsBetweenExceedByteLimit() throws Exception {

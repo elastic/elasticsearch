@@ -142,7 +142,7 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
                 long from = lastRequestedSeqno + 1;
                 long to = from + maxReadSize <= leaderGlobalCheckpoint ? from + maxReadSize : leaderGlobalCheckpoint;
                 LOGGER.debug("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, from, to);
-                sendShardChangesRequest(from, to);
+                sendShardChangesRequest(from, to, true);
                 lastRequestedSeqno = to;
             }
             if (numConcurrentReads == 0) {
@@ -159,7 +159,7 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
                         numConcurrentReads++;
                         long from = lastRequestedSeqno + 1;
                         LOGGER.debug("{}[{}] peek read [{}]", params.getFollowShardId(), numConcurrentReads, from);
-                        sendShardChangesRequest(from, null);
+                        sendShardChangesRequest(from, from + maxReadSize, false);
                     }
                 });
             }
@@ -188,16 +188,16 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
     }
 
-    private void sendShardChangesRequest(long from, Long to) {
+    private void sendShardChangesRequest(long from, long to, boolean bla) {
         innerSendShardChangesRequest(from, to,
             response -> {
                 retryCounter.set(0);
-                handleResponse(from, to, response);
+                handleResponse(from, to, bla, response);
             },
-            e -> handleFailure(e, () -> sendShardChangesRequest(from, to)));
+            e -> handleFailure(e, () -> sendShardChangesRequest(from, to, bla)));
     }
 
-    private synchronized void handleResponse(long from, Long to, ShardChangesAction.Response response) {
+    private synchronized void handleResponse(long from, long to, boolean checkLastOpReceived, ShardChangesAction.Response response) {
         maybeUpdateMapping(response.getIndexMetadataVersion(), () -> {
             synchronized (ShardFollowNodeTask.this) {
                 leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getLeaderGlobalCheckpoint());
@@ -214,19 +214,19 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
 
                     LOGGER.debug("{} received [{}/{}]", params.getFollowShardId(), firstOp.seqNo(), lastOp.seqNo());
                     buffer.addAll(Arrays.asList(response.getOperations()));
-                    if (to == null) {
-                        lastRequestedSeqno = Math.max(lastRequestedSeqno, lastOp.seqNo());
-                        LOGGER.debug("{} post updating lastRequestedSeqno to [{}]", params.getFollowShardId(), lastRequestedSeqno);
-                        numConcurrentReads--;
-                    } else {
+                    if (checkLastOpReceived) {
                         if (lastOp.seqNo() < to) {
                             long newFrom = lastOp.seqNo() + 1;
                             LOGGER.debug("{} received [{}] as last op while [{}] was expected, continue to read [{}/{}]...",
                                 params.getFollowShardId(), lastOp.seqNo(), to, newFrom, to);
-                            sendShardChangesRequest(newFrom, to);
+                            sendShardChangesRequest(newFrom, to, true);
                         } else {
                             numConcurrentReads--;
                         }
+                    } else {
+                        lastRequestedSeqno = Math.max(lastRequestedSeqno, lastOp.seqNo());
+                        LOGGER.debug("{} post updating lastRequestedSeqno to [{}]", params.getFollowShardId(), lastRequestedSeqno);
+                        numConcurrentReads--;
                     }
                     if (numConcurrentWrites == 0) {
                         coordinateWrites();

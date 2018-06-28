@@ -54,7 +54,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
     public static class Request extends SingleShardRequest<Request> {
 
         private long minSeqNo;
-        private Long maxSeqNo;
+        private long maxSeqNo;
         private ShardId shardId;
         private long maxTranslogsBytes = ShardFollowNodeTask.DEFAULT_MAX_TRANSLOG_BYTES;
 
@@ -78,11 +78,11 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             this.minSeqNo = minSeqNo;
         }
 
-        public Long getMaxSeqNo() {
+        public long getMaxSeqNo() {
             return maxSeqNo;
         }
 
-        public void setMaxSeqNo(Long maxSeqNo) {
+        public void setMaxSeqNo(long maxSeqNo) {
             this.maxSeqNo = maxSeqNo;
         }
 
@@ -100,7 +100,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             if (minSeqNo < 0) {
                 validationException = addValidationError("minSeqNo [" + minSeqNo + "] cannot be lower than 0", validationException);
             }
-            if (maxSeqNo != null && maxSeqNo < minSeqNo) {
+            if (maxSeqNo < minSeqNo) {
                 validationException = addValidationError("minSeqNo [" + minSeqNo + "] cannot be larger than maxSeqNo ["
                         + maxSeqNo +  "]", validationException);
             }
@@ -115,7 +115,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             minSeqNo = in.readVLong();
-            maxSeqNo = in.readOptionalLong();
+            maxSeqNo = in.readVLong();
             shardId = ShardId.readShardId(in);
             maxTranslogsBytes = in.readVLong();
         }
@@ -124,7 +124,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVLong(minSeqNo);
-            out.writeOptionalLong(maxSeqNo);
+            out.writeVLong(maxSeqNo);
             shardId.writeTo(out);
             out.writeVLong(maxTranslogsBytes);
         }
@@ -136,7 +136,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             if (o == null || getClass() != o.getClass()) return false;
             final Request request = (Request) o;
             return minSeqNo == request.minSeqNo &&
-                    Objects.equals(maxSeqNo, request.maxSeqNo) &&
+                    maxSeqNo == request.maxSeqNo &&
                     Objects.equals(shardId, request.shardId) &&
                     maxTranslogsBytes == request.maxTranslogsBytes;
         }
@@ -233,12 +233,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             IndexShard indexShard = indexService.getShard(request.getShard().id());
             final long indexMetaDataVersion = clusterService.state().metaData().index(shardId.getIndex()).getVersion();
 
-            // The following shard generates this request based on the global checkpoint on the primary copy on the leader.
-            // Although this value might not have been synced to all replica copies on the leader, the requesting range
-            // is guaranteed to be at most the local-checkpoint of any shard copies on the leader.
-            assert request.maxSeqNo == null || request.maxSeqNo <= indexShard.getLocalCheckpoint() : "invalid request from_seqno=[" +
-                request.minSeqNo + "]," + " to_seqno=[" + request.maxSeqNo + "], local_checkpoint=[" +
-                indexShard.getLocalCheckpoint() + "]";
             final Translog.Operation[] operations =
                 getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxTranslogsBytes);
             return new Response(indexMetaDataVersion, indexShard.getGlobalCheckpoint(), operations);
@@ -266,15 +260,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
     private static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
 
-    static Translog.Operation[] getOperationsBetween(IndexShard indexShard, long minSeqNo, Long maxSeqNo,
+    static Translog.Operation[] getOperationsBetween(IndexShard indexShard, long minSeqNo, long maxSeqNo,
                                                      long byteLimit) throws IOException {
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }
         int seenBytes = 0;
         final List<Translog.Operation> operations = new ArrayList<>();
-        long max = maxSeqNo != null ? maxSeqNo : minSeqNo + 1000;
-        try (Translog.Snapshot snapshot = indexShard.newLuceneChangesSnapshot("ccr", minSeqNo, max, true)) {
+        try (Translog.Snapshot snapshot = indexShard.newLuceneChangesSnapshot("ccr", minSeqNo, maxSeqNo, true)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 if (op.getSource() == null) {
@@ -286,15 +279,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                 if (seenBytes > byteLimit) {
                     break;
                 }
-            }
-        } catch (IllegalStateException e) {
-            // TODO: handle peek reads better.
-            // Should this optional upper bound leak into the newLuceneChangesSnapshot(...) method?
-            if (maxSeqNo != null) {
-                throw e;
-            } else if (e.getMessage().contains("prematurely terminated last_seen_seqno") == false) {
-                // Only fail if there are gaps between the ops.
-                throw e;
             }
         }
         return operations.toArray(EMPTY_OPERATIONS_ARRAY);

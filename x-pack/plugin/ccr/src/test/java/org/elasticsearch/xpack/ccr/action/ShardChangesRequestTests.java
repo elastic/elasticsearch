@@ -32,10 +32,9 @@ public class ShardChangesRequestTests extends AbstractStreamableTestCase<ShardCh
         assertThat(request.validate().getMessage(), containsString("minSeqNo [-1] cannot be lower than 0"));
 
         request.setMinSeqNo(4);
-        request.setMaxSeqNo(0L);
         assertThat(request.validate().getMessage(), containsString("minSeqNo [4] cannot be larger than maxSeqNo [0]"));
 
-        request.setMaxSeqNo(8L);
+        request.setMaxSeqNo(8);
         assertThat(request.validate(), nullValue());
     }
 }

@@ -273,6 +273,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         // wipe index templates
         if (preserveTemplatesUponCompletion() == false) {
             if (hasXPack()) {
+                /*
+                 * Delete only templates that xpack doesn't automatically
+                 * recreate. Deleting them doesn't hurt anything, but it
+                 * slows down the test because xpack will just recreate
+                 * them.
+                 */
                 Request request = new Request("GET", "_cat/templates");
                 request.addParameter("h", "name");
                 String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());

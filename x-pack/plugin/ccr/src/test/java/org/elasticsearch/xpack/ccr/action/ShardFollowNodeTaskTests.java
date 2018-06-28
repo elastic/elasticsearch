@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@TestLogging("org.elasticsearch.xpack.ccr.action:TRACE")
+@TestLogging("org.elasticsearch.xpack.ccr.action:DEBUG")
 public class ShardFollowNodeTaskTests extends ESTestCase {
 
     private ShardFollowNodeTask task;
@@ -70,6 +70,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         });
     }
 
+    @TestLogging("org.elasticsearch.xpack.ccr.action:TRACE")
     public void testConcurrentReadsAndWrites() throws Exception {
         task = createShardFollowTask(randomIntBetween(32, 2048), randomIntBetween(2, 10), randomIntBetween(32, 2048),
             randomIntBetween(2, 10), 50000, 10240);
@@ -167,7 +168,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             }
 
             @Override
-            protected void innerSendShardChangesRequest(long from, Long to, Consumer<ShardChangesAction.Response> handler,
+            protected void innerSendShardChangesRequest(long from, long size, Consumer<ShardChangesAction.Response> handler,
                                                         Consumer<Exception> errorHandler) {
                 if (randomlyFailWithRetryableError.get() && writeCounter.incrementAndGet() % 5 == 0) {
                     failedRequests.incrementAndGet();
@@ -184,12 +185,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                 if (from >= leaderGlobalCheckpoint) {
                     response = new ShardChangesAction.Response(1L, leaderGlobalCheckpoint, new Translog.Operation[0]);
                 } else {
-                    int size = to == null ? 100 : (int) (to - from + 1);
                     if (randomlyTruncateRequests.get() && size > 10 && truncatedRequests.get() < 5) {
                         truncatedRequests.incrementAndGet();
                         size = size / 2;
                     }
-                    Translog.Operation[] ops = new Translog.Operation[size];
+                    Translog.Operation[] ops = new Translog.Operation[(int) size + 1];
                     for (int i = 0; i < ops.length; i++) {
                         ops[i] = new Translog.Index("doc", UUIDs.randomBase64UUID(), from + i, 0, "{}".getBytes(StandardCharsets.UTF_8));
                     }

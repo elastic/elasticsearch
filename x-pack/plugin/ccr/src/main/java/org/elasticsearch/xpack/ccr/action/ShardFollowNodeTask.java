@@ -141,10 +141,15 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
                 }
                 numConcurrentReads++;
                 long from = lastRequestedSeqno + 1;
-                long to = from + maxReadSize <= leaderGlobalCheckpoint ? from + maxReadSize : leaderGlobalCheckpoint;
-                LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, from, to);
-                sendShardChangesRequest(from, to, true);
-                lastRequestedSeqno = to;
+                long size;
+                if (from + maxReadSize <= leaderGlobalCheckpoint) {
+                    size = maxReadSize;
+                } else {
+                    size = leaderGlobalCheckpoint - from;
+                }
+                LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, from, size);
+                sendShardChangesRequest(from, size, true);
+                lastRequestedSeqno = from + size;
             }
             if (numConcurrentReads == 0) {
                 LOGGER.trace("{} re-scheduling coordinate reads phase", params.getFollowShardId());
@@ -160,7 +165,7 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
                         numConcurrentReads++;
                         long from = lastRequestedSeqno + 1;
                         LOGGER.trace("{}[{}] peek read [{}]", params.getFollowShardId(), numConcurrentReads, from);
-                        sendShardChangesRequest(from, from + maxReadSize, false);
+                        sendShardChangesRequest(from, maxReadSize, false);
                     }
                 });
             }
@@ -189,25 +194,31 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
     }
 
-    private void sendShardChangesRequest(long from, long to, boolean bla) {
-        innerSendShardChangesRequest(from, to,
+    private void sendShardChangesRequest(long from, long size, boolean checkLastOpReceived) {
+        innerSendShardChangesRequest(from, size,
             response -> {
                 retryCounter.set(0);
-                handleResponse(from, to, bla, response);
+                handleResponse(from, size, checkLastOpReceived, response);
             },
-            e -> handleFailure(e, () -> sendShardChangesRequest(from, to, bla)));
+            e -> handleFailure(e, () -> sendShardChangesRequest(from, size, checkLastOpReceived)));
     }
 
-    private synchronized void handleResponse(long from, long to, boolean checkLastOpReceived, ShardChangesAction.Response response) {
+    private synchronized void handleResponse(long from, long size, boolean checkLastOpReceived, ShardChangesAction.Response response) {
         maybeUpdateMapping(response.getIndexMetadataVersion(), () -> {
             synchronized (ShardFollowNodeTask.this) {
                 leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getLeaderGlobalCheckpoint());
                 if (response.getOperations().length == 0) {
-                    numConcurrentReads--;
-                    if (numConcurrentWrites == 0) {
-                        coordinateWrites();
+                    if (checkLastOpReceived) {
+                        LOGGER.trace("{} received no ops while [{}/{}] was expected, re-executing read...",
+                            params.getFollowShardId(), from, size);
+                        sendShardChangesRequest(from, size, true);
+                    } else {
+                        numConcurrentReads--;
+                        if (numConcurrentWrites == 0) {
+                            coordinateWrites();
+                        }
+                        coordinateReads();
                     }
-                    coordinateReads();
                 } else {
                     Translog.Operation firstOp = response.getOperations()[0];
                     assert firstOp.seqNo() == from;
@@ -216,11 +227,13 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
                     LOGGER.trace("{} received [{}/{}]", params.getFollowShardId(), firstOp.seqNo(), lastOp.seqNo());
                     buffer.addAll(Arrays.asList(response.getOperations()));
                     if (checkLastOpReceived) {
-                        if (lastOp.seqNo() < to) {
+                        long expectedLastSeqNo = from + size;
+                        if (lastOp.seqNo() < expectedLastSeqNo) {
                             long newFrom = lastOp.seqNo() + 1;
+                            long newSize = expectedLastSeqNo - lastOp.seqNo();
                             LOGGER.trace("{} received [{}] as last op while [{}] was expected, continue to read [{}/{}]...",
-                                params.getFollowShardId(), lastOp.seqNo(), to, newFrom, to);
-                            sendShardChangesRequest(newFrom, to, true);
+                                params.getFollowShardId(), lastOp.seqNo(), expectedLastSeqNo, newFrom, size);
+                            sendShardChangesRequest(newFrom, newSize, true);
                         } else {
                             numConcurrentReads--;
                         }
@@ -343,12 +356,12 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     protected void innerSendShardChangesRequest(long from,
-                                      Long to,
-                                      Consumer<ShardChangesAction.Response> handler,
-                                      Consumer<Exception> errorHandler) {
+                                                long size,
+                                                Consumer<ShardChangesAction.Response> handler,
+                                                Consumer<Exception> errorHandler) {
         ShardChangesAction.Request request = new ShardChangesAction.Request(params.getLeaderShardId());
-        request.setMinSeqNo(from);
-        request.setMaxSeqNo(to);
+        request.setFromSeqNo(from);
+        request.setMaxOperationCount(size);
         request.setMaxOperationSizeInBytes(params.getMaxOperationSizeInBytes());
         leaderClient.execute(ShardChangesAction.INSTANCE, request, new ActionListener<ShardChangesAction.Response>() {
             @Override

@@ -115,8 +115,8 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertThat(globalCheckPoint, equalTo(2L));
 
         ShardChangesAction.Request request = new ShardChangesAction.Request(shardStats.getShardRouting().shardId());
-        request.setMinSeqNo(0L);
-        request.setMaxSeqNo(globalCheckPoint);
+        request.setFromSeqNo(0L);
+        request.setMaxOperationCount(3L);
         ShardChangesAction.Response response = client().execute(ShardChangesAction.INSTANCE, request).get();
         assertThat(response.getOperations().length, equalTo(3));
         Translog.Index operation = (Translog.Index) response.getOperations()[0];
@@ -140,8 +140,8 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertThat(globalCheckPoint, equalTo(5L));
 
         request = new ShardChangesAction.Request(shardStats.getShardRouting().shardId());
-        request.setMinSeqNo(3L);
-        request.setMaxSeqNo(globalCheckPoint);
+        request.setFromSeqNo(3L);
+        request.setMaxOperationCount(3L);
         response = client().execute(ShardChangesAction.INSTANCE, request).get();
         assertThat(response.getOperations().length, equalTo(3));
         operation = (Translog.Index) response.getOperations()[0];

@@ -53,8 +53,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
     public static class Request extends SingleShardRequest<Request> {
 
-        private long minSeqNo;
-        private long maxSeqNo;
+        private long fromSeqNo;
+        private long maxOperationCount;
         private ShardId shardId;
         private long maxOperationSizeInBytes = ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES;
 
@@ -70,20 +70,20 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return shardId;
         }
 
-        public long getMinSeqNo() {
-            return minSeqNo;
+        public long getFromSeqNo() {
+            return fromSeqNo;
         }
 
-        public void setMinSeqNo(long minSeqNo) {
-            this.minSeqNo = minSeqNo;
+        public void setFromSeqNo(long fromSeqNo) {
+            this.fromSeqNo = fromSeqNo;
         }
 
-        public long getMaxSeqNo() {
-            return maxSeqNo;
+        public long getMaxOperationCount() {
+            return maxOperationCount;
         }
 
-        public void setMaxSeqNo(long maxSeqNo) {
-            this.maxSeqNo = maxSeqNo;
+        public void setMaxOperationCount(long maxOperationCount) {
+            this.maxOperationCount = maxOperationCount;
         }
 
         public long getMaxOperationSizeInBytes() {
@@ -97,12 +97,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (minSeqNo < 0) {
-                validationException = addValidationError("minSeqNo [" + minSeqNo + "] cannot be lower than 0", validationException);
+            if (fromSeqNo < 0) {
+                validationException = addValidationError("fromSeqNo [" + fromSeqNo + "] cannot be lower than 0", validationException);
             }
-            if (maxSeqNo < minSeqNo) {
-                validationException = addValidationError("minSeqNo [" + minSeqNo + "] cannot be larger than maxSeqNo ["
-                        + maxSeqNo +  "]", validationException);
+            if (maxOperationCount < 0) {
+                validationException = addValidationError("maxOperationCount [" + maxOperationCount +
+                    "] cannot be lower than 0", validationException);
             }
             if (maxOperationSizeInBytes <= 0) {
                 validationException = addValidationError("maxOperationSizeInBytes [" + maxOperationSizeInBytes + "] must be larger than 0",
@@ -114,8 +114,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            minSeqNo = in.readVLong();
-            maxSeqNo = in.readVLong();
+            fromSeqNo = in.readVLong();
+            maxOperationCount = in.readVLong();
             shardId = ShardId.readShardId(in);
             maxOperationSizeInBytes = in.readVLong();
         }
@@ -123,8 +123,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeVLong(minSeqNo);
-            out.writeVLong(maxSeqNo);
+            out.writeVLong(fromSeqNo);
+            out.writeVLong(maxOperationCount);
             shardId.writeTo(out);
             out.writeVLong(maxOperationSizeInBytes);
         }
@@ -135,15 +135,15 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Request request = (Request) o;
-            return minSeqNo == request.minSeqNo &&
-                    maxSeqNo == request.maxSeqNo &&
+            return fromSeqNo == request.fromSeqNo &&
+                    maxOperationCount == request.maxOperationCount &&
                     Objects.equals(shardId, request.shardId) &&
                     maxOperationSizeInBytes == request.maxOperationSizeInBytes;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(minSeqNo, maxSeqNo, shardId, maxOperationSizeInBytes);
+            return Objects.hash(fromSeqNo, maxOperationCount, shardId, maxOperationSizeInBytes);
         }
     }
 
@@ -234,7 +234,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final long indexMetaDataVersion = clusterService.state().metaData().index(shardId.getIndex()).getVersion();
 
             final Translog.Operation[] operations =
-                getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxOperationSizeInBytes);
+                getOperationsBetween(indexShard, request.fromSeqNo, request.maxOperationCount, request.maxOperationSizeInBytes);
             return new Response(indexMetaDataVersion, indexShard.getGlobalCheckpoint(), operations);
         }
 
@@ -260,23 +260,24 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
     private static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
 
-    static Translog.Operation[] getOperationsBetween(IndexShard indexShard, long minSeqNo, long maxSeqNo,
-                                                     long byteLimit) throws IOException {
+    static Translog.Operation[] getOperationsBetween(IndexShard indexShard, long fromSeqNo, long maxOperationCount,
+                                                     long maxOperationSizeInBytes) throws IOException {
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }
         int seenBytes = 0;
+        long toSeqNo = fromSeqNo + maxOperationCount;
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = indexShard.newLuceneChangesSnapshot("ccr", minSeqNo, maxSeqNo, true)) {
+        try (Translog.Snapshot snapshot = indexShard.newLuceneChangesSnapshot("ccr", fromSeqNo, toSeqNo, true)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 if (op.getSource() == null) {
-                    throw new IllegalStateException("source not found for operation: " + op + " minSeqNo: " + minSeqNo + " maxSeqNo: " +
-                        maxSeqNo);
+                    throw new IllegalStateException("source not found for operation: " + op + " fromSeqNo: " + fromSeqNo +
+                        " maxOperationCount: " + maxOperationCount);
                 }
                 operations.add(op);
                 seenBytes += op.estimateSize();
-                if (seenBytes > byteLimit) {
+                if (seenBytes > maxOperationSizeInBytes) {
                     break;
                 }
             }

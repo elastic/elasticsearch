@@ -498,10 +498,12 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             realms.asList().stream().forEach((realm) -> {
                 Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
                 realmFailureHeaders.entrySet().stream().forEach((e) -> {
-                    if (defaultFailureResponseHeaders.get(e.getKey()) == null) {
-                        defaultFailureResponseHeaders.put(e.getKey(), new ArrayList<>());
+                    String key = e.getKey();
+                    if (defaultFailureResponseHeaders.get(key) == null) {
+                        defaultFailureResponseHeaders.put(key, new ArrayList<>());
                     }
-                    defaultFailureResponseHeaders.get(e.getKey()).addAll(e.getValue());
+                    e.getValue().stream().filter(v -> defaultFailureResponseHeaders.get(key).contains(v) == false)
+                            .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
                 });
             });
 
@@ -509,7 +511,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 if (defaultFailureResponseHeaders.get("WWW-Authenticate") == null) {
                     defaultFailureResponseHeaders.put("WWW-Authenticate", new ArrayList<>());
                 }
-                defaultFailureResponseHeaders.get("WWW-Authenticate").add("Bearer realm=\"" + XPackField.SECURITY + "\"");
+                String bearerScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
+                if (defaultFailureResponseHeaders.get("WWW-Authenticate").contains(bearerScheme) == false) {
+                    defaultFailureResponseHeaders.get("WWW-Authenticate").add(bearerScheme);
+                }
             }
             failureHandler = new DefaultAuthenticationFailureHandler(defaultFailureResponseHeaders);
         } else {

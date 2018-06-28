@@ -60,15 +60,11 @@ public abstract class Realm implements Comparable<Realm> {
     }
 
     /**
-     * Each Realm can define its own auth scheme challenge to be sent in
-     * 'WWW-Authenticate' header
+     * Each realm can define response headers to be sent on failure.
      * <p>
-     * By default the auth scheme is 'Basic', realms like Kerberos can use
-     * 'Negotiate' scheme or OAuth could use 'Bearer' scheme or custom realms with
-     * custom auth scheme as defined in
-     * <a href="https://tools.ietf.org/html/rfc7235#section-4.1">RFC7235</a><br>
+     * By default it adds 'WWW-Authenticate' header with auth scheme 'Basic'.
      *
-     * @return value to be returned in 'WWW-Authenticate' response header.
+     * @return Map of authentication failure response headers.
      */
     public Map<String, List<String>> getAuthenticationFailureHeaders() {
         final Map<String, List<String>> headers = new HashMap<>();

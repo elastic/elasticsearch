@@ -12,7 +12,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackField;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -50,7 +49,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
         if (failureResponseHeaders == null || failureResponseHeaders.isEmpty()) {
             failureResponseHeaders = new HashMap<>();
             failureResponseHeaders.put("WWW-Authenticate",
-                    Arrays.asList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
+                    Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
         }
         this.defaultFailureResponseHeaders = Collections.unmodifiableMap(failureResponseHeaders);
     }

@@ -1,5 +1,14 @@
 [[release-notes-6.3.0]]
-== 6.3.0 Release Notes
+== {es} version 6.3.0
+
+[float]
+=== Known issues
+
+Upgrades from any 5.x version will fail for indexes which are prepared using the <<indices-synced-flush, _synced flush API>>, or were automatically sync-flushed due to inactivity. If upgrading from those versions, please wait for 6.3.1 to be released.
+
+Clusters with a Gold or Platinum license that are upgrading to 6.3 will need to explicitly set
+`xpack.security.enabled: true` in `elasticsearch.yml` to upgrade successfully.
+If this value is not set, the cluster will be unable to form after upgrade.
 
 Also see <<breaking-changes-6.3>>.
 
@@ -23,17 +32,10 @@ Packaging::
 Plugins::
 * Remove silent batch mode from install plugin {pull}29359[#29359]
 
-Search::
-* Fail _search request with trailing tokens {pull}29428[#29428] (issue: {issue}28995[#28995])
-
 Security::
 * The legacy `XPackExtension` extension mechanism has been removed and replaced
 with an SPI based extension mechanism that is installed and built as an
 elasticsearch plugin.
-
-Task Management::
-* Remove metadata customs that can break serialization {pull}30945[#30945] (issues: {issue}30731[#30731], {issue}30857[#30857])
-
 
 [[breaking-java-6.3.0]]
 [float]
@@ -66,6 +68,7 @@ REST API::
 
 Search::
 * Deprecate slicing on `_uid`. {pull}29353[#29353]
+* Generate deprecation warning for _search request with trailing tokens {pull}29428[#29428] (issue: {issue}28995[#28995])
 
 Stats::
 * Deprecate the suggest metrics {pull}29627[#29627] (issue: {issue}29589[#29589])
@@ -226,8 +229,8 @@ Mapping::
 Machine Learning::
 * Synchronize long and short tests for periodicity {ml-pull}62[#62]
 * Improvements to trend modelling and periodicity testing for forecasting {ml-pull}7[#7] (issue: {ml-issue}5[#5])
-* [ML] Clean left behind model state docs {pull}30659[#30659] (issue: {issue}30551[#30551])
-* [ML] Hide internal Job update options from the REST API {pull}30537[#30537] (issue: {issue}30512[#30512])
+* Clean left behind model state docs {pull}30659[#30659] (issue: {issue}30551[#30551])
+* Hide internal Job update options from the REST API {pull}30537[#30537] (issue: {issue}30512[#30512])
 
 Packaging::
 * Configure heap dump path for archive packages {pull}29130[#29130] (issue: {issue}26755[#26755])

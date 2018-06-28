@@ -211,7 +211,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                                     ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
         final Map<String, ClusterSearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
-        final AtomicReference<TransportException> transportException = new AtomicReference<>();
+        final AtomicReference<RemoteTransportException> transportException = new AtomicReference<>();
         for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterName = entry.getKey();
             RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterName);
@@ -228,7 +228,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     public void onResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
                         searchShardsResponses.put(clusterName, clusterSearchShardsResponse);
                         if (responsesCountDown.countDown()) {
-                            TransportException exception = transportException.get();
+                            RemoteTransportException exception = transportException.get();
                             if (exception == null) {
                                 listener.onResponse(searchShardsResponses);
                             } else {
@@ -239,8 +239,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
                     @Override
                     public void onFailure(Exception e) {
-                        TransportException exception = new TransportException("unable to communicate with remote cluster [" +
-                                clusterName + "]", e);
+                        RemoteTransportException exception = new RemoteTransportException("error while communicating with remote cluster ["
+                                + clusterName + "]", e);
                         if (transportException.compareAndSet(null, exception) == false) {
                             exception = transportException.accumulateAndGet(exception, (previous, current) -> {
                                 current.addSuppressed(previous);

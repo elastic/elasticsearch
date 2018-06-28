@@ -38,6 +38,7 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -891,6 +892,26 @@ final class RequestConverters {
         params.withMasterTimeout(createSnapshotRequest.masterNodeTimeout());
         params.withWaitForCompletion(createSnapshotRequest.waitForCompletion());
         request.setEntity(createEntity(createSnapshotRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getSnapshots(GetSnapshotsRequest getSnapshotsRequest) {
+        EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(getSnapshotsRequest.repository());
+        String endpoint;
+        if (getSnapshotsRequest.snapshots().length == 0) {
+            endpoint = endpointBuilder.addPathPart("_all").build();
+        } else {
+            endpoint = endpointBuilder.addCommaSeparatedPathParts(getSnapshotsRequest.snapshots()).build();
+        }
+
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(getSnapshotsRequest.masterNodeTimeout());
+        parameters.putParam("ignore_unavailable", Boolean.toString(getSnapshotsRequest.ignoreUnavailable()));
+        parameters.putParam("verbose", Boolean.toString(getSnapshotsRequest.verbose()));
+
         return request;
     }
 

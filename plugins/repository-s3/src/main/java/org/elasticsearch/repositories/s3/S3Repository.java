@@ -20,7 +20,6 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.auth.BasicAWSCredentials;
-
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -143,7 +142,7 @@ class S3Repository extends BlobStoreRepository<S3BlobStore> {
      */
     static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
 
-    private final AwsS3Service awsService;
+    private final S3Service service;
 
     private final BlobPath basePath;
 
@@ -154,10 +153,12 @@ class S3Repository extends BlobStoreRepository<S3BlobStore> {
     /**
      * Constructs an s3 backed repository
      */
-    S3Repository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry,
-            AwsS3Service awsService) {
+    S3Repository(final RepositoryMetaData metadata,
+                 final Settings settings,
+                 final NamedXContentRegistry namedXContentRegistry,
+                 final S3Service service) {
         super(metadata, settings, namedXContentRegistry);
-        this.awsService = awsService;
+        this.service = service;
 
         final String bucket = BUCKET_SETTING.get(metadata.settings());
         if (bucket == null) {
@@ -203,10 +204,10 @@ class S3Repository extends BlobStoreRepository<S3BlobStore> {
 
         // (repository settings)
         if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
-            overrideCredentialsFromClusterState(awsService);
+            overrideCredentialsFromClusterState(service);
         }
 
-        return new S3BlobStore(settings, awsService, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
+        return new S3BlobStore(settings, service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
     }
 
     // only use for testing
@@ -236,13 +237,13 @@ class S3Repository extends BlobStoreRepository<S3BlobStore> {
         return chunkSize;
     }
 
-    void overrideCredentialsFromClusterState(AwsS3Service awsService) {
+    void overrideCredentialsFromClusterState(final S3Service s3Service) {
         deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead "
                 + "store these in named clients and the elasticsearch keystore for secure settings.");
         final BasicAWSCredentials insecureCredentials = S3ClientSettings.loadDeprecatedCredentials(metadata.settings());
         // hack, but that's ok because the whole if branch should be axed
-        final Map<String, S3ClientSettings> prevSettings = awsService.refreshAndClearCache(S3ClientSettings.load(Settings.EMPTY));
+        final Map<String, S3ClientSettings> prevSettings = s3Service.refreshAndClearCache(S3ClientSettings.load(Settings.EMPTY));
         final Map<String, S3ClientSettings> newSettings = S3ClientSettings.overrideCredentials(prevSettings, insecureCredentials);
-        awsService.refreshAndClearCache(newSettings);
+        s3Service.refreshAndClearCache(newSettings);
     }
 }

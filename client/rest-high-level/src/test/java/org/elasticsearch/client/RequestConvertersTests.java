@@ -39,6 +39,7 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -2009,6 +2010,58 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(expectedParams, equalTo(request.getParameters()));
         assertToXContentBody(createSnapshotRequest, request.getEntity());
+    }
+
+    public void testGetSnapshots() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String snapshot1 = "snapshot1-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+        String snapshot2 = "snapshot2-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+
+        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s,%s", repository, snapshot1, snapshot2);
+
+        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest();
+        getSnapshotsRequest.repository(repository);
+        getSnapshotsRequest.snapshots(Arrays.asList(snapshot1, snapshot2).toArray(new String[0]));
+        setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
+
+        boolean ignoreUnavailable = randomBoolean();
+        getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
+        expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+
+        boolean verbose = randomBoolean();
+        getSnapshotsRequest.verbose(verbose);
+        expectedParams.put("verbose", Boolean.toString(verbose));
+
+        Request request = RequestConverters.getSnapshots(getSnapshotsRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertNull(request.getEntity());
+    }
+
+    public void testGetAllSnapshots() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+
+        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/_all", repository);
+
+        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(repository);
+        setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
+
+        boolean ignoreUnavailable = randomBoolean();
+        getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
+        expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+
+        boolean verbose = randomBoolean();
+        getSnapshotsRequest.verbose(verbose);
+        expectedParams.put("verbose", Boolean.toString(verbose));
+
+        Request request = RequestConverters.getSnapshots(getSnapshotsRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertNull(request.getEntity());
     }
 
     public void testDeleteSnapshot() {

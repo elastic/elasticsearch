@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,12 +27,14 @@ public class HashProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("fields", Collections.singletonList("_field"));
         config.put("target_field", "_target");
+        config.put("salt", "_salt");
         config.put("key_setting", "xpack.security.ingest.hash.processor.key");
         for (HashProcessor.Method method : HashProcessor.Method.values()) {
             config.put("method", method.toString());
             HashProcessor processor = factory.create(null, "_tag", new HashMap<>(config));
             assertThat(processor.getFields(), equalTo(Collections.singletonList("_field")));
             assertThat(processor.getTargetField(), equalTo("_target"));
+            assertArrayEquals(processor.getSalt(), "_salt".getBytes(StandardCharsets.UTF_8));
         }
     }
 
@@ -41,7 +44,6 @@ public class HashProcessorFactoryTests extends ESTestCase {
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
         HashProcessor.Factory factory = new HashProcessor.Factory(settings);
         Map<String, Object> config = new HashMap<>();
-        config.put("salt", "_salt");
         config.put("target_field", "_target");
         config.put("key_setting", "xpack.security.ingest.hash.processor.key");
         config.put("method", HashProcessor.Method.SHA1.toString());

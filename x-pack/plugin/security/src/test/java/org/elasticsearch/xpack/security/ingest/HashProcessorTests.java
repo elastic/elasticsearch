@@ -17,6 +17,7 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
@@ -26,6 +27,43 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class HashProcessorTests extends ESTestCase {
+
+    @SuppressWarnings("unchecked")
+    public void testIgnoreMissing() throws Exception {
+        Method method = randomFrom(Method.values());
+        Mac mac = createMac(method);
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("one", "foo");
+        HashProcessor processor = new HashProcessor("_tag", Arrays.asList("one", "two"),
+            "target", "_salt".getBytes(StandardCharsets.UTF_8), Method.SHA1, mac, true);
+        IngestDocument ingestDocument = new IngestDocument(fields, new HashMap<>());
+        processor.execute(ingestDocument);
+        Map<String, String> target = ingestDocument.getFieldValue("target", Map.class);
+        assertThat(target.size(), equalTo(1));
+        assertNotNull(target.get("one"));
+
+        HashProcessor failProcessor = new HashProcessor("_tag", Arrays.asList("one", "two"),
+            "target", "_salt".getBytes(StandardCharsets.UTF_8), Method.SHA1, mac, false);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> failProcessor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("field [two] not present as part of path [two]"));
+    }
+
+    public void testStaticKeyAndSalt() throws Exception {
+        byte[] salt = "_salt".getBytes(StandardCharsets.UTF_8);
+        SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+        PBEKeySpec keySpec = new PBEKeySpec("hmackey".toCharArray(), salt, 5, 128);
+        byte[] pbkdf2 = secretKeyFactory.generateSecret(keySpec).getEncoded();
+        Mac mac = Mac.getInstance(Method.SHA1.getAlgorithm());
+        mac.init(new SecretKeySpec(pbkdf2, Method.SHA1.getAlgorithm()));
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("field", "0123456789");
+        HashProcessor processor = new HashProcessor("_tag", Collections.singletonList("field"),
+            "target", salt, Method.SHA1, mac, false);
+        IngestDocument ingestDocument = new IngestDocument(fields, new HashMap<>());
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("target", String.class), equalTo("X3NhbHQMW0oHJGEEE9obGcGv5tGd7HFyDw=="));
+    }
+
     public void testProcessorSingleField() throws Exception {
         List<String> fields = Collections.singletonList(randomAlphaOfLength(6));
         Map<String, Object> docFields = new HashMap<>();
@@ -37,7 +75,7 @@ public class HashProcessorTests extends ESTestCase {
         Method method = randomFrom(Method.values());
         Mac mac = createMac(method);
         byte[] salt = CharArrays.toUtf8Bytes(Hasher.SaltProvider.salt(5));
-        HashProcessor processor = new HashProcessor("_tag", fields, targetField, salt, method, mac);
+        HashProcessor processor = new HashProcessor("_tag", fields, targetField, salt, method, mac, false);
         IngestDocument ingestDocument = new IngestDocument(docFields, new HashMap<>());
         processor.execute(ingestDocument);
 
@@ -65,7 +103,7 @@ public class HashProcessorTests extends ESTestCase {
         Method method = randomFrom(Method.values());
         Mac mac = createMac(method);
         byte[] salt = CharArrays.toUtf8Bytes(Hasher.SaltProvider.salt(5));
-        HashProcessor processor = new HashProcessor("_tag", fields, targetField, salt, method, mac);
+        HashProcessor processor = new HashProcessor("_tag", fields, targetField, salt, method, mac, false);
         IngestDocument ingestDocument = new IngestDocument(docFields, new HashMap<>());
         processor.execute(ingestDocument);
 

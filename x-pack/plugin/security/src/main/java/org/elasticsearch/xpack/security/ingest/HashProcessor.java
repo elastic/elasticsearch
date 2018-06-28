@@ -18,7 +18,6 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import javax.crypto.Mac;
@@ -34,6 +33,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -42,6 +42,111 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
  * A processor that hashes the contents of a field (or fields) using various hashing algorithms
  */
 public final class HashProcessor extends AbstractProcessor {
+    public static final String TYPE = "hash";
+    public static final Setting.AffixSetting<SecureString> HMAC_KEY_SETTING = SecureSetting
+        .affixKeySetting(SecurityField.setting("ingest." + TYPE) + ".", "key",
+            (key) -> SecureSetting.secureString(key, null));
+
+    private final List<String> fields;
+    private final String targetField;
+    private final Method method;
+    private final Mac mac;
+    private final byte[] salt;
+    private final boolean ignoreMissing;
+
+    HashProcessor(String tag, List<String> fields, String targetField, byte[] salt, Method method, @Nullable Mac mac, boolean ignoreMissing) {
+        super(tag);
+        this.fields = fields;
+        this.targetField = targetField;
+        this.method = method;
+        this.mac = mac;
+        this.salt = salt;
+        this.ignoreMissing = ignoreMissing;
+    }
+
+    List<String> getFields() {
+        return fields;
+    }
+
+    String getTargetField() {
+        return targetField;
+    }
+
+    byte[] getSalt() {
+        return salt;
+    }
+
+    @Override
+    public void execute(IngestDocument document) {
+        Map<String, String> hashedFieldValues = fields.stream().map(f -> {
+            String value = document.getFieldValue(f, String.class, ignoreMissing);
+            if (value == null && ignoreMissing) {
+                return new Tuple<String, String>(null, null);
+            }
+
+            try {
+                return new Tuple<>(f, method.hash(mac, salt, value));
+            } catch (Exception e) {
+                throw new IllegalArgumentException("field[" + f + "] could not be hashed", e);
+            }
+        }).filter(tuple -> Objects.nonNull(tuple.v1())).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+        if (fields.size() == 1) {
+            document.setFieldValue(targetField, hashedFieldValues.values().iterator().next());
+        } else {
+            document.setFieldValue(targetField, hashedFieldValues);
+        }
+    }
+
+    @Override
+    public String getType() {
+        return TYPE;
+    }
+
+    public static final class Factory implements Processor.Factory {
+
+        private final Settings settings;
+
+        public Factory(Settings settings) {
+            this.settings = settings;
+        }
+
+        private static Mac createMac(Method method, SecureString password, byte[] salt, int iterations) {
+            try {
+                SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2With" + method.getAlgorithm());
+                PBEKeySpec keySpec = new PBEKeySpec(password.getChars(), salt, iterations, 128);
+                byte[] pbkdf2 = secretKeyFactory.generateSecret(keySpec).getEncoded();
+                Mac mac = Mac.getInstance(method.getAlgorithm());
+                mac.init(new SecretKeySpec(pbkdf2, method.getAlgorithm()));
+                return mac;
+            } catch (NoSuchAlgorithmException | InvalidKeySpecException | InvalidKeyException e) {
+                throw new IllegalArgumentException("invalid settings", e);
+            }
+        }
+
+        @Override
+        public HashProcessor create(Map<String, Processor.Factory> registry, String processorTag, Map<String, Object> config) {
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+            List<String> fields = ConfigurationUtils.readList(TYPE, processorTag, config, "fields");
+            if (fields.isEmpty()) {
+                throw ConfigurationUtils.newConfigurationException(TYPE, processorTag, "fields", "must specify at least one field");
+            } else if (fields.stream().anyMatch(Strings::isNullOrEmpty)) {
+                throw ConfigurationUtils.newConfigurationException(TYPE, processorTag, "fields",
+                    "a field-name entry is either empty or null");
+            }
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
+            String keySettingName = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "key_setting");
+            SecureString key = HMAC_KEY_SETTING.getConcreteSetting(keySettingName).get(settings);
+            String saltString = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "salt",
+                new String(Hasher.SaltProvider.salt(8)));
+            byte[] salt = saltString.getBytes(StandardCharsets.UTF_8);
+            String methodProperty = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "method", "SHA256");
+            Method method = Method.fromString(processorTag, "method", methodProperty);
+            int iterations = ConfigurationUtils.readIntProperty(TYPE, processorTag, config, "iterations", 5);
+            Mac mac = createMac(method, key, salt, iterations);
+            return new HashProcessor(processorTag, fields, targetField, salt, method, mac, ignoreMissing);
+        }
+    }
+
     enum Method {
         SHA1("HmacSHA1"),
         SHA256("HmacSHA256"),
@@ -82,102 +187,6 @@ public final class HashProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, propertyName, "type [" + type +
                     "] not supported, cannot convert field. Valid hash methods: " + Arrays.toString(Method.values()));
             }
-        }
-    }
-
-    public static final String TYPE = "hash";
-    public static final Setting.AffixSetting<SecureString> HMAC_KEY_SETTING = SecureSetting
-        .affixKeySetting(SecurityField.setting("ingest." + TYPE) + ".", "key",
-            (key) -> SecureSetting.secureString(key, null));
-
-    private final List<String> fields;
-    private final String targetField;
-    private final Method method;
-    private final Mac mac;
-    private final byte[] salt;
-
-    HashProcessor(String tag, List<String> fields, String targetField, byte[] salt, Method method, @Nullable Mac mac) {
-        super(tag);
-        this.fields = fields;
-        this.targetField = targetField;
-        this.method = method;
-        this.mac = mac;
-        this.salt = salt;
-    }
-
-    List<String> getFields() {
-        return fields;
-    }
-
-    String getTargetField() {
-        return targetField;
-    }
-
-    byte[] getSalt() {
-        return salt;
-    }
-
-    @Override
-    public void execute(IngestDocument document) {
-        Map<String, String> hashedFieldValues = fields.stream().map(f -> {
-            try {
-                String value = document.getFieldValue(f, String.class);
-                return new Tuple<>(f, method.hash(mac, salt, value));
-            } catch (Exception e) {
-                throw new IllegalArgumentException("field[" + f + "] could not be hashed", e);
-            }
-        }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-        if (hashedFieldValues.size() == 1) {
-            document.setFieldValue(targetField, hashedFieldValues.values().iterator().next());
-        } else {
-            document.setFieldValue(targetField, hashedFieldValues);
-        }
-    }
-
-    @Override
-    public String getType() {
-        return TYPE;
-    }
-
-    public static final class Factory implements Processor.Factory {
-
-        private final Settings settings;
-
-        public Factory(Settings settings) {
-            this.settings = settings;
-        }
-
-        private static Mac createMac(Method method, SecureString password, byte[] salt, int iterations) {
-            try {
-                SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2With" + method.getAlgorithm());
-                PBEKeySpec keySpec = new PBEKeySpec(password.getChars(), salt, iterations, 128);
-                byte[] pbkdf2 = secretKeyFactory.generateSecret(keySpec).getEncoded();
-                Mac mac = Mac.getInstance(method.getAlgorithm());
-                mac.init(new SecretKeySpec(pbkdf2, method.getAlgorithm()));
-                return mac;
-            } catch (NoSuchAlgorithmException | InvalidKeySpecException | InvalidKeyException e) {
-                throw new IllegalArgumentException("invalid settings", e);
-            }
-        }
-
-        @Override
-        public HashProcessor create(Map<String, Processor.Factory> registry, String processorTag, Map<String, Object> config) {
-            List<String> fields = ConfigurationUtils.readList(TYPE, processorTag, config, "fields");
-            if (fields.isEmpty()) {
-                throw ConfigurationUtils.newConfigurationException(TYPE, processorTag, "fields", "must specify at least one field");
-            } else if (fields.stream().anyMatch(Strings::isNullOrEmpty)) {
-                throw ConfigurationUtils.newConfigurationException(TYPE, processorTag, "fields",
-                    "a field-name entry is either empty or null");
-            }
-            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
-            String keySettingName = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "key_setting");
-            SecureString key = HMAC_KEY_SETTING.getConcreteSetting(keySettingName).get(settings);
-            byte[] salt = CharArrays.toUtf8Bytes(Hasher.SaltProvider.salt(8));
-            String methodProperty = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "method", "SHA256");
-            Method method = Method.fromString(processorTag, "method", methodProperty);
-            int iterations = ConfigurationUtils.readIntProperty(TYPE, processorTag, config, "iterations", 5);
-            Mac mac = createMac(method, key, salt, iterations);
-            return new HashProcessor(processorTag, fields, targetField, salt, method, mac);
         }
     }
 }

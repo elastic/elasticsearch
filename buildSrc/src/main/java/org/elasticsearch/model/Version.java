@@ -63,7 +63,9 @@ public class Version implements Comparable<Version> {
         Objects.requireNonNull(s);
         Matcher matcher = pattern.matcher(s);
         if (matcher.matches() == false) {
-            throw new IllegalArgumentException("Invalid version format: '" + s + "'. Should be major.minor.revision[-(alpha|beta|rc)Number][-SNAPSHOT]");
+            throw new IllegalArgumentException(
+                "Invalid version format: '" + s + "'. Should be major.minor.revision[-(alpha|beta|rc)Number][-SNAPSHOT]"
+            );
         }
 
         return new Version(

@@ -27,11 +27,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
-public class VersionTest extends GradleUnitTestCase {
+public class VersionTests extends GradleUnitTestCase {
 
     @Rule
     public ExpectedException expectedEx = ExpectedException.none();

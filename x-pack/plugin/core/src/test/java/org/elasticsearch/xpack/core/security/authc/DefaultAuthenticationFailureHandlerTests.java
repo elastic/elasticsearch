@@ -16,8 +16,9 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.mockito.Mockito;
 
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -28,45 +29,38 @@ import static org.hamcrest.Matchers.sameInstance;
 public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
 
     public void testAuthenticationRequired() {
-        final boolean failureScenario = randomBoolean();
-        if (failureScenario) {
-            final List<String> authSchemeValues = randomFrom(Arrays.asList(null, Collections.emptyList()));
-            IllegalArgumentException e =
-                    expectThrows(IllegalArgumentException.class, () -> new DefaultAuthenticationFailureHandler(authSchemeValues));
-            assertThat(e.getMessage(), is(equalTo("supported WWW-Authenticate response header values is null or empty")));
+        final boolean testDefault = randomBoolean();
+        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
+        final DefaultAuthenticationFailureHandler failuerHandler;
+        if (testDefault) {
+            failuerHandler = new DefaultAuthenticationFailureHandler();
         } else {
-            final boolean testDefault = randomBoolean();
-            final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
-            final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
-            final DefaultAuthenticationFailureHandler failuerHandler;
-            if (testDefault) {
-                failuerHandler = new DefaultAuthenticationFailureHandler();
-            } else {
-                final List<String> authSchemeValues = Arrays.asList(basicAuthScheme, bearerAuthScheme);
-                failuerHandler = new DefaultAuthenticationFailureHandler(authSchemeValues);
-            }
-            assertThat(failuerHandler, is(notNullValue()));
-            final ElasticsearchSecurityException ese =
-                    failuerHandler.authenticationRequired("someaction", new ThreadContext(Settings.builder().build()));
-            assertThat(ese, is(notNullValue()));
-            assertThat(ese.getMessage(), equalTo("action [someaction] requires authentication"));
-            assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
-            if (testDefault) {
-                assertThat(ese.getHeader("WWW-Authenticate").size(), is(1));
-                assertThat(ese.getHeader("WWW-Authenticate"), contains(Arrays.asList(equalTo(basicAuthScheme))));
-            } else {
-                assertThat(ese.getHeader("WWW-Authenticate").size(), is(2));
-                assertThat(ese.getHeader("WWW-Authenticate"), contains(Arrays.asList(equalTo(basicAuthScheme), equalTo(bearerAuthScheme))));
-            }
+            final Map<String, List<String>> failureResponeHeaders = new HashMap<>();
+            failureResponeHeaders.put("WWW-Authenticate", Arrays.asList(basicAuthScheme, bearerAuthScheme));
+            failuerHandler = new DefaultAuthenticationFailureHandler(failureResponeHeaders);
+        }
+        assertThat(failuerHandler, is(notNullValue()));
+        final ElasticsearchSecurityException ese =
+                failuerHandler.authenticationRequired("someaction", new ThreadContext(Settings.builder().build()));
+        assertThat(ese, is(notNullValue()));
+        assertThat(ese.getMessage(), equalTo("action [someaction] requires authentication"));
+        assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
+        if (testDefault) {
+            assertThat(ese.getHeader("WWW-Authenticate").size(), is(1));
+            assertThat(ese.getHeader("WWW-Authenticate"), contains(Arrays.asList(equalTo(basicAuthScheme))));
+        } else {
+            assertThat(ese.getHeader("WWW-Authenticate").size(), is(2));
+            assertThat(ese.getHeader("WWW-Authenticate"), contains(Arrays.asList(equalTo(basicAuthScheme), equalTo(bearerAuthScheme))));
         }
     }
 
     public void testExceptionProcessingRequest() {
         final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
         final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
-        final DefaultAuthenticationFailureHandler failuerHandler;
-        final List<String> authSchemeValues = Arrays.asList(basicAuthScheme, bearerAuthScheme);
-        failuerHandler = new DefaultAuthenticationFailureHandler(authSchemeValues);
+        final Map<String, List<String>> failureResponeHeaders = new HashMap<>();
+        failureResponeHeaders.put("WWW-Authenticate", Arrays.asList(basicAuthScheme, bearerAuthScheme));
+        final DefaultAuthenticationFailureHandler failuerHandler = new DefaultAuthenticationFailureHandler(failureResponeHeaders);
 
         assertThat(failuerHandler, is(notNullValue()));
         final boolean causeIsElasticsearchSecurityException = randomBoolean();

@@ -12,44 +12,47 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackField;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 
 /**
  * The default implementation of a {@link AuthenticationFailureHandler}. This
- * handler will return an exception with a RestStatus of 401 and the
- * WWW-Authenticate header with values as list of configured and enabled auth
- * schemes as challenge.
+ * handler will return an exception with a RestStatus of 401 and default failure
+ * response headers like 'WWW-Authenticate'
  */
 public class DefaultAuthenticationFailureHandler implements AuthenticationFailureHandler {
-    private final List<String> supportedWWWAuthenticateResponseHeaderValues;
+    private final Map<String, List<String>> defaultFailureResponseHeaders;
 
     /**
-     * Constructs default authentication failure handler. By default it only
-     * supports 'Basic' auth scheme and uses it for 'WWW-Authenticate' header value
+     * Constructs default authentication failure handler
      *
-     * @deprecated replaced by {@link #DefaultAuthenticationFailureHandler(List)}
+     * @deprecated replaced by {@link #DefaultAuthenticationFailureHandler(Map)}
      */
     @Deprecated
     public DefaultAuthenticationFailureHandler() {
-        this(Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
+        this(null);
     }
 
     /**
-     * Constructs default authentication failure handler with provided list of
-     * supported auth schemes to be presented as challenge
+     * Constructs default authentication failure handler with provided default
+     * response headers.
      *
-     * @param supportedWWWAuthenticateResponseHeaderValues List of supported auth
-     *            schemes to be returned as response header 'WWW-Authenticate'
-     * @see Realm#getWWWAuthenticateHeaderValue()
+     * @param failureResponseHeaders Map of header key and list of header values to
+     *            be sent as failure response.
+     * @see Realm#getAuthenticationFailureHeaders()
      */
-    public DefaultAuthenticationFailureHandler(final List<String> supportedWWWAuthenticateResponseHeaderValues) {
-        if (supportedWWWAuthenticateResponseHeaderValues == null || supportedWWWAuthenticateResponseHeaderValues.isEmpty()) {
-            throw new IllegalArgumentException("supported WWW-Authenticate response header values is null or empty");
+    public DefaultAuthenticationFailureHandler(Map<String, List<String>> failureResponseHeaders) {
+        if (failureResponseHeaders == null || failureResponseHeaders.isEmpty()) {
+            failureResponseHeaders = new HashMap<>();
+            failureResponseHeaders.put("WWW-Authenticate",
+                    Arrays.asList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
         }
-        this.supportedWWWAuthenticateResponseHeaderValues = Collections.unmodifiableList(supportedWWWAuthenticateResponseHeaderValues);
+        this.defaultFailureResponseHeaders = Collections.unmodifiableMap(failureResponseHeaders);
     }
 
     @Override
@@ -103,8 +106,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
      * Creates an instance of {@link ElasticsearchSecurityException} with
      * {@link RestStatus#UNAUTHORIZED} status.
      * <p>
-     * Also adds response header 'WWW-Authenticate' with values as list of
-     * configured and enabled auth schemes as challenge.
+     * Also adds response headers as configured
      *
      * @param message error message
      * @param t root cause
@@ -114,7 +116,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     private ElasticsearchSecurityException createAuthenticationError(final String message, final Throwable t, final Object... args) {
         ElasticsearchSecurityException ese = authenticationError(message, t, args);
         // If it is already present then it will replace the existing header.
-        ese.addHeader("WWW-Authenticate", supportedWWWAuthenticateResponseHeaderValues);
+        defaultFailureResponseHeaders.entrySet().stream().forEach((e) -> ese.addHeader(e.getKey(), e.getValue()));
         return ese;
     }
 }

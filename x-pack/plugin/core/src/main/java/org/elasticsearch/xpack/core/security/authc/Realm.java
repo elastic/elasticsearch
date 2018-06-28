@@ -11,7 +11,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -68,8 +70,10 @@ public abstract class Realm implements Comparable<Realm> {
      *
      * @return value to be returned in 'WWW-Authenticate' response header.
      */
-    public String getWWWAuthenticateHeaderValue() {
-        return "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+    public Map<String, List<String>> getAuthenticationFailureHeaders() {
+        final Map<String, List<String>> headers = new HashMap<>();
+        headers.put("WWW-Authenticate", Arrays.asList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
+        return headers;
     }
 
     @Override

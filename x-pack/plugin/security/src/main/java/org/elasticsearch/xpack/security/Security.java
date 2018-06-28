@@ -217,6 +217,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -493,17 +494,24 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         if (failureHandler == null) {
             logger.debug("Using default authentication failure handler");
-            final LinkedHashSet<String> supportedWWWAuthenticateResponseHeaderValues = new LinkedHashSet<>();
-            if (realms.asList().isEmpty()) {
-                supportedWWWAuthenticateResponseHeaderValues.add("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"");
-            } else {
-                realms.asList().stream()
-                        .forEach((realm) -> supportedWWWAuthenticateResponseHeaderValues.add(realm.getWWWAuthenticateHeaderValue()));
-            }
+            final LinkedHashMap<String, List<String>> defaultFailureResponseHeaders = new LinkedHashMap<>();
+            realms.asList().stream().forEach((realm) -> {
+                Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
+                realmFailureHeaders.entrySet().stream().forEach((e) -> {
+                    if (defaultFailureResponseHeaders.get(e.getKey()) == null) {
+                        defaultFailureResponseHeaders.put(e.getKey(), new ArrayList<>());
+                    }
+                    defaultFailureResponseHeaders.get(e.getKey()).addAll(e.getValue());
+                });
+            });
+
             if (TokenService.isTokenServiceEnabled(settings)) {
-                supportedWWWAuthenticateResponseHeaderValues.add("Bearer realm=\"" + XPackField.SECURITY + "\"");
+                if (defaultFailureResponseHeaders.get("WWW-Authenticate") == null) {
+                    defaultFailureResponseHeaders.put("WWW-Authenticate", new ArrayList<>());
+                }
+                defaultFailureResponseHeaders.get("WWW-Authenticate").add("Bearer realm=\"" + XPackField.SECURITY + "\"");
             }
-            failureHandler = new DefaultAuthenticationFailureHandler(new ArrayList<>(supportedWWWAuthenticateResponseHeaderValues));
+            failureHandler = new DefaultAuthenticationFailureHandler(defaultFailureResponseHeaders);
         } else {
             logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
         }

@@ -1075,9 +1075,10 @@ then it aborts the execution and leaves the array unmodified.
 .Foreach Options
 [options="header"]
 |======
-| Name          | Required  | Default  | Description
-| `field`       | yes       | -        | The array field
-| `processor`   | yes       | -        | The processor to execute against each field
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The array field
+| `processor`      | yes       | -        | The processor to execute against each field
+| `ignore_missing` | no        | false    | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
 Assume the following document:

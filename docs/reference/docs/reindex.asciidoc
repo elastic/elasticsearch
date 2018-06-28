@@ -428,7 +428,7 @@ The `username` and `password` parameters are optional, and when they are present
 will connect to the remote Elasticsearch node using basic auth. Be sure to use `https` when
 using basic auth or the password will be sent in plain text.
 
-Remote hosts have to be explicitly whitelisted in elasticsearch.yaml using the
+Remote hosts have to be explicitly whitelisted in elasticsearch.yml using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list
 of allowed remote `host` and `port` combinations (e.g.
 `otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*`). Scheme is

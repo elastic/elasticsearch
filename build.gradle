@@ -326,6 +326,9 @@ gradle.projectsEvaluated {
       // :test:framework:test cannot run before and after :server:test
       return
     }
+    if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
+      integTest.mustRunAfter test
+    }
     configurations.all { Configuration configuration ->
       /*
        * The featureAwarePlugin configuration has a dependency on x-pack:plugin:core and x-pack:plugin:core has a dependency on the
@@ -572,6 +575,31 @@ gradle.projectsEvaluated {
         project.tasks.remove(dependenciesInfo)
         project.precommit.dependsOn.remove('dependenciesInfo')
       }
+    }
+  }
+}
+
+if (System.properties.get("build.compare") != null) {
+  apply plugin: 'compare-gradle-builds'
+  compareGradleBuilds {
+    ext.referenceProject = System.properties.get("build.compare")
+    doFirst {
+      if (file(referenceProject).exists() == false) {
+        throw new GradleException(
+                "Use git worktree to check out a version to compare against to ../elasticsearch_build_reference"
+        )
+      }
+    }
+    sourceBuild {
+      gradleVersion = "4.7" // does not default to gradle weapper of project dir, but current version
+      projectDir = referenceProject
+      tasks = ["clean", "assemble"]
+      arguments = ["-Dbuild.compare_friendly=true"]
+    }
+    targetBuild {
+      tasks = ["clean", "assemble"]
+      // use -Dorg.gradle.java.home= to alter jdk versions
+      arguments = ["-Dbuild.compare_friendly=true"]
     }
   }
 }

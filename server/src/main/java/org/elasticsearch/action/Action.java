@@ -57,7 +57,7 @@ public abstract class Action<Response extends ActionResponse> {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof Action && name.equals(((Action) o).name());
+        return o instanceof Action && name.equals(((Action<?>) o).name());
     }
 
     @Override

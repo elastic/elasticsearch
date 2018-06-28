@@ -497,8 +497,8 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
      * This parser outputs a temporary map of the objects needed to create the
      * SearchHit instead of directly creating the SearchHit. The reason for this
      * is that this way we can reuse the parser when parsing xContent from
-     * {@link CompletionSuggestion.Entry.Option} which unfortunately inlines the
-     * output of
+     * {@link org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option} which unfortunately inlines
+     * the output of
      * {@link #toInnerXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params)}
      * of the included search hit. The output of the map is used to create the
      * actual SearchHit instance via {@link #createFromMap(Map)}

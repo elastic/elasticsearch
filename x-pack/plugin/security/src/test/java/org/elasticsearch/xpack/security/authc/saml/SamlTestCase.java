@@ -64,7 +64,6 @@ public abstract class SamlTestCase extends ESTestCase {
      * Generates signed certificate and associates with generated key pair.
      * @see #readRandomKeyPair(String)
      * @return X509Certificate a signed certificate, it's PrivateKey {@link Tuple}
-     * @throws Exception
      */
     protected static Tuple<X509Certificate, PrivateKey> readRandomKeyPair() throws Exception {
         return readRandomKeyPair("RSA");
@@ -73,9 +72,7 @@ public abstract class SamlTestCase extends ESTestCase {
     /**
      * Reads a key pair and associated certificate for given algorithm and key length
      * For testing, for "EC" algorithm 256 key size is used, others use 2048 as default.
-     * @param algorithm
-     * @return X509Certificate a signed certificate, it's PrivateKey {@link Tuple}
-     * @throws Exception
+     * @return X509Certificate a signed certificate, it's PrivateKey
      */
     protected static Tuple<X509Certificate, PrivateKey> readRandomKeyPair(String algorithm) throws Exception {
         int keySize;

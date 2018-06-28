@@ -73,7 +73,7 @@ public final class LogFileStructureFinder {
      */
     private final List<LogFileStructureFactory> orderedStructureFactories;
 
-    public LogFileStructureFinder(Terminal terminal, Path beatsRepo, String sampleFileName, String indexName, String typeName,
+    public LogFileStructureFinder(Terminal terminal, Path beatsModulePath, String sampleFileName, String indexName, String typeName,
                                   String logstashFileTimezone)
         throws IOException {
         this.terminal = Objects.requireNonNull(terminal);
@@ -82,7 +82,7 @@ public final class LogFileStructureFinder {
         this.typeName = Objects.requireNonNull(typeName);
         this.logstashFileTimezone = logstashFileTimezone;
         BeatsModuleStore beatsModuleStore =
-            (beatsRepo != null) ? new BeatsModuleStore(beatsRepo.resolve("filebeat").resolve("module"), sampleFileName) : null;
+            (beatsModulePath != null) ? new BeatsModuleStore(terminal, beatsModulePath, sampleFileName) : null;
         orderedStructureFactories = Arrays.asList(
             new JsonLogFileStructureFactory(terminal),
             new XmlLogFileStructureFactory(terminal),

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,9 +34,10 @@ public final class BeatsModuleStore {
 
     private final List<BeatsModule> beatsModules;
 
-    public BeatsModuleStore(Path moduleDir, String sampleFileName) throws IOException {
-        beatsModules = (moduleDir != null && Files.isDirectory(moduleDir))
-            ? Collections.unmodifiableList(populateModuleData(moduleDir, sampleFileName)) : Collections.emptyList();
+    public BeatsModuleStore(Terminal terminal, Path modulePath, String sampleFileName) throws IOException {
+        assert modulePath != null && Files.isDirectory(modulePath);
+        terminal.println(Verbosity.VERBOSE, "Loading filebeat modules from [" + modulePath + "]");
+        beatsModules = Collections.unmodifiableList(populateModuleData(modulePath, sampleFileName));
     }
 
     public BeatsModule findMatchingModule(String message) {
@@ -55,12 +58,12 @@ public final class BeatsModuleStore {
         return null;
     }
 
-    static List<BeatsModule> populateModuleData(Path moduleDir, String sampleFileName) throws IOException {
+    static List<BeatsModule> populateModuleData(Path modulePath, String sampleFileName) throws IOException {
 
         List<BeatsModule> beatsModules = new ArrayList<>();
 
         try {
-            Files.find(moduleDir, 3, (path, attrs) -> path.getFileName().toString().equals("manifest.yml"))
+            Files.find(modulePath, 3, (path, attrs) -> path.getFileName().toString().equals("manifest.yml"))
                 .forEach(path -> parseModule(path, beatsModules, sampleFileName));
         } catch (UncheckedIOException e) {
             throw e.getCause();
@@ -189,6 +192,8 @@ public final class BeatsModuleStore {
                     return Stream.empty();
                 } else if (line.startsWith("type: ")){
                     return Stream.of("- " + line);
+                } else if (line.equals("processors:")){
+                    return Stream.of("\n" + line);
                 } else {
                     return Stream.of("  " + line);
                 }

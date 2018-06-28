@@ -36,9 +36,9 @@ distinctive Grok patterns match in addition to the date.  It then creates
 mappings for these fields, plus the date.  (It's obviously nowhere near as good
 as a human would be at recognizing the most appropriate field boundaries.)
 
-Finally, if the beats repo is available, the tool checks whether any of the
-pre-defined filebeat modules match the sample file, and incorporates the
-appropriate configurations if it finds a match.
+Finally, if the beats repo or a Filebeat installation is available, the tool
+checks whether any of the pre-defined Filebeat modules match the sample file,
+and incorporates the appropriate configurations if it finds a match.
 
 The outputs consist of:
 
@@ -58,7 +58,9 @@ should be pretty robotic to add the necessary pieces if it is enabled.
 
 ## Usage
 
-The tool works best if you clone the
+The tool works best if the Filebeat module directory is available to it.
+
+One way to get this is to clone the
 [beats repo](http://github.com/elastic/beats) as a sub-directory of your home
 directory:
 
@@ -67,13 +69,16 @@ $ cd
 $ git clone git@github.com:elastic/beats.git
 ```
 
-If you want to clone it to a different location, that's also useful, but
-requires that you specify the location on the command line of the tool using the
-`-b` option.
+Another way is to install Filebeat on your machine.  If this install is in the
+default location on Windows or Linux, or is directly under your home directory
+then the tool will find it automatically.
 
-Or, if you really don't want to clone the beats repo, the tool will still work,
-but just won't be able to tell you when there's a Beats module that would work
-well with your sample log file.
+Alternatively, you can specify the path to the Filebeat module directory on the
+command line of the tool using the `-b` option.
+
+Or, if you really don't want do any of these things, the tool will still work,
+but just won't be able to tell you when there's a Filebeat module that would
+work well with your sample log file.
 
 It's best to use Java 8, because then you'll be able to run `logstash` from the
 same shell with the same `JAVA_HOME`.  However, you can use Java 10 for this
@@ -119,7 +124,7 @@ option.  For example:
 
 ```
 $ ./log-config-creator -n ls -i ls ~/logstash/logs/logstash-plain.log
-An existing filebeat module [logstash] looks appropriate; the sample file appears to be a [log] log
+An existing Filebeat module [logstash] looks appropriate; the sample file appears to be a [log] log
 Wrote config file ./ls-filebeat-to-logstash.yml
 Wrote config file ./ls-logstash-from-filebeat.conf
 Wrote config file ./ls-logstash-from-file.conf
@@ -142,7 +147,7 @@ is as follows:
 
 ```
 $ ./log-config-creator -n syslog -o /tmp ~/Downloads/messages
-An existing filebeat module [system] looks appropriate; the sample file appears to be a [syslog] log
+An existing Filebeat module [system] looks appropriate; the sample file appears to be a [syslog] log
 Wrote config file /tmp/syslog-index-mappings.console
 Wrote config file /tmp/syslog-index-mappings.sh
 Wrote config file /tmp/syslog-filebeat-to-logstash.yml
@@ -194,17 +199,20 @@ Log config creator
 Non-option arguments:
 file to be processed
 
-Option            Description
-------            -----------
--b, --beats-repo  path to beats repo (default: $HOME/beats)
--h, --help        show help
--i, --index       index for logstash direct from file config (default: test)
--n, --name        name for this type of log file (default: xyz)
--o, --output      output directory (default: .)
--s, --silent      show minimal output
--v, --verbose     show verbose output
--z, --timezone    timezone for logstash direct from file input (default:
-                    logstash server timezone)
+Option                  Description
+------                  -----------
+-b, --beats-module-dir  path to filebeat module directory (default:
+                          $HOME/beats/filebeat/module or from installed
+                          filebeat)
+-h, --help              show help
+-i, --index             index for logstash direct from file config (default:
+                          test)
+-n, --name              name for this type of log file (default: xyz)
+-o, --output            output directory (default: .)
+-s, --silent            show minimal output
+-v, --verbose           show verbose output
+-z, --timezone          timezone for logstash direct from file input (default:
+                          logstash server timezone)
 ```
 
 The `-z` option is most useful if you've obtained a log file from a different

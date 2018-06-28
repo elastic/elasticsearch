@@ -243,7 +243,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
                 dateFormatsStr, interimTimestampField);
         } else {
             String aOrAn = ("aeiou".indexOf(matchingModule.fileType.charAt(0)) >= 0) ? "an" : "a";
-            terminal.println("An existing filebeat module [" + matchingModule.moduleName +
+            terminal.println("An existing Filebeat module [" + matchingModule.moduleName +
                 "] looks appropriate; the sample file appears to be " + aOrAn + " [" + matchingModule.fileType + "] log");
             filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_WITH_MODULE_TEMPLATE,
                 matchingModule.inputDefinition, typeName);

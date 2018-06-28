@@ -18,11 +18,47 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class LogConfigCreator extends Command {
+
+    private static final Path HOME_PATH = parsePath(System.getProperty("user.home"));
+    private static final Path REPO_MODULE_PATH =
+        HOME_PATH.resolve("beats").resolve("filebeat").resolve("module").toAbsolutePath().normalize();
+    private static final Path INSTALL_MODULE_PATH;
+
+    static {
+        Path installModulePath = null;
+
+        String progFilesDir = System.getenv("ProgramFiles");
+        if (progFilesDir == null || progFilesDir.isEmpty()) {
+            Path linuxPackageModulePath = parsePath("/usr/share/filebeat/module");
+            if (Files.isDirectory(linuxPackageModulePath)) {
+                installModulePath = linuxPackageModulePath;
+            }
+        } else {
+            Path windowsInstallModulePath = parsePath(progFilesDir).resolve("Filebeat").resolve("module");
+            if (Files.isDirectory(windowsInstallModulePath)) {
+                installModulePath = windowsInstallModulePath;
+            }
+        }
+
+        // If Filebeat isn't installed in the standard Linux or Windows location, check for
+        // a .tar/.zip install in the current user's home directory that contains modules
+        if (installModulePath == null) {
+            try {
+                installModulePath = Files.find(HOME_PATH, 1, (path, attrs) -> path.getFileName().toString().matches("filebeat-.*-.*-.*"))
+                    .map(path -> path.resolve("module")).filter(Files::isDirectory).max(Comparator.naturalOrder()).orElse(null);
+            } catch (IOException e) {
+                // Ignore it - there just won't be a default for the filebeat installation directory
+            }
+        }
+
+        INSTALL_MODULE_PATH = installModulePath;
+    }
 
     private static final Pattern VALID_NAME_PATTERN = Pattern.compile("(?i)[a-z](?:[a-z0-9_.-]*[a-z0-9])?");
 
@@ -35,7 +71,8 @@ public class LogConfigCreator extends Command {
         parser.acceptsAll(Arrays.asList("o", "output"), "output directory (default: .)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("i", "index"), "index for logstash direct from file config (default: test)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("n", "name"), "name for this type of log file (default: xyz)").withRequiredArg();
-        parser.acceptsAll(Arrays.asList("b", "beats-repo"), "path to beats repo (default: $HOME/beats)").withRequiredArg();
+        parser.acceptsAll(Arrays.asList("b", "beats-module-dir"),
+            "path to filebeat module directory (default: $HOME/beats/filebeat/module or from installed filebeat)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("z", "timezone"),
             "timezone for logstash direct from file input (default: logstash server timezone)").withRequiredArg();
         parser.nonOptions("file to be processed");
@@ -55,15 +92,17 @@ public class LogConfigCreator extends Command {
         String typeName = getSingleOptionValueOrDefault(options, "n", "name", "log file type name", "xyz");
         validateName(typeName, "Log file type name");
 
-        Path beatsRepo = parsePath(getSingleOptionValueOrDefault(options, "b", "beats-repo", "beats repo directory",
-            parsePath(System.getProperty("user.home")).resolve("beats").toAbsolutePath().normalize().toString()));
-        if (Files.isDirectory(beatsRepo) == false) {
-            if (options.has("b") || options.has("beats-repo")) {
+        Path beatsModulePath;
+        String beatsModuleDir = getSingleOptionValueOrDefault(options, "b", "beats-module-dir", "filebeat module directory", null);
+        if (beatsModuleDir != null) {
+            beatsModulePath = parsePath(beatsModuleDir).toAbsolutePath().normalize();
+            if (Files.isDirectory(beatsModulePath) == false) {
                 // Lack of a beats repo is only an error if one was explicitly specified
-                throw new UserException(ExitCodes.USAGE, "Beats repo directory [" + outputDirectory + "] does not exist");
-            } else {
-                beatsRepo = null;
+                throw new UserException(ExitCodes.USAGE, "Beats module directory [" + beatsModulePath + "] does not exist");
             }
+        } else {
+            // INSTALL_MODULE_PATH will be null if no install was found
+            beatsModulePath = Files.isDirectory(REPO_MODULE_PATH) ? REPO_MODULE_PATH : INSTALL_MODULE_PATH;
         }
 
         String timezone = getSingleOptionValueOrDefault(options, "z", "timezone", "timezone name", null);
@@ -83,7 +122,7 @@ public class LogConfigCreator extends Command {
         }
 
         try {
-            LogFileStructureFinder structureFinder = new LogFileStructureFinder(terminal, beatsRepo,
+            LogFileStructureFinder structureFinder = new LogFileStructureFinder(terminal, beatsModulePath,
                 file.toAbsolutePath().normalize().toString(), indexName, typeName, timezone);
             structureFinder.findLogFileConfigs(Files.newInputStream(file), outputDirectory);
         } catch (IOException e) {

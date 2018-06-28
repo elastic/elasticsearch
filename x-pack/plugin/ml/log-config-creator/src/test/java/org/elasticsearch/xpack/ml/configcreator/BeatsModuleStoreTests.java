@@ -441,7 +441,7 @@ public class BeatsModuleStoreTests extends LogConfigCreatorTestCase {
 
     public void testFindMatchingModuleGivenRepoAvailable() throws IOException {
 
-        BeatsModuleStore beatsModuleStore = new BeatsModuleStore(moduleDir, "logs/www-access.log");
+        BeatsModuleStore beatsModuleStore = new BeatsModuleStore(TEST_TERMINAL, moduleDir, "logs/www-access.log");
 
         BeatsModule module = beatsModuleStore.findMatchingModule(APACHE2_ACCESS_LOG_SAMPLE);
         assertNotNull(module);
@@ -449,17 +449,6 @@ public class BeatsModuleStoreTests extends LogConfigCreatorTestCase {
         assertEquals("access", module.fileType);
         assertThat(module.inputDefinition, containsString("www-access.log"));
         assertThat(module.ingestPipeline, containsString("Pipeline for parsing Apache2 access logs"));
-    }
-
-    public void testFindMatchingModuleGivenNoRepoAvailable() throws IOException {
-
-        BeatsModuleStore beatsModuleStore = new BeatsModuleStore(null, "logs/www-access.log");
-
-        assertNull(beatsModuleStore.findMatchingModule(APACHE2_ACCESS_LOG_SAMPLE));
-
-        beatsModuleStore = new BeatsModuleStore(createTempDir().resolve("module"), "logs/www-access.log");
-
-        assertNull(beatsModuleStore.findMatchingModule(APACHE2_ACCESS_LOG_SAMPLE));
     }
 
     public void testPathMatchesSampleFileNameWithoutPath() {

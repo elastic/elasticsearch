@@ -20,46 +20,44 @@
 package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
+
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
-import java.util.Locale;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository;
 
 public class AzureBlobStore extends AbstractComponent implements BlobStore {
 
-    private final AzureStorageService client;
+    private final AzureStorageService service;
 
     private final String clientName;
-    private final LocationMode locMode;
     private final String container;
+    private final LocationMode locationMode;
 
-    public AzureBlobStore(RepositoryMetaData metadata, Settings settings,
-                          AzureStorageService client) throws URISyntaxException, StorageException {
+    public AzureBlobStore(RepositoryMetaData metadata, Settings settings, AzureStorageService service)
+            throws URISyntaxException, StorageException {
         super(settings);
-        this.client = client;
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
-
-        String modeStr = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
-        if (Strings.hasLength(modeStr)) {
-            this.locMode = LocationMode.valueOf(modeStr.toUpperCase(Locale.ROOT));
-        } else {
-            this.locMode = LocationMode.PRIMARY_ONLY;
-        }
+        this.service = service;
+        // locationMode is set per repository, not per client
+        this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
+        final Map<String, AzureStorageSettings> prevSettings = this.service.refreshAndClearCache(emptyMap());
+        final Map<String, AzureStorageSettings> newSettings = AzureStorageSettings.overrideLocationMode(prevSettings, this.locationMode);
+        this.service.refreshAndClearCache(newSettings);
     }
 
     @Override
@@ -71,7 +69,11 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
      * Gets the configured {@link LocationMode} for the Azure storage requests.
      */
     public LocationMode getLocationMode() {
-        return locMode;
+        return locationMode;
+    }
+
+    public String getClientName() {
+        return clientName;
     }
 
     @Override
@@ -80,12 +82,13 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     }
 
     @Override
-    public void delete(BlobPath path) {
-        String keyPath = path.buildAsString();
+    public void delete(BlobPath path) throws IOException {
+        final String keyPath = path.buildAsString();
         try {
-            this.client.deleteFiles(this.clientName, this.locMode, container, keyPath);
+            service.deleteFiles(clientName, container, keyPath);
         } catch (URISyntaxException | StorageException e) {
-            logger.warn("can not remove [{}] in container {{}}: {}", keyPath, container, e.getMessage());
+            logger.warn("cannot access [{}] in container {{}}: {}", keyPath, container, e.getMessage());
+            throw new IOException(e);
         }
     }
 
@@ -93,30 +96,29 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     public void close() {
     }
 
-    public boolean doesContainerExist()
-    {
-        return this.client.doesContainerExist(this.clientName, this.locMode, container);
+    public boolean containerExist() throws URISyntaxException, StorageException {
+        return service.doesContainerExist(clientName, container);
     }
 
     public boolean blobExists(String blob) throws URISyntaxException, StorageException {
-        return this.client.blobExists(this.clientName, this.locMode, container, blob);
+        return service.blobExists(clientName, container, blob);
     }
 
     public void deleteBlob(String blob) throws URISyntaxException, StorageException {
-        this.client.deleteBlob(this.clientName, this.locMode, container, blob);
+        service.deleteBlob(clientName, container, blob);
     }
 
     public InputStream getInputStream(String blob) throws URISyntaxException, StorageException, IOException {
-        return this.client.getInputStream(this.clientName, this.locMode, container, blob);
+        return service.getInputStream(clientName, container, blob);
     }
 
     public Map<String, BlobMetaData> listBlobsByPrefix(String keyPath, String prefix)
         throws URISyntaxException, StorageException {
-        return this.client.listBlobsByPrefix(this.clientName, this.locMode, container, keyPath, prefix);
+        return service.listBlobsByPrefix(clientName, container, keyPath, prefix);
     }
 
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws URISyntaxException, StorageException,
         FileAlreadyExistsException {
-        this.client.writeBlob(this.clientName, this.locMode, container, blobName, inputStream, blobSize);
+        service.writeBlob(this.clientName, container, blobName, inputStream, blobSize);
     }
 }

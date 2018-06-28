@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, DeleteDatafeedAction.Response> {
+public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Response> {
 
     public static final DeleteDatafeedAction INSTANCE = new DeleteDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/delete";

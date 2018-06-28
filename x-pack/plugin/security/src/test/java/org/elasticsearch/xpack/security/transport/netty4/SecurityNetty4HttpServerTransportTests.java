@@ -16,7 +16,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
-import org.elasticsearch.http.netty4.Netty4HttpMockUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -26,7 +25,6 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.Before;
 
 import javax.net.ssl.SSLEngine;
-
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Locale;
@@ -69,7 +67,6 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
                 mock(ThreadPool.class), xContentRegistry(), new NullDispatcher());
-        Netty4HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
@@ -86,7 +83,6 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
                 mock(ThreadPool.class), xContentRegistry(), new NullDispatcher());
-        Netty4HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
@@ -103,7 +99,6 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
                 mock(ThreadPool.class), xContentRegistry(), new NullDispatcher());
-        Netty4HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(true));
@@ -120,7 +115,6 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
                 mock(ThreadPool.class), xContentRegistry(), new NullDispatcher());
-        Netty4HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
@@ -135,7 +129,6 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
                 mock(ThreadPool.class), xContentRegistry(), new NullDispatcher());
-        Netty4HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelHandler handler = transport.configureServerChannelHandler();
         EmbeddedChannel ch = new EmbeddedChannel(handler);
         SSLEngine defaultEngine = ch.pipeline().get(SslHandler.class).engine();
@@ -148,7 +141,6 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
         transport = new SecurityNetty4HttpServerTransport(settings, new NetworkService(Collections.emptyList()),
                 mock(BigArrays.class), mock(IPFilter.class), sslService, mock(ThreadPool.class), xContentRegistry(), new NullDispatcher());
-        Netty4HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         handler = transport.configureServerChannelHandler();
         ch = new EmbeddedChannel(handler);
         SSLEngine customEngine = ch.pipeline().get(SslHandler.class).engine();

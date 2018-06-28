@@ -49,7 +49,7 @@ final class CompositeValuesCollectorQueue implements Releasable {
      *
      * @param sources The list of {@link CompositeValuesSourceConfig} to build the composite buckets.
      * @param size The number of composite buckets to keep.
-     * @param afterKey
+     * @param afterKey composite key
      */
     CompositeValuesCollectorQueue(BigArrays bigArrays, SingleDimensionValuesSource<?>[] sources, int size, CompositeKey afterKey) {
         this.bigArrays = bigArrays;

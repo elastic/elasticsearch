@@ -64,7 +64,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             builder.prettyPrint();
         }
         testSearchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertParseSearchSource(testSearchSourceBuilder, createParser(builder));
+        try (XContentParser xParser = createParser(builder)) {
+            assertParseSearchSource(testSearchSourceBuilder, xParser);
+        }
     }
 
     public void testFromXContentInvalid() throws IOException {

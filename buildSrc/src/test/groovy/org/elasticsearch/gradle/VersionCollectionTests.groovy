@@ -1,6 +1,9 @@
 package org.elasticsearch.gradle
 
-class VersionCollectionTest extends GroovyTestCase {
+import org.elasticsearch.gradle.test.GradleUnitTestCase
+import org.junit.Test
+
+class VersionCollectionTests extends GradleUnitTestCase {
 
   String formatVersion(String version) {
     return " public static final Version V_${version.replaceAll("\\.", "_")} "
@@ -16,6 +19,7 @@ class VersionCollectionTest extends GroovyTestCase {
    * branched from Major-1.x At the time of this writing 6.2 is unreleased and 6.3 is the 6.x branch. This test simulates the behavior
    * from 7.0 perspective, or master at the time of this writing.
    */
+  @Test
   void testAgainstMajorUnreleasedWithExistingStagedMinorRelease() {
     VersionCollection vc = new VersionCollection(allVersions)
     assertNotNull(vc)
@@ -51,6 +55,7 @@ class VersionCollectionTest extends GroovyTestCase {
    * unreleased minor is released. At the time of this writing 6.2 is unreleased, so adding a 6.2.1 simulates a 6.2 release. This test
    * simulates the behavior from 7.0 perspective, or master at the time of this writing.
    */
+  @Test
   void testAgainstMajorUnreleasedWithoutStagedMinorRelease() {
     List localVersion = allVersions.clone()
     localVersion.add(formatVersion('6.2.1')) // release 6.2
@@ -89,6 +94,7 @@ class VersionCollectionTest extends GroovyTestCase {
    * branched from Major.x At the time of this writing 6.2 is unreleased and 6.3 is the 6.x branch. This test simulates the behavior
    * from 6.3 perspective.
    */
+  @Test
   void testAgainstMinorReleasedBranch() {
     List localVersion = allVersions.clone()
     localVersion.removeAll { it.toString().contains('7_0_0')} // remove all the 7.x so that the actual version is 6.3 (6.x)
@@ -126,6 +132,7 @@ class VersionCollectionTest extends GroovyTestCase {
    * unreleased minor is released. At the time of this writing 6.2 is unreleased, so adding a 6.2.1 simulates a 6.2 release. This test
    * simulates the behavior from 6.3 perspective.
    */
+  @Test
   void testAgainstMinorReleasedBranchNoStagedMinor() {
     List localVersion = allVersions.clone()
     // remove all the 7.x and add a 6.2.1 which means 6.2 was released
@@ -162,6 +169,7 @@ class VersionCollectionTest extends GroovyTestCase {
    * This validates the logic of being on a released minor branch. At the time of writing, 6.2 is unreleased, so this is equivalent of being
    * on 6.1.
    */
+  @Test
   void testAgainstOldMinor() {
 
     List localVersion = allVersions.clone()
@@ -195,6 +203,7 @@ class VersionCollectionTest extends GroovyTestCase {
    * This validates the lower bound of wire compat, which is 5.0. It also validates that the span of 2.x to 5.x if it is decided to port
    * this fix all the way to the maint 5.6 release.
    */
+  @Test
   void testFloorOfWireCompatVersions() {
     List localVersion = [formatVersion('2.0.0'), formatVersion('2.0.1'), formatVersion('2.1.0'), formatVersion('2.1.1'),
                           formatVersion('5.0.0'), formatVersion('5.0.1'), formatVersion('5.1.0'), formatVersion('5.1.1'),

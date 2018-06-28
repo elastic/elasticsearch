@@ -23,4 +23,9 @@ package org.elasticsearch.test;
  * This class should fail the naming conventions self test.
  */
 public class NamingConventionsCheckInMainIT {
+
+    public static class InternalInvalidTests extends NamingConventionsCheckBadClasses.UnitTestCase {
+
+    }
+
 }

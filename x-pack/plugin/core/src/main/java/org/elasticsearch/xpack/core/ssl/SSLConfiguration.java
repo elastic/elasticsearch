@@ -195,9 +195,9 @@ public final class SSLConfiguration {
         if (System.getProperty("javax.net.ssl.keyStore") != null) {
             // TODO: we should not support loading a keystore from sysprops...
             try (SecureString keystorePassword = new SecureString(System.getProperty("javax.net.ssl.keyStorePassword", ""))) {
-                return new StoreKeyConfig(System.getProperty("javax.net.ssl.keyStore"), KeyStore.getDefaultType(), keystorePassword, keystorePassword,
-                        System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm()),
-                        System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
+                return new StoreKeyConfig(System.getProperty("javax.net.ssl.keyStore"), KeyStore.getDefaultType(), keystorePassword,
+                    keystorePassword, System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm()),
+                    System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
             }
         }
         return KeyConfig.NONE;

@@ -98,17 +98,17 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         this.scheduler = scheduler;
     }
 
-    void start(long leaderGlobalCheckpoint, long followGlobalCheckpoint) {
+    void start(long followGlobalCheckpoint) {
         this.lastRequestedSeqno = followGlobalCheckpoint;
         this.processedGlobalCheckpoint = followGlobalCheckpoint;
-        this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
+        this.leaderGlobalCheckpoint = followGlobalCheckpoint;
 
         // Forcefully updates follower mapping, this gets us the leader imd version and
         // makes sure that leader and follower mapping are identical.
         updateMapping(imdVersion -> {
             currentIndexMetadataVersion = imdVersion;
-            LOGGER.info("{} Started to follow leader shard {}, leaderGlobalCheckPoint={}, followGlobalCheckPoint={}",
-                params.getFollowShardId(), params.getLeaderShardId(), leaderGlobalCheckpoint, followGlobalCheckpoint);
+            LOGGER.info("{} Started to follow leader shard {}, followGlobalCheckPoint={}",
+                params.getFollowShardId(), params.getLeaderShardId(), followGlobalCheckpoint);
             coordinateReads();
         });
     }
@@ -148,7 +148,7 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
                     size = leaderGlobalCheckpoint - from;
                 }
                 LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, from, size);
-                sendShardChangesRequest(from, size, true);
+                sendShardChangesRequest(from, size, from + size);
                 lastRequestedSeqno = from + size;
             }
             if (numConcurrentReads == 0) {
@@ -165,7 +165,7 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
                         numConcurrentReads++;
                         long from = lastRequestedSeqno + 1;
                         LOGGER.trace("{}[{}] peek read [{}]", params.getFollowShardId(), numConcurrentReads, from);
-                        sendShardChangesRequest(from, maxReadSize, false);
+                        sendShardChangesRequest(from, maxReadSize, null);
                     }
                 });
             }
@@ -194,24 +194,24 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
     }
 
-    private void sendShardChangesRequest(long from, long size, boolean checkLastOpReceived) {
+    private void sendShardChangesRequest(long from, long size, Long targetSeqNo) {
         innerSendShardChangesRequest(from, size,
             response -> {
                 retryCounter.set(0);
-                handleResponse(from, size, checkLastOpReceived, response);
+                handleResponse(from, size, targetSeqNo, response);
             },
-            e -> handleFailure(e, () -> sendShardChangesRequest(from, size, checkLastOpReceived)));
+            e -> handleFailure(e, () -> sendShardChangesRequest(from, size, targetSeqNo)));
     }
 
-    private synchronized void handleResponse(long from, long size, boolean checkLastOpReceived, ShardChangesAction.Response response) {
+    private synchronized void handleResponse(long from, long size, Long targetSeqNo, ShardChangesAction.Response response) {
         maybeUpdateMapping(response.getIndexMetadataVersion(), () -> {
             synchronized (ShardFollowNodeTask.this) {
                 leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getLeaderGlobalCheckpoint());
                 if (response.getOperations().length == 0) {
-                    if (checkLastOpReceived) {
+                    if (targetSeqNo != null) {
                         LOGGER.trace("{} received no ops while [{}/{}] was expected, re-executing read...",
                             params.getFollowShardId(), from, size);
-                        sendShardChangesRequest(from, size, true);
+                        sendShardChangesRequest(from, size, targetSeqNo);
                     } else {
                         numConcurrentReads--;
                         if (numConcurrentWrites == 0) {
@@ -226,14 +226,13 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
 
                     LOGGER.trace("{} received [{}/{}]", params.getFollowShardId(), firstOp.seqNo(), lastOp.seqNo());
                     buffer.addAll(Arrays.asList(response.getOperations()));
-                    if (checkLastOpReceived) {
-                        long expectedLastSeqNo = from + size;
-                        if (lastOp.seqNo() < expectedLastSeqNo) {
+                    if (targetSeqNo != null) {
+                        if (lastOp.seqNo() < targetSeqNo) {
                             long newFrom = lastOp.seqNo() + 1;
-                            long newSize = expectedLastSeqNo - lastOp.seqNo();
+                            long newSize = targetSeqNo - lastOp.seqNo();
                             LOGGER.trace("{} received [{}] as last op while [{}] was expected, continue to read [{}/{}]...",
-                                params.getFollowShardId(), lastOp.seqNo(), expectedLastSeqNo, newFrom, size);
-                            sendShardChangesRequest(newFrom, newSize, true);
+                                params.getFollowShardId(), lastOp.seqNo(), targetSeqNo, newFrom, size);
+                            sendShardChangesRequest(newFrom, newSize, targetSeqNo);
                         } else {
                             numConcurrentReads--;
                         }

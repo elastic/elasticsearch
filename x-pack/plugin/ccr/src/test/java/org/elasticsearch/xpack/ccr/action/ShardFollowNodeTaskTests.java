@@ -9,7 +9,6 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
@@ -48,10 +47,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     private AtomicReference<Exception> failureHolder = new AtomicReference<>();
 
     public void testDefaults() throws Exception {
+        long followGlobalCheckpoint = randomIntBetween(-1, 2048);
         task = createShardFollowTask(ShardFollowNodeTask.DEFAULT_MAX_READ_SIZE, ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READS,
             ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE, ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITES, 10000,
-            ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE);
-        task.start(randomIntBetween(-1, 2048), -1);
+            ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE, followGlobalCheckpoint);
+        task.start(followGlobalCheckpoint);
 
         assertBusy(() -> {
             assertThat(task.getStatus().getProcessedGlobalCheckpoint(), equalTo(10000L));
@@ -62,8 +62,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     public void testHitBufferLimit() throws Exception {
         // Setting buffer limit to 100, so that we are sure the limit will be met
         task = createShardFollowTask(ShardFollowNodeTask.DEFAULT_MAX_READ_SIZE, 3,
-            ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE, 1, 10000, 100);
-        task.start(-1, -1);
+            ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE, 1, 10000, 100, -1);
+        task.start(-1);
 
         assertBusy(() -> {
             assertThat(task.getStatus().getProcessedGlobalCheckpoint(), equalTo(10000L));
@@ -72,9 +72,10 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
     @TestLogging("org.elasticsearch.xpack.ccr.action:TRACE")
     public void testConcurrentReadsAndWrites() throws Exception {
+        long followGlobalCheckpoint = randomIntBetween(-1, 2048);
         task = createShardFollowTask(randomIntBetween(32, 2048), randomIntBetween(2, 10), randomIntBetween(32, 2048),
-            randomIntBetween(2, 10), 50000, 10240);
-        task.start(randomIntBetween(-1, 2048), -1);
+            randomIntBetween(2, 10), 50000, 10240, followGlobalCheckpoint);
+        task.start(followGlobalCheckpoint);
 
         assertBusy(() -> {
             assertThat(task.getStatus().getProcessedGlobalCheckpoint(), equalTo(50000L));
@@ -82,8 +83,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testMappingUpdate() throws Exception {
-        task = createShardFollowTask(1024, 1, 1024, 1, 10000, 1024);
-        task.start(-1, -1);
+        task = createShardFollowTask(1024, 1, 1024, 1, 10000, 1024, -1);
+        task.start(-1);
 
         assertBusy(() -> {
             assertThat(task.getStatus().getProcessedGlobalCheckpoint(), greaterThanOrEqualTo(1000L));
@@ -96,8 +97,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testOccasionalApiFailure() throws Exception {
-        task = createShardFollowTask(1024, 1, 1024, 1, 10000, 1024);
-        task.start(-1, -1);
+        task = createShardFollowTask(1024, 1, 1024, 1, 10000, 1024, -1);
+        task.start(-1);
         randomlyFailWithRetryableError.set(true);
         assertBusy(() -> {
             assertThat(task.getStatus().getProcessedGlobalCheckpoint(), equalTo(10000L));
@@ -106,8 +107,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testNotAllExpectedOpsReturned() throws Exception {
-        task = createShardFollowTask(1024, 1, 1024, 1, 10000, 1024);
-        task.start(-1, -1);
+        task = createShardFollowTask(1024, 1, 1024, 1, 10000, 1024, -1);
+        task.start(-1);
         randomlyTruncateRequests.set(true);
         assertBusy(() -> {
             assertThat(task.getStatus().getProcessedGlobalCheckpoint(), equalTo(10000L));
@@ -116,7 +117,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     ShardFollowNodeTask createShardFollowTask(int maxReadSize, int maxConcurrentReads, int maxWriteSize,
-                                              int maxConcurrentWrites, int leaderGlobalCheckpoint, int bufferLimit) {
+                                              int maxConcurrentWrites, int leaderGlobalCheckpoint, int bufferLimit,
+                                              long followGlobalCheckpoint) {
         imdVersion = new AtomicLong(1L);
         mappingUpdateCounter = new AtomicInteger(0);
         randomlyTruncateRequests = new AtomicBoolean(false);
@@ -139,7 +141,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         };
         AtomicInteger readCounter = new AtomicInteger();
         AtomicInteger writeCounter = new AtomicInteger();
-        LocalCheckpointTracker tracker = new LocalCheckpointTracker(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED);
+        LocalCheckpointTracker tracker = new LocalCheckpointTracker(followGlobalCheckpoint, followGlobalCheckpoint);
         return new ShardFollowNodeTask(1L, "type", ShardFollowTask.NAME, "description", null,
             Collections.emptyMap(), null, null, params, scheduler) {
 

@@ -854,46 +854,46 @@ final class DocumentParser {
             ObjectMapper currentParent) {
         ObjectMapper mapper = currentParent == null ? context.root() : currentParent;
         int pathsAdded = 0;
-            ObjectMapper parent = mapper;
-            for (int i = 0; i < paths.length-1; i++) {
-            String currentPath = context.path().pathAsText(paths[i]);
-            FieldMapper existingFieldMapper = context.docMapper().mappers().getFieldMapper(currentPath);
-            if (existingFieldMapper != null) {
-                throw new MapperParsingException(
-                        "Could not dynamically add mapping for field [{}]. Existing mapping for [{}] must be of type object but found [{}].",
-                        null, String.join(".", paths), currentPath, existingFieldMapper.fieldType.typeName());
-            }
-            mapper = context.docMapper().objectMappers().get(currentPath);
-                if (mapper == null) {
-                    // One mapping is missing, check if we are allowed to create a dynamic one.
-                    ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);
+        ObjectMapper parent = mapper;
+        for (int i = 0; i < paths.length-1; i++) {
+        String currentPath = context.path().pathAsText(paths[i]);
+        Mapper existingFieldMapper = context.docMapper().mappers().getMapper(currentPath);
+        if (existingFieldMapper != null) {
+            throw new MapperParsingException(
+                    "Could not dynamically add mapping for field [{}]. Existing mapping for [{}] must be of type object but found [{}].",
+                    null, String.join(".", paths), currentPath, existingFieldMapper.typeName());
+        }
+        mapper = context.docMapper().objectMappers().get(currentPath);
+            if (mapper == null) {
+                // One mapping is missing, check if we are allowed to create a dynamic one.
+                ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);
 
-                    switch (dynamic) {
-                        case STRICT:
-                            throw new StrictDynamicMappingException(parent.fullPath(), paths[i]);
-                        case TRUE:
-                            Mapper.Builder builder = context.root().findTemplateBuilder(context, paths[i], XContentFieldType.OBJECT);
-                            if (builder == null) {
-                                builder = new ObjectMapper.Builder(paths[i]).enabled(true);
-                            }
-                            Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
-                            mapper = (ObjectMapper) builder.build(builderContext);
-                            if (mapper.nested() != ObjectMapper.Nested.NO) {
-                                throw new MapperParsingException("It is forbidden to create dynamic nested objects ([" + context.path().pathAsText(paths[i])
-                                        + "]) through `copy_to` or dots in field names");
-                            }
-                            context.addDynamicMapper(mapper);
-                            break;
-                        case FALSE:
-                           // Should not dynamically create any more mappers so return the last mapper
-                        return new Tuple<>(pathsAdded, parent);
+                switch (dynamic) {
+                    case STRICT:
+                        throw new StrictDynamicMappingException(parent.fullPath(), paths[i]);
+                    case TRUE:
+                        Mapper.Builder builder = context.root().findTemplateBuilder(context, paths[i], XContentFieldType.OBJECT);
+                        if (builder == null) {
+                            builder = new ObjectMapper.Builder(paths[i]).enabled(true);
+                        }
+                        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
+                        mapper = (ObjectMapper) builder.build(builderContext);
+                        if (mapper.nested() != ObjectMapper.Nested.NO) {
+                            throw new MapperParsingException("It is forbidden to create dynamic nested objects ([" + context.path().pathAsText(paths[i])
+                                    + "]) through `copy_to` or dots in field names");
+                        }
+                        context.addDynamicMapper(mapper);
+                        break;
+                    case FALSE:
+                       // Should not dynamically create any more mappers so return the last mapper
+                    return new Tuple<>(pathsAdded, parent);
 
-                    }
                 }
-                context.path().add(paths[i]);
-                pathsAdded++;
-                parent = mapper;
             }
+            context.path().add(paths[i]);
+            pathsAdded++;
+            parent = mapper;
+        }
         return new Tuple<>(pathsAdded, mapper);
     }
 

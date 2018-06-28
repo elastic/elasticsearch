@@ -56,6 +56,11 @@ public final class FieldAliasMapper extends Mapper {
         return name;
     }
 
+    @Override
+    public String typeName() {
+        return CONTENT_TYPE;
+    }
+
     public String path() {
         return path;
     }

@@ -459,7 +459,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         }
 
         final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
-        followRequest.setProcessorMaxTranslogBytes(1024);
+        followRequest.setMaxOperationSizeInBytes(1024);
         followRequest.setLeaderIndex("index1");
         followRequest.setFollowIndex("index2");
 

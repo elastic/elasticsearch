@@ -73,7 +73,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         private String followIndex;
         private int maxReadSize = ShardFollowNodeTask.DEFAULT_MAX_READ_SIZE;
         private int maxConcurrentReads = ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READS;
-        private long processorMaxTranslogBytes = ShardFollowNodeTask.DEFAULT_MAX_TRANSLOG_BYTES;
+        private long maxOperationSizeInBytes = ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES;
         private int maxWriteSize = ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE;
         private int maxConcurrentWrites = ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITES;
         private int maxBufferSize = ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE;
@@ -113,11 +113,11 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             this.maxConcurrentReads = maxConcurrentReads;
         }
 
-        public void setProcessorMaxTranslogBytes(long processorMaxTranslogBytes) {
-            if (processorMaxTranslogBytes <= 0) {
+        public void setMaxOperationSizeInBytes(long maxOperationSizeInBytes) {
+            if (maxOperationSizeInBytes <= 0) {
                 throw new IllegalArgumentException("processor_max_translog_bytes must be larger than 0");
             }
-            this.processorMaxTranslogBytes = processorMaxTranslogBytes;
+            this.maxOperationSizeInBytes = maxOperationSizeInBytes;
         }
 
         public int getMaxWriteSize() {
@@ -165,7 +165,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             followIndex = in.readString();
             maxReadSize = in.readVInt();
             maxConcurrentReads = in.readVInt();
-            processorMaxTranslogBytes = in.readVLong();
+            maxOperationSizeInBytes = in.readVLong();
             maxWriteSize = in.readVInt();
             maxConcurrentWrites = in.readVInt();
             maxBufferSize = in.readVInt();
@@ -178,7 +178,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             out.writeString(followIndex);
             out.writeVInt(maxReadSize);
             out.writeVInt(maxConcurrentReads);
-            out.writeVLong(processorMaxTranslogBytes);
+            out.writeVLong(maxOperationSizeInBytes);
             out.writeVInt(maxWriteSize);
             out.writeVInt(maxConcurrentWrites);
             out.writeVInt(maxBufferSize);
@@ -191,7 +191,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             Request request = (Request) o;
             return maxReadSize == request.maxReadSize &&
                 maxConcurrentReads == request.maxConcurrentReads &&
-                processorMaxTranslogBytes == request.processorMaxTranslogBytes &&
+                maxOperationSizeInBytes == request.maxOperationSizeInBytes &&
                 maxWriteSize == request.maxWriteSize &&
                 maxConcurrentWrites == request.maxConcurrentWrites &&
                 maxBufferSize == request.maxBufferSize &&
@@ -201,7 +201,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(leaderIndex, followIndex, maxReadSize, maxConcurrentReads, processorMaxTranslogBytes,
+            return Objects.hash(leaderIndex, followIndex, maxReadSize, maxConcurrentReads, maxOperationSizeInBytes,
                 maxWriteSize, maxConcurrentWrites, maxBufferSize);
         }
     }
@@ -300,7 +300,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
                 ShardFollowTask shardFollowTask = new ShardFollowTask(clusterNameAlias,
                         new ShardId(followIndexMetadata.getIndex(), shardId),
                         new ShardId(leaderIndexMetadata.getIndex(), shardId),
-                        request.maxReadSize, request.maxConcurrentReads, request.processorMaxTranslogBytes,
+                        request.maxReadSize, request.maxConcurrentReads, request.maxOperationSizeInBytes,
                         request.maxWriteSize, request.maxConcurrentWrites, request.maxBufferSize, filteredHeaders);
                 persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
                         new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {

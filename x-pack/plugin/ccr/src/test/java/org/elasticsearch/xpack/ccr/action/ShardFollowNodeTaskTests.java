@@ -124,7 +124,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         failedRequests = new AtomicInteger(0);
         AtomicBoolean stopped = new AtomicBoolean(false);
         ShardFollowTask params = new ShardFollowTask(null, new ShardId("follow_index", "", 0),
-            new ShardId("leader_index", "", 0), maxReadSize, maxConcurrentReads, ShardFollowNodeTask.DEFAULT_MAX_TRANSLOG_BYTES,
+            new ShardId("leader_index", "", 0), maxReadSize, maxConcurrentReads, ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES,
             maxWriteSize, maxConcurrentWrites, bufferLimit, Collections.emptyMap());
 
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> {

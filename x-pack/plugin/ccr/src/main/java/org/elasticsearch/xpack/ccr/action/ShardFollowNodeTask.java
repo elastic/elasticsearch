@@ -61,7 +61,7 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
     static final int DEFAULT_MAX_CONCURRENT_READS = 1;
     static final int DEFAULT_MAX_CONCURRENT_WRITES = 1;
     static final int DEFAULT_MAX_BUFFER_SIZE = 10240;
-    static final long DEFAULT_MAX_TRANSLOG_BYTES= Long.MAX_VALUE;
+    static final long DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES = Long.MAX_VALUE;
     private static final TimeValue RETRY_TIMEOUT = TimeValue.timeValueMillis(500);
 
     private static final Logger LOGGER = Loggers.getLogger(ShardFollowNodeTask.class);
@@ -349,7 +349,7 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         ShardChangesAction.Request request = new ShardChangesAction.Request(params.getLeaderShardId());
         request.setMinSeqNo(from);
         request.setMaxSeqNo(to);
-        request.setMaxTranslogsBytes(params.getMaxTranslogBytes());
+        request.setMaxOperationSizeInBytes(params.getMaxOperationSizeInBytes());
         leaderClient.execute(ShardChangesAction.INSTANCE, request, new ActionListener<ShardChangesAction.Response>() {
             @Override
             public void onResponse(ShardChangesAction.Response response) {

@@ -25,7 +25,7 @@ public class FollowIndexRequestTests extends AbstractStreamableTestCase<FollowIn
         request.setFollowIndex(randomAlphaOfLength(4));
         request.setMaxReadSize(randomIntBetween(1, Integer.MAX_VALUE));
         request.setMaxConcurrentReads(randomIntBetween(1, Integer.MAX_VALUE));
-        request.setProcessorMaxTranslogBytes(randomNonNegativeLong());
+        request.setMaxOperationSizeInBytes(randomNonNegativeLong());
         request.setMaxWriteSize(randomIntBetween(1, Integer.MAX_VALUE));
         request.setMaxConcurrentWrites(randomIntBetween(1, Integer.MAX_VALUE));
         request.setMaxConcurrentWrites(randomIntBetween(1, Integer.MAX_VALUE));

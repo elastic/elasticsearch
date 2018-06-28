@@ -56,7 +56,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         private long minSeqNo;
         private long maxSeqNo;
         private ShardId shardId;
-        private long maxTranslogsBytes = ShardFollowNodeTask.DEFAULT_MAX_TRANSLOG_BYTES;
+        private long maxOperationSizeInBytes = ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES;
 
         public Request(ShardId shardId) {
             super(shardId.getIndexName());
@@ -86,12 +86,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             this.maxSeqNo = maxSeqNo;
         }
 
-        public long getMaxTranslogsBytes() {
-            return maxTranslogsBytes;
+        public long getMaxOperationSizeInBytes() {
+            return maxOperationSizeInBytes;
         }
 
-        public void setMaxTranslogsBytes(long maxTranslogsBytes) {
-            this.maxTranslogsBytes = maxTranslogsBytes;
+        public void setMaxOperationSizeInBytes(long maxOperationSizeInBytes) {
+            this.maxOperationSizeInBytes = maxOperationSizeInBytes;
         }
 
         @Override
@@ -104,8 +104,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                 validationException = addValidationError("minSeqNo [" + minSeqNo + "] cannot be larger than maxSeqNo ["
                         + maxSeqNo +  "]", validationException);
             }
-            if (maxTranslogsBytes <= 0) {
-                validationException = addValidationError("maxTranslogsBytes [" + maxTranslogsBytes + "] must be larger than 0",
+            if (maxOperationSizeInBytes <= 0) {
+                validationException = addValidationError("maxOperationSizeInBytes [" + maxOperationSizeInBytes + "] must be larger than 0",
                         validationException);
             }
             return validationException;
@@ -117,7 +117,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             minSeqNo = in.readVLong();
             maxSeqNo = in.readVLong();
             shardId = ShardId.readShardId(in);
-            maxTranslogsBytes = in.readVLong();
+            maxOperationSizeInBytes = in.readVLong();
         }
 
         @Override
@@ -126,7 +126,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             out.writeVLong(minSeqNo);
             out.writeVLong(maxSeqNo);
             shardId.writeTo(out);
-            out.writeVLong(maxTranslogsBytes);
+            out.writeVLong(maxOperationSizeInBytes);
         }
 
 
@@ -138,12 +138,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return minSeqNo == request.minSeqNo &&
                     maxSeqNo == request.maxSeqNo &&
                     Objects.equals(shardId, request.shardId) &&
-                    maxTranslogsBytes == request.maxTranslogsBytes;
+                    maxOperationSizeInBytes == request.maxOperationSizeInBytes;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(minSeqNo, maxSeqNo, shardId, maxTranslogsBytes);
+            return Objects.hash(minSeqNo, maxSeqNo, shardId, maxOperationSizeInBytes);
         }
     }
 
@@ -234,7 +234,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final long indexMetaDataVersion = clusterService.state().metaData().index(shardId.getIndex()).getVersion();
 
             final Translog.Operation[] operations =
-                getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxTranslogsBytes);
+                getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxOperationSizeInBytes);
             return new Response(indexMetaDataVersion, indexShard.getGlobalCheckpoint(), operations);
         }
 

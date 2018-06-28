@@ -46,9 +46,9 @@ public class RestFollowIndexAction extends BaseRestHandler {
         if (restRequest.hasParam(ShardFollowTask.MAX_CONCURRENT_READS.getPreferredName())) {
             request.setMaxConcurrentReads(Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_READS.getPreferredName())));
         }
-        if (restRequest.hasParam(ShardFollowTask.MAX_TRANSLOG_BYTES_PER_REQUEST.getPreferredName())) {
-            long value = Long.valueOf(restRequest.param(ShardFollowTask.MAX_TRANSLOG_BYTES_PER_REQUEST.getPreferredName()));
-            request.setProcessorMaxTranslogBytes(value);
+        if (restRequest.hasParam(ShardFollowTask.MAX_OPERATION_SIZE_IN_BYTES.getPreferredName())) {
+            long value = Long.valueOf(restRequest.param(ShardFollowTask.MAX_OPERATION_SIZE_IN_BYTES.getPreferredName()));
+            request.setMaxOperationSizeInBytes(value);
         }
         if (restRequest.hasParam(ShardFollowTask.MAX_WRITE_SIZE.getPreferredName())) {
             request.setMaxWriteSize(Integer.valueOf(restRequest.param(ShardFollowTask.MAX_WRITE_SIZE.getPreferredName())));

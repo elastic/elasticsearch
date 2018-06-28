@@ -42,7 +42,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     static final ParseField HEADERS = new ParseField("headers");
     public static final ParseField MAX_READ_SIZE = new ParseField("max_read_size");
     public static final ParseField MAX_CONCURRENT_READS = new ParseField("max_concurrent_reads");
-    public static final ParseField MAX_TRANSLOG_BYTES_PER_REQUEST = new ParseField("max_translog_bytes");
+    public static final ParseField MAX_OPERATION_SIZE_IN_BYTES = new ParseField("max_operation_size_in_bytes");
     public static final ParseField MAX_WRITE_SIZE = new ParseField("max_write_size");
     public static final ParseField MAX_CONCURRENT_WRITES = new ParseField("max_concurrent_writes");
     public static final ParseField MAX_BUFFER_SIZE = new ParseField("max_buffer_size");
@@ -63,7 +63,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), LEADER_SHARD_SHARDID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_READ_SIZE);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_CONCURRENT_READS);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAX_TRANSLOG_BYTES_PER_REQUEST);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAX_OPERATION_SIZE_IN_BYTES);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_WRITE_SIZE);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_CONCURRENT_WRITES);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_BUFFER_SIZE);
@@ -75,21 +75,21 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     private final ShardId leaderShardId;
     private final int maxReadSize;
     private final int maxConcurrentReads;
-    private final long maxTranslogBytes;
+    private final long maxOperationSizeInBytes;
     private final int maxWriteSize;
     private final int maxConcurrentWrites;
     private final int maxBufferSize;
     private final Map<String, String> headers;
 
     ShardFollowTask(String leaderClusterAlias, ShardId followShardId, ShardId leaderShardId, int maxReadSize,
-                    int maxConcurrentReads, long maxTranslogBytes, int maxWriteSize, int maxConcurrentWrites,
+                    int maxConcurrentReads, long maxOperationSizeInBytes, int maxWriteSize, int maxConcurrentWrites,
                     int maxBufferSize, Map<String, String> headers) {
         this.leaderClusterAlias = leaderClusterAlias;
         this.followShardId = followShardId;
         this.leaderShardId = leaderShardId;
         this.maxReadSize = maxReadSize;
         this.maxConcurrentReads = maxConcurrentReads;
-        this.maxTranslogBytes = maxTranslogBytes;
+        this.maxOperationSizeInBytes = maxOperationSizeInBytes;
         this.maxWriteSize = maxWriteSize;
         this.maxConcurrentWrites = maxConcurrentWrites;
         this.maxBufferSize = maxBufferSize;
@@ -102,7 +102,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         this.leaderShardId = ShardId.readShardId(in);
         this.maxReadSize = in.readVInt();
         this.maxConcurrentReads = in.readVInt();
-        this.maxTranslogBytes = in.readVLong();
+        this.maxOperationSizeInBytes = in.readVLong();
         this.maxWriteSize = in.readVInt();
         this.maxConcurrentWrites= in.readVInt();
         this.maxBufferSize = in.readVInt();
@@ -141,8 +141,8 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         return maxBufferSize;
     }
 
-    public long getMaxTranslogBytes() {
-        return maxTranslogBytes;
+    public long getMaxOperationSizeInBytes() {
+        return maxOperationSizeInBytes;
     }
 
     public Map<String, String> getHeaders() {
@@ -161,7 +161,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         leaderShardId.writeTo(out);
         out.writeVLong(maxReadSize);
         out.writeVInt(maxConcurrentReads);
-        out.writeVLong(maxTranslogBytes);
+        out.writeVLong(maxOperationSizeInBytes);
         out.writeVInt(maxWriteSize);
         out.writeVInt(maxConcurrentWrites);
         out.writeVInt(maxBufferSize);
@@ -205,7 +205,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
             builder.field(MAX_CONCURRENT_READS.getPreferredName(), maxConcurrentReads);
         }
         {
-            builder.field(MAX_TRANSLOG_BYTES_PER_REQUEST.getPreferredName(), maxTranslogBytes);
+            builder.field(MAX_OPERATION_SIZE_IN_BYTES.getPreferredName(), maxOperationSizeInBytes);
         }
         {
             builder.field(MAX_WRITE_SIZE.getPreferredName(), maxWriteSize);
@@ -234,7 +234,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
                 maxConcurrentReads == that.maxConcurrentReads &&
                 maxWriteSize == that.maxWriteSize &&
                 maxConcurrentWrites == that.maxConcurrentWrites &&
-                maxTranslogBytes == that.maxTranslogBytes &&
+                maxOperationSizeInBytes == that.maxOperationSizeInBytes &&
                 maxBufferSize == that.maxBufferSize &&
                 Objects.equals(headers, that.headers);
     }
@@ -242,7 +242,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     @Override
     public int hashCode() {
         return Objects.hash(leaderClusterAlias, followShardId, leaderShardId, maxReadSize, maxConcurrentReads,
-            maxWriteSize, maxConcurrentWrites, maxTranslogBytes, maxBufferSize, headers);
+            maxWriteSize, maxConcurrentWrites, maxOperationSizeInBytes, maxBufferSize, headers);
     }
 
     public String toString() {

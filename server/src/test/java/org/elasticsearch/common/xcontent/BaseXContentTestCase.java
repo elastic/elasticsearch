@@ -863,7 +863,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     /**
      * Test that the same map written multiple times do not trigger the self-reference check in
-     * {@link CollectionUtils#ensureNoSelfReferences(Object)}
+     * {@link CollectionUtils#ensureNoSelfReferences(Object, String)} (Object)}
      */
     public void testRepeatedMapsAndNoSelfReferences() throws Exception {
         Map<String, Object> mapB = singletonMap("b", "B");

@@ -132,7 +132,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * To find the right position in the root query, we add a marker as `queryName` which
      * all query builders support. The added bogus field after that should trigger the exception.
      * Queries that allow arbitrary field names at this level need to override this test.
-     * @throws IOException
      */
     public void testUnknownField() throws IOException {
         String marker = "#marker#";

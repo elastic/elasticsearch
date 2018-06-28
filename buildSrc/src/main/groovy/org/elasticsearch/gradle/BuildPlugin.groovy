@@ -348,7 +348,9 @@ class BuildPlugin implements Plugin<Project> {
                 // just a self contained test-fixture configuration, likely transitive and hellacious
                 return
             }
-            configuration.resolutionStrategy.failOnVersionConflict()
+            configuration.resolutionStrategy { 
+                failOnVersionConflict()
+            }
         })
 
         // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
@@ -475,13 +477,17 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
 
-            project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom t ->
-                // place the pom next to the jar it is for
-                t.destination = new File(project.buildDir, "distributions/${project.archivesBaseName}-${project.version}.pom")
-                // build poms with assemble (if the assemble task exists)
-                Task assemble = project.tasks.findByName('assemble')
-                if (assemble) {
-                    assemble.dependsOn(t)
+            // Work around Gradle 4.8 issue until we `enableFeaturePreview('STABLE_PUBLISHING')`
+            // https://github.com/gradle/gradle/issues/5696#issuecomment-396965185
+            project.getGradle().getTaskGraph().whenReady {
+                project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom t ->
+                    // place the pom next to the jar it is for
+                    t.destination = new File(project.buildDir, "distributions/${project.archivesBaseName}-${project.version}.pom")
+                    // build poms with assemble (if the assemble task exists)
+                    Task assemble = project.tasks.findByName('assemble')
+                    if (assemble) {
+                        assemble.dependsOn(t)
+                    }
                 }
             }
         }
@@ -625,6 +631,10 @@ class BuildPlugin implements Plugin<Project> {
                         jarTask.manifest.attributes('Change': shortHash)
                     }
                 }
+                // Force manifest entries that change by nature to a constant to be able to compare builds more effectively
+                if (System.properties.getProperty("build.compare_friendly", "false") == "true") {
+                    jarTask.manifest.getAttributes().clear()
+                }
             }
             // add license/notice files
             project.afterEvaluate {
@@ -741,7 +751,7 @@ class BuildPlugin implements Plugin<Project> {
         project.extensions.add('additionalTest', { String name, Closure config ->
             RandomizedTestingTask additionalTest = project.tasks.create(name, RandomizedTestingTask.class)
             additionalTest.classpath = test.classpath
-            additionalTest.testClassesDir = test.testClassesDir
+            additionalTest.testClassesDirs = test.testClassesDirs
             additionalTest.configure(commonTestConfig(project))
             additionalTest.configure(config)
             additionalTest.dependsOn(project.tasks.testClasses)

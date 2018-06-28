@@ -1010,8 +1010,8 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Adapts an <code>Iterator<DeadNodeAndRevival></code> into an
-     * <code>Iterator<Node></code>.
+     * Adapts an <code>Iterator&lt;DeadNodeAndRevival&gt;</code> into an
+     * <code>Iterator&lt;Node&gt;</code>.
      */
     private static class DeadNodeIteratorAdapter implements Iterator<Node> {
         private final Iterator<DeadNode> itr;

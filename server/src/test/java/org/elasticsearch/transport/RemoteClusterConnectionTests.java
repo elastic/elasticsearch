@@ -77,6 +77,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -854,7 +855,13 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                                     throw new AssertionError(x);
                                                 }
                                         });
-                                        connection.updateSeedNodes(seedNodes, listener);
+                                        try {
+                                            connection.updateSeedNodes(seedNodes, listener);
+                                        } catch (Exception e) {
+                                            // it's ok if we're shutting down
+                                            assertThat(e.getMessage(), containsString("threadcontext is already closed"));
+                                            latch.countDown();
+                                        }
                                     }
                                     latch.await();
                                 } catch (Exception ex) {

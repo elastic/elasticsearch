@@ -143,8 +143,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             final Set<String> indices = bulkRequest.requests.stream()
                     // delete requests should not attempt to create the index (if the index does not
                     // exists), unless an external versioning is used
-                .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE 
-                        || request.versionType() == VersionType.EXTERNAL 
+                .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE
+                        || request.versionType() == VersionType.EXTERNAL
                         || request.versionType() == VersionType.EXTERNAL_GTE)
                 .map(DocWriteRequest::index)
                 .collect(Collectors.toSet());
@@ -184,7 +184,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
                                 // fail all requests involving this index, if create didn't work
                                 for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                                    DocWriteRequest request = bulkRequest.requests.get(i);
+                                    DocWriteRequest<?> request = bulkRequest.requests.get(i);
                                     if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
                                         bulkRequest.requests.set(i, null);
                                     }
@@ -221,7 +221,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         client.admin().indices().create(createIndexRequest, listener);
     }
 
-    private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest request, String index, Exception e) {
+    private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest<?> request, String index, Exception e) {
         if (index.equals(request.index())) {
             responses.set(idx, new BulkItemResponse(idx, request.opType(), new BulkItemResponse.Failure(request.index(), request.type(), request.id(), e)));
             return true;
@@ -271,7 +271,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
             MetaData metaData = clusterState.metaData();
             for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                DocWriteRequest docWriteRequest = bulkRequest.requests.get(i);
+                DocWriteRequest<?> docWriteRequest = bulkRequest.requests.get(i);
                 //the request can only be null because we set it to null in the previous step, so it gets ignored
                 if (docWriteRequest == null) {
                     continue;
@@ -315,7 +315,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // first, go over all the requests and create a ShardId -> Operations mapping
             Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
             for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                DocWriteRequest request = bulkRequest.requests.get(i);
+                DocWriteRequest<?> request = bulkRequest.requests.get(i);
                 if (request == null) {
                     continue;
                 }
@@ -362,7 +362,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // create failures for all relevant requests
                         for (BulkItemRequest request : requests) {
                             final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
-                            DocWriteRequest docWriteRequest = request.request();
+                            DocWriteRequest<?> docWriteRequest = request.request();
                             responses.set(request.id(), new BulkItemResponse(request.id(), docWriteRequest.opType(),
                                     new BulkItemResponse.Failure(indexName, docWriteRequest.type(), docWriteRequest.id(), e)));
                         }
@@ -418,7 +418,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             });
         }
 
-        private boolean addFailureIfIndexIsUnavailable(DocWriteRequest request, int idx, final ConcreteIndices concreteIndices,
+        private boolean addFailureIfIndexIsUnavailable(DocWriteRequest<?> request, int idx, final ConcreteIndices concreteIndices,
                 final MetaData metaData) {
             IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
             if (cannotCreate != null) {
@@ -442,7 +442,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return false;
         }
 
-        private void addFailure(DocWriteRequest request, int idx, Exception unavailableException) {
+        private void addFailure(DocWriteRequest<?> request, int idx, Exception unavailableException) {
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.type(), request.id(),
                     unavailableException);
             BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, request.opType(), failure);
@@ -471,7 +471,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return indices.get(indexOrAlias);
         }
 
-        Index resolveIfAbsent(DocWriteRequest request) {
+        Index resolveIfAbsent(DocWriteRequest<?> request) {
             Index concreteIndex = indices.get(request.index());
             if (concreteIndex == null) {
                 concreteIndex = indexNameExpressionResolver.concreteSingleIndex(state, request);
@@ -512,7 +512,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         });
     }
 
-    static final class BulkRequestModifier implements Iterator<DocWriteRequest> {
+    static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
 
         final BulkRequest bulkRequest;
         final SparseFixedBitSet failedSlots;
@@ -528,7 +528,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         @Override
-        public DocWriteRequest next() {
+        public DocWriteRequest<?> next() {
             return bulkRequest.requests().get(++currentSlot);
         }
 
@@ -547,10 +547,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 modifiedBulkRequest.timeout(bulkRequest.timeout());
 
                 int slot = 0;
-                List<DocWriteRequest> requests = bulkRequest.requests();
+                List<DocWriteRequest<?>> requests = bulkRequest.requests();
                 originalSlots = new int[requests.size()]; // oversize, but that's ok
                 for (int i = 0; i < requests.size(); i++) {
-                    DocWriteRequest request = requests.get(i);
+                    DocWriteRequest<?> request = requests.get(i);
                     if (failedSlots.get(i) == false) {
                         modifiedBulkRequest.add(request);
                         originalSlots[slot++] = i;

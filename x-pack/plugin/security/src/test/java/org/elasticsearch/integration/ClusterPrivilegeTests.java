@@ -9,7 +9,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -33,11 +35,6 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
                     "  indices:\n" +
                     "    - names: 'someindex'\n" +
                     "      privileges: [ all ]\n";
-
-    private static final String USERS =
-                    "user_a:" + USERS_PASSWD_HASHED + "\n" +
-                    "user_b:" + USERS_PASSWD_HASHED + "\n" +
-                    "user_c:" + USERS_PASSWD_HASHED + "\n";
 
     private static final String USERS_ROLES =
                     "role_a:user_a\n" +
@@ -71,7 +68,13 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
 
     @Override
     protected String configUsers() {
-        return super.configUsers() + USERS;
+        final String usersPasswdHashed = new String(Hasher.resolve(
+            randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(new SecureString("passwd".toCharArray())));
+        return super.configUsers() +
+            "user_a:" + usersPasswdHashed + "\n" +
+            "user_b:" + usersPasswdHashed + "\n" +
+            "user_c:" + usersPasswdHashed + "\n";
+
     }
 
     @Override

@@ -10,6 +10,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.Before;
 
@@ -86,22 +87,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     "      privileges: [ index ]\n" +
                     "\n";
 
-    private static final String USERS =
-            "admin:" + USERS_PASSWD_HASHED + "\n" +
-            "u1:" + USERS_PASSWD_HASHED + "\n" +
-            "u2:" + USERS_PASSWD_HASHED + "\n" +
-            "u3:" + USERS_PASSWD_HASHED + "\n" +
-            "u4:" + USERS_PASSWD_HASHED + "\n" +
-            "u5:" + USERS_PASSWD_HASHED + "\n" +
-            "u6:" + USERS_PASSWD_HASHED + "\n" +
-            "u7:" + USERS_PASSWD_HASHED + "\n"+
-            "u8:" + USERS_PASSWD_HASHED + "\n"+
-            "u9:" + USERS_PASSWD_HASHED + "\n" +
-            "u11:" + USERS_PASSWD_HASHED + "\n" +
-            "u12:" + USERS_PASSWD_HASHED + "\n" +
-            "u13:" + USERS_PASSWD_HASHED + "\n" +
-            "u14:" + USERS_PASSWD_HASHED + "\n";
-
     private static final String USERS_ROLES =
             "all_indices_role:admin,u8\n" +
             "all_cluster_role:admin\n" +
@@ -133,7 +118,24 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     @Override
     protected String configUsers() {
-        return super.configUsers() + USERS;
+        final String usersPasswdHashed = new String(Hasher.resolve(
+            randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(new SecureString("passwd".toCharArray())));
+
+        return super.configUsers() +
+            "admin:" + usersPasswdHashed + "\n" +
+            "u1:" + usersPasswdHashed + "\n" +
+            "u2:" + usersPasswdHashed + "\n" +
+            "u3:" + usersPasswdHashed + "\n" +
+            "u4:" + usersPasswdHashed + "\n" +
+            "u5:" + usersPasswdHashed + "\n" +
+            "u6:" + usersPasswdHashed + "\n" +
+            "u7:" + usersPasswdHashed + "\n" +
+            "u8:" + usersPasswdHashed + "\n" +
+            "u9:" + usersPasswdHashed + "\n" +
+            "u11:" + usersPasswdHashed + "\n" +
+            "u12:" + usersPasswdHashed + "\n" +
+            "u13:" + usersPasswdHashed + "\n" +
+            "u14:" + usersPasswdHashed + "\n";
     }
 
     @Override

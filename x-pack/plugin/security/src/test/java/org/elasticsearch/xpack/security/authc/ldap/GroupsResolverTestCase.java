@@ -18,6 +18,7 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 public abstract class GroupsResolverTestCase extends ESTestCase {
@@ -34,8 +35,9 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
 
     @Before
     public void setUpLdapConnection() throws Exception {
-        Path truststore = getDataPath(trustPath());
-        this.ldapConnection = LdapTestUtils.openConnection(ldapUrl(), bindDN(), bindPassword(), truststore);
+        Path trustPath = getDataPath(trustPath());
+        List<String> certificatePaths = Collections.singletonList(trustPath.toString());
+        this.ldapConnection = LdapTestUtils.openConnection(ldapUrl(), bindDN(), bindPassword(), certificatePaths);
     }
 
     @After

@@ -42,7 +42,10 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.security.UnrecoverableKeyException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
@@ -76,6 +79,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * Tests reloading a keystore that is used in the KeyManager of SSLContext
      */
     public void testReloadingKeyStore() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         final Path tempDir = createTempDir();
         final Path keystorePath = tempDir.resolve("testnode.jks");
         final Path updatedKeystorePath = tempDir.resolve("testnode_updated.jks");
@@ -133,12 +137,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path updatedKeyPath = tempDir.resolve("testnode_updated.pem");
         Path certPath = tempDir.resolve("testnode.crt");
         Path updatedCertPath = tempDir.resolve("testnode_updated.crt");
-        final Path clientTruststorePath = tempDir.resolve("testnode.jks");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"), keyPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.pem"), updatedKeyPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt"), updatedCertPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"), certPath);
-        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), clientTruststorePath);
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         final Settings settings = Settings.builder()
@@ -150,7 +152,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         final Environment env = randomBoolean() ? null :
             TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         // Load HTTPClient once. Client uses a keystore containing testnode key/cert as a truststore
-        try (CloseableHttpClient client = getSSLClient(clientTruststorePath, "testnode")) {
+        try (CloseableHttpClient client = getSSLClient(Collections.singletonList(certPath))) {
             final Consumer<SSLContext> keyMaterialPreChecks = (context) -> {
                 try (MockWebServer server = new MockWebServer(context, false)) {
                     server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
@@ -190,6 +192,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * reloadable SSLContext used in the HTTPClient) and as a KeyStore for the MockWebServer
      */
     public void testReloadingTrustStore() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         Path tempDir = createTempDir();
         Path trustStorePath = tempDir.resolve("testnode.jks");
         Path updatedTruststorePath = tempDir.resolve("testnode_updated.jks");
@@ -239,19 +242,19 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      */
     public void testReloadingPEMTrustConfig() throws Exception {
         Path tempDir = createTempDir();
-        Path clientCertPath = tempDir.resolve("testnode.crt");
-        Path keyStorePath = tempDir.resolve("testnode.jks");
-        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), keyStorePath);
+        Path serverCertPath = tempDir.resolve("testnode.crt");
+        Path serverKeyPath = tempDir.resolve("testnode.pem");
         //Our keystore contains two Certificates it can present. One build from the RSA keypair and one build from the EC keypair. EC is
         // used since it keyManager presents the first one in alias alphabetical order (and testnode_ec comes before testnode_rsa)
-        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"), clientCertPath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"), serverCertPath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"), serverKeyPath);
         Settings settings = Settings.builder()
-            .putList("xpack.ssl.certificate_authorities", clientCertPath.toString())
+            .putList("xpack.ssl.certificate_authorities", serverCertPath.toString())
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         // Create the MockWebServer once for both pre and post checks
-        try (MockWebServer server = getSslServer(keyStorePath, "testnode")) {
+        try (MockWebServer server = getSslServer(serverKeyPath, serverCertPath, "testnode")) {
             final Consumer<SSLContext> trustMaterialPreChecks = (context) -> {
                 try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
                     privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close());
@@ -265,7 +268,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                     Path updatedCert = tempDir.resolve("updated.crt");
                     Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt"),
                         updatedCert, StandardCopyOption.REPLACE_EXISTING);
-                    atomicMoveIfPossible(updatedCert, clientCertPath);
+                    atomicMoveIfPossible(updatedCert, serverCertPath);
                 } catch (Exception e) {
                     throw new RuntimeException("failed to modify file", e);
                 }
@@ -276,7 +279,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 try (CloseableHttpClient client = HttpClients.custom().setSSLContext(updatedContext).build()) {
                     SSLHandshakeException sslException = expectThrows(SSLHandshakeException.class, () ->
                         privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close()));
-                    assertThat(sslException.getCause().getMessage(), containsString("PKIX path building failed"));
+                    assertThat(sslException.getCause().getMessage(), containsString("PKIX path validation failed"));
                 } catch (Exception e) {
                     throw new RuntimeException("Error closing CloseableHttpClient", e);
                 }
@@ -290,6 +293,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * that is being monitored
      */
     public void testReloadingKeyStoreException() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         Path tempDir = createTempDir();
         Path keystorePath = tempDir.resolve("testnode.jks");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), keystorePath);
@@ -481,12 +485,43 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         return server;
     }
 
+    private static MockWebServer getSslServer(Path keyPath, Path certPath, String password) throws KeyStoreException, CertificateException,
+        NoSuchAlgorithmException, IOException, KeyManagementException, UnrecoverableKeyException {
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        keyStore.load(null, password.toCharArray());
+        keyStore.setKeyEntry("testnode_ec", PemUtils.readPrivateKey(keyPath, password::toCharArray), password.toCharArray(),
+            CertParsingUtils.readCertificates(Collections.singletonList(certPath)));
+        final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, password.toCharArray())
+            .build();
+        MockWebServer server = new MockWebServer(sslContext, false);
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
+        server.start();
+        return server;
+    }
+
     private static CloseableHttpClient getSSLClient(Path trustStorePath, String trustStorePass) throws KeyStoreException,
         NoSuchAlgorithmException,
         KeyManagementException, IOException, CertificateException {
         KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
         try (InputStream is = Files.newInputStream(trustStorePath)) {
             trustStore.load(is, trustStorePass.toCharArray());
+        }
+        final SSLContext sslContext = new SSLContextBuilder().loadTrustMaterial(trustStore, null).build();
+        return HttpClients.custom().setSSLContext(sslContext).build();
+    }
+
+    /**
+     * Creates a {@link CloseableHttpClient} that only trusts the given certificate(s)
+     *
+     * @param trustedCertificatePaths The certificates this client trusts
+     **/
+    private static CloseableHttpClient getSSLClient(List<Path> trustedCertificatePaths) throws KeyStoreException,
+        NoSuchAlgorithmException,
+        KeyManagementException, IOException, CertificateException {
+        KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        trustStore.load(null, null);
+        for (Certificate cert : CertParsingUtils.readCertificates(trustedCertificatePaths)) {
+            trustStore.setCertificateEntry(cert.toString(), cert);
         }
         final SSLContext sslContext = new SSLContextBuilder().loadTrustMaterial(trustStore, null).build();
         return HttpClients.custom().setSSLContext(sslContext).build();

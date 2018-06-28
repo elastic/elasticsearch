@@ -8,7 +8,6 @@ package org.elasticsearch.test;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPException;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -33,6 +32,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -53,7 +53,7 @@ public class OpenLdapTests extends ESTestCase {
 
     public static final String PASSWORD = "NickFuryHeartsES";
     private static final String HAWKEYE_DN = "uid=hawkeye,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-    public static final String LDAPTRUST_PATH = "/idptrust.jks";
+    public static final String LDAPCACERT_PATH = "/ca.crt";
     private static final SecureString PASSWORD_SECURE_STRING = new SecureString(PASSWORD.toCharArray());
 
     private boolean useGlobalSSL;
@@ -78,33 +78,27 @@ public class OpenLdapTests extends ESTestCase {
 
     @Before
     public void initializeSslSocketFactory() throws Exception {
-        Path truststore = getDataPath(LDAPTRUST_PATH);
+        Path certificateAuthority = getDataPath(LDAPCACERT_PATH);
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
         useGlobalSSL = randomBoolean();
-        MockSecureSettings mockSecureSettings = new MockSecureSettings();
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
         if (useGlobalSSL) {
-            builder.put("xpack.ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.ssl.truststore.secure_password", "changeit");
-
+            builder.put("xpack.ssl.certificate_authorities", certificateAuthority);
             // fake realm to load config with certificate verification mode
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.security.authc.realms.bar.ssl.truststore.secure_password", "changeit");
+            builder.put("xpack.security.authc.realms.bar.ssl.certificate_authorities", certificateAuthority);
             builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         } else {
             // fake realms so ssl will get loaded
-            builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.security.authc.realms.foo.ssl.truststore.secure_password", "changeit");
+            builder.put("xpack.security.authc.realms.foo.ssl.certificate_authorities", certificateAuthority);
             builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.security.authc.realms.bar.ssl.truststore.secure_password", "changeit");
+            builder.put("xpack.security.authc.realms.bar.ssl.certificate_authorities", certificateAuthority);
             builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         }
-        globalSettings = builder.setSecureSettings(mockSecureSettings).build();
+        globalSettings = builder.build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
         sslService = new SSLService(globalSettings, environment);
     }
@@ -259,10 +253,7 @@ public class OpenLdapTests extends ESTestCase {
         if (useGlobalSSL) {
             return builder.build();
         }
-        return builder
-                .put("ssl.truststore.path", getDataPath(LDAPTRUST_PATH))
-                .put("ssl.truststore.password", "changeit")
-                .build();
+        return builder.put("ssl.certificate_authorities", getDataPath(LDAPCACERT_PATH)).build();
     }
 
     private LdapSession session(SessionFactory factory, String username, SecureString password) {
@@ -278,8 +269,9 @@ public class OpenLdapTests extends ESTestCase {
     }
 
     private LDAPConnection setupOpenLdapConnection() throws Exception {
-        Path truststore = getDataPath(LDAPTRUST_PATH);
-        return LdapTestUtils.openConnection(OpenLdapTests.OPEN_LDAP_DNS_URL, HAWKEYE_DN, OpenLdapTests.PASSWORD, truststore);
+        Path certificateAuthorities = getDataPath(LDAPCACERT_PATH);
+        return LdapTestUtils.openConnection(OpenLdapTests.OPEN_LDAP_DNS_URL, HAWKEYE_DN, OpenLdapTests.PASSWORD, Collections
+            .singletonList(certificateAuthorities.toString()));
     }
 
     private Map<String, Object> resolve(LDAPConnection connection, LdapMetaDataResolver resolver) throws Exception {

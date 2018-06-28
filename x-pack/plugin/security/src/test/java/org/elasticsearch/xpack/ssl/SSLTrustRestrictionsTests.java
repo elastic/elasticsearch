@@ -32,8 +32,10 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
+import java.security.Security;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
@@ -71,6 +73,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
     @BeforeClass
     public static void setupCertificates() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, custom TrustManager implementations cannot be used.", inFipsJvm());
         configPath = createTempDir();
         Path caCertPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
                 ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt").toURI());

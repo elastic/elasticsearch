@@ -61,6 +61,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -137,6 +138,11 @@ public class InstallPluginCommandTests extends ESTestCase {
         PathUtilsForTesting.installMock(fs);
         javaIoTmpdir = System.getProperty("java.io.tmpdir");
         System.setProperty("java.io.tmpdir", temp.apply("tmpdir").toString());
+    }
+
+    @BeforeClass
+    public static void testIfFipsMode() {
+        assumeFalse("Can't run in a FIPS JVM because this depends on BouncyCastle (non-fips)", inFipsJvm());
     }
 
     @Override

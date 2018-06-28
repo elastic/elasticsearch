@@ -10,15 +10,15 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.modules.13.name: x-pack-ccr  }
-    - match:  { nodes.$master.modules.14.name: x-pack-core  }
-    - match:  { nodes.$master.modules.15.name: x-pack-deprecation  }
-    - match:  { nodes.$master.modules.16.name: x-pack-graph  }
-    - match:  { nodes.$master.modules.17.name: x-pack-logstash  }
-    - match:  { nodes.$master.modules.18.name: x-pack-ml  }
-    - match:  { nodes.$master.modules.19.name: x-pack-monitoring  }
-    - match:  { nodes.$master.modules.20.name: x-pack-rollup }
-    - match:  { nodes.$master.modules.21.name: x-pack-security  }
-    - match:  { nodes.$master.modules.22.name: x-pack-sql  }
-    - match:  { nodes.$master.modules.23.name: x-pack-upgrade  }
-    - match:  { nodes.$master.modules.24.name: x-pack-watcher  }
+    - contains:  { nodes.$master.modules: { name: x-pack-ccr } }
+    - contains:  { nodes.$master.modules: { name: x-pack-core } }
+    - contains:  { nodes.$master.modules: { name: x-pack-deprecation } }
+    - contains:  { nodes.$master.modules: { name: x-pack-graph } }
+    - contains:  { nodes.$master.modules: { name: x-pack-logstash } }
+    - contains:  { nodes.$master.modules: { name: x-pack-ml } }
+    - contains:  { nodes.$master.modules: { name: x-pack-monitoring } }
+    - contains:  { nodes.$master.modules: { name: x-pack-rollup } }
+    - contains:  { nodes.$master.modules: { name: x-pack-security } }
+    - contains:  { nodes.$master.modules: { name: x-pack-sql } }
+    - contains:  { nodes.$master.modules: { name: x-pack-upgrade } }
+    - contains:  { nodes.$master.modules: { name: x-pack-watcher } }

@@ -112,7 +112,7 @@ teardown:
     - do:
         nodes.info: {}
 
-    - match: { nodes.$master.modules.0.name: repository-url }
+    - contains: { nodes.$master.modules: { name: repository-url } }
 
 ---
 "Restore with repository-url using http://":

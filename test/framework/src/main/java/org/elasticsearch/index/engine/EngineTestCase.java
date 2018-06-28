@@ -827,6 +827,10 @@ public abstract class EngineTestCase extends ESTestCase {
         if (mapper.documentMapper() == null || engine.config().getIndexSettings().isSoftDeleteEnabled() == false) {
             return;
         }
+        final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
+        if (maxSeqNo < 0) {
+            return; // nothing to check
+        }
         final Map<Long, Translog.Operation> translogOps = new HashMap<>();
         try (Translog.Snapshot snapshot = EngineTestCase.getTranslog(engine).newSnapshot()) {
             Translog.Operation op;
@@ -838,7 +842,6 @@ public abstract class EngineTestCase extends ESTestCase {
             .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
         final long globalCheckpoint = EngineTestCase.getTranslog(engine).getLastSyncedGlobalCheckpoint();
         final long retainedOps = engine.config().getIndexSettings().getSoftDeleteRetentionOperations();
-        long maxSeqNo = Math.max(0, ((InternalEngine)engine).getLocalCheckpointTracker().getMaxSeqNo());
         final long seqNoForRecovery;
         try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
             seqNoForRecovery = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;

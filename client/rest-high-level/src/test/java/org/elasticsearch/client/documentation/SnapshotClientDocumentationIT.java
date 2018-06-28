@@ -466,8 +466,12 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         createTestSnapshots();
 
         // tag::get-snapshots-request
-        GetSnapshotsRequest request = new GetSnapshotsRequest(repositoryName);
+        GetSnapshotsRequest request = new GetSnapshotsRequest();
         // end::get-snapshots-request
+
+        // tag::get-snapshots-request-repositoryName
+        request.repository(repositoryName);
+        // end::get-snapshots-request-repositoryName
 
         // tag::get-snapshots-request-snapshots
         String[] snapshots = { snapshotName };
@@ -500,13 +504,13 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
     public void testSnapshotGetSnapshotsAsync() throws InterruptedException {
         RestHighLevelClient client = highLevelClient();
         {
-            GetSnapshotsRequest request = new GetSnapshotsRequest();
+            GetSnapshotsRequest request = new GetSnapshotsRequest(repositoryName);
 
             // tag::get-snapshots-execute-listener
             ActionListener<GetSnapshotsResponse> listener =
                 new ActionListener<GetSnapshotsResponse>() {
                     @Override
-                    public void onResponse(GetSnapshotsResponse deleteSnapshotResponse) {
+                    public void onResponse(GetSnapshotsResponse getSnapshotsResponse) {
                         // <1>
                     }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 
 import java.nio.charset.StandardCharsets;
@@ -30,6 +31,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
+@TestLogging("org.elasticsearch.xpack.ccr.action:TRACE")
 public class ShardFollowNodeTaskTests extends ESTestCase {
 
     private ShardFollowNodeTask task;

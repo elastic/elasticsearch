@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -125,40 +126,40 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         if (lastRequestedSeqno < leaderGlobalCheckpoint) {
             while (true) {
                 if (lastRequestedSeqno >= leaderGlobalCheckpoint) {
-                    LOGGER.debug("{} no new reads to coordinate lastRequestedSeqno [{}] leaderGlobalCheckpoint [{}]",
+                    LOGGER.trace("{} no new reads to coordinate lastRequestedSeqno [{}] leaderGlobalCheckpoint [{}]",
                         params.getLeaderShardId(), lastRequestedSeqno, leaderGlobalCheckpoint);
                     break;
                 }
                 if (numConcurrentReads >= maxConcurrentReads) {
-                    LOGGER.debug("{} no new reads, maximum number of concurrent reads have been reached [{}]",
+                    LOGGER.trace("{} no new reads, maximum number of concurrent reads have been reached [{}]",
                         params.getFollowShardId(), numConcurrentReads);
                     break;
                 }
                 if (buffer.size() > params.getMaxBufferSize()) {
-                    LOGGER.debug("{} no new reads, buffer limit has been reached [{}]", params.getFollowShardId(), buffer.size());
+                    LOGGER.trace("{} no new reads, buffer limit has been reached [{}]", params.getFollowShardId(), buffer.size());
                     break;
                 }
                 numConcurrentReads++;
                 long from = lastRequestedSeqno + 1;
                 long to = from + maxReadSize <= leaderGlobalCheckpoint ? from + maxReadSize : leaderGlobalCheckpoint;
-                LOGGER.debug("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, from, to);
+                LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, from, to);
                 sendShardChangesRequest(from, to, true);
                 lastRequestedSeqno = to;
             }
             if (numConcurrentReads == 0) {
-                LOGGER.debug("{} re-scheduling coordinate reads phase", params.getFollowShardId());
+                LOGGER.trace("{} re-scheduling coordinate reads phase", params.getFollowShardId());
                 scheduler.accept(TimeValue.timeValueMillis(500), this::coordinateReads);
             }
         } else {
             if (numConcurrentReads == 0) {
-                LOGGER.debug("{} scheduling peek read", params.getFollowShardId());
+                LOGGER.trace("{} scheduling peek read", params.getFollowShardId());
                 scheduler.accept(TimeValue.timeValueMillis(500), () -> {
                     synchronized (this) {
                         // We sneak peek if there is any thing new in the leader primary.
                         // If there is we will happily accept
                         numConcurrentReads++;
                         long from = lastRequestedSeqno + 1;
-                        LOGGER.debug("{}[{}] peek read [{}]", params.getFollowShardId(), numConcurrentReads, from);
+                        LOGGER.trace("{}[{}] peek read [{}]", params.getFollowShardId(), numConcurrentReads, from);
                         sendShardChangesRequest(from, from + maxReadSize, false);
                     }
                 });
@@ -169,11 +170,11 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
     private synchronized void coordinateWrites() {
         while (true) {
             if (buffer.isEmpty()) {
-                LOGGER.debug("{} no writes to coordinate, because buffer is empty", params.getFollowShardId());
+                LOGGER.trace("{} no writes to coordinate, because buffer is empty", params.getFollowShardId());
                 break;
             }
             if (numConcurrentWrites >= params.getMaxConcurrentWrites()) {
-                LOGGER.debug("{} maximum number of concurrent writes have been reached [{}]",
+                LOGGER.trace("{} maximum number of concurrent writes have been reached [{}]",
                     params.getFollowShardId(), numConcurrentWrites);
                 break;
             }
@@ -182,7 +183,7 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
                 ops[i] = buffer.remove();
             }
             numConcurrentWrites++;
-            LOGGER.debug("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numConcurrentWrites, ops[0].seqNo(),
+            LOGGER.trace("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numConcurrentWrites, ops[0].seqNo(),
                 ops[ops.length - 1].seqNo(), ops.length);
             sendBulkShardOperationsRequest(ops);
         }
@@ -212,12 +213,12 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
                     assert firstOp.seqNo() == from;
                     Translog.Operation lastOp = response.getOperations()[response.getOperations().length - 1];
 
-                    LOGGER.debug("{} received [{}/{}]", params.getFollowShardId(), firstOp.seqNo(), lastOp.seqNo());
+                    LOGGER.trace("{} received [{}/{}]", params.getFollowShardId(), firstOp.seqNo(), lastOp.seqNo());
                     buffer.addAll(Arrays.asList(response.getOperations()));
                     if (checkLastOpReceived) {
                         if (lastOp.seqNo() < to) {
                             long newFrom = lastOp.seqNo() + 1;
-                            LOGGER.debug("{} received [{}] as last op while [{}] was expected, continue to read [{}/{}]...",
+                            LOGGER.trace("{} received [{}] as last op while [{}] was expected, continue to read [{}/{}]...",
                                 params.getFollowShardId(), lastOp.seqNo(), to, newFrom, to);
                             sendShardChangesRequest(newFrom, to, true);
                         } else {
@@ -225,7 +226,7 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
                         }
                     } else {
                         lastRequestedSeqno = Math.max(lastRequestedSeqno, lastOp.seqNo());
-                        LOGGER.debug("{} post updating lastRequestedSeqno to [{}]", params.getFollowShardId(), lastRequestedSeqno);
+                        LOGGER.trace("{} post updating lastRequestedSeqno to [{}]", params.getFollowShardId(), lastRequestedSeqno);
                         numConcurrentReads--;
                     }
                     if (numConcurrentWrites == 0) {
@@ -276,7 +277,8 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         assert e != null;
         if (shouldRetry(e)) {
             if (isStopped() == false && retryCounter.incrementAndGet() <= RETRY_LIMIT) {
-                LOGGER.warn("error during follow shard task, retrying...", e);
+                LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying...",
+                    new Object[]{params.getFollowShardId()}, e));
                 scheduler.accept(RETRY_TIMEOUT, task);
             } else {
                 markAsFailed(new ElasticsearchException("retrying failed [" + retryCounter.get() +

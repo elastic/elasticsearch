@@ -70,7 +70,7 @@ public class DocumentMapper implements ToXContentFragment {
                 final String name = entry.getKey();
                 final MetadataFieldMapper existingMetadataMapper = existingMapper == null
                         ? null
-                        : (MetadataFieldMapper) existingMapper.mappers().getFieldMapper(name);
+                        : (MetadataFieldMapper) existingMapper.mappers().getMapper(name);
                 final MetadataFieldMapper metadataMapper;
                 if (existingMetadataMapper == null) {
                     final TypeParser parser = entry.getValue();

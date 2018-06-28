@@ -79,7 +79,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     public static class NodeRequest extends BaseNodeRequest {
         protected String requestName;
-        private boolean enableTaskManager;
 
         public NodeRequest() {
             super();
@@ -88,82 +87,63 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         public NodeRequest(NodesRequest request, String nodeId) {
             super(nodeId);
             requestName = request.requestName;
-            enableTaskManager = request.enableTaskManager;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             requestName = in.readString();
-            enableTaskManager = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(requestName);
-            out.writeBoolean(enableTaskManager);
         }
 
         @Override
         public String getDescription() {
-            return "CancellableNodeRequest[" + requestName + ", " + enableTaskManager + "]";
+            return "CancellableNodeRequest[" + requestName + "]";
         }
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            if (enableTaskManager) {
-                return super.createTask(id, type, action, parentTaskId, headers);
-            } else {
-                return null;
-            }
+            return super.createTask(id, type, action, parentTaskId, headers);
         }
     }
 
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
         private String requestName;
-        private boolean enableTaskManager;
 
         NodesRequest() {
             super();
         }
 
         public NodesRequest(String requestName, String... nodesIds) {
-            this(requestName, true, nodesIds);
-        }
-
-        public NodesRequest(String requestName, boolean enableTaskManager, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
-            this.enableTaskManager = enableTaskManager;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             requestName = in.readString();
-            enableTaskManager = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(requestName);
-            out.writeBoolean(enableTaskManager);
         }
 
         @Override
         public String getDescription() {
-            return "CancellableNodesRequest[" + requestName + ", " + enableTaskManager + "]";
+            return "CancellableNodesRequest[" + requestName + "]";
         }
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            if (enableTaskManager) {
-                return super.createTask(id, type, action, parentTaskId, headers);
-            } else {
-                return null;
-            }
+            return super.createTask(id, type, action, parentTaskId, headers);
         }
     }
 
@@ -400,7 +380,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(testNodes.length, response.getPerNodeTasks().size());
         for (Map.Entry<String, List<TaskInfo>> entry : response.getPerNodeTasks().entrySet()) {
             assertEquals(1, entry.getValue().size());
-            assertEquals("CancellableNodeRequest[Test Request, true]", entry.getValue().get(0).getDescription());
+            assertEquals("CancellableNodeRequest[Test Request]", entry.getValue().get(0).getDescription());
         }
 
         // Make sure that the main task on coordinating node is the task that was returned to us by execute()
@@ -455,27 +435,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(0, responses.failureCount());
     }
 
-    public void testTaskManagementOptOut() throws Exception {
-        setupTestNodes(Settings.EMPTY);
-        connectNodes(testNodes);
-        CountDownLatch checkLatch = new CountDownLatch(1);
-        // Starting actions that disable task manager
-        ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch, new NodesRequest("Test Request", false));
-
-        TestNode testNode = testNodes[randomIntBetween(0, testNodes.length - 1)];
-
-        // Get the parent task
-        ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setActions("testAction*");
-        ListTasksResponse response = ActionTestUtils.executeBlocking(testNode.transportListTasksAction, listTasksRequest);
-        assertEquals(0, response.getTasks().size());
-
-        // Release all tasks and wait for response
-        checkLatch.countDown();
-        NodesResponse responses = future.get();
-        assertEquals(0, responses.failureCount());
-    }
-
     public void testTasksDescriptions() throws Exception {
         long minimalStartTime = System.currentTimeMillis();
         setupTestNodes(Settings.EMPTY);
@@ -502,7 +461,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(testNodes.length, response.getPerNodeTasks().size());
         for (Map.Entry<String, List<TaskInfo>> entry : response.getPerNodeTasks().entrySet()) {
             assertEquals(1, entry.getValue().size());
-            assertEquals("CancellableNodeRequest[Test Request, true]", entry.getValue().get(0).getDescription());
+            assertEquals("CancellableNodeRequest[Test Request]", entry.getValue().get(0).getDescription());
             assertThat(entry.getValue().get(0).getStartTime(), greaterThanOrEqualTo(minimalStartTime));
             assertThat(entry.getValue().get(0).getRunningTimeNanos(), greaterThanOrEqualTo(minimalDurationNanos));
         }

@@ -13,12 +13,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
+import org.elasticsearch.xpack.sql.action.SqlClearCursorResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 
-import static org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction.NAME;
+import static org.elasticsearch.xpack.sql.action.SqlClearCursorAction.NAME;
 
 public class TransportSqlClearCursorAction extends HandledTransportAction<SqlClearCursorRequest, SqlClearCursorResponse> {
     private final PlanExecutor planExecutor;

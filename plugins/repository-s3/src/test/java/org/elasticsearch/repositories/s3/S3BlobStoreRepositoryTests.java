@@ -110,14 +110,14 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         @Override
         public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry) {
             return Collections.singletonMap(S3Repository.TYPE,
-                    (metadata) -> new S3Repository(metadata, env.settings(), registry, new InternalAwsS3Service(env.settings()) {
+                    (metadata) -> new S3Repository(metadata, env.settings(), registry, new S3Service(env.settings()) {
                         @Override
                         public synchronized AmazonS3Reference client(String clientName) {
                             return new AmazonS3Reference(new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass));
                         }
                     }) {
                         @Override
-                        void overrideCredentialsFromClusterState(AwsS3Service awsService) {
+                        void overrideCredentialsFromClusterState(S3Service awsService) {
                         }
                     });
         }

@@ -1128,10 +1128,14 @@ public class JobProvider {
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions()));
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.query(finalQuery);
-        sourceBuilder.aggregation(AggregationBuilders.stats(ForecastStats.Fields.MEMORY).field(ForecastRequestStats.MEMORY_USAGE.getPreferredName()));
-        sourceBuilder.aggregation(AggregationBuilders.stats(ForecastStats.Fields.RECORDS).field(ForecastRequestStats.PROCESSED_RECORD_COUNT.getPreferredName()));
-        sourceBuilder.aggregation(AggregationBuilders.stats(ForecastStats.Fields.RUNTIME).field(ForecastRequestStats.PROCESSING_TIME_MS.getPreferredName()));
-        sourceBuilder.aggregation(AggregationBuilders.terms(ForecastStats.Fields.STATUSES).field(ForecastRequestStats.STATUS.getPreferredName()));
+        sourceBuilder.aggregation(
+                AggregationBuilders.stats(ForecastStats.Fields.MEMORY).field(ForecastRequestStats.MEMORY_USAGE.getPreferredName()));
+        sourceBuilder.aggregation(AggregationBuilders.stats(ForecastStats.Fields.RECORDS)
+                .field(ForecastRequestStats.PROCESSED_RECORD_COUNT.getPreferredName()));
+        sourceBuilder.aggregation(
+                AggregationBuilders.stats(ForecastStats.Fields.RUNTIME).field(ForecastRequestStats.PROCESSING_TIME_MS.getPreferredName()));
+        sourceBuilder.aggregation(
+                AggregationBuilders.terms(ForecastStats.Fields.STATUSES).field(ForecastRequestStats.STATUS.getPreferredName()));
         sourceBuilder.size(0);
 
         searchRequest.source(sourceBuilder);

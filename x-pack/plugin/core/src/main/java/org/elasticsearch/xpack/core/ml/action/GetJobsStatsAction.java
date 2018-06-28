@@ -165,8 +165,9 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
             @Nullable
             private String assignmentExplanation;
 
-            public JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, @Nullable ForecastStats forecastStats, JobState state,
-                     @Nullable  DiscoveryNode node, @Nullable String assignmentExplanation, @Nullable TimeValue opentime) {
+            public JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats,
+                    @Nullable ForecastStats forecastStats, JobState state, @Nullable DiscoveryNode node,
+                    @Nullable String assignmentExplanation, @Nullable TimeValue opentime) {
                 this.jobId = Objects.requireNonNull(jobId);
                 this.dataCounts = Objects.requireNonNull(dataCounts);
                 this.modelSizeStats = modelSizeStats;

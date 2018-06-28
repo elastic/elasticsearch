@@ -132,7 +132,7 @@ public class StatsAccumulatorTests extends AbstractWireSerializingTestCase<Stats
         Stats stats = mock(Stats.class);
         when(stats.getMax()).thenReturn(25.0);
         when(stats.getMin()).thenReturn(2.5);
-        when(stats.getCount()).thenReturn(4l);
+        when(stats.getCount()).thenReturn(4L);
         when(stats.getSum()).thenReturn(48.0);
         when(stats.getAvg()).thenReturn(12.0);
 

@@ -27,37 +27,37 @@ public class CountAccumulatorTests extends AbstractWireSerializingTestCase<Count
 
     public void testAdd() {
         CountAccumulator accumulator = new CountAccumulator();
-        accumulator.add("a", 22l);
-        accumulator.add("a", 10l);
-        accumulator.add("a", 15l);
-        accumulator.add("a", -12l);
-        accumulator.add("a", 0l);
+        accumulator.add("a", 22L);
+        accumulator.add("a", 10L);
+        accumulator.add("a", 15L);
+        accumulator.add("a", -12L);
+        accumulator.add("a", 0L);
 
-        accumulator.add("b", 13l);
-        accumulator.add("b", 1l);
-        accumulator.add("b", 40000l);
-        accumulator.add("b", -2l);
-        accumulator.add("b", 333l);
+        accumulator.add("b", 13L);
+        accumulator.add("b", 1L);
+        accumulator.add("b", 40000L);
+        accumulator.add("b", -2L);
+        accumulator.add("b", 333L);
 
-        assertEquals(35l, accumulator.asMap().get("a").longValue());
-        assertEquals(40345l, accumulator.asMap().get("b").longValue());
+        assertEquals(35L, accumulator.asMap().get("a").longValue());
+        assertEquals(40345L, accumulator.asMap().get("b").longValue());
         assertEquals(2, accumulator.asMap().size());
     }
 
     public void testMerge() {
         CountAccumulator accumulator = new CountAccumulator();
-        accumulator.add("a", 13l);
-        accumulator.add("b", 42l);
+        accumulator.add("a", 13L);
+        accumulator.add("b", 42L);
 
         CountAccumulator accumulator2 = new CountAccumulator();
-        accumulator2.add("a", 12l);
-        accumulator2.add("c", -1l);
+        accumulator2.add("a", 12L);
+        accumulator2.add("c", -1L);
         
         accumulator.merge(accumulator2);
         
-        assertEquals(25l, accumulator.asMap().get("a").longValue());
-        assertEquals(42l, accumulator.asMap().get("b").longValue());
-        assertEquals(-1l, accumulator.asMap().get("c").longValue());
+        assertEquals(25L, accumulator.asMap().get("a").longValue());
+        assertEquals(42L, accumulator.asMap().get("b").longValue());
+        assertEquals(-1L, accumulator.asMap().get("c").longValue());
         assertEquals(3, accumulator.asMap().size());
     }
 
@@ -66,19 +66,19 @@ public class CountAccumulatorTests extends AbstractWireSerializingTestCase<Count
         
         Bucket bucket1 = mock(Bucket.class);
         when(bucket1.getKeyAsString()).thenReturn("a");
-        when(bucket1.getDocCount()).thenReturn(10l);
+        when(bucket1.getDocCount()).thenReturn(10L);
         
         Bucket bucket2 = mock(Bucket.class);
         when(bucket2.getKeyAsString()).thenReturn("b");
-        when(bucket2.getDocCount()).thenReturn(33l);
+        when(bucket2.getDocCount()).thenReturn(33L);
         
         List<Bucket> buckets =  Arrays.asList(bucket1, bucket2);
         when(termsAggregation.getBuckets()).thenReturn(buckets);
         
         CountAccumulator accumulator = CountAccumulator.fromTermsAggregation(termsAggregation);
         
-        assertEquals(10l, accumulator.asMap().get("a").longValue());
-        assertEquals(33l, accumulator.asMap().get("b").longValue());
+        assertEquals(10L, accumulator.asMap().get("a").longValue());
+        assertEquals(33L, accumulator.asMap().get("b").longValue());
         assertEquals(2, accumulator.asMap().size());
     }
 
@@ -86,7 +86,7 @@ public class CountAccumulatorTests extends AbstractWireSerializingTestCase<Count
     public CountAccumulator createTestInstance() {
         CountAccumulator accumulator = new CountAccumulator();
         for (int i = 0; i < randomInt(10); ++i) {
-            accumulator.add(randomAlphaOfLengthBetween(1, 20), randomLongBetween(1l, 100l));
+            accumulator.add(randomAlphaOfLengthBetween(1, 20), randomLongBetween(1L, 100L));
         }
 
         return accumulator;

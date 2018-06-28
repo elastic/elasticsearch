@@ -45,7 +45,7 @@ public class CountAccumulator implements Writeable {
     }
 
     public void add(String key, Long count) {
-        counts.put(key, counts.getOrDefault(key, 0l) + count);
+        counts.put(key, counts.getOrDefault(key, 0L) + count);
     }
 
     public Map<String, Long> asMap() {

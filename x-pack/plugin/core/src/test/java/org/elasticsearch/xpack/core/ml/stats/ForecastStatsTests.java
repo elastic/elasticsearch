@@ -55,8 +55,8 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
         runtimeStats.add(10);
 
         CountAccumulator statusStats = new CountAccumulator();
-        statusStats.add("finished", 2l);
-        statusStats.add("failed", 5l);
+        statusStats.add("finished", 2L);
+        statusStats.add("failed", 5L);
 
         ForecastStats forecastStats = new ForecastStats(3, memoryStats, recordStats, runtimeStats, statusStats);
 
@@ -73,8 +73,8 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
         runtimeStats2.add(0);
 
         CountAccumulator statusStats2 = new CountAccumulator();
-        statusStats2.add("finished", 2l);
-        statusStats2.add("scheduled", 1l);
+        statusStats2.add("finished", 2L);
+        statusStats2.add("scheduled", 1L);
 
         ForecastStats forecastStats2 = new ForecastStats(2, memoryStats2, recordStats2, runtimeStats2, statusStats2);
 
@@ -82,8 +82,8 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
 
         Map<String, Object> mergedStats = forecastStats.asMap();
 
-        assertEquals(2l, mergedStats.get(Fields.JOBS));
-        assertEquals(5l, mergedStats.get(Fields.TOTAL));
+        assertEquals(2L, mergedStats.get(Fields.JOBS));
+        assertEquals(5L, mergedStats.get(Fields.TOTAL));
 
         @SuppressWarnings("unchecked")
         Map<String, Double> mergedMemoryStats = (Map<String, Double>) mergedStats.get(Fields.MEMORY);
@@ -131,7 +131,7 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
         forecastStats.merge(forecastStats4);
         forecastStats.merge(forecastStats5);
 
-        assertEquals(3l, forecastStats.asMap().get(Fields.JOBS));
+        assertEquals(3L, forecastStats.asMap().get(Fields.JOBS));
     }
 
     @Override

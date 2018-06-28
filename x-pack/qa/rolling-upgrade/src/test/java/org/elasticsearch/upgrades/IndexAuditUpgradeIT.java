@@ -87,7 +87,6 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
 
     /**
      * Has the master been upgraded to the new version?
-     * @throws IOException
      */
     private boolean masterIsNewVersion() throws IOException {
         Map<?, ?> map = entityAsMap(client().performRequest("GET", "/_nodes/_master"));

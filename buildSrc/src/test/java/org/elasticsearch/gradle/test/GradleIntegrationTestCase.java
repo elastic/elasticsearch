@@ -5,16 +5,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
-
-    @Test
-    public void  pass() {
-    }
-
+    
     protected File getProjectDir(String name) {
         File root = new File("src/testKit/");
         if (root.exists() == false) {

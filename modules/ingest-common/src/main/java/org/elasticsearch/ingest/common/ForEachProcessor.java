@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readMap;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
@@ -47,16 +48,28 @@ public final class ForEachProcessor extends AbstractProcessor {
 
     private final String field;
     private final Processor processor;
+    private final boolean ignoreMissing;
 
-    ForEachProcessor(String tag, String field, Processor processor) {
+    ForEachProcessor(String tag, String field, Processor processor, boolean ignoreMissing) {
         super(tag);
         this.field = field;
         this.processor = processor;
+        this.ignoreMissing = ignoreMissing;
+    }
+
+    boolean isIgnoreMissing() {
+        return ignoreMissing;
     }
 
     @Override
     public void execute(IngestDocument ingestDocument) throws Exception {
-        List values = ingestDocument.getFieldValue(field, List.class);
+        List values = ingestDocument.getFieldValue(field, List.class, ignoreMissing);
+        if (values == null) {
+            if (ignoreMissing) {
+                return;
+            }
+            throw new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements.");
+        }
         List<Object> newValues = new ArrayList<>(values.size());
         for (Object value : values) {
             Object previousValue = ingestDocument.getIngestMetadata().put("_value", value);
@@ -87,6 +100,7 @@ public final class ForEachProcessor extends AbstractProcessor {
         public ForEachProcessor create(Map<String, Processor.Factory> factories, String tag,
                                        Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
+            boolean ignoreMissing = readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
             Map<String, Map<String, Object>> processorConfig = readMap(TYPE, tag, config, "processor");
             Set<Map.Entry<String, Map<String, Object>>> entries = processorConfig.entrySet();
             if (entries.size() != 1) {
@@ -94,7 +108,7 @@ public final class ForEachProcessor extends AbstractProcessor {
             }
             Map.Entry<String, Map<String, Object>> entry = entries.iterator().next();
             Processor processor = ConfigurationUtils.readProcessor(factories, entry.getKey(), entry.getValue());
-            return new ForEachProcessor(tag, field, processor);
+            return new ForEachProcessor(tag, field, processor, ignoreMissing);
         }
     }
 }

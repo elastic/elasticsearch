@@ -441,7 +441,9 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testUnicodeFieldnames() {
-        for(String fieldName : Arrays.asList("@metadata", "@metädata", "@metädat[a]")) {
+        for (String fieldName : Arrays.asList("@metadata", "@metädata", "@metädat[a]",
+            randomAlphaOfLengthBetween(1, 5), String.valueOf(randomIntBetween(0, 100)),
+            randomAlphaOfLengthBetween(1, 5) + randomIntBetween(0, 100))) {
             String line = "foo";
             Grok grok = new Grok(basePatterns, "%{WORD:" + fieldName + "}");
             Map<String, Object> matches = grok.captures(line);

@@ -24,7 +24,7 @@ teardown:
                   "salt": "_salt",
                   "iterations": 5,
                   "method": "sha1",
-                  "key_setting": "xpack.security.ingest.hash.processor.test_key"
+                  "key_setting": "xpack.security.ingest.hash.processor.key"
                 }
               }
             ]

@@ -30,6 +30,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -54,7 +55,8 @@ public final class HashProcessor extends AbstractProcessor {
     private final byte[] salt;
     private final boolean ignoreMissing;
 
-    HashProcessor(String tag, List<String> fields, String targetField, byte[] salt, Method method, @Nullable Mac mac, boolean ignoreMissing) {
+    HashProcessor(String tag, List<String> fields, String targetField, byte[] salt, Method method, @Nullable Mac mac,
+                  boolean ignoreMissing) {
         super(tag);
         this.fields = fields;
         this.targetField = targetField;
@@ -105,9 +107,15 @@ public final class HashProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
 
         private final Settings settings;
+        private final Map<String, SecureString> secureKeys;
 
         public Factory(Settings settings) {
             this.settings = settings;
+            this.secureKeys = new HashMap<>();
+            HMAC_KEY_SETTING.getAllConcreteSettings(settings).forEach(k -> {
+                secureKeys.put(k.getKey(), k.get(settings));
+            });
+
         }
 
         private static Mac createMac(Method method, SecureString password, byte[] salt, int iterations) {
@@ -135,7 +143,11 @@ public final class HashProcessor extends AbstractProcessor {
             }
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
             String keySettingName = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "key_setting");
-            SecureString key = HMAC_KEY_SETTING.getConcreteSetting(keySettingName).get(settings);
+            SecureString key = secureKeys.get(keySettingName);
+            if (key == null) {
+                throw ConfigurationUtils.newConfigurationException(TYPE, processorTag, "key_setting",
+                    "key [" + keySettingName + "] must match [xpack.security.ingest.hash.*.key]. It is not set");
+            }
             String saltString = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "salt",
                 new String(Hasher.SaltProvider.salt(8)));
             byte[] salt = saltString.getBytes(StandardCharsets.UTF_8);

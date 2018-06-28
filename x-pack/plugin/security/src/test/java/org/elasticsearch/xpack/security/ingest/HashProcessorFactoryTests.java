@@ -105,9 +105,10 @@ public class HashProcessorFactoryTests extends ESTestCase {
         config.put("target_field", "_target");
         config.put("key_setting", "invalid");
         config.put("method", HashProcessor.Method.SHA1.toString());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
             () -> factory.create(null, "_tag", new HashMap<>(config)));
-        assertThat(e.getMessage(), equalTo("key [invalid] must match [xpack.security.ingest.hash.*.key] but didn't."));
+        assertThat(e.getMessage(),
+            equalTo("[key_setting] key [invalid] must match [xpack.security.ingest.hash.*.key]. It is not set"));
         config.remove("key_setting");
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
             () -> factory.create(null, "_tag", config));

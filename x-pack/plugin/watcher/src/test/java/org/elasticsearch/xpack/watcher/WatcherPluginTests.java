@@ -15,7 +15,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.notification.NotificationService;
+import org.elasticsearch.xpack.watcher.notification.email.Account;
 
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
@@ -96,5 +99,44 @@ public class WatcherPluginTests extends ESTestCase {
                 .put("node.data", false)
                 .build();
         assertThat(Watcher.getWatcherThreadPoolSize(noDataNodeSettings), is(1));
+    }
+
+    private class TestNotificationService extends NotificationService<Account> {
+
+        boolean calledCreateAccount = false;
+
+        TestNotificationService(Settings settings, String type) {
+            super(settings, type);
+        }
+
+        @Override
+        protected Account createAccount(String name, Settings accountSettings) {
+            return null;
+        }
+
+        @Override
+        public synchronized void loadSettings(Settings settings) {
+            calledCreateAccount = true;
+            super.loadSettings(settings);
+        }
+    }
+
+    public void testReload() throws Exception {
+        Settings settings = Settings.builder()
+            .put("xpack.watcher.enabled", false)
+            .put("path.home", createTempDir())
+            .build();
+        TestNotificationService service = new TestNotificationService(settings, "test");
+        Watcher watcher = new Watcher(settings) {
+            @Override
+            protected List<NotificationService> getReloadableServices() {
+                return Collections.singletonList(service);
+            }
+        };
+
+        assertFalse(service.calledCreateAccount);
+        watcher.reload(settings);
+        assertTrue(service.calledCreateAccount);
+
     }
 }

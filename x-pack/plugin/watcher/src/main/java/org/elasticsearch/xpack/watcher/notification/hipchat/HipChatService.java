@@ -67,7 +67,7 @@ public class HipChatService extends NotificationService<HipChatAccount> {
     public HipChatService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super(settings, "hipchat");
         this.httpClient = httpClient;
-        clusterSettings.addSettingsUpdateConsumer(this::setAccountSetting, getSettings());
+        clusterSettings.addSettingsUpdateConsumer(this::loadSettings, getSettings());
         // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_HOST, (s) -> {});
@@ -80,13 +80,13 @@ public class HipChatService extends NotificationService<HipChatAccount> {
         clusterSettings.addAffixUpdateConsumer(SETTING_PORT, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_MESSAGE_DEFAULTS, (s, o) -> {}, (s, o) -> {});
 
-        setAccountSetting(settings);
+        loadSettings(settings);
     }
 
     @Override
-    protected synchronized void setAccountSetting(Settings settings) {
+    public synchronized void loadSettings(Settings settings) {
         defaultServer = new HipChatServer(settings.getByPrefix("xpack.notification.hipchat."));
-        super.setAccountSetting(settings);
+        super.loadSettings(settings);
     }
 
     @Override

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
@@ -38,6 +39,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -123,6 +125,7 @@ import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.xpack.watcher.input.transform.TransformInput;
 import org.elasticsearch.xpack.watcher.input.transform.TransformInputFactory;
+import org.elasticsearch.xpack.watcher.notification.NotificationService;
 import org.elasticsearch.xpack.watcher.notification.email.Account;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
 import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
@@ -194,7 +197,7 @@ import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 
-public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
+public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, ReloadablePlugin {
 
     // This setting is only here for backward compatibility reasons as 6.x indices made use of it. It can be removed in 8.x.
     @Deprecated
@@ -221,6 +224,11 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
     protected final boolean transportClient;
     protected final boolean enabled;
     protected final Environment env;
+    private SetOnce<EmailService> emailService = new SetOnce<>();
+    private SetOnce<HipChatService> hipChatService = new SetOnce<>();
+    private SetOnce<JiraService> jiraService = new SetOnce<>();
+    private SetOnce<SlackService> slackService = new SetOnce<>();
+    private SetOnce<PagerDutyService> pagerDutyService = new SetOnce<>();
 
     public Watcher(final Settings settings) {
         this.settings = settings;
@@ -269,11 +277,11 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         httpClient = new HttpClient(settings, httpAuthRegistry, getSslService());
 
         // notification
-        EmailService emailService = new EmailService(settings, cryptoService, clusterService.getClusterSettings());
-        HipChatService hipChatService = new HipChatService(settings, httpClient, clusterService.getClusterSettings());
-        JiraService jiraService = new JiraService(settings, httpClient, clusterService.getClusterSettings());
-        SlackService slackService = new SlackService(settings, httpClient, clusterService.getClusterSettings());
-        PagerDutyService pagerDutyService = new PagerDutyService(settings, httpClient, clusterService.getClusterSettings());
+        emailService.set(new EmailService(settings, cryptoService, clusterService.getClusterSettings()));
+        hipChatService.set(new HipChatService(settings, httpClient, clusterService.getClusterSettings()));
+        jiraService.set(new JiraService(settings, httpClient, clusterService.getClusterSettings()));
+        slackService.set(new SlackService(settings, httpClient, clusterService.getClusterSettings()));
+        pagerDutyService.set(new PagerDutyService(settings, httpClient, clusterService.getClusterSettings()));
 
         TextTemplateEngine templateEngine = new TextTemplateEngine(settings, scriptService);
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
@@ -300,14 +308,15 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
 
         // actions
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
-        actionFactoryMap.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, emailAttachmentsParser));
+        actionFactoryMap.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService.get(), templateEngine,
+            emailAttachmentsParser));
         actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient, httpTemplateParser, templateEngine));
         actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
         actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(settings, templateEngine));
-        actionFactoryMap.put(HipChatAction.TYPE, new HipChatActionFactory(settings, templateEngine, hipChatService));
-        actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(settings, templateEngine, jiraService));
-        actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(settings, templateEngine, slackService));
-        actionFactoryMap.put(PagerDutyAction.TYPE, new PagerDutyActionFactory(settings, templateEngine, pagerDutyService));
+        actionFactoryMap.put(HipChatAction.TYPE, new HipChatActionFactory(settings, templateEngine, hipChatService.get()));
+        actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(settings, templateEngine, jiraService.get()));
+        actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(settings, templateEngine, slackService.get()));
+        actionFactoryMap.put(PagerDutyAction.TYPE, new PagerDutyActionFactory(settings, templateEngine, pagerDutyService.get()));
         final ActionRegistry registry = new ActionRegistry(actionFactoryMap, conditionRegistry, transformRegistry, getClock(),
             getLicenseState());
 
@@ -367,7 +376,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
 
         return Arrays.asList(registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
                 watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
-                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService, hipChatService);
+                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService.get(), pagerDutyService.get(),
+            hipChatService.get());
     }
 
     protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
@@ -612,5 +622,34 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
     @Override
     public void close() throws IOException {
         IOUtils.closeWhileHandlingException(httpClient);
+    }
+
+    /**
+     * Used to detect which {@link NotificationService} get reloaded. Also useful for testing the reload in tests.
+     * @return
+     */
+    protected List<NotificationService> getReloadableServices() {
+        return Arrays.asList(
+            emailService.get(),
+            hipChatService.get(),
+            jiraService.get(),
+            slackService.get(),
+            pagerDutyService.get());
+    }
+
+    /**
+     * Reloads all reloadable services' settings.
+     * @param settings
+     *            Settings used while reloading the plugin. All values are
+     *            retrievable, including the values stored in the node's keystore.
+     *            The setting values are the initial ones, from when the node has be
+     *            started, i.e. they don't follow dynamic updates.
+     * @throws Exception
+     */
+    @Override
+    public void reload(Settings settings) throws Exception {
+        for (NotificationService service : getReloadableServices()) {
+            service.loadSettings(settings);
+        }
     }
 }

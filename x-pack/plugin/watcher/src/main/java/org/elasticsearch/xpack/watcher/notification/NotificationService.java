@@ -30,7 +30,7 @@ public abstract class NotificationService<Account> extends AbstractComponent {
         this.type = type;
     }
 
-    protected synchronized void setAccountSetting(Settings settings) {
+    public synchronized void loadSettings(Settings settings) {
         Tuple<Map<String, Account>, Account> accounts = buildAccounts(settings, this::createAccount);
         this.accounts = Collections.unmodifiableMap(accounts.v1());
         this.defaultAccount = accounts.v2();

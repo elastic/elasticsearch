@@ -31,6 +31,8 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -46,6 +48,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -451,6 +454,76 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             // tag::create-snapshot-execute-async
             client.snapshot().createSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::create-snapshot-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testSnapshotGetSnapshots() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        createTestRepositories();
+        createTestSnapshots();
+
+        // tag::get-snapshots-request
+        GetSnapshotsRequest request = new GetSnapshotsRequest(repositoryName);
+        // end::get-snapshots-request
+
+        // tag::get-snapshots-request-snapshots
+        String[] snapshots = { snapshotName };
+        request.snapshots(snapshots); // <1>
+        // end::get-snapshots-request-snapshots
+
+        // tag::get-snapshots-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::get-snapshots-request-masterTimeout
+
+        // tag::get-snapshots-request-verbose
+        request.verbose(true); // <1>
+        // end::get-snapshots-request-verbose
+
+        // tag::get-snapshots-request-ignore-unavailable
+        request.ignoreUnavailable(false); // <1>
+        // end::get-snapshots-request-ignore-unavailable
+
+        // tag::get-snapshots-execute
+        GetSnapshotsResponse response = client.snapshot().get(request, RequestOptions.DEFAULT);
+        // end::get-snapshots-execute
+
+        // tag::get-snapshots-response
+        List<SnapshotInfo> snapshotsInfos = response.getSnapshots(); // <1>
+        // end::get-snapshots-response
+        assertEquals(1, snapshotsInfos.size());
+    }
+
+    public void testSnapshotGetSnapshotsAsync() throws InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            GetSnapshotsRequest request = new GetSnapshotsRequest();
+
+            // tag::get-snapshots-execute-listener
+            ActionListener<GetSnapshotsResponse> listener =
+                new ActionListener<GetSnapshotsResponse>() {
+                    @Override
+                    public void onResponse(GetSnapshotsResponse deleteSnapshotResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-snapshots-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-snapshots-execute-async
+            client.snapshot().getAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-snapshots-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

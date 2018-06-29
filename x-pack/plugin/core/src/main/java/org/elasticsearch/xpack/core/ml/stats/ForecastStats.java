@@ -24,7 +24,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
 
     public static class Fields {
         public static final String TOTAL = "total";
-        public static final String JOBS = "jobs";
+        public static final String FORECASTED_JOBS = "forecasted_jobs";
         public static final String MEMORY = "memory_bytes";
         public static final String RUNTIME = "processing_time_ms";
         public static final String RECORDS = "records";
@@ -32,7 +32,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
     }
 
     private long total;
-    private long jobsWithAtleastOneForecast;
+    private long forecastedJobs;
     private StatsAccumulator memoryStats;
     private StatsAccumulator recordStats;
     private StatsAccumulator runtimeStats;
@@ -40,7 +40,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
 
     public ForecastStats() {
         this.total = 0;
-        this.jobsWithAtleastOneForecast = 0;
+        this.forecastedJobs = 0;
         this.memoryStats = new StatsAccumulator();
         this.recordStats = new StatsAccumulator();
         this.runtimeStats = new StatsAccumulator();
@@ -53,7 +53,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
     public ForecastStats(long total, StatsAccumulator memoryStats, StatsAccumulator recordStats, StatsAccumulator runtimeStats,
             CountAccumulator statusCounts) {
         this.total = total;
-        this.jobsWithAtleastOneForecast = total > 0 ? 1 : 0;
+        this.forecastedJobs = total > 0 ? 1 : 0;
         this.memoryStats = Objects.requireNonNull(memoryStats);
         this.recordStats = Objects.requireNonNull(recordStats);
         this.runtimeStats = Objects.requireNonNull(runtimeStats);
@@ -62,7 +62,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
 
     public ForecastStats(StreamInput in) throws IOException {
         this.total = in.readLong();
-        this.jobsWithAtleastOneForecast = in.readLong();
+        this.forecastedJobs = in.readLong();
         this.memoryStats = new StatsAccumulator(in);
         this.recordStats = new StatsAccumulator(in);
         this.runtimeStats = new StatsAccumulator(in);
@@ -74,9 +74,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
             return;
         }
         total += other.total;
-        if (other.total > 0) {
-            ++jobsWithAtleastOneForecast;
-        }
+        forecastedJobs += other.forecastedJobs;
         memoryStats.merge(other.memoryStats);
         recordStats.merge(other.recordStats);
         runtimeStats.merge(other.runtimeStats);
@@ -92,14 +90,13 @@ public class ForecastStats implements ToXContentObject, Writeable {
 
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(Fields.TOTAL, total);
+        builder.field(Fields.FORECASTED_JOBS, forecastedJobs);
+
         if (total > 0) {
             builder.field(Fields.MEMORY, memoryStats.asMap());
             builder.field(Fields.RECORDS, recordStats.asMap());
             builder.field(Fields.RUNTIME, runtimeStats.asMap());
             builder.field(Fields.STATUSES, statusCounts.asMap());
-        }
-        if (jobsWithAtleastOneForecast > 1) {
-            builder.field(Fields.JOBS, jobsWithAtleastOneForecast);
         }
 
         return builder;
@@ -108,22 +105,22 @@ public class ForecastStats implements ToXContentObject, Writeable {
     public Map<String, Object> asMap() {
         Map<String, Object> map = new HashMap<>();
         map.put(Fields.TOTAL, total);
+        map.put(Fields.FORECASTED_JOBS, forecastedJobs);
+
         if (total > 0) {
             map.put(Fields.MEMORY, memoryStats.asMap());
             map.put(Fields.RECORDS, recordStats.asMap());
             map.put(Fields.RUNTIME, runtimeStats.asMap());
             map.put(Fields.STATUSES, statusCounts.asMap());
         }
-        if (jobsWithAtleastOneForecast > 1) {
-            map.put(Fields.JOBS, jobsWithAtleastOneForecast);
-        }
+
         return map;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(total);
-        out.writeLong(jobsWithAtleastOneForecast);
+        out.writeLong(forecastedJobs);
         memoryStats.writeTo(out);
         recordStats.writeTo(out);
         runtimeStats.writeTo(out);
@@ -132,7 +129,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(total, jobsWithAtleastOneForecast, memoryStats, recordStats, runtimeStats, statusCounts);
+        return Objects.hash(total, forecastedJobs, memoryStats, recordStats, runtimeStats, statusCounts);
     }
 
     @Override
@@ -146,7 +143,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
         }
 
         ForecastStats other = (ForecastStats) obj;
-        return Objects.equals(total, other.total) && Objects.equals(jobsWithAtleastOneForecast, other.jobsWithAtleastOneForecast)
+        return Objects.equals(total, other.total) && Objects.equals(forecastedJobs, other.forecastedJobs)
                 && Objects.equals(memoryStats, other.memoryStats) && Objects.equals(recordStats, other.recordStats)
                 && Objects.equals(runtimeStats, other.runtimeStats) && Objects.equals(statusCounts, other.statusCounts);
     }

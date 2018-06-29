@@ -35,7 +35,7 @@ public abstract class AbstractLifecycleComponent extends AbstractComponent imple
         super(settings);
     }
 
-    protected AbstractLifecycleComponent(Settings settings, Class customClass) {
+    protected AbstractLifecycleComponent(Settings settings, Class<?> customClass) {
         super(settings, customClass);
     }
 

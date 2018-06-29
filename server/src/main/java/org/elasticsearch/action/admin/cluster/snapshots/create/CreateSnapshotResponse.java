@@ -25,10 +25,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Create snapshot response
@@ -43,6 +46,10 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
     }
 
     CreateSnapshotResponse() {
+    }
+
+    void setSnapshotInfo(SnapshotInfo snapshotInfo) {
+        this.snapshotInfo = snapshotInfo;
     }
 
     /**
@@ -92,5 +99,59 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
         }
         builder.endObject();
         return builder;
+    }
+
+    public static CreateSnapshotResponse fromXContent(XContentParser parser) throws IOException {
+        CreateSnapshotResponse createSnapshotResponse = new CreateSnapshotResponse();
+
+        parser.nextToken(); // move to '{'
+
+        if (parser.currentToken() != Token.START_OBJECT) {
+            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "], expected ['{']");
+        }
+
+        parser.nextToken(); // move to 'snapshot' || 'accepted'
+
+        if ("snapshot".equals(parser.currentName())) {
+            createSnapshotResponse.snapshotInfo = SnapshotInfo.fromXContent(parser);
+        } else if ("accepted".equals(parser.currentName())) {
+            parser.nextToken(); // move to 'accepted' field value
+
+            if (parser.booleanValue()) {
+                // ensure accepted is a boolean value
+            }
+
+            parser.nextToken(); // move past 'true'/'false'
+        } else {
+            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "] expected ['snapshot', 'accepted']");
+        }
+
+        if (parser.currentToken() != Token.END_OBJECT) {
+            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "], expected ['}']");
+        }
+
+        parser.nextToken(); // move past '}'
+
+        return createSnapshotResponse;
+    }
+
+    @Override
+    public String toString() {
+        return "CreateSnapshotResponse{" +
+            "snapshotInfo=" + snapshotInfo +
+            '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CreateSnapshotResponse that = (CreateSnapshotResponse) o;
+        return Objects.equals(snapshotInfo, that.snapshotInfo);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(snapshotInfo);
     }
 }

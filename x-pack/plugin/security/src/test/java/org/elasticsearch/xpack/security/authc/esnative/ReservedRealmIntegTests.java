@@ -61,6 +61,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31670")
     public void testChangingPassword() {
         String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME);
         final char[] newPassword = "supersecretvalue".toCharArray();
@@ -76,7 +77,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         }
 
         ChangePasswordResponse response = securityClient()
-                .prepareChangePassword(username, Arrays.copyOf(newPassword, newPassword.length))
+            .prepareChangePassword(username, Arrays.copyOf(newPassword, newPassword.length), getFastStoredHashAlgoForTests())
                 .get();
         assertThat(response, notNullValue());
 

@@ -286,10 +286,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             // fetched
             final List<BootstrapCheck> checks = new ArrayList<>();
             checks.addAll(Arrays.asList(
-                    new TokenSSLBootstrapCheck(),
-                    new PkiRealmBootstrapCheck(settings, getSslService()),
-                    new TLSLicenseBootstrapCheck(),
-                    new KerberosRealmBootstrapCheck(env)));
+                new TokenSSLBootstrapCheck(),
+                new PkiRealmBootstrapCheck(settings, getSslService()),
+                new TLSLicenseBootstrapCheck(),
+                new PasswordHashingAlgorithmBootstrapCheck(),
+                new KerberosRealmBootstrapCheck(env)));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
         } else {

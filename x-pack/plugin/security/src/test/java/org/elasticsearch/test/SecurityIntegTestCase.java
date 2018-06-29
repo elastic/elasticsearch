@@ -39,6 +39,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
@@ -87,7 +88,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
      * to how {@link #nodeSettings(int)} and {@link #transportClientSettings()} work.
      */
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
-
 
     @BeforeClass
     public static void generateBootstrapPassword() {
@@ -521,5 +521,9 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     protected boolean isTransportSSLEnabled() {
         return customSecuritySettingsSource.isSslEnabled();
+    }
+
+    protected static Hasher getFastStoredHashAlgoForTests() {
+        return Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
     }
 }

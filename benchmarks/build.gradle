@@ -30,7 +30,7 @@ buildscript {
 
 apply plugin: 'elasticsearch.build'
 
-// order of this seciont matters, see: https://github.com/johnrengelman/shadow/issues/336
+// order of this section matters, see: https://github.com/johnrengelman/shadow/issues/336
 apply plugin: 'application' // have the shadow plugin provide the runShadow task
 mainClassName = 'org.openjdk.jmh.Main'
 apply plugin: 'com.github.johnrengelman.shadow' // build an uberjar with all benchmarks

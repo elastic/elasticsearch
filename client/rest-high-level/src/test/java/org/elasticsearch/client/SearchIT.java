@@ -54,6 +54,9 @@ import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
+import org.elasticsearch.script.mustache.MultiSearchTemplateResponse;
+import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.SearchHit;
@@ -874,6 +877,105 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertNotNull(actualSource);
 
         assertToXContentEquivalent(expectedSource, actualSource, XContentType.JSON);
+    }
+    
+    
+    public void testMultiSearchTemplate() throws Exception {
+        MultiSearchTemplateRequest multiSearchTemplateRequest = new MultiSearchTemplateRequest();
+        
+        SearchTemplateRequest goodRequest = new SearchTemplateRequest();
+        goodRequest.setRequest(new SearchRequest("index"));
+        goodRequest.setScriptType(ScriptType.INLINE);
+        goodRequest.setScript(
+            "{" +
+            "  \"query\": {" +
+            "    \"match\": {" +
+            "      \"num\": {{number}}" +
+            "    }" +
+            "  }" +
+            "}");
+        Map<String, Object> scriptParams = new HashMap<>();
+        scriptParams.put("number", 10);
+        goodRequest.setScriptParams(scriptParams);
+        goodRequest.setExplain(true);
+        goodRequest.setProfile(true);
+        multiSearchTemplateRequest.add(goodRequest);
+        
+        
+        SearchTemplateRequest badRequest = new SearchTemplateRequest();
+        badRequest.setRequest(new SearchRequest("index"));
+        badRequest.setScriptType(ScriptType.INLINE);
+        badRequest.setScript("{ NOT VALID JSON {{number}} }");
+        scriptParams = new HashMap<>();
+        scriptParams.put("number", 10);
+        badRequest.setScriptParams(scriptParams);
+
+        multiSearchTemplateRequest.add(badRequest);        
+        
+        MultiSearchTemplateResponse multiSearchTemplateResponse =
+                execute(multiSearchTemplateRequest, highLevelClient()::multiSearchTemplate, 
+                        highLevelClient()::multiSearchTemplateAsync);
+        
+        Item[] responses = multiSearchTemplateResponse.getResponses();
+        
+        assertEquals(2, responses.length);
+        
+        
+        assertNull(responses[0].getResponse().getSource());
+        SearchResponse goodResponse =responses[0].getResponse().getResponse();
+        assertNotNull(goodResponse);
+        assertThat(responses[0].isFailure(), Matchers.is(false));
+        assertEquals(1, goodResponse.getHits().totalHits);
+        assertEquals(1, goodResponse.getHits().getHits().length);
+        assertThat(goodResponse.getHits().getMaxScore(), greaterThan(0f));
+        SearchHit hit = goodResponse.getHits().getHits()[0];
+        assertNotNull(hit.getExplanation());
+        assertFalse(goodResponse.getProfileResults().isEmpty());        
+        
+        
+        assertNull(responses[0].getResponse().getSource());
+        assertThat(responses[1].isFailure(), Matchers.is(true));
+        assertNotNull(responses[1].getFailureMessage());        
+        assertThat(responses[1].getFailureMessage(), containsString("json_parse_exception"));
+    }
+    
+    public void testMultiSearchTemplateAllBad() throws Exception {
+        MultiSearchTemplateRequest multiSearchTemplateRequest = new MultiSearchTemplateRequest();
+        
+        SearchTemplateRequest badRequest1 = new SearchTemplateRequest();
+        badRequest1.setRequest(new SearchRequest("index"));
+        badRequest1.setScriptType(ScriptType.INLINE);
+        badRequest1.setScript(
+                "{" +
+                        "  \"query\": {" +
+                        "    \"match\": {" +
+                        "      \"num\": {{number}}" +
+                        "    }" +
+                        "  }" +
+                        "}");
+        Map<String, Object> scriptParams = new HashMap<>();
+        scriptParams.put("number", "BAD NUMBER");
+        badRequest1.setScriptParams(scriptParams);
+        multiSearchTemplateRequest.add(badRequest1);
+        
+        
+        SearchTemplateRequest badRequest2 = new SearchTemplateRequest();
+        badRequest2.setRequest(new SearchRequest("index"));
+        badRequest2.setScriptType(ScriptType.INLINE);
+        badRequest2.setScript("BAD QUERY TEMPLATE");
+        scriptParams = new HashMap<>();
+        scriptParams.put("number", "BAD NUMBER");
+        badRequest2.setScriptParams(scriptParams);
+
+        multiSearchTemplateRequest.add(badRequest2);        
+        
+        // The whole HTTP request should fail if no nested search requests are valid 
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+                () -> execute(multiSearchTemplateRequest, highLevelClient()::multiSearchTemplate, 
+                        highLevelClient()::multiSearchTemplateAsync));
+        
+        assertEquals(RestStatus.BAD_REQUEST, exception.status());
+        assertThat(exception.getMessage(), containsString("no requests added"));
     }
 
     public void testExplain() throws IOException {

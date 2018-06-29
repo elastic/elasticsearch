@@ -1,6 +1,7 @@
 # Integration tests for repository-s3
+
 ---
-"Snapshot/Restore with repository-s3":
+setup:
 
   # Register repository
   - do:
@@ -15,7 +16,8 @@
             canned_acl: private
             storage_class: standard
 
-  - match: { acknowledged: true }
+---
+"Snapshot/Restore with repository-s3":
 
   # Get repository
   - do:
@@ -176,6 +178,63 @@
       snapshot.delete:
         repository: repository
         snapshot: snapshot-one
+
+---
+"Register a repository with a non existing bucket":
+
+  - do:
+      catch: /repository_exception/
+      snapshot.create_repository:
+        repository: repository
+        body:
+          type: s3
+          settings:
+            bucket: zHHkfSqlbnBsbpSgvCYtxrEfFLqghXtyPvvvKPNBnRCicNHQLE
+            client: integration_test
+
+---
+"Register a repository with a non existing client":
+
+  - do:
+      catch: /repository_exception/
+      snapshot.create_repository:
+        repository: repository
+        body:
+          type: s3
+          settings:
+            bucket: repository
+            client: unknown
+
+---
+"Get a non existing snapshot":
+
+  - do:
+      catch: /snapshot_missing_exception/
+      snapshot.get:
+        repository: repository
+        snapshot: missing
+
+---
+"Delete a non existing snapshot":
+
+  - do:
+      catch: /snapshot_missing_exception/
+      snapshot.delete:
+        repository: repository
+        snapshot: missing
+
+---
+"Restore a non existing snapshot":
+
+  - do:
+      catch: /snapshot_restore_exception/
+      snapshot.restore:
+        repository: repository
+        snapshot: missing
+        wait_for_completion: true
+
+---
+teardown:
 
   # Remove our repository
   - do:

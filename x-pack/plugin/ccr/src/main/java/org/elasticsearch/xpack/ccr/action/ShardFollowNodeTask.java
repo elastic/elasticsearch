@@ -98,33 +98,27 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         LOGGER.trace("{} coordinate reads, lastRequestedSeqno={}, globalCheckpoint={}",
             params.getFollowShardId(), lastRequestedSeqno, globalCheckpoint);
         final long maxReadSize = params.getMaxReadSize();
-        if (lastRequestedSeqno < globalCheckpoint) {
-            while (hasReadBudget() && lastRequestedSeqno < globalCheckpoint) {
-                numConcurrentReads++;
-                long from = lastRequestedSeqno + 1;
-                long size;
-                if (from + maxReadSize <= globalCheckpoint) {
-                    size = maxReadSize;
-                } else {
-                    size = globalCheckpoint - from;
-                }
-                LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, from, size);
-                sendShardChangesRequest(from, size, from + size);
-                lastRequestedSeqno = from + size;
+        while (hasReadBudget() && lastRequestedSeqno < globalCheckpoint) {
+            numConcurrentReads++;
+            long from = lastRequestedSeqno + 1;
+            long size;
+            if (from + maxReadSize <= globalCheckpoint) {
+                size = maxReadSize;
+            } else {
+                size = globalCheckpoint - from;
             }
-            if (numConcurrentReads == 0) {
-                LOGGER.trace("{} re-scheduling coordinate reads phase", params.getFollowShardId());
-                scheduler.accept(TimeValue.timeValueMillis(500), this::coordinateReads);
-            }
-        } else {
-            if (numConcurrentReads == 0) {
-                // We sneak peek if there is any thing new in the leader primary.
-                // If there is we will happily accept
-                numConcurrentReads++;
-                long from = lastRequestedSeqno + 1;
-                LOGGER.trace("{}[{}] peek read [{}]", params.getFollowShardId(), numConcurrentReads, from);
-                sendShardChangesRequest(from, maxReadSize, null);
-            }
+            LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, from, size);
+            sendShardChangesRequest(from, size, from + size);
+            lastRequestedSeqno = from + size;
+        }
+
+        if (numConcurrentReads == 0) {
+            // We sneak peek if there is any thing new in the leader primary.
+            // If there is we will happily accept
+            numConcurrentReads++;
+            long from = lastRequestedSeqno + 1;
+            LOGGER.trace("{}[{}] peek read [{}]", params.getFollowShardId(), numConcurrentReads, from);
+            sendShardChangesRequest(from, maxReadSize, null);
         }
     }
 

@@ -16,7 +16,9 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -30,7 +32,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@TestLogging("org.elasticsearch.xpack.ccr.action:DEBUG")
+@TestLogging("org.elasticsearch.xpack.ccr.action:TRACE")
 public class ShardFollowNodeTaskTests extends ESTestCase {
 
     private ShardFollowNodeTask task;
@@ -183,18 +185,24 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                 }
 
                 ShardChangesAction.Response response;
-                if (from >= leaderGlobalCheckpoint) {
-                    response = new ShardChangesAction.Response(1L, leaderGlobalCheckpoint, new Translog.Operation[0]);
+                if (from > leaderGlobalCheckpoint) {
+                    response = new ShardChangesAction.Response(imdVersion.get(), leaderGlobalCheckpoint, new Translog.Operation[0]);
                 } else {
                     if (randomlyTruncateRequests.get() && size > 10 && truncatedRequests.get() < 5) {
                         truncatedRequests.incrementAndGet();
                         size = size / 2;
                     }
-                    Translog.Operation[] ops = new Translog.Operation[(int) size + 1];
-                    for (int i = 0; i < ops.length; i++) {
-                        ops[i] = new Translog.Index("doc", UUIDs.randomBase64UUID(), from + i, 0, "{}".getBytes(StandardCharsets.UTF_8));
+                    List<Translog.Operation> ops = new ArrayList<>();
+                    for (int i = 0; i < size; i++) {
+                        long seqNo = from + i;
+                        if (seqNo <= leaderGlobalCheckpoint) {
+                            String id = UUIDs.randomBase64UUID();
+                            byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
+                            ops.add(new Translog.Index("doc", id, seqNo, 0, source));
+                        }
                     }
-                    response = new ShardChangesAction.Response(imdVersion.get(), leaderGlobalCheckpoint, ops);
+                    response = new ShardChangesAction.Response(imdVersion.get(), leaderGlobalCheckpoint,
+                        ops.toArray(new Translog.Operation[0]));
                 }
                 // Emulate network thread and avoid SO:
                 Thread thread = new Thread(() -> handler.accept(response));

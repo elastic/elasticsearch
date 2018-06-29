@@ -26,14 +26,14 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 
-public class SnapshotStats implements Streamable, ToXContentFragment {
+public class SnapshotStats implements Streamable, ToXContentObject {
 
     private long startTime;
     private long time;
@@ -178,32 +178,35 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject(Fields.STATS)
-            //  incremental starts
-            .startObject(Fields.INCREMENTAL)
-            .field(Fields.FILE_COUNT, getIncrementalFileCount())
-            .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getIncrementalSize()))
-            //  incremental ends
-            .endObject();
+        builder.startObject();
+        {
+            builder.startObject(Fields.INCREMENTAL);
+            {
+                builder.field(Fields.FILE_COUNT, getIncrementalFileCount());
+                builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getIncrementalSize()));
+            }
+            builder.endObject();
 
-        if (getProcessedFileCount() != getIncrementalFileCount()) {
-            //  processed starts
-            builder.startObject(Fields.PROCESSED)
-                .field(Fields.FILE_COUNT, getProcessedFileCount())
-                .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getProcessedSize()))
-                //  processed ends
-                .endObject();
+            if (getProcessedFileCount() != getIncrementalFileCount()) {
+                builder.startObject(Fields.PROCESSED);
+                {
+                    builder.field(Fields.FILE_COUNT, getProcessedFileCount());
+                    builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getProcessedSize()));
+                }
+                builder.endObject();
+            }
+
+            builder.startObject(Fields.TOTAL);
+            {
+                builder.field(Fields.FILE_COUNT, getTotalFileCount());
+                builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getTotalSize()));
+            }
+            builder.endObject();
+
+            // timings stats
+            builder.field(Fields.START_TIME_IN_MILLIS, getStartTime());
+            builder.humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()));
         }
-        //  total starts
-        builder.startObject(Fields.TOTAL)
-            .field(Fields.FILE_COUNT, getTotalFileCount())
-            .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getTotalSize()))
-            //  total ends
-            .endObject();
-       // timings stats
-       builder.field(Fields.START_TIME_IN_MILLIS, getStartTime())
-            .humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()));
-
         return builder.endObject();
     }
 

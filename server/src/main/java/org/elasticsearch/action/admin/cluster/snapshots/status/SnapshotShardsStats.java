@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -34,7 +34,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * Status of a snapshot shards
  */
-public class SnapshotShardsStats implements ToXContentFragment {
+public class SnapshotShardsStats implements ToXContentObject {
 
     private int initializingShards;
     private int startedShards;
@@ -132,13 +132,15 @@ public class SnapshotShardsStats implements ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject(Fields.SHARDS_STATS);
-        builder.field(Fields.INITIALIZING, getInitializingShards());
-        builder.field(Fields.STARTED, getStartedShards());
-        builder.field(Fields.FINALIZING, getFinalizingShards());
-        builder.field(Fields.DONE, getDoneShards());
-        builder.field(Fields.FAILED, getFailedShards());
-        builder.field(Fields.TOTAL, getTotalShards());
+        builder.startObject();
+        {
+            builder.field(Fields.INITIALIZING, getInitializingShards());
+            builder.field(Fields.STARTED, getStartedShards());
+            builder.field(Fields.FINALIZING, getFinalizingShards());
+            builder.field(Fields.DONE, getDoneShards());
+            builder.field(Fields.FAILED, getFailedShards());
+            builder.field(Fields.TOTAL, getTotalShards());
+        }
         builder.endObject();
         return builder;
     }

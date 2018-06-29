@@ -230,8 +230,8 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
         if (includeGlobalState != null) {
             builder.field(INCLUDE_GLOBAL_STATE, includeGlobalState);
         }
-        shardsStats.toXContent(builder, params);
-        stats.toXContent(builder, params);
+        builder.field(SnapshotShardsStats.Fields.SHARDS_STATS, shardsStats, params);
+        builder.field(SnapshotStats.Fields.STATS, stats, params);
         builder.startObject(INDICES);
         for (SnapshotIndexStatus indexStatus : getIndices().values()) {
             indexStatus.toXContent(builder, params);
@@ -255,12 +255,7 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
             @SuppressWarnings("unchecked") List<SnapshotIndexStatus> indices = ((List<SnapshotIndexStatus>) parsedObjects[i]);
 
             Snapshot snapshot = new Snapshot(repository, new SnapshotId(name, uuid));
-            SnapshotsInProgress.State state;
-            try {
-                state = SnapshotsInProgress.State.valueOf(rawState);
-            } catch (IllegalArgumentException iae) {
-                throw new ElasticsearchParseException("failed to parse snapshot status, unknown state value [{}]", iae, rawState);
-            }
+            SnapshotsInProgress.State state = SnapshotsInProgress.State.valueOf(rawState);
             Map<String, SnapshotIndexStatus> indicesStatus;
             List<SnapshotIndexShardStatus> shards;
             if (indices == null || indices.isEmpty()) {

@@ -162,7 +162,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Integer.toString(getShardId().getId()));
         builder.field(Fields.STAGE, getStage());
-        stats.toXContent(builder, params);
+        builder.field(SnapshotStats.Fields.STATS, stats, params);
         if (getNodeId() != null) {
             builder.field(Fields.NODE, getNodeId());
         }

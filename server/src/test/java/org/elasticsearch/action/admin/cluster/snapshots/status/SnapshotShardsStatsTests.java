@@ -21,9 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import java.io.IOException;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 public class SnapshotShardsStatsTests extends AbstractXContentTestCase<SnapshotShardsStats> {
@@ -41,20 +39,7 @@ public class SnapshotShardsStatsTests extends AbstractXContentTestCase<SnapshotS
 
     @Override
     protected SnapshotShardsStats doParseInstance(XContentParser parser) throws IOException {
-        // SnapshotShardsStats serializes its own name, and thus, is nested in another object in this test.
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        SnapshotShardsStats stats = null;
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            if (parser.currentName().equals(SnapshotShardsStats.Fields.SHARDS_STATS)) {
-                stats = SnapshotShardsStats.fromXContent(parser);
-            } else {
-                parser.skipChildren();
-            }
-        }
-        if (stats == null) {
-            throw new ElasticsearchParseException("could not find stats");
-        }
-        return stats;
+        return SnapshotShardsStats.fromXContent(parser);
     }
 
     @Override

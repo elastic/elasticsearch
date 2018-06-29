@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
@@ -58,7 +56,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
     private Response createTestSnapshot(String repository, String snapshot, String index) throws IOException {
         Request createSnapshot = new Request("put", String.format(Locale.ROOT, "_snapshot/%s/%s", repository, snapshot));
         createSnapshot.addParameter("wait_for_completion", "true");
-        createSnapshot.setEntity(new NStringEntity("{\"indices\":\""+index+"\"}", ContentType.APPLICATION_JSON));
+        createSnapshot.setJsonEntity("{\"indices\":\""+index+"\"}");
         return highLevelClient().getLowLevelClient().performRequest(createSnapshot);
     }
 
@@ -141,8 +139,8 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         SnapshotsStatusRequest request = new SnapshotsStatusRequest();
         request.repository(testRepository);
         request.snapshots(new String[]{testSnapshot});
-        SnapshotsStatusResponse response = execute(request, highLevelClient().snapshot()::snapshotsStatus,
-            highLevelClient().snapshot()::snapshotsStatusAsync);
+        SnapshotsStatusResponse response = execute(request, highLevelClient().snapshot()::status,
+            highLevelClient().snapshot()::statusAsync);
         assertThat(response.getSnapshots().size(), equalTo(1));
         assertThat(response.getSnapshots().get(0).getSnapshot().getRepository(), equalTo(testRepository));
         assertThat(response.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo(testSnapshot));

@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
@@ -39,6 +40,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -77,6 +79,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
 
     private static final String repositoryName = "test_repository";
     private static final String snapshotName = "test_snapshot";
+    private static final String indexName = "test_index";
 
     public void testSnapshotCreateRepository() throws IOException {
         RestHighLevelClient client = highLevelClient();
@@ -372,6 +375,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
     public void testSnapshotSnapshotsStatus() throws IOException {
         RestHighLevelClient client = highLevelClient();
         createTestRepositories();
+        createTestIndex();
         createTestSnapshots();
 
         // tag::snapshots-status-request
@@ -394,15 +398,19 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::snapshots-status-request-masterTimeout
 
         // tag::snapshots-status-execute
-        SnapshotsStatusResponse response = client.snapshot().snapshotsStatus(request, RequestOptions.DEFAULT);
+        SnapshotsStatusResponse response = client.snapshot().status(request, RequestOptions.DEFAULT);
         // end::snapshots-status-execute
 
         // tag::snapshots-status-response
         List<SnapshotStatus> snapshotStatusesResponse = response.getSnapshots();
+        SnapshotStatus snapshotStatus = snapshotStatusesResponse.get(0); // <1>
+        SnapshotsInProgress.State snapshotState = snapshotStatus.getState(); // <2>
+        SnapshotStats shardStats = snapshotStatus.getIndices().get(indexName).getShards().get(0).getStats(); // <3>
         // end::snapshots-status-response
         assertThat(snapshotStatusesResponse.size(), equalTo(1));
-        assertThat(snapshotStatusesResponse.get(0).getSnapshot().getRepository(), equalTo(repositoryName));
+        assertThat(snapshotStatusesResponse.get(0).getSnapshot().getRepository(), equalTo(SnapshotClientDocumentationIT.repositoryName));
         assertThat(snapshotStatusesResponse.get(0).getSnapshot().getSnapshotId().getName(), equalTo(snapshotName));
+        assertThat(snapshotState.completed(), equalTo(true));
     }
 
     public void testSnapshotSnapshotsStatusAsync() throws InterruptedException {
@@ -430,7 +438,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::snapshots-status-execute-async
-            client.snapshot().snapshotsStatusAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.snapshot().statusAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::snapshots-status-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -441,6 +449,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         RestHighLevelClient client = highLevelClient();
 
         createTestRepositories();
+        createTestIndex();
         createTestSnapshots();
 
         // tag::delete-snapshot-request
@@ -502,9 +511,14 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         assertTrue(highLevelClient().snapshot().createRepository(request, RequestOptions.DEFAULT).isAcknowledged());
     }
 
+    private void createTestIndex() throws IOException {
+        createIndex(indexName, Settings.EMPTY);
+    }
+
     private void createTestSnapshots() throws IOException {
         Request createSnapshot = new Request("put", String.format(Locale.ROOT, "_snapshot/%s/%s", repositoryName, snapshotName));
         createSnapshot.addParameter("wait_for_completion", "true");
+        createSnapshot.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
         Response response = highLevelClient().getLowLevelClient().performRequest(createSnapshot);
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
         assertEquals(200, response.getStatusLine().getStatusCode());

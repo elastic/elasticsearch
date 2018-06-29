@@ -6,12 +6,13 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.croneval;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
-/*
- * No serialization because the response is always answered locally and never sent over the network
- */
 public class CronEvaluationResponse extends ActionResponse {
 
     private List<String> timestamps;
@@ -24,5 +25,17 @@ public class CronEvaluationResponse extends ActionResponse {
 
     public List<String> getTimestamps() {
         return timestamps;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        in.readList(StreamInput::readString);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringList(new ArrayList<>(timestamps));
     }
 }

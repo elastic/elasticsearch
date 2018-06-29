@@ -9,10 +9,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
-/*
- * No serialization because the request is always answered locally and never sent over the network
- */
+import java.io.IOException;
+
 public class CronEvaluationRequest extends ActionRequest {
 
     private String expression;
@@ -56,5 +57,19 @@ public class CronEvaluationRequest extends ActionRequest {
     @Override
     public String toString() {
         return "croneval[" + expression + "]";
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        expression = in.readString();
+        count = in.readVInt();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(expression);
+        out.writeVInt(count);
     }
 }

@@ -1,0 +1,15 @@
+{
+  "xpack.watcher.croneval": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-croneval.html",
+    "methods": [ "GET", "POST" ],
+    "url": {
+      "path": "/_xpack/watcher/_croneval",
+      "paths": [ "/_xpack/watcher/_croneval" ],
+      "params": {}
+    },
+    "body": {
+      "description" : "the cron expression",
+      "required" : true
+    }
+  }
+}

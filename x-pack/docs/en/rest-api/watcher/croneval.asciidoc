@@ -1,0 +1,44 @@
+[role="xpack"]
+[[watcher-api-croneval]]
+=== Cron Evaluation API
+
+The `croneval` API allows to evaluate cron expressions to verify that
+your cron expressions are valid and produce the expected results.
+
+[float]
+==== Request
+
+`POST _xpack/watcher/_croneval`
+
+[float]
+==== Authorization
+
+You must have `manage_watcher` cluster privileges to use this API. For more
+information, see {xpack-ref}/security-privileges.html[Security Privileges].
+
+[float]
+==== Examples
+
+The `count` parameter in the following request is optional, defaulting to `10`.
+
+[source,js]
+--------------------------------------------------
+POST _xpack/watcher/_croneval
+{
+  "expression" : "0 0 0 1 * ? 2099",
+  "count" : 1
+}
+--------------------------------------------------
+// CONSOLE
+
+{watcher} returns the following response if the request is successful:
+
+[source,js]
+--------------------------------------------------
+{
+   "timestamps": [
+     "Thu, 1 Jan 2099 00:00:00"
+   ]
+}
+--------------------------------------------------
+// TESTRESPONSE

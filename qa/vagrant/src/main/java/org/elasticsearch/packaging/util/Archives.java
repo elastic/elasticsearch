@@ -205,7 +205,6 @@ public class Archives {
         Stream.of(
             "bin/elasticsearch-certgen",
             "bin/elasticsearch-certutil",
-            "bin/elasticsearch-croneval",
             "bin/elasticsearch-migrate",
             "bin/elasticsearch-saml-metadata",
             "bin/elasticsearch-setup-passwords",

@@ -16,7 +16,6 @@ verify_xpack_installation() {
     local binaryFiles=(
         'elasticsearch-certgen'
         'elasticsearch-certutil'
-        'elasticsearch-croneval'
         'elasticsearch-migrate'
         'elasticsearch-saml-metadata'
         'elasticsearch-setup-passwords'

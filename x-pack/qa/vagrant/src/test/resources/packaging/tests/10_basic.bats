@@ -36,12 +36,3 @@ setup() {
 @test "[X-PACK] verify x-pack installation" {
     verify_xpack_installation
 }
-
-@test "[X-PACK] verify croneval works" {
-    run $ESHOME/bin/elasticsearch-croneval "0 0 20 ? * MON-THU" -c 2
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"Valid!"* ]] || {
-      echo "Expected output message to contain [Valid!] but found: $output"
-      false
-    }
-}

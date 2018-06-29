@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.core.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.croneval.CronEvaluationAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
@@ -138,6 +139,7 @@ import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
 import org.elasticsearch.xpack.watcher.rest.action.RestAckWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction;
+import org.elasticsearch.xpack.watcher.rest.action.RestCronEvalAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestDeleteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestGetWatchAction;
@@ -152,6 +154,7 @@ import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransformFactory;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.TransportAckWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.activate.TransportActivateWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.croneval.TransportCronEvaluationAction;
 import org.elasticsearch.xpack.watcher.transport.actions.delete.TransportDeleteWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.TransportExecuteWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.get.TransportGetWatchAction;
@@ -495,7 +498,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
                 new ActionHandler<>(AckWatchAction.INSTANCE, TransportAckWatchAction.class),
                 new ActionHandler<>(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class),
                 new ActionHandler<>(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class),
-                new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class));
+                new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class),
+                new ActionHandler<>(CronEvaluationAction.INSTANCE, TransportCronEvaluationAction.class));
     }
 
     @Override
@@ -513,7 +517,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
                 new RestWatchServiceAction(settings, restController),
                 new RestAckWatchAction(settings, restController),
                 new RestActivateWatchAction(settings, restController),
-                new RestExecuteWatchAction(settings, restController));
+                new RestExecuteWatchAction(settings, restController),
+                new RestCronEvalAction(settings, restController));
     }
 
     @Override

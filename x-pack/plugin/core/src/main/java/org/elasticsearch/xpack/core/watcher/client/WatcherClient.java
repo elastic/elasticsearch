@@ -16,6 +16,10 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateW
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.croneval.CronEvaluationAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.croneval.CronEvaluationRequest;
+import org.elasticsearch.xpack.core.watcher.transport.actions.croneval.CronEvaluationRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.croneval.CronEvaluationResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequestBuilder;
@@ -314,10 +318,49 @@ public class WatcherClient {
      * Executes an watch
      *
      * @param request The execute request with the watch id to be executed
-     * @return The AckWatchResponse
+     * @return The ExecuteWatchResponse
      */
     public ActionFuture<ExecuteWatchResponse> executeWatch(ExecuteWatchRequest request) {
         return client.execute(ExecuteWatchAction.INSTANCE, request);
+    }
+
+    /**
+     * Evaluates a cron expression
+     *
+     * @param request The request with the expression to be evaluated
+     * @return The CronEvaluationResponse
+     */
+    public ActionFuture<CronEvaluationResponse> cronEvaluation(CronEvaluationRequest request) {
+        return client.execute(CronEvaluationAction.INSTANCE, request);
+    }
+
+    /**
+     * Creates a request builder to evaluate a cron expression
+     *
+     * @param expression The cron expression to be evaluated
+     * @return The request builder
+     */
+    public CronEvaluationRequestBuilder prepareCronEvaluation(String expression) {
+        return new CronEvaluationRequestBuilder(client, expression);
+    }
+
+    /**
+     * Creates a request builder that evaluates a cron expression
+     *
+     * @return The request builder
+     */
+    public CronEvaluationRequestBuilder prepareCronEvaluation() {
+        return new CronEvaluationRequestBuilder(client);
+    }
+
+    /**
+     * evaluates a cron expression
+     *
+     * @param request The run request with the cron expression to be evaluated
+     * @param listener The listener for the evaluation response
+     */
+    public void cronEvaluation(CronEvaluationRequest request, ActionListener<CronEvaluationResponse> listener) {
+        client.execute(CronEvaluationAction.INSTANCE, request, listener);
     }
 
     public WatcherClient filterWithHeader(Map<String, String> headers) {

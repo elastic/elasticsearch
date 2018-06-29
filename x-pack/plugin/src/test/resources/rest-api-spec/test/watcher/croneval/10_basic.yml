@@ -1,0 +1,12 @@
+---
+"Test watcher croneval":
+  - do:
+      xpack.watcher.croneval:
+        body:  >
+          {
+            "expression" : "0 0 0 1 * ? 2099",
+            "count":  1
+          }
+
+  - match: { timestamps.0: "Thu, 1 Jan 2099 00:00:00" }
+  - length: { timestamps: 1 }

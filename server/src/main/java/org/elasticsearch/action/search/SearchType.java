@@ -50,6 +50,11 @@ public enum SearchType {
      */
     public static final SearchType DEFAULT = QUERY_THEN_FETCH;
 
+    /**
+     * Non-deprecated types
+     */
+    public static final SearchType [] CURRENTLY_SUPPORTED = {QUERY_THEN_FETCH, DFS_QUERY_THEN_FETCH};
+
     private byte id;
 
     SearchType(byte id) {
@@ -94,4 +99,5 @@ public enum SearchType {
             throw new IllegalArgumentException("No search type for [" + searchType + "]");
         }
     }
+    
 }

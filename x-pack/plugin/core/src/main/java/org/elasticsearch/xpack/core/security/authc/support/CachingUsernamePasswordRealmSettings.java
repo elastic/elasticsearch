@@ -13,7 +13,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 public final class CachingUsernamePasswordRealmSettings {
-    public static final Setting<String> CACHE_HASH_ALGO_SETTING = Setting.simpleString("cache.hash_algo", Setting.Property.NodeScope);
+    public static final Setting<String> CACHE_HASH_ALGO_SETTING = Setting.simpleString("cache.hash_algo", "ssha256",
+        Setting.Property.NodeScope);
     private static final TimeValue DEFAULT_TTL = TimeValue.timeValueMinutes(20);
     public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting("cache.ttl", DEFAULT_TTL, Setting.Property.NodeScope);
     private static final int DEFAULT_MAX_USERS = 100_000; //100k users

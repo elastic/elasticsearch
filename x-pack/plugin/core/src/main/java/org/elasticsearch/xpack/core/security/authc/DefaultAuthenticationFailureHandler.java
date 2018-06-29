@@ -67,24 +67,12 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
 
     @Override
     public ElasticsearchSecurityException exceptionProcessingRequest(RestRequest request, Exception e, ThreadContext context) {
-        if (e instanceof ElasticsearchSecurityException) {
-            assert ((ElasticsearchSecurityException) e).status() == RestStatus.UNAUTHORIZED;
-            assert ((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate") != null
-                    && ((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate").size() > 0;
-            return (ElasticsearchSecurityException) e;
-        }
         return createAuthenticationError("error attempting to authenticate request", e, (Object[]) null);
     }
 
     @Override
     public ElasticsearchSecurityException exceptionProcessingRequest(TransportMessage message, String action, Exception e,
             ThreadContext context) {
-        if (e instanceof ElasticsearchSecurityException) {
-            assert ((ElasticsearchSecurityException) e).status() == RestStatus.UNAUTHORIZED;
-            assert ((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate") != null
-                    && ((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate").size() > 0;
-            return (ElasticsearchSecurityException) e;
-        }
         return createAuthenticationError("error attempting to authenticate request", e, (Object[]) null);
     }
 
@@ -110,12 +98,21 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
      * Also adds response headers as configured
      *
      * @param message error message
-     * @param t root cause
+     * @param t cause, if it is an instance of
+     *            {@link ElasticsearchSecurityException} asserts status is
+     *            RestStatus.UNAUTHORIZED and adds headers to it, else it will
+     *            create a new instance of {@link ElasticsearchSecurityException}
      * @param args error message args
      * @return instance of {@link ElasticsearchSecurityException}
      */
     private ElasticsearchSecurityException createAuthenticationError(final String message, final Throwable t, final Object... args) {
-        ElasticsearchSecurityException ese = authenticationError(message, t, args);
+        final ElasticsearchSecurityException ese;
+        if (t instanceof ElasticsearchSecurityException) {
+            assert ((ElasticsearchSecurityException) t).status() == RestStatus.UNAUTHORIZED;
+            ese = (ElasticsearchSecurityException) t;
+        } else {
+            ese = authenticationError(message, t, args);
+        }
         // If it is already present then it will replace the existing header.
         defaultFailureResponseHeaders.entrySet().stream().forEach((e) -> ese.addHeader(e.getKey(), e.getValue()));
         return ese;

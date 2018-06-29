@@ -65,24 +65,22 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
 
         assertThat(failuerHandler, is(notNullValue()));
         final boolean causeIsElasticsearchSecurityException = randomBoolean();
-        final ElasticsearchSecurityException eseCause =
-                new ElasticsearchSecurityException("unauthorized", RestStatus.UNAUTHORIZED, null, (Object[]) null);
-        final boolean withChallenge = causeIsElasticsearchSecurityException && randomBoolean();
+        final boolean causeIsEseAndUnauthorized = causeIsElasticsearchSecurityException && randomBoolean();
+        final ElasticsearchSecurityException eseCause = (causeIsEseAndUnauthorized)
+                ? new ElasticsearchSecurityException("unauthorized", RestStatus.UNAUTHORIZED, null, (Object[]) null)
+                : new ElasticsearchSecurityException("different error", RestStatus.BAD_REQUEST, null, (Object[]) null);
         final Exception cause = causeIsElasticsearchSecurityException ? eseCause : new Exception("other error");
-        if (withChallenge) {
-            eseCause.addHeader("WWW-Authenticate", basicAuthScheme);
-        } else {
-            eseCause.addHeader("WWW-Authenticate", randomFrom(Arrays.asList(null, Collections.emptyList())));
-        }
+        eseCause.addHeader("WWW-Authenticate", randomFrom(Arrays.asList(null, ""), Collections.singletonList(basicAuthScheme)));
+
         if (causeIsElasticsearchSecurityException) {
-            if (withChallenge) {
+            if (causeIsEseAndUnauthorized) {
                 final ElasticsearchSecurityException ese = failuerHandler.exceptionProcessingRequest(Mockito.mock(RestRequest.class), cause,
                         new ThreadContext(Settings.builder().build()));
                 assertThat(ese, is(notNullValue()));
                 assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
                 assertThat(ese, is(sameInstance(cause)));
-                assertThat(ese.getHeader("WWW-Authenticate").size(), is(1));
-                assertThat(ese.getHeader("WWW-Authenticate"), contains(Arrays.asList(equalTo(basicAuthScheme))));
+                assertThat(ese.getHeader("WWW-Authenticate").size(), is(2));
+                assertThat(ese.getHeader("WWW-Authenticate"), contains(Arrays.asList(equalTo(basicAuthScheme), equalTo(bearerAuthScheme))));
                 assertThat(ese.getMessage(), equalTo("unauthorized"));
             } else {
                 expectThrows(AssertionError.class, () -> failuerHandler.exceptionProcessingRequest(Mockito.mock(RestRequest.class), cause,

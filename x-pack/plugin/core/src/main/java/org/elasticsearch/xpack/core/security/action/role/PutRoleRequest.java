@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.SecurityPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
@@ -35,6 +37,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     private String[] clusterPrivileges = Strings.EMPTY_ARRAY;
     private List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
     private List<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges = new ArrayList<>();
+    private SecurityPrivileges securityPrivileges;
     private String[] runAs = Strings.EMPTY_ARRAY;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
@@ -98,6 +101,10 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         this.applicationPrivileges.addAll(Arrays.asList(privileges));
     }
 
+    void securityPrivileges(SecurityPrivileges securityPrivileges) {
+        this.securityPrivileges = securityPrivileges;
+    }
+
     public void runAs(String... usernames) {
         this.runAs = usernames;
     }
@@ -154,6 +161,9 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         runAs = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
         metadata = in.readMap();
+        if(in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            securityPrivileges = SecurityPrivileges.createFrom(in);
+        }
     }
 
     @Override
@@ -168,6 +178,9 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
         out.writeMap(metadata);
+        if(out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            securityPrivileges.writeTo(out);
+        }
     }
 
     public RoleDescriptor roleDescriptor() {
@@ -175,8 +188,10 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
                 clusterPrivileges,
                 indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]),
                 applicationPrivileges.toArray(new RoleDescriptor.ApplicationResourcePrivileges[applicationPrivileges.size()]),
-            null, runAs,
+                securityPrivileges,
+                runAs,
                 metadata,
                 Collections.emptyMap());
     }
+
 }

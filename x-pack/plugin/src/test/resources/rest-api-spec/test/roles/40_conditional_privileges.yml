@@ -1,0 +1,52 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  - do:
+      xpack.security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "s3krit",
+              "roles" : [ "cond_priv" ]
+            }
+
+---
+teardown:
+  - do:
+      xpack.security.delete_user:
+        username: "joe"
+        ignore: 404
+  - do:
+      xpack.security.delete_role:
+        name: "cond_priv"
+        ignore: 404
+
+
+---
+"Test put role with conditional security privileges":
+  - do:
+      xpack.security.put_role:
+        name: "cond_priv"
+        body:  >
+            {
+              "security": {
+                "application": {
+                  "manage": {
+                    "applications": [ "app1-*" , "app2-*" ]
+                  }
+                }
+              }
+            }
+  - match: { role: { created: true } }
+
+
+  - do:
+      xpack.security.get_role:
+        name: "cond_priv"
+  - match: { cond_priv.security.application.manage.applications.0:  "app1-*" }
+  - match: { cond_priv.security.application.manage.applications.1:  "app2-*" }

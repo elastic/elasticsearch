@@ -30,7 +30,7 @@ public class SecurityPrivilegesTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         final SecurityPrivileges original = buildSecurityPrivileges();
-        try (final BytesStreamOutput out = new BytesStreamOutput()) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
             original.writeTo(out);
             final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {

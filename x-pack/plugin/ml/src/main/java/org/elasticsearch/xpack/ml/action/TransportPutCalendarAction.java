@@ -20,10 +20,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -39,15 +39,15 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
     private final Client client;
 
     @Inject
-    public TransportPutCalendarAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportPutCalendarAction(Settings settings, TransportService transportService,
                                       ActionFilters actionFilters, Client client) {
-        super(settings, PutCalendarAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, PutCalendarAction.NAME, transportService, actionFilters,
             (Supplier<PutCalendarAction.Request>) PutCalendarAction.Request::new);
         this.client = client;
     }
 
     @Override
-    protected void doExecute(PutCalendarAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
+    protected void doExecute(Task task, PutCalendarAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
         Calendar calendar = request.getCalendar();
 
         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, calendar.documentId());

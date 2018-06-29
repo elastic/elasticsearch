@@ -10,7 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesRequest;
@@ -28,17 +28,17 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
     private final ReservedRolesStore reservedRolesStore;
 
     @Inject
-    public TransportGetRolesAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportGetRolesAction(Settings settings, ActionFilters actionFilters,
                                    NativeRolesStore nativeRolesStore, TransportService transportService,
                                    ReservedRolesStore reservedRolesStore) {
-        super(settings, GetRolesAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, GetRolesAction.NAME, transportService, actionFilters,
             GetRolesRequest::new);
         this.nativeRolesStore = nativeRolesStore;
         this.reservedRolesStore = reservedRolesStore;
     }
 
     @Override
-    protected void doExecute(final GetRolesRequest request, final ActionListener<GetRolesResponse> listener) {
+    protected void doExecute(Task task, final GetRolesRequest request, final ActionListener<GetRolesResponse> listener) {
         final String[] requestedRoles = request.names();
         final boolean specificRolesRequested = requestedRoles != null && requestedRoles.length > 0;
         final List<String> rolesToSearchFor = new ArrayList<>();

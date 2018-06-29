@@ -24,10 +24,10 @@ import java.util.IdentityHashMap;
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.common.settings.Settings;
 
-public class TestAwsS3Service extends InternalAwsS3Service {
+public class TestAwsS3Service extends S3Service {
     public static class TestPlugin extends S3RepositoryPlugin {
         public TestPlugin(Settings settings) {
-            super(new TestAwsS3Service(settings));
+            super(settings, new TestAwsS3Service(settings));
         }
     }
 

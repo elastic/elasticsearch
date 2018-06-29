@@ -24,10 +24,10 @@ forbiddenApisMain {
 }
 
 dependencies {
-    compile (xpackProject('plugin:sql:sql-shared-client')) {
+    compile (xpackProject('plugin:sql:sql-client')) {
         transitive = false
     }
-    compile (xpackProject('plugin:sql:sql-shared-proto')) {
+    compile (xpackProject('plugin:sql:sql-proto')) {
         transitive = false
     }
     compile (project(':libs:x-content')) {
@@ -39,12 +39,12 @@ dependencies {
 }
 
 dependencyLicenses {
-    mapping from: /sql-shared-proto.*/, to: 'elasticsearch'
-    mapping from: /sql-shared-client.*/, to: 'elasticsearch'
+    mapping from: /sql-proto.*/, to: 'elasticsearch'
+    mapping from: /sql-client.*/, to: 'elasticsearch'
     mapping from: /jackson-.*/, to: 'jackson'
     mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
-    ignoreSha 'sql-shared-proto'
-    ignoreSha 'sql-shared-client'
+    ignoreSha 'sql-proto'
+    ignoreSha 'sql-client'
     ignoreSha 'elasticsearch'
 }
 

@@ -24,9 +24,9 @@ public abstract class WatcherTransportAction<Request extends ActionRequest, Resp
 
     protected final XPackLicenseState licenseState;
 
-    public WatcherTransportAction(Settings settings, String actionName, TransportService transportService, ThreadPool threadPool,
+    public WatcherTransportAction(Settings settings, String actionName, TransportService transportService,
                                   ActionFilters actionFilters, XPackLicenseState licenseState, Writeable.Reader<Request> request) {
-        super(settings, actionName, threadPool, transportService, actionFilters, request);
+        super(settings, actionName, transportService, actionFilters, request);
         this.licenseState = licenseState;
     }
 
@@ -35,11 +35,13 @@ public abstract class WatcherTransportAction<Request extends ActionRequest, Resp
     }
 
     @Override
-    protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
+    protected final void doExecute(Task task, final Request request, ActionListener<Response> listener) {
         if (licenseState.isWatcherAllowed()) {
-            super.doExecute(task, request, listener);
+            doExecute(request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.WATCHER));
         }
     }
+
+    protected abstract void doExecute(Request request, ActionListener<Response> listener);
 }

@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="basic"]
 [[config-monitoring-indices]]
 === Configuring Indices for Monitoring
 

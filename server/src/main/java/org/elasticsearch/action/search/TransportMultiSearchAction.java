@@ -22,7 +22,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -42,32 +43,35 @@ import java.util.function.LongSupplier;
 public class TransportMultiSearchAction extends HandledTransportAction<MultiSearchRequest, MultiSearchResponse> {
 
     private final int availableProcessors;
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final TransportAction<SearchRequest, SearchResponse> searchAction;
     private final LongSupplier relativeTimeProvider;
+    private final NodeClient client;
 
     @Inject
     public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                      ClusterService clusterService, TransportSearchAction searchAction, ActionFilters actionFilters) {
-        super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters, MultiSearchRequest::new);
+                                      ClusterService clusterService, ActionFilters actionFilters, NodeClient client) {
+        super(settings, MultiSearchAction.NAME, transportService, actionFilters, MultiSearchRequest::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.searchAction = searchAction;
         this.availableProcessors = EsExecutors.numberOfProcessors(settings);
         this.relativeTimeProvider = System::nanoTime;
+        this.client = client;
     }
 
     TransportMultiSearchAction(ThreadPool threadPool, ActionFilters actionFilters, TransportService transportService,
-                               ClusterService clusterService, TransportAction<SearchRequest, SearchResponse> searchAction,
-                               int availableProcessors, LongSupplier relativeTimeProvider) {
-        super(Settings.EMPTY, MultiSearchAction.NAME, threadPool, transportService, actionFilters, MultiSearchRequest::new);
+                               ClusterService clusterService, int availableProcessors,
+                               LongSupplier relativeTimeProvider, NodeClient client) {
+        super(Settings.EMPTY, MultiSearchAction.NAME, transportService, actionFilters, MultiSearchRequest::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.searchAction = searchAction;
         this.availableProcessors = availableProcessors;
         this.relativeTimeProvider = relativeTimeProvider;
+        this.client = client;
     }
 
     @Override
-    protected void doExecute(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
+    protected void doExecute(Task task, MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
         final long relativeStartTime = relativeTimeProvider.getAsLong();
 
         ClusterState clusterState = clusterService.state();
@@ -141,7 +145,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
          * when we handle the response rather than going recursive, we fork to another thread, otherwise we recurse.
          */
         final Thread thread = Thread.currentThread();
-        searchAction.execute(request.request, new ActionListener<SearchResponse>() {
+        client.search(request.request, new ActionListener<SearchResponse>() {
             @Override
             public void onResponse(final SearchResponse searchResponse) {
                 handleResponse(request.responseSlot, new MultiSearchResponse.Item(searchResponse, null));

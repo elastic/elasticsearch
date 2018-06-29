@@ -83,7 +83,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * {@link WriteRequest}s to this but java doesn't support syntax to declare that everything in the array has both types so we declare
      * the one with the least casts.
      */
-    final List<DocWriteRequest> requests = new ArrayList<>();
+    final List<DocWriteRequest<?>> requests = new ArrayList<>();
     private final Set<String> indices = new HashSet<>();
     List<Object> payloads = null;
 
@@ -99,14 +99,14 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * Adds a list of requests to be executed. Either index or delete requests.
      */
-    public BulkRequest add(DocWriteRequest... requests) {
-        for (DocWriteRequest request : requests) {
+    public BulkRequest add(DocWriteRequest<?>... requests) {
+        for (DocWriteRequest<?> request : requests) {
             add(request, null);
         }
         return this;
     }
 
-    public BulkRequest add(DocWriteRequest request) {
+    public BulkRequest add(DocWriteRequest<?> request) {
         return add(request, null);
     }
 
@@ -116,7 +116,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * @param payload Optional payload
      * @return the current bulk request
      */
-    public BulkRequest add(DocWriteRequest request, @Nullable Object payload) {
+    public BulkRequest add(DocWriteRequest<?> request, @Nullable Object payload) {
         if (request instanceof IndexRequest) {
             add((IndexRequest) request, payload);
         } else if (request instanceof DeleteRequest) {
@@ -133,8 +133,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * Adds a list of requests to be executed. Either index or delete requests.
      */
-    public BulkRequest add(Iterable<DocWriteRequest> requests) {
-        for (DocWriteRequest request : requests) {
+    public BulkRequest add(Iterable<DocWriteRequest<?>> requests) {
+        for (DocWriteRequest<?> request : requests) {
             add(request);
         }
         return this;
@@ -223,7 +223,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     /**
      * The list of requests in this bulk request.
      */
-    public List<DocWriteRequest> requests() {
+    public List<DocWriteRequest<?>> requests() {
         return this.requests;
     }
 
@@ -527,7 +527,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * @return Whether this bulk request contains index request with an ingest pipeline enabled.
      */
     public boolean hasIndexRequestsWithPipelines() {
-        for (DocWriteRequest actionRequest : requests) {
+        for (DocWriteRequest<?> actionRequest : requests) {
             if (actionRequest instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) actionRequest;
                 if (Strings.hasText(indexRequest.getPipeline())) {
@@ -545,7 +545,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         if (requests.isEmpty()) {
             validationException = addValidationError("no requests added", validationException);
         }
-        for (DocWriteRequest request : requests) {
+        for (DocWriteRequest<?> request : requests) {
             // We first check if refresh has been set
             if (((WriteRequest<?>) request).getRefreshPolicy() != RefreshPolicy.NONE) {
                 validationException = addValidationError(
@@ -580,7 +580,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         super.writeTo(out);
         waitForActiveShards.writeTo(out);
         out.writeVInt(requests.size());
-        for (DocWriteRequest request : requests) {
+        for (DocWriteRequest<?> request : requests) {
             DocWriteRequest.writeDocumentRequest(out, request);
         }
         refreshPolicy.writeTo(out);

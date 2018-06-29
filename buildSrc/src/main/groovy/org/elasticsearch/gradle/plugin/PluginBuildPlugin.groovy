@@ -71,7 +71,9 @@ public class PluginBuildPlugin extends BuildPlugin {
             if (isModule) {
                 project.integTestCluster.module(project)
                 project.tasks.run.clusterConfig.module(project)
-                project.tasks.run.clusterConfig.distribution = 'integ-test-zip'
+                project.tasks.run.clusterConfig.distribution = System.getProperty(
+                        'run.distribution', 'integ-test-zip'
+                )
             } else {
                 project.integTestCluster.plugin(project.path)
                 project.tasks.run.clusterConfig.plugin(project.path)
@@ -111,7 +113,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     private static void createIntegTestTask(Project project) {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.mustRunAfter(project.precommit, project.test)
-        project.integTestCluster.distribution = 'integ-test-zip'
+        project.integTestCluster.distribution = System.getProperty('tests.distribution', 'integ-test-zip')
         project.check.dependsOn(integTest)
     }
 

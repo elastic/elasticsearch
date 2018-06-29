@@ -41,12 +41,14 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Matchers;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
@@ -174,7 +176,16 @@ public class JobManagerTests extends ESTestCase {
         });
     }
 
-    public void testUpdateProcessOnFilterChanged() {
+    public void testNotifyFilterChangedGivenNoop() {
+        MlFilter filter = MlFilter.builder("my_filter").build();
+        JobManager jobManager = createJobManager();
+
+        jobManager.notifyFilterChanged(filter, Collections.emptySet(), Collections.emptySet());
+
+        Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
+    }
+
+    public void testNotifyFilterChanged() {
         Detector.Builder detectorReferencingFilter = new Detector.Builder("count", null);
         detectorReferencingFilter.setByFieldName("foo");
         DetectionRule filterRule = new DetectionRule.Builder(RuleScope.builder().exclude("foo", "foo_filter")).build();
@@ -208,11 +219,18 @@ public class JobManagerTests extends ESTestCase {
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 
+        doAnswer(invocationOnMock -> {
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
+            listener.onResponse(true);
+            return null;
+        }).when(updateJobProcessNotifier).submitJobUpdate(any(), any());
+
         JobManager jobManager = createJobManager();
 
         MlFilter filter = MlFilter.builder("foo_filter").setItems("a", "b").build();
 
-        jobManager.updateProcessOnFilterChanged(filter);
+        jobManager.notifyFilterChanged(filter, new TreeSet<>(Arrays.asList("item 1", "item 2")),
+                new TreeSet<>(Collections.singletonList("item 3")));
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
         verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any(ActionListener.class));
@@ -223,6 +241,74 @@ public class JobManagerTests extends ESTestCase {
         assertThat(capturedUpdateParams.get(0).getFilter(), equalTo(filter));
         assertThat(capturedUpdateParams.get(1).getJobId(), equalTo(jobReferencingFilter2.getId()));
         assertThat(capturedUpdateParams.get(1).getFilter(), equalTo(filter));
+
+        verify(auditor).info(jobReferencingFilter1.getId(), "Filter [foo_filter] has been modified; added items: " +
+                "['item 1', 'item 2'], removed items: ['item 3']");
+        verify(auditor).info(jobReferencingFilter2.getId(), "Filter [foo_filter] has been modified; added items: " +
+                "['item 1', 'item 2'], removed items: ['item 3']");
+        verify(auditor).info(jobReferencingFilter3.getId(), "Filter [foo_filter] has been modified; added items: " +
+                "['item 1', 'item 2'], removed items: ['item 3']");
+        Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
+    }
+
+    public void testNotifyFilterChangedGivenOnlyAddedItems() {
+        Detector.Builder detectorReferencingFilter = new Detector.Builder("count", null);
+        detectorReferencingFilter.setByFieldName("foo");
+        DetectionRule filterRule = new DetectionRule.Builder(RuleScope.builder().exclude("foo", "foo_filter")).build();
+        detectorReferencingFilter.setRules(Collections.singletonList(filterRule));
+        AnalysisConfig.Builder filterAnalysisConfig = new AnalysisConfig.Builder(Collections.singletonList(
+                detectorReferencingFilter.build()));
+
+        Job.Builder jobReferencingFilter = buildJobBuilder("job-referencing-filter");
+        jobReferencingFilter.setAnalysisConfig(filterAnalysisConfig);
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(jobReferencingFilter.build(), false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MLMetadataField.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        JobManager jobManager = createJobManager();
+
+        MlFilter filter = MlFilter.builder("foo_filter").build();
+
+        jobManager.notifyFilterChanged(filter, new TreeSet<>(Arrays.asList("a", "b")), Collections.emptySet());
+
+        verify(auditor).info(jobReferencingFilter.getId(), "Filter [foo_filter] has been modified; added items: ['a', 'b']");
+        Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
+    }
+
+    public void testNotifyFilterChangedGivenOnlyRemovedItems() {
+        Detector.Builder detectorReferencingFilter = new Detector.Builder("count", null);
+        detectorReferencingFilter.setByFieldName("foo");
+        DetectionRule filterRule = new DetectionRule.Builder(RuleScope.builder().exclude("foo", "foo_filter")).build();
+        detectorReferencingFilter.setRules(Collections.singletonList(filterRule));
+        AnalysisConfig.Builder filterAnalysisConfig = new AnalysisConfig.Builder(Collections.singletonList(
+                detectorReferencingFilter.build()));
+
+        Job.Builder jobReferencingFilter = buildJobBuilder("job-referencing-filter");
+        jobReferencingFilter.setAnalysisConfig(filterAnalysisConfig);
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(jobReferencingFilter.build(), false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MLMetadataField.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        JobManager jobManager = createJobManager();
+
+        MlFilter filter = MlFilter.builder("foo_filter").build();
+
+        jobManager.notifyFilterChanged(filter, Collections.emptySet(), new TreeSet<>(Arrays.asList("a", "b")));
+
+        verify(auditor).info(jobReferencingFilter.getId(), "Filter [foo_filter] has been modified; removed items: ['a', 'b']");
+        Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
     }
 
     public void testUpdateProcessOnCalendarChanged() {

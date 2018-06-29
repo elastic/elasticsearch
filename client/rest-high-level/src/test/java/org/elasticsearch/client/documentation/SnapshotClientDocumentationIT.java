@@ -468,6 +468,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         RestHighLevelClient client = highLevelClient();
 
         createTestRepositories();
+        createTestIndex();
         createTestSnapshots();
 
         // tag::get-snapshots-request

@@ -102,6 +102,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
         assertThat(result.get(4)[1], equalTo(8196L));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/31581")
     public void testCoordinator() throws Exception {
         Client client = createClientMock();
 
@@ -228,6 +229,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
         assertThat(exception[0], nullValue());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/31581")
     public void testChunkProcessorRetry() {
         Client client = createClientMock();
         Queue<long[]> chunks = new LinkedList<>();

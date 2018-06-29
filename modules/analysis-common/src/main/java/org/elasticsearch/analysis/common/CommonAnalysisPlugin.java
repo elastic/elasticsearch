@@ -111,9 +111,16 @@ import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
@@ -127,10 +134,15 @@ import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.tartarus.snowball.ext.DutchStemmer;
 import org.tartarus.snowball.ext.FrenchStemmer;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -140,6 +152,14 @@ import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
 public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(CommonAnalysisPlugin.class));
+
+    private final SetOnce<ScriptService> scriptService = new SetOnce<>();
+
+    @Override
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool, ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry, Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+        this.scriptService.set(scriptService);
+        return Collections.emptyList();
+    }
 
     @Override
     public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {

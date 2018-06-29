@@ -2333,7 +2333,8 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testDocStats() throws IOException {
         IndexShard indexShard = null;
         try {
-            indexShard = newStartedShard();
+            indexShard = newStartedShard(
+                Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0).build());
             final long numDocs = randomIntBetween(2, 32); // at least two documents so we have docs to delete
             // Delete at least numDocs/10 documents otherwise the number of deleted docs will be below 10%
             // and forceMerge will refuse to expunge deletes

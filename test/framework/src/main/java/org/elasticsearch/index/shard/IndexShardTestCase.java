@@ -195,6 +195,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
+                    randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
                 .put(settings)
                 .build();
         IndexMetaData.Builder metaData = IndexMetaData.builder(shardRouting.getIndexName())
@@ -363,6 +366,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected IndexShard newStartedShard() throws IOException {
         return newStartedShard(randomBoolean());
+    }
+
+    /**
+     * Creates a new empty shard and starts it
+     * @param settings the settings to use for this shard
+     */
+    protected IndexShard newStartedShard(Settings settings) throws IOException {
+        return newStartedShard(randomBoolean(), settings, new InternalEngineFactory());
     }
 
     /**

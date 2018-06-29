@@ -44,6 +44,7 @@ import java.util.function.Consumer;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.apache.lucene.util.LuceneTestCase.createTempFile;
+import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 
@@ -104,7 +105,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         this.sslEnabled = sslEnabled;
         this.hostnameVerificationEnabled = randomBoolean();
         // Use PEM instead of JKS stores so that we can run these in a FIPS 140 JVM
-        if (Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips")) {
+        if (inFipsJvm()) {
             this.usePEM = true;
         } else {
             this.usePEM = randomBoolean();
@@ -306,7 +307,6 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     public static void addSSLSettingsForPEMFiles(Settings.Builder builder, String keyPath, String password,
                                                  String certificatePath, List<String> trustedCertificates) {
         addSSLSettingsForPEMFiles(builder, "", keyPath, password, certificatePath, trustedCertificates, true, true, true);
-
     }
 
     private static void addSSLSettingsForPEMFiles(Settings.Builder builder, String prefix, String keyPath, String password,

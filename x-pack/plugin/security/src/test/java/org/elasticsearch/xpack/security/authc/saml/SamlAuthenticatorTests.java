@@ -128,8 +128,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
 
     @BeforeClass
     public static void init() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, there is no DOM XMLSignature Factory so we can't sign XML documents",
-            inFipsJvm());
+        assumeFalse("Can't run in a FIPS JVM, there is no DOM XMLSignature Factory so we can't sign XML documents", inFipsJvm());
         // TODO: Refactor the signing to use org.opensaml.xmlsec.signature.support.Signer so that we can run the tests
         SamlUtils.initialize(Loggers.getLogger(SamlAuthenticatorTests.class));
         // Initialise Apache XML security so that the signDoc methods work correctly.
@@ -1910,7 +1909,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final String refID = "#" + parent.getAttribute("ID");
         final X509Certificate certificate = keyPair.v1();
         final PrivateKey privateKey = keyPair.v2();
-        final XMLSignatureFactory fac = XMLSignatureFactory.getInstance("DOM", "SUN");
+        final XMLSignatureFactory fac = XMLSignatureFactory.getInstance("DOM");
         final DigestMethod digestMethod = fac.newDigestMethod(randomFrom(DigestMethod.SHA256, DigestMethod.SHA512), null);
         final Transform transform = fac.newTransform(ENVELOPED, (TransformParameterSpec) null);
         // We don't "have to" set the reference explicitly since we're using enveloped signatures, but it helps with

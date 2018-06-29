@@ -307,8 +307,8 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         return UsernamePasswordToken.basicAuthHeaderValue(username, new SecureString(password.toCharArray()));
     }
 
-    private void addSslSettingsForKeyPair(Settings.Builder builder, Path key, String keyPassphrase, Path cert, List<String>
-        certificateAuthorities) {
+    private void addSslSettingsForKeyPair(Settings.Builder builder, Path key, String keyPassphrase, Path cert,
+                                          List<String> certificateAuthorities) {
         builder.put("xpack.ssl.key", key)
             .put("xpack.ssl.key_passphrase", keyPassphrase)
             .put("xpack.ssl.verification_mode", "certificate")

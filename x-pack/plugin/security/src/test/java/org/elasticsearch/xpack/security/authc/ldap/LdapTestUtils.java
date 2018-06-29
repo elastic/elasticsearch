@@ -26,8 +26,8 @@ public class LdapTestUtils {
         // Utility class
     }
 
-    public static LDAPConnection openConnection(String url, String bindDN, String bindPassword, List<String> certificateAuthorities) throws
-        Exception {
+    public static LDAPConnection openConnection(String url, String bindDN, String bindPassword,
+                                                List<String> certificateAuthorities) throws Exception {
         Settings.Builder builder = Settings.builder().put("path.home", LuceneTestCase.createTempDir());
         boolean useGlobalSSL = ESTestCase.randomBoolean();
         if (useGlobalSSL) {

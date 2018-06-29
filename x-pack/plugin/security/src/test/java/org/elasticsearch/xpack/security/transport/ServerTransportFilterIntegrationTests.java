@@ -67,8 +67,8 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         settingsBuilder.put(super.nodeSettings(nodeOrdinal))
-            .putList("transport.profiles.client.xpack.security.ssl.certificate_authorities", Arrays.asList
-                (certPath.toString())) // settings for client truststore
+            .putList("transport.profiles.client.xpack.security.ssl.certificate_authorities",
+                Arrays.asList(certPath.toString())) // settings for client truststore
             .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
             .put("transport.profiles.client.xpack.security.type", "client")
             .put("transport.profiles.client.port", randomClientPortRange)

@@ -204,8 +204,7 @@ public class SSLServiceTests extends ESTestCase {
 
 
     public void testCreateWithKeystoreIsValidForServer() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used",
-            inFipsJvm());
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
@@ -219,8 +218,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testValidForServerWithFallback() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used",
-            inFipsJvm());
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
@@ -247,8 +245,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testGetVerificationMode() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers",
-            inFipsJvm());
+        assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = new SSLService(Settings.EMPTY, env);
         assertThat(sslService.getVerificationMode(Settings.EMPTY, Settings.EMPTY), is(XPackSettings.VERIFICATION_MODE_DEFAULT));
 
@@ -464,8 +461,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testReadCertificateInformation() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used",
-            inFipsJvm());
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
         final Path jksPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
         final Path p12Path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12");
         final Path pemPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/active-directory-ca.crt");

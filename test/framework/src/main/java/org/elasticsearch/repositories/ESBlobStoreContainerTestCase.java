@@ -49,7 +49,11 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
     public void testReadNonExistingPath() throws IOException {
         try(BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
-            expectThrows(NoSuchFileException.class, () -> container.readBlob("non-existing"));
+            expectThrows(NoSuchFileException.class, () -> {
+                try (InputStream is = container.readBlob("non-existing")) {
+                    is.read();
+                }
+            });
         }
     }
 

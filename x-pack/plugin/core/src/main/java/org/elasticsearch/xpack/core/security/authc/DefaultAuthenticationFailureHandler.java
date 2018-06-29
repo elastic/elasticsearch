@@ -69,7 +69,8 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     public ElasticsearchSecurityException exceptionProcessingRequest(RestRequest request, Exception e, ThreadContext context) {
         if (e instanceof ElasticsearchSecurityException) {
             assert ((ElasticsearchSecurityException) e).status() == RestStatus.UNAUTHORIZED;
-            assert ((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate").size() > 0;
+            assert ((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate") != null
+                    && ((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate").size() > 0;
             return (ElasticsearchSecurityException) e;
         }
         return createAuthenticationError("error attempting to authenticate request", e, (Object[]) null);
@@ -80,7 +81,8 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
             ThreadContext context) {
         if (e instanceof ElasticsearchSecurityException) {
             assert ((ElasticsearchSecurityException) e).status() == RestStatus.UNAUTHORIZED;
-            assert ((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate").size() > 0;
+            assert ((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate") != null
+                    && ((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate").size() > 0;
             return (ElasticsearchSecurityException) e;
         }
         return createAuthenticationError("error attempting to authenticate request", e, (Object[]) null);

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.mockito.Mockito;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +71,8 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         final Exception cause = causeIsElasticsearchSecurityException ? eseCause : new Exception("other error");
         if (withChallenge) {
             eseCause.addHeader("WWW-Authenticate", basicAuthScheme);
+        } else {
+            eseCause.addHeader("WWW-Authenticate", randomFrom(Arrays.asList(null, Collections.emptyList())));
         }
         if (causeIsElasticsearchSecurityException) {
             if (withChallenge) {

@@ -265,8 +265,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
         boolean matchAllAliases = Strings.isAllOrWildcard(aliases);
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
-        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
-        for (String index : intersection) {
+        for (String index : concreteIndices) {
             IndexMetaData indexMetaData = indices.get(index);
             List<AliasMetaData> filteredValues = new ArrayList<>();
             for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {

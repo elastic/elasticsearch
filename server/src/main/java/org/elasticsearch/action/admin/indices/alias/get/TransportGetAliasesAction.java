@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import com.carrotsearch.hppc.ObjectHashSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -29,7 +28,6 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -71,8 +69,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         // in case all aliases are requested then it is desired to return the concrete index with no aliases (#25114):
         boolean aliasesProvided = Strings.isAllOrWildcard(request.getOriginalAliases());
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder(result);
-        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), state.metaData().indices().keys());
-        for (String index : intersection) {
+        for (String index : concreteIndices) {
             if (result.get(index) == null && aliasesProvided) {
                 mapBuilder.put(index, Collections.emptyList());
             }

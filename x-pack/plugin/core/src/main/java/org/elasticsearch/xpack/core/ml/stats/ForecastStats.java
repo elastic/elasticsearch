@@ -69,9 +69,9 @@ public class ForecastStats implements ToXContentObject, Writeable {
         this.statusCounts = new CountAccumulator(in);
     }
 
-    public void merge(ForecastStats other) {
+    public ForecastStats merge(ForecastStats other) {
         if (other == null) {
-            return;
+            return this;
         }
         total += other.total;
         forecastedJobs += other.forecastedJobs;
@@ -79,6 +79,8 @@ public class ForecastStats implements ToXContentObject, Writeable {
         recordStats.merge(other.recordStats);
         runtimeStats.merge(other.runtimeStats);
         statusCounts.merge(other.statusCounts);
+
+        return this;
     }
 
     @Override

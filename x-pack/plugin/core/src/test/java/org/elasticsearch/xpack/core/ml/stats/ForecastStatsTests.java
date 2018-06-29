@@ -236,7 +236,7 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
         return ForecastStats::new;
     }
 
-    private ForecastStats createForecastStats(long minTotal, long maxTotal) {
+    public ForecastStats createForecastStats(long minTotal, long maxTotal) {
         ForecastStats forecastStats = new ForecastStats(randomLongBetween(minTotal, maxTotal), createStatsAccumulator(),
                 createStatsAccumulator(), createStatsAccumulator(), createCountAccumulator());
 

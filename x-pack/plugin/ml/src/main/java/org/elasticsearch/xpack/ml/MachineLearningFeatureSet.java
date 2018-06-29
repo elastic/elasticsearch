@@ -219,8 +219,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                         js -> new StatsAccumulator()).add(detectorsCount);
                 modelSizeStatsByState.computeIfAbsent(jobState,
                         js -> new StatsAccumulator()).add(modelSize);
-                forecastStatsByState.computeIfAbsent(jobState,
-                        js -> new ForecastStats()).merge(jobStats.getForecastStats());
+                forecastStatsByState.merge(jobState, jobStats.getForecastStats(), (f1, f2) -> f1.merge(f2));
             }
 
             jobsUsage.put(MachineLearningFeatureSetUsage.ALL, createJobUsageEntry(jobs.size(), allJobsDetectorsStats,

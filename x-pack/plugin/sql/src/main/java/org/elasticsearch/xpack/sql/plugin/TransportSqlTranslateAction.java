@@ -13,6 +13,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
+import org.elasticsearch.xpack.sql.action.SqlTranslateRequest;
+import org.elasticsearch.xpack.sql.action.SqlTranslateResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.Configuration;
 

@@ -83,7 +83,7 @@ A typical listener for `GetSnapshotsResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-snapshots-execute-listener
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-snapshots-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument.

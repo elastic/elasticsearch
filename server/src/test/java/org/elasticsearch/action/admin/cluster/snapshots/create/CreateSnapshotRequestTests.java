@@ -20,8 +20,11 @@
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndicesOptions.Option;
+import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent.MapParams;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -30,6 +33,10 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,14 +44,13 @@ import java.util.Map;
 public class CreateSnapshotRequestTests extends ESTestCase {
 
     // tests creating XContent and parsing with source(Map) equivalency
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31625")
     public void testToXContent() throws IOException {
         String repo = randomAlphaOfLength(5);
         String snap = randomAlphaOfLength(10);
 
         CreateSnapshotRequest original = new CreateSnapshotRequest(repo, snap);
 
-        if (randomBoolean()) { // replace
+        if (randomBoolean()) {
             List<String> indices = new ArrayList<>();
             int count = randomInt(3) + 1;
 
@@ -55,11 +61,11 @@ public class CreateSnapshotRequestTests extends ESTestCase {
             original.indices(indices);
         }
 
-        if (randomBoolean()) { // replace
+        if (randomBoolean()) {
             original.partial(randomBoolean());
         }
 
-        if (randomBoolean()) { // replace
+        if (randomBoolean()) {
             Map<String, Object> settings = new HashMap<>();
             int count = randomInt(3) + 1;
 
@@ -67,32 +73,31 @@ public class CreateSnapshotRequestTests extends ESTestCase {
                 settings.put(randomAlphaOfLength(randomInt(3) + 2), randomAlphaOfLength(randomInt(3) + 2));
             }
 
+            original.settings(settings);
         }
 
-        if (randomBoolean()) { // replace
+        if (randomBoolean()) {
             original.includeGlobalState(randomBoolean());
         }
 
-        if (randomBoolean()) { // replace
-            IndicesOptions[] indicesOptions = new IndicesOptions[] {
-                    IndicesOptions.STRICT_EXPAND_OPEN,
-                    IndicesOptions.STRICT_EXPAND_OPEN_CLOSED,
-                    IndicesOptions.LENIENT_EXPAND_OPEN,
-                    IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED,
-                    IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED};
+        if (randomBoolean()) {
+            Collection<WildcardStates> wildcardStates = randomSubsetOf(Arrays.asList(WildcardStates.values()));
+            Collection<Option> options = randomSubsetOf(Arrays.asList(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE));
 
-            original.indicesOptions(randomFrom(indicesOptions));
+            original.indicesOptions(new IndicesOptions(
+                    options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
+                    wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates)));
         }
 
-        if (randomBoolean()) { // replace
+        if (randomBoolean()) {
             original.waitForCompletion(randomBoolean());
         }
 
-        if (randomBoolean()) { // replace
+        if (randomBoolean()) {
             original.masterNodeTimeout("60s");
         }
 
-        XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), null);
+        XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new MapParams(Collections.emptyMap()));
         XContentParser parser = XContentType.JSON.xContent().createParser(
                 NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
         Map<String, Object> map = parser.mapOrdered();

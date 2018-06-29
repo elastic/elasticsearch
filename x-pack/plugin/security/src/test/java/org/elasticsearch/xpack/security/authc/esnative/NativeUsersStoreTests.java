@@ -121,7 +121,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         final NativeUsersStore.ReservedUserInfo userInfo = future.get();
         assertThat(userInfo.hasEmptyPassword, equalTo(true));
         assertThat(userInfo.enabled, equalTo(true));
-        assertThat(userInfo.passwordHash, equalTo(ReservedRealm.EMPTY_PASSWORD_HASH));
+        assertTrue(Hasher.verifyHash(new SecureString("".toCharArray()), userInfo.passwordHash));
     }
 
     public void testVerifyUserWithCorrectPassword() throws Exception {
@@ -207,6 +207,7 @@ public class NativeUsersStoreTests extends ESTestCase {
     }
 
     private void respondToGetUserRequest(String username, SecureString password, String[] roles) throws IOException {
+        // Native users store is initiated with default hashing algorithm
         final Map<String, Object> values = new HashMap<>();
         values.put(User.Fields.USERNAME.getPreferredName(), username);
         values.put(User.Fields.PASSWORD.getPreferredName(), String.valueOf(Hasher.BCRYPT.hash(password)));

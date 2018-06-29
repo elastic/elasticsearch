@@ -14,10 +14,10 @@ This API starts a 30-day trial license.
 ==== Description
 
 The `start trial` API enables you to upgrade from a basic license to a 30-day
-trial license, which gives access to all {xpack} features.
+trial license, which gives access to the platinum features.
 
 NOTE: You are allowed to initiate a trial license only if your cluster has not
-already activated a trial license for the current major X-Pack version. For
+already activated a trial license for the current major product version. For
 example, if you have already activated a trial for v6.0, you cannot start a new
 trial until v7.0. You can, however, contact `info@elastic.co` to request an
 extended trial license.

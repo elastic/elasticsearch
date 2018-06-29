@@ -165,7 +165,8 @@ public class TransportPutUserActionTests extends ESTestCase {
         final PutUserRequest request = new PutUserRequest();
         request.username(user.principal());
         if (isCreate) {
-            request.passwordHash(Hasher.BCRYPT.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+            request.passwordHash(Hasher.resolve(
+                randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         }
         final boolean created = isCreate ? randomBoolean() : false; // updates should always return false for create
         doAnswer(new Answer() {

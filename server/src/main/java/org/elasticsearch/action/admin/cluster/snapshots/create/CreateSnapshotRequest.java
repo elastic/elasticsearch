@@ -28,14 +28,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
@@ -58,7 +61,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  * <li>must not contain invalid file name characters {@link org.elasticsearch.common.Strings#INVALID_FILENAME_CHARS} </li>
  * </ul>
  */
-public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotRequest> implements IndicesRequest.Replaceable {
+public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotRequest>
+        implements IndicesRequest.Replaceable, ToXContentObject {
 
     private String snapshot;
 
@@ -408,6 +412,34 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     }
 
     @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("repository", repository);
+        builder.field("snapshot", snapshot);
+        builder.startArray("indices");
+        for (String index : indices) {
+            builder.value(index);
+        }
+        builder.endArray();
+        builder.field("partial", partial);
+        if (settings != null) {
+            builder.startObject("settings");
+            if (settings.isEmpty() == false) {
+                settings.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
+        builder.field("include_global_state", includeGlobalState);
+        if (indicesOptions != null) {
+            indicesOptions.toXContent(builder, params);
+        }
+        builder.field("wait_for_completion", waitForCompletion);
+        builder.field("master_node_timeout", masterNodeTimeout.toString());
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
@@ -415,5 +447,43 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     @Override
     public String getDescription() {
         return "snapshot [" + repository + ":" + snapshot + "]";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CreateSnapshotRequest that = (CreateSnapshotRequest) o;
+        return partial == that.partial &&
+            includeGlobalState == that.includeGlobalState &&
+            waitForCompletion == that.waitForCompletion &&
+            Objects.equals(snapshot, that.snapshot) &&
+            Objects.equals(repository, that.repository) &&
+            Arrays.equals(indices, that.indices) &&
+            Objects.equals(indicesOptions, that.indicesOptions) &&
+            Objects.equals(settings, that.settings) &&
+            Objects.equals(masterNodeTimeout, that.masterNodeTimeout);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(snapshot, repository, indicesOptions, partial, settings, includeGlobalState, waitForCompletion);
+        result = 31 * result + Arrays.hashCode(indices);
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "CreateSnapshotRequest{" +
+            "snapshot='" + snapshot + '\'' +
+            ", repository='" + repository + '\'' +
+            ", indices=" + (indices == null ? null : Arrays.asList(indices)) +
+            ", indicesOptions=" + indicesOptions +
+            ", partial=" + partial +
+            ", settings=" + settings +
+            ", includeGlobalState=" + includeGlobalState +
+            ", waitForCompletion=" + waitForCompletion +
+            ", masterNodeTimeout=" + masterNodeTimeout +
+            '}';
     }
 }

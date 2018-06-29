@@ -41,6 +41,8 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -702,6 +704,110 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
+
+    public void testGetFieldMapping() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"), RequestOptions.DEFAULT);
+            assertTrue(createIndexResponse.isAcknowledged());
+            PutMappingRequest request = new PutMappingRequest("twitter");
+            request.type("tweet");
+            request.source(
+                "{\n" +
+                    "  \"properties\": {\n" +
+                    "    \"message\": {\n" +
+                    "      \"type\": \"text\"\n" +
+                    "    },\n" +
+                    "    \"timestamp\": {\n" +
+                    "      \"type\": \"date\"\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", // <1>
+                XContentType.JSON);
+            PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+            assertTrue(putMappingResponse.isAcknowledged());
+        }
+
+        // tag::get-field-mapping-request
+        GetFieldMappingsRequest request = new GetFieldMappingsRequest(); // <1>
+        request.indices("twitter"); // <2>
+        request.types("tweet"); // <3>
+        request.fields("message", "timestamp"); // <4>
+        // end::get-field-mapping-request
+
+        // tag::get-field-mapping-request-indicesOptions
+        request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+        // end::get-field-mapping-request-indicesOptions
+
+        // tag::get-field-mapping-request-local
+        request.local(true); // <1>
+        // end::get-field-mapping-request-local
+
+        {
+
+            // tag::get-field-mapping-execute
+            GetFieldMappingsResponse response =
+                client.indices().getFieldMapping(request, RequestOptions.DEFAULT);
+            // end::get-field-mapping-execute
+
+            // tag::get-field-mapping-response
+            final Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings =
+                response.mappings();// <1>
+            final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> typeMappings =
+                mappings.get("twitter").get("tweet"); // <2>
+            final GetFieldMappingsResponse.FieldMappingMetaData metaData =
+                typeMappings.get("message");// <3>
+
+            final String fullName = metaData.fullName();// <4>
+            final Map<String, Object> source = metaData.sourceAsMap(); // <5>
+            // end::get-field-mapping-response
+        }
+
+        {
+            // tag::get-field-mapping-execute-listener
+            ActionListener<GetFieldMappingsResponse> listener =
+                new ActionListener<GetFieldMappingsResponse>() {
+                    @Override
+                    public void onResponse(GetFieldMappingsResponse putMappingResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-field-mapping-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            final ActionListener<GetFieldMappingsResponse> latchListener = new LatchedActionListener<>(listener, latch);
+            listener = ActionListener.wrap(r -> {
+                final Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings =
+                    r.mappings();
+                final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> typeMappings =
+                    mappings.get("twitter").get("tweet");
+                final GetFieldMappingsResponse.FieldMappingMetaData metaData1 = typeMappings.get("message");
+
+                final String fullName = metaData1.fullName();
+                final Map<String, Object> source = metaData1.sourceAsMap();
+                latchListener.onResponse(r);
+            }, e -> {
+                latchListener.onFailure(e);
+                fail("should not fail");
+            });
+
+            // tag::get-field-mapping-execute-async
+            client.indices().getFieldMappingAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-field-mapping-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+
+    }
+
 
     public void testOpenIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();

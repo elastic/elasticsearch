@@ -23,8 +23,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -83,9 +85,27 @@ public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<Ana
         if (randomBoolean()) {
             int entryCount = randomInt(6);
             for (int i = 0; i < entryCount; i++) {
-                String key = randomAlphaOfLength(5);
-                String value = randomAlphaOfLength(10);
-                extras.put(key, value);
+                switch (randomInt(6)) {
+                    case 0:
+                    case 1:
+                    case 2:
+                    case 3:
+                        String key = randomAlphaOfLength(5);
+                        String value = randomAlphaOfLength(10);
+                        extras.put(key, value);
+                        break;
+                    case 4:
+                        String objkey = randomAlphaOfLength(5);
+                        Map<String, String> obj = new HashMap<>();
+                        obj.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
+                        extras.put(objkey, obj);
+                    case 5:
+                        String listkey = randomAlphaOfLength(5);
+                        List<String> list = new ArrayList<>();
+                        list.add(randomAlphaOfLength(4));
+                        list.add(randomAlphaOfLength(6));
+                        extras.put(listkey, list);
+                }
             }
         }
         return new AnalyzeResponse.AnalyzeToken(token, position, startOffset, endOffset, posLength, type, extras);

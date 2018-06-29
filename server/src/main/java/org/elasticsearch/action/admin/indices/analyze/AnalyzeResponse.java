@@ -184,7 +184,12 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
                     else if (t == XContentParser.Token.VALUE_BOOLEAN) {
                         attributes.put(field, parser.booleanValue());
                     }
-                    // TODO: Can we parse arbitrary objects into maps?
+                    else if (t == XContentParser.Token.START_OBJECT) {
+                        attributes.put(field, parser.map());
+                    }
+                    else if (t == XContentParser.Token.START_ARRAY) {
+                        attributes.put(field, parser.list());
+                    }
                 }
             }
             return new AnalyzeToken(term, position, startOffset, endOffset, positionLength, type, attributes);

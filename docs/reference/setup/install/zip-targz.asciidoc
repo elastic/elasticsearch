@@ -98,7 +98,7 @@ Log printing to `stdout` can be disabled using the `-q` or `--quiet`
 option on the command line.
 
 [[setup-installation-daemon]]
-include::zip-targz-dameon.asciidoc[]
+include::zip-targz-daemon.asciidoc[]
 
 [[zip-targz-configuring]]
 ==== Configuring Elasticsearch on the command line

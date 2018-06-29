@@ -11,7 +11,7 @@ If you installed {es} with a `.tar.gz` package, you can start {es} from the
 command line.  
 
 [float]
-include::install/targz-running.asciidoc[]
+include::install/zip-targz-start.asciidoc[]
 
 [float]
 include::install/zip-targz-daemon.asciidoc[]
@@ -56,6 +56,7 @@ from the command line. If you want it to start automatically at boot time
 without any user interaction, 
 <<msi-installer-windows-service,install {es} as a Windows service>>.
 
+[float]
 include::install/msi-windows-start.asciidoc[]
 
 [float]
@@ -68,5 +69,4 @@ include::install/init-systemd.asciidoc[]
 include::install/rpm-init.asciidoc[]
 
 [float]
-[[rpm-running-systemd]]
 include::install/systemd.asciidoc[]

@@ -26,7 +26,6 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.Streams;
 
@@ -49,7 +48,7 @@ import static java.util.Collections.emptyMap;
 /**
  * In memory storage for unit tests
  */
-public class AzureStorageServiceMock extends AbstractComponent implements AzureStorageService {
+public class AzureStorageServiceMock extends AzureStorageService {
 
     protected final Map<String, ByteArrayOutputStream> blobs = new ConcurrentHashMap<>();
 
@@ -60,14 +59,6 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     @Override
     public boolean doesContainerExist(String account, String container) {
         return true;
-    }
-
-    @Override
-    public void removeContainer(String account, String container) {
-    }
-
-    @Override
-    public void createContainer(String account, String container) {
     }
 
     @Override

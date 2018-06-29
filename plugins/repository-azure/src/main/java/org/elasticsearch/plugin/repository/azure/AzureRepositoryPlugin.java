@@ -20,7 +20,6 @@
 package org.elasticsearch.plugin.repository.azure;
 
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
-import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
 import org.elasticsearch.cloud.azure.storage.AzureStorageSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +47,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
 
     public AzureRepositoryPlugin(Settings settings) {
         // eagerly load client settings so that secure settings are read
-        this.azureStoreService = new AzureStorageServiceImpl(settings);
+        this.azureStoreService = new AzureStorageService(settings);
     }
 
     @Override
@@ -60,7 +59,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-            AzureStorageService.Storage.STORAGE_ACCOUNTS,
+            AzureStorageSettings.Storage.STORAGE_ACCOUNTS,
             AzureStorageSettings.ACCOUNT_SETTING,
             AzureStorageSettings.KEY_SETTING,
             AzureStorageSettings.ENDPOINT_SUFFIX_SETTING,
@@ -74,7 +73,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     @Override
     public List<String> getSettingsFilter() {
         // Cloud storage API settings using a pattern needed to be hidden
-        return Arrays.asList(AzureStorageService.Storage.PREFIX + "*.account", AzureStorageService.Storage.PREFIX + "*.key");
+        return Arrays.asList(AzureStorageSettings.Storage.PREFIX + "*.account", AzureStorageSettings.Storage.PREFIX + "*.key");
     }
 
     public void reload(Settings settings) {

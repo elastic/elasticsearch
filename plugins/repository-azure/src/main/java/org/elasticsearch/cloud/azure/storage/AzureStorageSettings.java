@@ -21,10 +21,9 @@ package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.RetryPolicy;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
+
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -40,11 +40,9 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-
-import static org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage.STORAGE_ACCOUNTS;
 
 public final class AzureStorageSettings {
 
@@ -87,6 +85,22 @@ public final class AzureStorageSettings {
         (key) -> Setting.intSetting(key, 0, 0, 65535, Setting.Property.NodeScope), ACCOUNT_SETTING, KEY_SETTING, PROXY_TYPE_SETTING,
         PROXY_HOST_SETTING);
 
+
+    public interface Storage {
+        @Deprecated
+        String PREFIX = "cloud.azure.storage.";
+
+        @Deprecated
+        Setting<Settings> STORAGE_ACCOUNTS = Setting.groupSetting(Storage.PREFIX, Setting.Property.NodeScope);
+
+        /**
+         * Azure timeout (defaults to -1 minute)
+         * @deprecated We don't want to support global timeout settings anymore
+         */
+        @Deprecated
+        Setting<TimeValue> TIMEOUT_SETTING =
+            Setting.timeSetting("cloud.azure.storage.timeout", TimeValue.timeValueMinutes(-1), Property.NodeScope, Property.Deprecated);
+    }
 
     @Deprecated
     public static final AffixSetting<TimeValue> DEPRECATED_TIMEOUT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "timeout",
@@ -274,7 +288,7 @@ public final class AzureStorageSettings {
         }
         return storageSettings;
     }
-    
+
     static Map<String, AzureStorageSettings> loadRegular(Settings settings) {
         // Get the list of existing named configurations
         final Map<String, AzureStorageSettings> storageSettings = new HashMap<>();
@@ -309,7 +323,7 @@ public final class AzureStorageSettings {
     @Deprecated
     private static List<AzureStorageSettings> createStorageSettingsDeprecated(Settings settings) {
         // ignore global timeout which has the same prefix but does not belong to any group
-        Settings groups = STORAGE_ACCOUNTS.get(settings.filter((k) -> k.equals(Storage.TIMEOUT_SETTING.getKey()) == false));
+        Settings groups = Storage.STORAGE_ACCOUNTS.get(settings.filter((k) -> k.equals(Storage.TIMEOUT_SETTING.getKey()) == false));
         List<AzureStorageSettings> storageSettings = new ArrayList<>();
         for (String groupName : groups.getAsGroups().keySet()) {
             storageSettings.add(

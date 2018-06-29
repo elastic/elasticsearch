@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 
@@ -88,6 +89,8 @@ public abstract class BatchedDocumentsIterator<T>  {
 
     private SearchResponse initScroll() {
         LOGGER.trace("ES API CALL: search index {}", index);
+
+        Transports.assertNotTransportThread("BatchedDocumentsIterator makes blocking calls");
 
         isScrollInitialised = true;
 

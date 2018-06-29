@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -66,10 +67,12 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
 
     private void deleteExpiredData(Iterator<MlDataRemover> mlDataRemoversIterator,
                                    ActionListener<DeleteExpiredDataAction.Response> listener) {
+        Transports.assertNotTransportThread("ML Daily Maintenance");
         if (mlDataRemoversIterator.hasNext()) {
             MlDataRemover remover = mlDataRemoversIterator.next();
             remover.remove(ActionListener.wrap(
-                    booleanResponse -> deleteExpiredData(mlDataRemoversIterator, listener),
+                    booleanResponse -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() ->
+                            deleteExpiredData(mlDataRemoversIterator, listener)),
                     listener::onFailure));
         } else {
             logger.info("Completed deletion of expired data");

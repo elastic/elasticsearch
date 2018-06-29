@@ -19,24 +19,12 @@
 package org.elasticsearch.gradle
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.GradleException
-import org.gradle.api.InvalidUserDataException
-import org.gradle.api.JavaVersion
-import org.gradle.api.Plugin
-import org.gradle.api.Project
-import org.gradle.api.Task
-import org.gradle.api.XmlProvider
-import org.gradle.api.artifacts.Configuration
-import org.gradle.api.artifacts.Dependency
-import org.gradle.api.artifacts.ModuleDependency
-import org.gradle.api.artifacts.ModuleVersionIdentifier
-import org.gradle.api.artifacts.ProjectDependency
-import org.gradle.api.artifacts.ResolvedArtifact
+import org.gradle.api.*
+import org.gradle.api.artifacts.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.plugins.JavaPlugin
@@ -57,9 +45,6 @@ import java.time.ZonedDateTime
  * Encapsulates build configuration for elasticsearch projects.
  */
 class BuildPlugin implements Plugin<Project> {
-
-    static final JavaVersion minimumRuntimeVersion = JavaVersion.VERSION_1_8
-    static final JavaVersion minimumCompilerVersion = JavaVersion.VERSION_1_10
 
     @Override
     void apply(Project project) {
@@ -95,6 +80,12 @@ class BuildPlugin implements Plugin<Project> {
     /** Performs checks on the build environment and prints information about the build environment. */
     static void globalBuildInfo(Project project) {
         if (project.rootProject.ext.has('buildChecksDone') == false) {
+            JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(
+                    BuildPlugin.class.getClassLoader().getResourceAsStream("minimumRuntimeVersion").text.trim()
+            )
+            JavaVersion minimumCompilerVersion = JavaVersion.toVersion(
+                    BuildPlugin.class.getClassLoader().getResourceAsStream("minimumCompilerVersion").text.trim()
+            )
             String compilerJavaHome = findCompilerJavaHome()
             String runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome)
             File gradleJavaHome = Jvm.current().javaHome
@@ -192,10 +183,12 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.runtimeJavaVersion = runtimeJavaVersionEnum
             project.rootProject.ext.javaVersions = javaVersions
             project.rootProject.ext.buildChecksDone = true
+            project.rootProject.ext.minimumCompilerVersion = minimumCompilerVersion
+            project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
         }
 
-        project.targetCompatibility = minimumRuntimeVersion
-        project.sourceCompatibility = minimumRuntimeVersion
+        project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
+        project.sourceCompatibility = project.rootProject.ext.minimumRuntimeVersion
 
         // set java home for each project, so they dont have to find it in the root project
         project.ext.compilerJavaHome = project.rootProject.ext.compilerJavaHome

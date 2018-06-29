@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-
 import java.nio.file.Files
 
 plugins {
@@ -40,6 +38,12 @@ if (project == rootProject) {
   // won't wipe out the buildscript jar
   buildDir = 'build-bootstrap'
 }
+
+// Make sure :buildSrc: doesn't generate classes incompatible with RUNTIME_JAVA_HOME
+// We can't use BuildPlugin here, so read from file
+String minimumRuntimeVersion = file('src/main/resources/minimumRuntimeVersion').text.trim()
+targetCompatibility = minimumRuntimeVersion
+sourceCompatibility = minimumRuntimeVersion
 
 /*****************************************************************************
  *         Propagating version.properties to the rest of the build           *

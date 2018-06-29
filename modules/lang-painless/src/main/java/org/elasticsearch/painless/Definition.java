@@ -29,6 +29,7 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -517,6 +518,10 @@ public final class Definition {
 
     private static String buildFieldCacheKey(String structName, String fieldName, String typeName) {
         return structName + fieldName + typeName;
+    }
+
+    public Collection<Struct> getStructs() {
+        return javaClassesToPainlessStructs.values();
     }
 
     private final Map<String, Class<?>> painlessTypesToJavaClasses;

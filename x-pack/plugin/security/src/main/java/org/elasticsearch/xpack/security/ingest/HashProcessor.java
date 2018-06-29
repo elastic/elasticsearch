@@ -84,7 +84,6 @@ public final class HashProcessor extends AbstractProcessor {
             if (value == null && ignoreMissing) {
                 return new Tuple<String, String>(null, null);
             }
-
             try {
                 return new Tuple<>(f, method.hash(mac, salt, value));
             } catch (Exception e) {
@@ -114,7 +113,6 @@ public final class HashProcessor extends AbstractProcessor {
             HMAC_KEY_SETTING.getAllConcreteSettings(settings).forEach(k -> {
                 secureKeys.put(k.getKey(), k.get(settings));
             });
-
         }
 
         private static Mac createMac(Method method, SecureString password, byte[] salt, int iterations) {

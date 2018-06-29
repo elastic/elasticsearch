@@ -23,7 +23,7 @@ Beyond that, things get complicated.
 
 Generally speaking, when you specify a single time unit, such as 1 hour or 1 day, you
 are working with a _calendar interval_, but multiples, such as 6 hours or 3 days, are
-_fixed-duration intervals_.
+_fixed-length intervals_.
 
 For example, a specification of 1 day (1d) from now is a calendar interval that
 means "at
@@ -39,61 +39,72 @@ minutes or hours. Multiple time periods longer than a day are not supported.
 
 Here are the valid time specifications and their meanings:
 
-*milliseconds (ms)* +
+milliseconds (ms) ::
 Fixed length interval; supports multiples.
 
-*seconds (s)* +
+seconds (s) ::
 1000 milliseconds; fixed length interval (except for the last second of a
 minute that contains a leap-second, which is 2000ms long); supports multiples.
 
-*minutes (m)* +
-All minutes begin at 00 seconds. +
+minutes (m) ::
+All minutes begin at 00 seconds.
+
 * One minute (1m) is the interval between 00 seconds of the first minute and 00
 seconds of the following minute in the specified timezone, compensating for any
 intervening leap seconds, so that the number of minutes and seconds past the 
-hour is the same at the start and end.
+hour is the same at the start and end. 
 * Multiple minutes (_n_m) are intervals of exactly 60x1000=60,000 milliseconds
 each.
 
-*hours (h)* +
-All hours begin at 00 minutes and 00 seconds. +
+hours (h) ::
+All hours begin at 00 minutes and 00 seconds.
+
 * One hour (1h) is the interval between 00:00 minutes of the first hour and 00:00
 minutes of the following hour in the specified timezone, compensating for any
-intervening leap seconds, so that the number of minutes and seconds past the hour is the same at the start and end.
-* Multiple hours (_n_h) are intervals of exactly 60x60x1000=3,600,000 milliseconds each.
+intervening leap seconds, so that the number of minutes and seconds past the hour
+is the same at the start and end. 
+* Multiple hours (_n_h) are intervals of exactly 60x60x1000=3,600,000 milliseconds
+each.
 
-*days (d)* +
+days (d) ::
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
+
 * One day (1d) is the interval between 00:00:00 of the first day and 00:00:00
 of the following day in the specified timezone, compensating for any intervening
 time changes, so that the number of hours, minutes, and seconds of the day is
 the same at the start and end.
-* Multiple days (_n_d) are intervals of exactly 24x60x60x1000=86,400,000 milliseconds each.
+* Multiple days (_n_d) are intervals of exactly 24x60x60x1000=86,400,000
+milliseconds each.
 
-*weeks (w)* +
+weeks (w) ::
+
 * One week (1w) is the interval between the start day_of_week:hour:minute:second
-and the same day and time of the following week in the specified timezone, so that
+and the same day of the week and time of the following week in the specified 
+timezone, so that
 the day of the week and time of day are the same at the start and end.
 * Multiple weeks (_n_w) are not supported.
 
-*months (m)* +
+months (m) ::
+
 * One month (1m) is the interval between the start day of the month and time of
 day and the same day of the month and time of the following month in the specified
 timezone, so that the day of the month and time of day are the same at the start
 and end.
 * Multiple months (_n_m) are not supported.
 
-*quarters (q)* +
+quarters (q) ::
+
 * One quarter (1q) is the interval between the start day of the month and time
 time of day and the same day of the month and time of day three months later,
-so that the day of the month and time of day are the same at the start and end.
+so that the day of the month and time of day are the same at the start and end. +
 * Multiple quarters (_n_q) are not supported.
 
-*years (y)* +
+years (y) ::
+
 * One year (1y) is the interval between the start day of the month and time of 
 day and the same day of the month and time of day the following year in the 
-specified timezone, so that the date and time are the same at the start and end.
+specified timezone, so that the date and time are the same at the start and end. +
 * Multiple years (_n_y) are not supported.
 
 Widely distributed applications must also consider vagaries such as countries that
@@ -215,7 +226,7 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-===== Time Zone
+===== Timezone
 
 Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
 rounding is also done in UTC. Use the `time_zone` parameter to indicate

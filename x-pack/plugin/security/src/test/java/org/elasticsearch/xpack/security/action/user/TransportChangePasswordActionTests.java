@@ -153,6 +153,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         verify(usersStore, times(1)).changePassword(eq(request), any(ActionListener.class));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31696")
     public void testIncorrectPasswordHashingAlgorithm() {
         final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         final Hasher hasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt9", "bcrypt5"));

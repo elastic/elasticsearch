@@ -593,7 +593,6 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(response.roles()[0].getName(), is(name));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31670")
     public void testCreateAndChangePassword() throws Exception {
         securityClient().preparePutUser("joe", "s3krit".toCharArray(), hasher,
             SecuritySettingsSource.TEST_ROLE).get();

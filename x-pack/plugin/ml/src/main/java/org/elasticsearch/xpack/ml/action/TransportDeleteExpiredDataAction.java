@@ -67,7 +67,11 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
 
     private void deleteExpiredData(Iterator<MlDataRemover> mlDataRemoversIterator,
                                    ActionListener<DeleteExpiredDataAction.Response> listener) {
-        Transports.assertNotTransportThread("ML Daily Maintenance");
+        // Removing expired ML data and artifacts requires multiple operations.
+        // These are queued up and executed sequentially in the action listener,
+        // the chained calls must all run the ML utility thread pool NOT the thread
+        // the previous action returned in which in the case of a transport_client_boss
+        // thread is a disaster.
         if (mlDataRemoversIterator.hasNext()) {
             MlDataRemover remover = mlDataRemoversIterator.next();
             remover.remove(ActionListener.wrap(

@@ -90,8 +90,6 @@ public abstract class BatchedDocumentsIterator<T>  {
     private SearchResponse initScroll() {
         LOGGER.trace("ES API CALL: search index {}", index);
 
-        Transports.assertNotTransportThread("BatchedDocumentsIterator makes blocking calls");
-
         isScrollInitialised = true;
 
         SearchRequest searchRequest = new SearchRequest(index);

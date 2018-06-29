@@ -99,12 +99,14 @@ public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<Ana
                         Map<String, String> obj = new HashMap<>();
                         obj.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
                         extras.put(objkey, obj);
+                        break;
                     case 5:
                         String listkey = randomAlphaOfLength(5);
                         List<String> list = new ArrayList<>();
                         list.add(randomAlphaOfLength(4));
                         list.add(randomAlphaOfLength(6));
                         extras.put(listkey, list);
+                        break;
                 }
             }
         }

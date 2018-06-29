@@ -186,6 +186,9 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
                 openTime = in.readOptionalTimeValue();
+                if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+                    forecastStats = in.readOptionalWriteable(ForecastStats::new);
+                }
             }
 
             public String getJobId() {
@@ -273,11 +276,14 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
                 out.writeOptionalTimeValue(openTime);
+                if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+                    out.writeOptionalWriteable(forecastStats);
+                }
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(jobId, dataCounts, modelSizeStats, state, node, assignmentExplanation, openTime);
+                return Objects.hash(jobId, dataCounts, modelSizeStats, forecastStats, state, node, assignmentExplanation, openTime);
             }
 
             @Override
@@ -292,6 +298,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
                 return Objects.equals(jobId, other.jobId)
                         && Objects.equals(this.dataCounts, other.dataCounts)
                         && Objects.equals(this.modelSizeStats, other.modelSizeStats)
+                        && Objects.equals(this.forecastStats, other.forecastStats)
                         && Objects.equals(this.state, other.state)
                         && Objects.equals(this.node, other.node)
                         && Objects.equals(this.assignmentExplanation, other.assignmentExplanation)

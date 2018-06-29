@@ -151,6 +151,7 @@ integTestCluster {
   setting 'xpack.license.self_generated.type', 'trial'
   keystoreSetting 'bootstrap.password', 'x-pack-test-password'
   keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'keypass'
+  keystoreSetting 'xpack.security.ingest.hash.processor.key', 'hmackey'
   distribution = 'zip' // this is important since we use the reindex module in ML
 
   setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'

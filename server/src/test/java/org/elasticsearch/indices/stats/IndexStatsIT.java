@@ -118,6 +118,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         return Settings.builder().put(super.indexSettings())
             .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
             .build();
     }
 

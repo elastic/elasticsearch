@@ -155,6 +155,20 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
+    protected Settings indexSettings() {
+        // TODO randomize more settings
+        return Settings.builder()
+            .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "1h") // make sure this doesn't kick in on us
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.getKey(),
+                between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY)))
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
+                randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
+            .build();
+    }
+
     @Override
     @Before
     public void setUp() throws Exception {
@@ -169,13 +183,7 @@ public abstract class EngineTestCase extends ESTestCase {
         } else {
             codecName = "default";
         }
-        defaultSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
-                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "1h") // make sure this doesn't kick in on us
-                .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.getKey(),
-                        between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY)))
-                .build()); // TODO randomize more settings
+        defaultSettings = IndexSettingsModule.newIndexSettings("test", indexSettings());
         threadPool = new TestThreadPool(getClass().getName());
         store = createStore();
         storeReplica = createStore();

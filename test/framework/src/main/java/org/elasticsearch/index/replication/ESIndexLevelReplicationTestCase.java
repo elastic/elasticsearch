@@ -59,6 +59,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
@@ -120,6 +121,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, replicas)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
+                randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
             .put(indexSettings)
             .build();
         IndexMetaData.Builder metaData = IndexMetaData.builder(index.getName())

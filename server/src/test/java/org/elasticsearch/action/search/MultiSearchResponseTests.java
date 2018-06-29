@@ -19,50 +19,43 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MultiSearchResponseTests extends ESTestCase {
+public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSearchResponse> {
 
-    public void testFromXContent() throws IOException {
-        for (int runs = 0; runs < 20; runs++) {
-            MultiSearchResponse expected = createTestInstance();
-            XContentType xContentType = randomFrom(XContentType.values());
-            BytesReference shuffled = toShuffledXContent(expected, xContentType, ToXContent.EMPTY_PARAMS, false);
-            MultiSearchResponse actual;
-            try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
-                actual = MultiSearchResponse.fromXContext(parser);
-                assertThat(parser.nextToken(), nullValue());
-            }
-
-            assertThat(actual.getTook(), equalTo(expected.getTook()));
-            assertThat(actual.getResponses().length, equalTo(expected.getResponses().length));
-            for (int i = 0; i < expected.getResponses().length; i++) {
-                MultiSearchResponse.Item expectedItem = expected.getResponses()[i];
-                MultiSearchResponse.Item actualItem = actual.getResponses()[i];
-                if (expectedItem.isFailure()) {
-                    assertThat(actualItem.getResponse(), nullValue());
-                    assertThat(actualItem.getFailureMessage(), containsString(expectedItem.getFailureMessage()));
-                } else {
-                    assertThat(actualItem.getResponse().toString(), equalTo(expectedItem.getResponse().toString()));
-                    assertThat(actualItem.getFailure(), nullValue());
-                }
-            }
+    @Override
+    protected MultiSearchResponse createTestInstance() {
+        int numItems = randomIntBetween(0, 128);
+        MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numItems];
+        for (int i = 0; i < numItems; i++) {
+            // Creating a minimal response is OK, because SearchResponse self
+            // is tested elsewhere.
+            long tookInMillis = randomNonNegativeLong();
+            int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
+            int successfulShards = randomIntBetween(0, totalShards);
+            int skippedShards = totalShards - successfulShards;
+            InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
+            SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalShards, successfulShards, skippedShards);
+            SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
+                    successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
+            items[i] = new MultiSearchResponse.Item(searchResponse, null);
         }
+        return new MultiSearchResponse(items, randomNonNegativeLong());
     }
 
-    private static MultiSearchResponse createTestInstance() {
+    private static MultiSearchResponse createTestInstanceWithFailures() {
         int numItems = randomIntBetween(0, 128);
         MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numItems];
         for (int i = 0; i < numItems; i++) {
@@ -84,5 +77,53 @@ public class MultiSearchResponseTests extends ESTestCase {
         }
         return new MultiSearchResponse(items, randomNonNegativeLong());
     }
+
+    @Override
+    protected MultiSearchResponse doParseInstance(XContentParser parser) throws IOException {
+        return MultiSearchResponse.fromXContext(parser);
+    }
+    
+    @Override
+    protected void assertEqualInstances(MultiSearchResponse expected, MultiSearchResponse actual) {
+        assertThat(actual.getTook(), equalTo(expected.getTook()));
+        assertThat(actual.getResponses().length, equalTo(expected.getResponses().length));
+        for (int i = 0; i < expected.getResponses().length; i++) {
+            MultiSearchResponse.Item expectedItem = expected.getResponses()[i];
+            MultiSearchResponse.Item actualItem = actual.getResponses()[i];
+            if (expectedItem.isFailure()) {
+                assertThat(actualItem.getResponse(), nullValue());
+                assertThat(actualItem.getFailureMessage(), containsString(expectedItem.getFailureMessage()));
+            } else {
+                assertThat(actualItem.getResponse().toString(), equalTo(expectedItem.getResponse().toString()));
+                assertThat(actualItem.getFailure(), nullValue());
+            }
+        }
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    protected Predicate<String> getRandomFieldsExcludeFilterWhenResultHasErrors() {
+        return field -> field.startsWith("responses");
+    }     
+
+    /**
+     * Test parsing {@link MultiSearchResponse} with inner failures as they don't support asserting on xcontent equivalence, given that
+     * exceptions are not parsed back as the same original class. We run the usual {@link AbstractXContentTestCase#testFromXContent()}
+     * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.
+     */
+    public void testFromXContentWithFailures() throws IOException {
+        Supplier<MultiSearchResponse> instanceSupplier = MultiSearchResponseTests::createTestInstanceWithFailures;
+        //with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
+        //but that does not bother our assertions, as we only want to test that we don't break.
+        boolean supportsUnknownFields = true;
+        //exceptions are not of the same type whenever parsed back
+        boolean assertToXContentEquivalence = false;
+        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
+                getRandomFieldsExcludeFilterWhenResultHasErrors(), this::createParser, this::doParseInstance,
+                this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
+    }       
 
 }

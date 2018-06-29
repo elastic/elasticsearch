@@ -12,9 +12,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -39,6 +41,13 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
             return;
         } else if (SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username)) {
             listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
+            return;
+        }
+        final String requestPwdHashAlgo = Hasher.resolveFromHash(request.passwordHash()).name();
+        final String configPwdHashAlgo = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings)).name();
+        if (requestPwdHashAlgo.equalsIgnoreCase(configPwdHashAlgo) == false) {
+            listener.onFailure(new IllegalArgumentException("incorrect password hashing algorithm [" + requestPwdHashAlgo + "] used while" +
+                " [" + configPwdHashAlgo + "] is configured."));
             return;
         }
         nativeUsersStore.changePassword(request, new ActionListener<Void>() {

@@ -8,7 +8,8 @@ CONSOLE" and "COPY AS CURL" in the documentation and are automatically tested
 by the command `gradle :docs:check`. To test just the docs from a single page,
 use e.g. `gradle :docs:check -Dtests.method="\*rollover*"`.
 
-NOTE: If you have an elasticsearch-extra folder alongside your elasticsearch folder, you must temporarily rename it when you are testing 6.3 or later branches. 
+NOTE: If you have an elasticsearch-extra folder alongside your elasticsearch
+folder, you must temporarily rename it when you are testing 6.3 or later branches.
 
 By default each `// CONSOLE` snippet runs as its own isolated test. You can
 manipulate the test execution in the following ways:
@@ -36,7 +37,8 @@ for its modifiers:
   reason why the test shouldn't be run.
   * `// TEST[setup:name]`: Run some setup code before running the snippet. This
   is useful for creating and populating indexes used in the snippet. The setup
-  code is defined in `docs/build.gradle`.
+  code is defined in `docs/build.gradle`. See `// TESTSETUP` below for a
+  similar feature.
   * `// TEST[warning:some warning]`: Expect the response to include a `Warning`
   header. If the response doesn't include a `Warning` header with the exact
   text then the test fails. If the response includes `Warning` headers that
@@ -68,7 +70,9 @@ for its modifiers:
   a test that runs the setup snippet first. See the "painless" docs for a file
   that puts this to good use. This is fairly similar to `// TEST[setup:name]`
   but rather than the setup defined in `docs/build.gradle` the setup is defined
-  right in the documentation file.
+  right in the documentation file. In general, we should prefer `// TESTSETUP`
+  over `// TEST[setup:name]` because it makes it more clear what steps have to
+  be taken before the examples will work.
 
 In addition to the standard CONSOLE syntax these snippets can contain blocks
 of yaml surrounded by markers like this:

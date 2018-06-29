@@ -11,7 +11,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,9 +67,7 @@ public abstract class Realm implements Comparable<Realm> {
      * @return Map of authentication failure response headers.
      */
     public Map<String, List<String>> getAuthenticationFailureHeaders() {
-        final Map<String, List<String>> headers = new HashMap<>();
-        headers.put("WWW-Authenticate", Arrays.asList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
-        return headers;
+        return Collections.singletonMap("WWW-Authenticate", Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
     }
 
     @Override

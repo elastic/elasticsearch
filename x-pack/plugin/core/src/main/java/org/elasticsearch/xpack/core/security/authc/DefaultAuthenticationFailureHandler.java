@@ -13,7 +13,6 @@ import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -47,8 +46,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
      */
     public DefaultAuthenticationFailureHandler(Map<String, List<String>> failureResponseHeaders) {
         if (failureResponseHeaders == null || failureResponseHeaders.isEmpty()) {
-            failureResponseHeaders = new HashMap<>();
-            failureResponseHeaders.put("WWW-Authenticate",
+            failureResponseHeaders = Collections.singletonMap("WWW-Authenticate",
                     Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
         }
         this.defaultFailureResponseHeaders = Collections.unmodifiableMap(failureResponseHeaders);
@@ -95,7 +93,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
      * Creates an instance of {@link ElasticsearchSecurityException} with
      * {@link RestStatus#UNAUTHORIZED} status.
      * <p>
-     * Also adds response headers as configured
+     * Also adds default failure response headers as configured for this {@link DefaultAuthenticationFailureHandler}
      *
      * @param message error message
      * @param t cause, if it is an instance of

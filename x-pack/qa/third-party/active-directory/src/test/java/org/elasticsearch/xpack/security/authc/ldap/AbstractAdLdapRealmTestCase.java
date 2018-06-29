@@ -21,7 +21,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;

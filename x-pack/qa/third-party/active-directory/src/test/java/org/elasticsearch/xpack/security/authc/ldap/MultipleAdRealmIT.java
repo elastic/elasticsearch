@@ -10,7 +10,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -47,7 +46,8 @@ public class MultipleAdRealmIT extends AbstractAdLdapRealmTestCase {
         builder.put(super.nodeSettings(nodeOrdinal));
 
         final List<RoleMappingEntry> secondaryRoleMappings = secondaryRealmConfig.selectRoleMappings(() -> true);
-        final Settings secondarySettings = super.buildRealmSettings(secondaryRealmConfig, secondaryRoleMappings, getNodeTrustedCertificates());
+        final Settings secondarySettings = super.buildRealmSettings(secondaryRealmConfig, secondaryRoleMappings,
+            getNodeTrustedCertificates());
         secondarySettings.keySet().forEach(name -> {
             String newName = name.replace(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL, XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + "2");
             builder.copy(newName, name, secondarySettings);

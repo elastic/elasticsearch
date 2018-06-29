@@ -32,10 +32,8 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
-import java.security.Security;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;

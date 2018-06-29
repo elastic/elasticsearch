@@ -62,7 +62,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         processors.put(DateProcessor.TYPE, new DateProcessor.Factory(parameters.scriptService));
         processors.put(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService));
         processors.put(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.scriptService));
-        processors.put(RenameProcessor.TYPE, new RenameProcessor.Factory());
+        processors.put(RenameProcessor.TYPE, new RenameProcessor.Factory(parameters.scriptService));
         processors.put(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.scriptService));
         processors.put(SplitProcessor.TYPE, new SplitProcessor.Factory());
         processors.put(JoinProcessor.TYPE, new JoinProcessor.Factory());
@@ -96,12 +96,12 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(new GrokProcessorGetAction.RestAction(settings, restController));
     }
-    
+
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(WATCHDOG_INTERVAL, WATCHDOG_MAX_EXECUTION_TIME);
     }
-    
+
     private static ThreadWatchdog createGrokThreadWatchdog(Processor.Parameters parameters) {
         long intervalMillis = WATCHDOG_INTERVAL.get(parameters.env.settings()).getMillis();
         long maxExecutionTimeMillis = WATCHDOG_MAX_EXECUTION_TIME.get(parameters.env.settings()).getMillis();

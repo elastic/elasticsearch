@@ -15,7 +15,7 @@ Here are a few sample use-cases that Elasticsearch could be used for:
 
 For the rest of this tutorial, you will be guided through the process of getting Elasticsearch up and running, taking a peek inside it, and performing basic operations like indexing, searching, and modifying your data. At the end of this tutorial, you should have a good idea of what Elasticsearch is, how it works, and hopefully be inspired to see how you can use it to either build sophisticated search applications or to mine intelligence from your data.
 
-TIP: Want to get Elasticsearch up and running quickly? Sign up for a free trial of our hosted https://www.elastic.co/cloud/elasticsearch-service[Elasticsearch Service] to use with this tutorial.
+TIP: Want to get Elasticsearch up and running quickly? Try our hosted https://www.elastic.co/cloud/elasticsearch-service[Elasticsearch Service] for free. 
 
 --
 

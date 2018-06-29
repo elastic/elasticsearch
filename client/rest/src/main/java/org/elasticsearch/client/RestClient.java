@@ -797,7 +797,6 @@ public class RestClient implements Closeable {
         try {
             String fullPath;
             if (pathPrefix != null && pathPrefix.isEmpty() == false) {
-                fullPath = (pathPrefix + "/" + path).replaceAll("//+", "/");
                 if (pathPrefix.endsWith("/") && path.startsWith("/")) {
                     fullPath = pathPrefix.substring(0, pathPrefix.length() - 1) + path;
                 } else if (pathPrefix.endsWith("/") || path.startsWith("/")) {

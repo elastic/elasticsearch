@@ -217,7 +217,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -495,25 +494,21 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         if (failureHandler == null) {
             logger.debug("Using default authentication failure handler");
-            final LinkedHashMap<String, List<String>> defaultFailureResponseHeaders = new LinkedHashMap<>();
+            final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
             realms.asList().stream().forEach((realm) -> {
                 Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
                 realmFailureHeaders.entrySet().stream().forEach((e) -> {
                     String key = e.getKey();
-                    if (defaultFailureResponseHeaders.get(key) == null) {
-                        defaultFailureResponseHeaders.put(key, new ArrayList<>());
-                    }
-                    e.getValue().stream().filter(v -> defaultFailureResponseHeaders.get(key).contains(v) == false)
+                    e.getValue().stream()
+                            .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v) == false)
                             .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
                 });
             });
 
             if (TokenService.isTokenServiceEnabled(settings)) {
-                if (defaultFailureResponseHeaders.get("WWW-Authenticate") == null) {
-                    defaultFailureResponseHeaders.put("WWW-Authenticate", new ArrayList<>());
-                }
                 String bearerScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
-                if (defaultFailureResponseHeaders.get("WWW-Authenticate").contains(bearerScheme) == false) {
+                if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
+                        .contains(bearerScheme) == false) {
                     defaultFailureResponseHeaders.get("WWW-Authenticate").add(bearerScheme);
                 }
             }

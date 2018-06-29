@@ -14,6 +14,9 @@ Here are a few sample use-cases that Elasticsearch could be used for:
 * You have analytics/business-intelligence needs and want to quickly investigate, analyze, visualize, and ask ad-hoc questions on a lot of data (think millions or billions of records). In this case, you can use Elasticsearch to store your data and then use Kibana (part of the Elasticsearch/Logstash/Kibana stack) to build custom dashboards that can visualize aspects of your data that are important to you. Additionally, you can use the Elasticsearch aggregations functionality to perform complex business intelligence queries against your data.
 
 For the rest of this tutorial, you will be guided through the process of getting Elasticsearch up and running, taking a peek inside it, and performing basic operations like indexing, searching, and modifying your data. At the end of this tutorial, you should have a good idea of what Elasticsearch is, how it works, and hopefully be inspired to see how you can use it to either build sophisticated search applications or to mine intelligence from your data.
+
+TIP: Want to get Elasticsearch up and running quickly? Sign up for a free trial of our hosted https://www.elastic.co/cloud/elasticsearch-service[Elasticsearch Service] to use with this tutorial.
+
 --
 
 == Basic Concepts

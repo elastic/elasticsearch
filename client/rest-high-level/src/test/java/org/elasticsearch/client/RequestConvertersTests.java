@@ -584,6 +584,39 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getEntity(), nullValue());
     }
 
+    public void testGetIndex() throws IOException {
+        String[] indicesUnderTest = randomBoolean() ? null : randomIndicesNames(0, 5);
+
+        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(indicesUnderTest);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(getIndexRequest, expectedParams);
+        setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
+        setRandomLocal(getIndexRequest, expectedParams);
+        setRandomHumanReadable(getIndexRequest, expectedParams);
+
+        if (randomBoolean()) {
+            // the request object will not have include_defaults present unless it is set to
+            // true
+            getIndexRequest.includeDefaults(randomBoolean());
+            if (getIndexRequest.includeDefaults()) {
+                expectedParams.put("include_defaults", Boolean.toString(true));
+            }
+        }
+
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indicesUnderTest != null && indicesUnderTest.length > 0) {
+            endpoint.add(String.join(",", indicesUnderTest));
+        }
+
+        Request request = RequestConverters.getIndex(getIndexRequest);
+
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getEntity(), nullValue());
+    }
+
     public void testDeleteIndexEmptyIndices() {
         String[] indices = randomBoolean() ? null : Strings.EMPTY_ARRAY;
         ActionRequestValidationException validationException = new DeleteIndexRequest(indices).validate();

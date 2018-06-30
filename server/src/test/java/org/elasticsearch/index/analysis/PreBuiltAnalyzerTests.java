@@ -89,7 +89,7 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
         DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        FieldMapper fieldMapper = docMapper.mappers().getMapper("field");
+        FieldMapper fieldMapper = docMapper.mappers().getFieldMapper("field");
         assertThat(fieldMapper.fieldType().searchAnalyzer(), instanceOf(NamedAnalyzer.class));
         NamedAnalyzer fieldMapperNamedAnalyzer = fieldMapper.fieldType().searchAnalyzer();
 

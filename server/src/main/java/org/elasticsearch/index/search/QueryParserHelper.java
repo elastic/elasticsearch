@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -89,9 +90,9 @@ public final class QueryParserHelper {
      * @param mapperService The mapper service where to find the mapping.
      * @param field The field name to search.
      */
-    public static FieldMapper getFieldMapper(MapperService mapperService, String field) {
+    public static Mapper getFieldMapper(MapperService mapperService, String field) {
         for (DocumentMapper mapper : mapperService.docMappers(true)) {
-            FieldMapper fieldMapper = mapper.mappers().getMapper(field);
+            Mapper fieldMapper = mapper.mappers().getMapper(field);
             if (fieldMapper != null) {
                 return fieldMapper;
             }
@@ -183,7 +184,7 @@ public final class QueryParserHelper {
             }
 
             // Ignore metadata fields.
-            FieldMapper mapper = getFieldMapper(context.getMapperService(), fieldName);
+            Mapper mapper = getFieldMapper(context.getMapperService(), fieldName);
             if (acceptMetadataField == false && mapper instanceof MetadataFieldMapper) {
                 continue;
             }

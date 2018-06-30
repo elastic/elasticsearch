@@ -40,8 +40,8 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
 
         DocumentMapper docMapper = mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("name.indexed"), nullValue());
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name").fieldType().indexOptions());
+        assertThat(docMapper.mappers().getFieldMapper("name.indexed"), nullValue());
 
         BytesReference json = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject());
         Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
@@ -53,13 +53,13 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping2.json");
         docMapper = mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name").fieldType().indexOptions());
 
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("name.indexed"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed2"), nullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name").fieldType().indexOptions());
+        assertThat(docMapper.mappers().getFieldMapper("name.indexed"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed2"), nullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed3"), nullValue());
 
         doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
         f = doc.getField("name");
@@ -70,24 +70,24 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping3.json");
         docMapper = mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name").fieldType().indexOptions());
 
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("name.indexed"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed2"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name").fieldType().indexOptions());
+        assertThat(docMapper.mappers().getFieldMapper("name.indexed"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed2"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed3"), nullValue());
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping4.json");
         docMapper = mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name").fieldType().indexOptions());
 
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("name.indexed"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed2"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed3"), notNullValue());
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name").fieldType().indexOptions());
+        assertThat(docMapper.mappers().getFieldMapper("name.indexed"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed2"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed3"), notNullValue());
     }
 
     public void testUpgradeFromMultiFieldTypeToMultiFields() throws Exception {
@@ -96,8 +96,8 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
 
         DocumentMapper docMapper = mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("name.indexed"), nullValue());
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name").fieldType().indexOptions());
+        assertThat(docMapper.mappers().getFieldMapper("name.indexed"), nullValue());
 
         BytesReference json = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject());
         Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
@@ -110,13 +110,13 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade1.json");
         docMapper = mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name").fieldType().indexOptions());
 
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("name.indexed"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed2"), nullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name").fieldType().indexOptions());
+        assertThat(docMapper.mappers().getFieldMapper("name.indexed"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed2"), nullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed3"), nullValue());
 
         doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
         f = doc.getField("name");
@@ -127,13 +127,13 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade2.json");
         docMapper = mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name").fieldType().indexOptions());
 
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("name.indexed"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed2"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name").fieldType().indexOptions());
+        assertThat(docMapper.mappers().getFieldMapper("name.indexed"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed2"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed3"), nullValue());
 
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade3.json");
@@ -146,10 +146,10 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         }
 
         // There are conflicts, so the `name.not_indexed3` has not been added
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("name.indexed"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed2"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
+        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name").fieldType().indexOptions());
+        assertThat(docMapper.mappers().getFieldMapper("name.indexed"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed2"), notNullValue());
+        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed3"), nullValue());
     }
 }

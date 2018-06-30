@@ -385,8 +385,8 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper initMapper = indexService.mapperService().merge("movie", new CompressedXContent(initMapping),
             MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertThat(initMapper.mappers().getMapper("release_date"), notNullValue());
-        assertFalse(initMapper.mappers().getMapper("release_date").fieldType().stored());
+        assertThat(initMapper.mappers().getFieldMapper("release_date"), notNullValue());
+        assertFalse(initMapper.mappers().getFieldMapper("release_date").fieldType().stored());
 
         String updateFormatMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
             .startObject("properties")

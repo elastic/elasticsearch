@@ -151,12 +151,12 @@ public final class RestClientBuilder {
      */
     public RestClientBuilder setPathPrefix(String pathPrefix) {
         Objects.requireNonNull(pathPrefix, "pathPrefix must not be null");
-        String cleanPathPrefix = pathPrefix;
 
-        if (cleanPathPrefix.isEmpty()) {
-            throw new IllegalArgumentException("pathPrefix must not be empty: [" + pathPrefix + "]");
+        if (pathPrefix.isEmpty()) {
+            throw new IllegalArgumentException("pathPrefix must not be empty");
         }
 
+        String cleanPathPrefix = pathPrefix;
         if (cleanPathPrefix.startsWith("/") == false) {
             cleanPathPrefix = "/" + cleanPathPrefix;
         }

@@ -67,7 +67,8 @@ public abstract class Realm implements Comparable<Realm> {
      * @return Map of authentication failure response headers.
      */
     public Map<String, List<String>> getAuthenticationFailureHeaders() {
-        return Collections.singletonMap("WWW-Authenticate", Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
+        return Collections.singletonMap("WWW-Authenticate",
+                Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
     }
 
     @Override

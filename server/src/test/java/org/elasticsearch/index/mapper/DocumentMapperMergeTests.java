@@ -56,11 +56,11 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
 
         DocumentMapper merged = stage1.merge(stage2.mapping());
         // stage1 mapping should not have been modified
-        assertThat(stage1.mappers().getMapper("age"), nullValue());
-        assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
+        assertThat(stage1.mappers().getFieldMapper("age"), nullValue());
+        assertThat(stage1.mappers().getFieldMapper("obj1.prop1"), nullValue());
         // but merged should
-        assertThat(merged.mappers().getMapper("age"), notNullValue());
-        assertThat(merged.mappers().getMapper("obj1.prop1"), notNullValue());
+        assertThat(merged.mappers().getFieldMapper("age"), notNullValue());
+        assertThat(merged.mappers().getFieldMapper("obj1.prop1"), notNullValue());
     }
 
     public void testMergeObjectDynamic() throws Exception {
@@ -115,10 +115,10 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
         DocumentMapper existing = parser.parse("type", new CompressedXContent(mapping1));
         DocumentMapper changed = parser.parse("type", new CompressedXContent(mapping2));
 
-        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("whitespace"));
+        assertThat(((NamedAnalyzer) existing.mappers().getFieldMapper("field").fieldType().searchAnalyzer()).name(), equalTo("whitespace"));
         DocumentMapper merged = existing.merge(changed.mapping());
 
-        assertThat(((NamedAnalyzer) merged.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("keyword"));
+        assertThat(((NamedAnalyzer) merged.mappers().getFieldMapper("field").fieldType().searchAnalyzer()).name(), equalTo("keyword"));
     }
 
     public void testChangeSearchAnalyzerToDefault() throws Exception {
@@ -133,9 +133,9 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
         DocumentMapper existing = mapperService.merge("type", new CompressedXContent(mapping1), MapperService.MergeReason.MAPPING_UPDATE);
         DocumentMapper merged = mapperService.merge("type", new CompressedXContent(mapping2), MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertThat(((NamedAnalyzer) existing.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("whitespace"));
+        assertThat(((NamedAnalyzer) existing.mappers().getFieldMapper("field").fieldType().searchAnalyzer()).name(), equalTo("whitespace"));
 
-        assertThat(((NamedAnalyzer) merged.mappers().getMapper("field").fieldType().searchAnalyzer()).name(), equalTo("standard"));
+        assertThat(((NamedAnalyzer) merged.mappers().getFieldMapper("field").fieldType().searchAnalyzer()).name(), equalTo("standard"));
     }
 
     public void testConcurrentMergeTest() throws Throwable {
@@ -226,7 +226,7 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
                 .endObject().endObject()));
         DocumentMapper mapper = mapperService.merge("type", update, MapperService.MergeReason.MAPPING_UPDATE);
 
-        assertNotNull(mapper.mappers().getMapper("foo"));
+        assertNotNull(mapper.mappers().getFieldMapper("foo"));
         assertFalse(mapper.sourceMapper().enabled());
     }
 

@@ -23,10 +23,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -52,7 +49,7 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        FieldMapper fieldMapper = docMapper.mappers().getMapper("name");
+        FieldMapper fieldMapper = docMapper.mappers().getFieldMapper("name");
         assertThat(fieldMapper.fieldType().stored(), equalTo(true));
 
         boolean stored = false;
@@ -61,7 +58,7 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         }
         assertTrue(stored);
 
-        fieldMapper = docMapper.mappers().getMapper("age");
+        fieldMapper = docMapper.mappers().getFieldMapper("age");
         assertThat(fieldMapper.fieldType().stored(), equalTo(true));
     }
 }

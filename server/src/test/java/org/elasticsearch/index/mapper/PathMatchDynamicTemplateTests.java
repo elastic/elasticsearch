@@ -23,10 +23,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -52,26 +49,26 @@ public class PathMatchDynamicTemplateTests extends ESSingleNodeTestCase {
         assertThat(f.stringValue(), equalTo("top_level"));
         assertThat(f.fieldType().stored(), equalTo(false));
 
-        FieldMapper fieldMapper = docMapper.mappers().getMapper("name");
+        FieldMapper fieldMapper = docMapper.mappers().getFieldMapper("name");
         assertThat(fieldMapper.fieldType().stored(), equalTo(false));
 
         f = doc.getField("obj1.name");
         assertThat(f.name(), equalTo("obj1.name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        fieldMapper = docMapper.mappers().getMapper("obj1.name");
+        fieldMapper = docMapper.mappers().getFieldMapper("obj1.name");
         assertThat(fieldMapper.fieldType().stored(), equalTo(true));
 
         f = doc.getField("obj1.obj2.name");
         assertThat(f.name(), equalTo("obj1.obj2.name"));
         assertThat(f.fieldType().stored(), equalTo(false));
 
-        fieldMapper = docMapper.mappers().getMapper("obj1.obj2.name");
+        fieldMapper = docMapper.mappers().getFieldMapper("obj1.obj2.name");
         assertThat(fieldMapper.fieldType().stored(), equalTo(false));
 
         // verify more complex path_match expressions
 
-        fieldMapper = docMapper.mappers().getMapper("obj3.obj4.prop1");
+        fieldMapper = docMapper.mappers().getFieldMapper("obj3.obj4.prop1");
         assertNotNull(fieldMapper);
     }
 }

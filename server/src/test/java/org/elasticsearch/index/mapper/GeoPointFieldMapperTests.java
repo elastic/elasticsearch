@@ -287,7 +287,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type1", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        FieldMapper fieldMapper = defaultMapper.mappers().getFieldMapper("location");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
         boolean ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue().value();
@@ -302,7 +302,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject());
 
         defaultMapper = createIndex("test2").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
-        fieldMapper = defaultMapper.mappers().getMapper("location");
+        fieldMapper = defaultMapper.mappers().getFieldMapper("location");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
         ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue().value();
@@ -364,7 +364,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
-        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        FieldMapper fieldMapper = defaultMapper.mappers().getFieldMapper("location");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
         Object nullValue = fieldMapper.fieldType().nullValue();

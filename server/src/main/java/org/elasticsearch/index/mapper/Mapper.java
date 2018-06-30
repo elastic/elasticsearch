@@ -173,6 +173,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     /** Returns the canonical name which uniquely identifies the mapper against other mappers in a type. */
     public abstract String name();
 
+    /**
+     * Returns a name representing the the type of this mapper.
+     */
+    public abstract String typeName();
+
     /** Return the merge of {@code mergeWith} into this.
      *  Both {@code this} and {@code mergeWith} will be left unmodified. */
     public abstract Mapper merge(Mapper mergeWith);

@@ -728,9 +728,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
         // delete the N-2 index file if it exists, keep the previous one around as a backup
         if (isReadOnly() == false && newGen - 2 >= 0) {
             final String oldSnapshotIndexFile = INDEX_FILE_PREFIX + Long.toString(newGen - 2);
-            if (snapshotsBlobContainer().blobExists(oldSnapshotIndexFile)) {
-                snapshotsBlobContainer().deleteBlob(oldSnapshotIndexFile);
-            }
+            snapshotsBlobContainer().deleteBlobIgnoringIfNotExists(oldSnapshotIndexFile);
         }
 
         // write the current generation to the index-latest file
@@ -739,9 +737,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
             bStream.writeLong(newGen);
             genBytes = bStream.bytes();
         }
-        if (snapshotsBlobContainer().blobExists(INDEX_LATEST_BLOB)) {
-            snapshotsBlobContainer().deleteBlob(INDEX_LATEST_BLOB);
-        }
+        snapshotsBlobContainer().deleteBlobIgnoringIfNotExists(INDEX_LATEST_BLOB);
         logger.debug("Repository [{}] updating index.latest with generation [{}]", metadata.name(), newGen);
         writeAtomic(INDEX_LATEST_BLOB, genBytes);
     }
@@ -762,9 +758,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
             }
             bytes = bStream.bytes();
         }
-        if (snapshotsBlobContainer().blobExists(INCOMPATIBLE_SNAPSHOTS_BLOB)) {
-            snapshotsBlobContainer().deleteBlob(INCOMPATIBLE_SNAPSHOTS_BLOB);
-        }
+        snapshotsBlobContainer().deleteBlobIgnoringIfNotExists(INCOMPATIBLE_SNAPSHOTS_BLOB);
         // write the incompatible snapshots blob
         writeAtomic(INCOMPATIBLE_SNAPSHOTS_BLOB, bytes);
     }

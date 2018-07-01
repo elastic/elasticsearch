@@ -128,3 +128,6 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
+
+// enable in preparation for Gradle 5.0
+enableFeaturePreview('STABLE_PUBLISHING')

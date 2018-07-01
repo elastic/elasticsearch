@@ -223,12 +223,33 @@ public class RestClientTests extends RestClientTestCase {
     }
 
     public void testBuildUriLeavesPathUntouched() {
+        final Map<String, String> emptyMap = Collections.emptyMap();
         {
-            URI uri = RestClient.buildUri("/foo$bar", "/index/type/id", Collections.<String, String>emptyMap());
+            URI uri = RestClient.buildUri("/foo$bar", "/index/type/id", emptyMap);
             assertEquals("/foo$bar/index/type/id", uri.getPath());
         }
         {
-            URI uri = RestClient.buildUri(null, "/foo$bar/ty/pe/i/d", Collections.<String, String>emptyMap());
+            URI uri = RestClient.buildUri("/", "/*", emptyMap);
+            assertEquals("/*", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri("/", "*", emptyMap);
+            assertEquals("/*", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri(null, "*", emptyMap);
+            assertEquals("*", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri("", "*", emptyMap);
+            assertEquals("*", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri(null, "/*", emptyMap);
+            assertEquals("/*", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri(null, "/foo$bar/ty/pe/i/d", emptyMap);
             assertEquals("/foo$bar/ty/pe/i/d", uri.getPath());
         }
         {

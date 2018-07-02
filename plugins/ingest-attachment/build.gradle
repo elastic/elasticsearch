@@ -30,7 +30,7 @@ versions << [
   'mime4j': '0.8.1'
 ]
 
-if (rootProject.ext.runtimeJavaVersion.isJava11()) {
+if (rootProject.ext.compilerJavaVersion.isJava11()) {
   // disabled until https://github.com/elastic/elasticsearch/issues/31456 is fixed.
   integTestRunner {
     systemProperty 'tests.rest.blacklist', [

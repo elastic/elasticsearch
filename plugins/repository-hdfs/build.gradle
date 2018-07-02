@@ -214,7 +214,7 @@ RestIntegTestTask integTestSecureHa = project.tasks.create('integTestSecureHa', 
   description = "Runs rest tests against an elasticsearch cluster with HDFS configured with HA Namenode and secured by MIT Kerberos."
 }
 
-if (rootProject.ext.runtimeJavaVersion.isJava11()) {
+if (rootProject.ext.compilerJavaVersion.isJava11()) {
   // TODO remove when: https://github.com/elastic/elasticsearch/issues/31498
   integTestRunner {
     systemProperty 'tests.rest.blacklist', [

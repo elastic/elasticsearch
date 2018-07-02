@@ -115,7 +115,7 @@ buildscript {
   }
 }
 
-if (minioDistribution) {
+if (useFixture && minioDistribution) {
   apply plugin: 'de.undercouch.download'
 
   final String minioFileName = "minio.${minioVersion}"

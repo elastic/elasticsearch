@@ -34,8 +34,10 @@ setup:
 ---
 "Test typed keys parameter for suggesters":
   - skip:
-      version: " - 6.99.99"
-      reason: queying a context suggester with no context was deprecated in 7.0
+#      version: " - 6.99.99"
+#      reason: queying a context suggester with no context was deprecated in 7.0
+      version: "all"
+      reason: "Awaiting a fix: https://github.com/elastic/elasticsearch/issues/31698"
       features: "warnings"
 
   - do:

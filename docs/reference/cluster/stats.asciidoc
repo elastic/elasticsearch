@@ -203,7 +203,6 @@ Will return, for example:
 // TESTRESPONSE[s/\.\.\./"network_types": "replace_me"/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
-
 // These replacements do a few things:
 // 1. Ignore the contents of the `plugins` object because we don't know all of
 //    the plugins that will be in it. And because we figure folks don't need to

@@ -7,6 +7,10 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -23,17 +27,23 @@ import org.elasticsearch.license.TestUtils.UpdatableLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy;
+import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -42,11 +52,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
@@ -60,42 +73,42 @@ import static org.mockito.Mockito.when;
 public class CompositeRolesStoreTests extends ESTestCase {
 
     private static final Settings SECURITY_ENABLED_SETTINGS = Settings.builder()
-            .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
-            .build();
+        .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
+        .build();
 
     public void testRolesWhenDlsFlsUnlicensed() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
-        RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[] {
-                IndicesPrivileges.builder()
-                        .grantedFields("*")
-                        .deniedFields("foo")
-                        .indices("*")
-                        .privileges("read")
-                        .build()
+        RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[]{
+            IndicesPrivileges.builder()
+                .grantedFields("*")
+                .deniedFields("foo")
+                .indices("*")
+                .privileges("read")
+                .build()
         }, null);
         BytesReference matchAllBytes = XContentHelper.toXContent(QueryBuilders.matchAllQuery(), XContentType.JSON, false);
-        RoleDescriptor dlsRole = new RoleDescriptor("dls", null, new IndicesPrivileges[] {
-                IndicesPrivileges.builder()
-                        .indices("*")
-                        .privileges("read")
-                        .query(matchAllBytes)
-                        .build()
+        RoleDescriptor dlsRole = new RoleDescriptor("dls", null, new IndicesPrivileges[]{
+            IndicesPrivileges.builder()
+                .indices("*")
+                .privileges("read")
+                .query(matchAllBytes)
+                .build()
         }, null);
-        RoleDescriptor flsDlsRole = new RoleDescriptor("fls_dls", null, new IndicesPrivileges[] {
-                IndicesPrivileges.builder()
-                        .indices("*")
-                        .privileges("read")
-                        .grantedFields("*")
-                        .deniedFields("foo")
-                        .query(matchAllBytes)
-                        .build()
+        RoleDescriptor flsDlsRole = new RoleDescriptor("fls_dls", null, new IndicesPrivileges[]{
+            IndicesPrivileges.builder()
+                .indices("*")
+                .privileges("read")
+                .grantedFields("*")
+                .deniedFields("foo")
+                .query(matchAllBytes)
+                .build()
         }, null);
-        RoleDescriptor noFlsDlsRole = new RoleDescriptor("no_fls_dls", null, new IndicesPrivileges[] {
-                IndicesPrivileges.builder()
-                        .indices("*")
-                        .privileges("read")
-                        .build()
+        RoleDescriptor noFlsDlsRole = new RoleDescriptor("no_fls_dls", null, new IndicesPrivileges[]{
+            IndicesPrivileges.builder()
+                .indices("*")
+                .privileges("read")
+                .build()
         }, null);
         FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         when(fileRolesStore.roleDescriptors(Collections.singleton("fls"))).thenReturn(Collections.singleton(flsRole));
@@ -103,8 +116,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         when(fileRolesStore.roleDescriptors(Collections.singleton("fls_dls"))).thenReturn(Collections.singleton(flsDlsRole));
         when(fileRolesStore.roleDescriptors(Collections.singleton("no_fls_dls"))).thenReturn(Collections.singleton(noFlsDlsRole));
         CompositeRolesStore compositeRolesStore = new CompositeRolesStore(Settings.EMPTY, fileRolesStore, mock(NativeRolesStore.class),
-                mock(ReservedRolesStore.class), mock(NativePrivilegeStore.class), Collections.emptyList(),
-                new ThreadContext(Settings.EMPTY), licenseState);
+            mock(ReservedRolesStore.class), mock(NativePrivilegeStore.class), Collections.emptyList(),
+            new ThreadContext(Settings.EMPTY), licenseState);
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
@@ -127,36 +140,36 @@ public class CompositeRolesStoreTests extends ESTestCase {
     public void testRolesWhenDlsFlsLicensed() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
-        RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[] {
-                IndicesPrivileges.builder()
-                        .grantedFields("*")
-                        .deniedFields("foo")
-                        .indices("*")
-                        .privileges("read")
-                        .build()
+        RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[]{
+            IndicesPrivileges.builder()
+                .grantedFields("*")
+                .deniedFields("foo")
+                .indices("*")
+                .privileges("read")
+                .build()
         }, null);
         BytesReference matchAllBytes = XContentHelper.toXContent(QueryBuilders.matchAllQuery(), XContentType.JSON, false);
-        RoleDescriptor dlsRole = new RoleDescriptor("dls", null, new IndicesPrivileges[] {
-                IndicesPrivileges.builder()
-                        .indices("*")
-                        .privileges("read")
-                        .query(matchAllBytes)
-                        .build()
+        RoleDescriptor dlsRole = new RoleDescriptor("dls", null, new IndicesPrivileges[]{
+            IndicesPrivileges.builder()
+                .indices("*")
+                .privileges("read")
+                .query(matchAllBytes)
+                .build()
         }, null);
-        RoleDescriptor flsDlsRole = new RoleDescriptor("fls_dls", null, new IndicesPrivileges[] {
-                IndicesPrivileges.builder()
-                        .indices("*")
-                        .privileges("read")
-                        .grantedFields("*")
-                        .deniedFields("foo")
-                        .query(matchAllBytes)
-                        .build()
+        RoleDescriptor flsDlsRole = new RoleDescriptor("fls_dls", null, new IndicesPrivileges[]{
+            IndicesPrivileges.builder()
+                .indices("*")
+                .privileges("read")
+                .grantedFields("*")
+                .deniedFields("foo")
+                .query(matchAllBytes)
+                .build()
         }, null);
-        RoleDescriptor noFlsDlsRole = new RoleDescriptor("no_fls_dls", null, new IndicesPrivileges[] {
-                IndicesPrivileges.builder()
-                        .indices("*")
-                        .privileges("read")
-                        .build()
+        RoleDescriptor noFlsDlsRole = new RoleDescriptor("no_fls_dls", null, new IndicesPrivileges[]{
+            IndicesPrivileges.builder()
+                .indices("*")
+                .privileges("read")
+                .build()
         }, null);
         FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         when(fileRolesStore.roleDescriptors(Collections.singleton("fls"))).thenReturn(Collections.singleton(flsRole));
@@ -164,8 +177,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         when(fileRolesStore.roleDescriptors(Collections.singleton("fls_dls"))).thenReturn(Collections.singleton(flsDlsRole));
         when(fileRolesStore.roleDescriptors(Collections.singleton("no_fls_dls"))).thenReturn(Collections.singleton(noFlsDlsRole));
         CompositeRolesStore compositeRolesStore = new CompositeRolesStore(Settings.EMPTY, fileRolesStore, mock(NativeRolesStore.class),
-                mock(ReservedRolesStore.class), mock(NativePrivilegeStore.class), Collections.emptyList(),
-                new ThreadContext(Settings.EMPTY), licenseState);
+            mock(ReservedRolesStore.class), mock(NativePrivilegeStore.class), Collections.emptyList(),
+            new ThreadContext(Settings.EMPTY), licenseState);
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
@@ -197,9 +210,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
 
         final CompositeRolesStore compositeRolesStore =
-                new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
-                        mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                        new XPackLicenseState(SECURITY_ENABLED_SETTINGS));
+            new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
+                mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS));
         verify(fileRolesStore).addListener(any(Runnable.class)); // adds a listener in ctor
 
         final String roleName = randomAlphaOfLengthBetween(1, 10);
@@ -214,9 +227,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         final int numberOfTimesToCall = scaledRandomIntBetween(0, 32);
         final boolean getSuperuserRole = randomBoolean()
-                && roleName.equals(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()) == false;
+            && roleName.equals(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()) == false;
         final Set<String> names = getSuperuserRole ? Sets.newHashSet(roleName, ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
-                : Collections.singleton(roleName);
+            : Collections.singleton(roleName);
         for (int i = 0; i < numberOfTimesToCall; i++) {
             future = new PlainActionFuture<>();
             compositeRolesStore.roles(names, fieldPermissionsCache, future);
@@ -248,7 +261,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Set<RoleDescriptor> descriptors = new HashSet<>();
             if (roles.contains("roleA")) {
                 descriptors.add(new RoleDescriptor("roleA", null,
-                    new IndicesPrivileges[] {
+                    new IndicesPrivileges[]{
                         IndicesPrivileges.builder().privileges("READ").indices("foo").grantedFields("*").build()
                     }, null));
             }
@@ -261,13 +274,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 // both role providers can resolve role A, this makes sure that if the first
                 // role provider in order resolves a role, the second provider does not override it
                 descriptors.add(new RoleDescriptor("roleA", null,
-                    new IndicesPrivileges[] {
+                    new IndicesPrivileges[]{
                         IndicesPrivileges.builder().privileges("WRITE").indices("*").grantedFields("*").build()
                     }, null));
             }
             if (roles.contains("roleB")) {
                 descriptors.add(new RoleDescriptor("roleB", null,
-                    new IndicesPrivileges[] {
+                    new IndicesPrivileges[]{
                         IndicesPrivileges.builder().privileges("READ").indices("bar").grantedFields("*").build()
                     }, null));
             }
@@ -275,9 +288,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }));
 
         final CompositeRolesStore compositeRolesStore =
-                new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
-                                mock(NativePrivilegeStore.class), Arrays.asList(inMemoryProvider1, inMemoryProvider2),
-                                new ThreadContext(SECURITY_ENABLED_SETTINGS), new XPackLicenseState(SECURITY_ENABLED_SETTINGS));
+            new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
+                mock(NativePrivilegeStore.class), Arrays.asList(inMemoryProvider1, inMemoryProvider2),
+                new ThreadContext(SECURITY_ENABLED_SETTINGS), new XPackLicenseState(SECURITY_ENABLED_SETTINGS));
 
         final Set<String> roleNames = Sets.newHashSet("roleA", "roleB", "unknown");
         PlainActionFuture<Role> future = new PlainActionFuture<>();
@@ -312,22 +325,22 @@ public class CompositeRolesStoreTests extends ESTestCase {
      * permissions from different roles instead of properly creating a union of their languages
      */
     public void testMergingRolesWithFls() {
-        RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[] {
-                IndicesPrivileges.builder()
-                        .grantedFields("*")
-                        .deniedFields("L1.*", "L2.*")
-                        .indices("*")
-                        .privileges("read")
-                        .query("{ \"match\": {\"eventType.typeCode\": \"foo\"} }")
-                        .build()
+        RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[]{
+            IndicesPrivileges.builder()
+                .grantedFields("*")
+                .deniedFields("L1.*", "L2.*")
+                .indices("*")
+                .privileges("read")
+                .query("{ \"match\": {\"eventType.typeCode\": \"foo\"} }")
+                .build()
         }, null);
-        RoleDescriptor addsL1Fields = new RoleDescriptor("dls", null, new IndicesPrivileges[] {
-                IndicesPrivileges.builder()
-                        .indices("*")
-                        .grantedFields("L1.*")
-                        .privileges("read")
-                        .query("{ \"match\": {\"eventType.typeCode\": \"foo\"} }")
-                        .build()
+        RoleDescriptor addsL1Fields = new RoleDescriptor("dls", null, new IndicesPrivileges[]{
+            IndicesPrivileges.builder()
+                .indices("*")
+                .grantedFields("L1.*")
+                .privileges("read")
+                .query("{ \"match\": {\"eventType.typeCode\": \"foo\"} }")
+                .build()
         }, null);
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
         PlainActionFuture<Role> future = new PlainActionFuture<>();
@@ -335,16 +348,114 @@ public class CompositeRolesStoreTests extends ESTestCase {
         Role role = future.actionGet();
 
         MetaData metaData = MetaData.builder()
-                .put(new IndexMetaData.Builder("test")
-                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
-                        .numberOfShards(1).numberOfReplicas(0).build(), true)
-                .build();
+            .put(new IndexMetaData.Builder("test")
+                .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                .numberOfShards(1).numberOfReplicas(0).build(), true)
+            .build();
         Map<String, IndicesAccessControl.IndexAccessControl> acls =
-                role.indices().authorize("indices:data/read/search", Collections.singleton("test"), metaData, cache);
+            role.indices().authorize("indices:data/read/search", Collections.singleton("test"), metaData, cache);
         assertFalse(acls.isEmpty());
         assertTrue(acls.get("test").getFieldPermissions().grantsAccessTo("L1.foo"));
         assertFalse(acls.get("test").getFieldPermissions().grantsAccessTo("L2.foo"));
         assertTrue(acls.get("test").getFieldPermissions().grantsAccessTo("L3.foo"));
+    }
+
+    public void testMergingBasicRoles() {
+        final ManageApplicationPrivileges manage1 = new ManageApplicationPrivileges(Sets.newHashSet("app1"));
+        RoleDescriptor role1 = new RoleDescriptor("r1", new String[]{"monitor"}, new IndicesPrivileges[]{
+            IndicesPrivileges.builder()
+                .indices("abc-*", "xyz-*")
+                .privileges("read")
+                .build(),
+            IndicesPrivileges.builder()
+                .indices("ind-1-*")
+                .privileges("all")
+                .build(),
+        }, new RoleDescriptor.ApplicationResourcePrivileges[]{
+            RoleDescriptor.ApplicationResourcePrivileges.builder()
+                .application("app1")
+                .resources("user/*")
+                .privileges("read", "write")
+                .build(),
+            RoleDescriptor.ApplicationResourcePrivileges.builder()
+                .application("app1")
+                .resources("settings/*")
+                .privileges("read")
+                .build()
+        }, PrivilegePolicy.builder().add(manage1).build(),
+            new String[]{"app-user-1"}, null, null);
+
+        final ManageApplicationPrivileges manage2 = new ManageApplicationPrivileges(Sets.newHashSet("app2a", "app2b"));
+        RoleDescriptor role2 = new RoleDescriptor("r2", new String[]{"manage"}, new IndicesPrivileges[]{
+            IndicesPrivileges.builder()
+                .indices("abc-*", "ind-2-*")
+                .privileges("all")
+                .build()
+        }, new RoleDescriptor.ApplicationResourcePrivileges[]{
+            RoleDescriptor.ApplicationResourcePrivileges.builder()
+                .application("app2a")
+                .resources("*")
+                .privileges("all")
+                .build(),
+            RoleDescriptor.ApplicationResourcePrivileges.builder()
+                .application("app2b")
+                .resources("*")
+                .privileges("read")
+                .build()
+        }, PrivilegePolicy.builder().add(manage2).build(),
+            new String[]{"app-user-2"}, null, null);
+
+        FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
+        PlainActionFuture<Role> future = new PlainActionFuture<>();
+        final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
+        doAnswer(inv -> {
+            assertTrue(inv.getArguments().length == 3);
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
+                = (ActionListener<Collection<ApplicationPrivilegeDescriptor>>) inv.getArguments()[2];
+            Set<ApplicationPrivilegeDescriptor> set = new HashSet<>();
+            Arrays.asList("app1", "app2a", "app2b").forEach(
+                app -> Arrays.asList("read", "write", "all").forEach(
+                    perm -> set.add(
+                        new ApplicationPrivilegeDescriptor(app, perm, Collections.emptySet(), Collections.emptyMap())
+                    )));
+            listener.onResponse(set);
+            return null;
+        }).when(privilegeStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
+        CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(role1, role2), cache, privilegeStore, future);
+        Role role = future.actionGet();
+
+        assertThat(role.cluster().check(ClusterStateAction.NAME), equalTo(true));
+        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME), equalTo(true));
+        assertThat(role.cluster().check(PutUserAction.NAME), equalTo(false));
+
+        final Predicate<String> allowedRead = role.indices().allowedIndicesMatcher(GetAction.NAME);
+        assertThat(allowedRead.test("abc-123"), equalTo(true));
+        assertThat(allowedRead.test("xyz-000"), equalTo(true));
+        assertThat(allowedRead.test("ind-1-a"), equalTo(true));
+        assertThat(allowedRead.test("ind-2-a"), equalTo(true));
+        assertThat(allowedRead.test("foo"), equalTo(false));
+        assertThat(allowedRead.test("abc"), equalTo(false));
+        assertThat(allowedRead.test("xyz"), equalTo(false));
+        assertThat(allowedRead.test("ind-3-a"), equalTo(false));
+
+        final Predicate<String> allowedWrite = role.indices().allowedIndicesMatcher(IndexAction.NAME);
+        assertThat(allowedWrite.test("abc-123"), equalTo(true));
+        assertThat(allowedWrite.test("xyz-000"), equalTo(false));
+        assertThat(allowedWrite.test("ind-1-a"), equalTo(true));
+        assertThat(allowedWrite.test("ind-2-a"), equalTo(true));
+        assertThat(allowedWrite.test("foo"), equalTo(false));
+        assertThat(allowedWrite.test("abc"), equalTo(false));
+        assertThat(allowedWrite.test("xyz"), equalTo(false));
+        assertThat(allowedWrite.test("ind-3-a"), equalTo(false));
+
+        role.application().grants(new ApplicationPrivilege("app1", "app1-read", "write"), "user/joe");
+        role.application().grants(new ApplicationPrivilege("app1", "app1-read", "read"), "settings/hostname");
+        role.application().grants(new ApplicationPrivilege("app2a", "app2a-all", "all"), "user/joe");
+        role.application().grants(new ApplicationPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
+
+        assertThat(role.policy().isEmpty(), equalTo(false));
+        assertThat(role.policy().get(PrivilegePolicy.Category.APPLICATION), iterableWithSize(2));
+        assertThat(role.policy().get(PrivilegePolicy.Category.APPLICATION), containsInAnyOrder(manage1, manage2));
     }
 
     public void testCustomRolesProviderFailures() throws Exception {
@@ -362,7 +473,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Set<RoleDescriptor> descriptors = new HashSet<>();
             if (roles.contains("roleA")) {
                 descriptors.add(new RoleDescriptor("roleA", null,
-                    new IndicesPrivileges[] {
+                    new IndicesPrivileges[]{
                         IndicesPrivileges.builder().privileges("READ").indices("foo").grantedFields("*").build()
                     }, null));
             }
@@ -374,8 +485,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
-                                    mock(NativePrivilegeStore.class), Arrays.asList(inMemoryProvider1, failingProvider),
-                                    new ThreadContext(SECURITY_ENABLED_SETTINGS), new XPackLicenseState(SECURITY_ENABLED_SETTINGS));
+                mock(NativePrivilegeStore.class), Arrays.asList(inMemoryProvider1, failingProvider),
+                new ThreadContext(SECURITY_ENABLED_SETTINGS), new XPackLicenseState(SECURITY_ENABLED_SETTINGS));
 
         final Set<String> roleNames = Sets.newHashSet("roleA", "roleB", "unknown");
         PlainActionFuture<Role> future = new PlainActionFuture<>();
@@ -404,7 +515,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Set<RoleDescriptor> descriptors = new HashSet<>();
             if (roles.contains("roleA")) {
                 descriptors.add(new RoleDescriptor("roleA", null,
-                    new IndicesPrivileges[] {
+                    new IndicesPrivileges[]{
                         IndicesPrivileges.builder().privileges("READ").indices("foo").grantedFields("*").build()
                     }, null));
             }
@@ -462,9 +573,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
 
         CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
-                Settings.EMPTY, mock(FileRolesStore.class), mock(NativeRolesStore.class), mock(ReservedRolesStore.class),
-                mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(Settings.EMPTY),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS)) {
+            Settings.EMPTY, mock(FileRolesStore.class), mock(NativeRolesStore.class), mock(ReservedRolesStore.class),
+            mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(Settings.EMPTY),
+            new XPackLicenseState(SECURITY_ENABLED_SETTINGS)) {
             @Override
             public void invalidateAll() {
                 numInvalidation.incrementAndGet();
@@ -499,7 +610,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         // green to yellow or yellow to green
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
         currentState = dummyState(previousState.indexStatus == ClusterHealthStatus.GREEN ?
-                                  ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
+            ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
         compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
     }
@@ -508,9 +619,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
 
         CompositeRolesStore compositeRolesStore = new CompositeRolesStore(SECURITY_ENABLED_SETTINGS,
-                mock(FileRolesStore.class), mock(NativeRolesStore.class), mock(ReservedRolesStore.class),
-                mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS)) {
+            mock(FileRolesStore.class), mock(NativeRolesStore.class), mock(ReservedRolesStore.class),
+            mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
+            new XPackLicenseState(SECURITY_ENABLED_SETTINGS)) {
             @Override
             public void invalidateAll() {
                 numInvalidation.incrementAndGet();

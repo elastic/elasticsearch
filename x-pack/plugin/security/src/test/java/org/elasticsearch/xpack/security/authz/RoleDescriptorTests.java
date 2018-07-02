@@ -72,8 +72,9 @@ public class RoleDescriptorTests extends ESTestCase {
                 .build()
         };
 
-        final PrivilegePolicy privilegePolicy = new PrivilegePolicy();
-        privilegePolicy.add(new PrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))));
+        final PrivilegePolicy privilegePolicy = PrivilegePolicy.builder()
+            .add(new PrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))))
+            .build();
 
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
             privilegePolicy, new String[] { "sudo" }, Collections.emptyMap(), Collections.emptyMap());
@@ -100,8 +101,9 @@ public class RoleDescriptorTests extends ESTestCase {
                 .resources("*")
                 .build()
         };
-        final PrivilegePolicy privilegePolicy = new PrivilegePolicy();
-        privilegePolicy.add(new PrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))));
+        final PrivilegePolicy privilegePolicy = PrivilegePolicy.builder()
+            .add(new PrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))))
+            .build();
 
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
@@ -224,8 +226,9 @@ public class RoleDescriptorTests extends ESTestCase {
                 .resources("*")
                 .build()
         };
-        final PrivilegePolicy privilegePolicy = new PrivilegePolicy();
-        privilegePolicy.add(new PrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))));
+        final PrivilegePolicy privilegePolicy = PrivilegePolicy.builder()
+            .add(new PrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))))
+            .build();
 
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
         final RoleDescriptor descriptor = new RoleDescriptor("test", new String[]{"all", "none"}, groups, applicationPrivileges,

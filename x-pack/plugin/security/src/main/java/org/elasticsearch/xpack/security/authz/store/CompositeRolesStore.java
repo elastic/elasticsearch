@@ -311,6 +311,7 @@ public class CompositeRolesStore extends AbstractComponent {
             builder.add(fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition), privilege.query,
                     IndexPrivilege.get(privilege.privileges), privilege.indices.toArray(Strings.EMPTY_ARRAY));
         });
+        roleDescriptors.forEach(rd -> builder.addPrivilegePolicy(rd.getPrivilegePolicy()));
 
         if (applicationPrivilegesMap.isEmpty()) {
             listener.onResponse(builder.build());

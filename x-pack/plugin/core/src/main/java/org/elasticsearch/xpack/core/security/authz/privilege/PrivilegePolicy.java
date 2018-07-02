@@ -40,10 +40,10 @@ import java.util.function.Predicate;
 public class PrivilegePolicy implements ToXContentObject, Writeable {
     public static final PrivilegePolicy EMPTY = new PrivilegePolicy();
 
-    private Map<Category, List<ConditionalPrivilege>> privileges;
+    private final Map<Category, List<ConditionalPrivilege>> privileges;
 
-    public PrivilegePolicy() {
-        this(new HashMap<>());
+    protected PrivilegePolicy() {
+        this(Collections.emptyMap());
     }
 
     private PrivilegePolicy(Map<Category, List<ConditionalPrivilege>> privileges) {
@@ -146,12 +146,21 @@ public class PrivilegePolicy implements ToXContentObject, Writeable {
         return privileges.toString();
     }
 
-    public void add(ConditionalPrivilege privilege) {
-        this.privileges.computeIfAbsent(privilege.getCategory(), c -> new ArrayList<>()).add(privilege);
-    }
-
     public Collection<ConditionalPrivilege> get(Category category) {
         return Collections.unmodifiableCollection(privileges.getOrDefault(category, Collections.emptyList()));
+    }
+
+    public static PrivilegePolicy merge(List<PrivilegePolicy> privilegePolicies) {
+        Builder merged = builder();
+        privilegePolicies.stream()
+            .flatMap(p -> p.privileges.values().stream())
+            .flatMap(List::stream)
+            .forEach(merged::add);
+        return merged.build();
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     public interface ConditionalPrivilege extends NamedWriteable, ToXContentFragment {
@@ -301,4 +310,16 @@ public class PrivilegePolicy implements ToXContentObject, Writeable {
         }
     }
 
+    public static class Builder {
+        private final Map<Category, List<ConditionalPrivilege>> privileges = new HashMap<>();
+
+        public Builder add(ConditionalPrivilege privilege) {
+            this.privileges.computeIfAbsent(privilege.getCategory(), (k) -> new ArrayList<>()).add(privilege);
+            return this;
+        }
+
+        public PrivilegePolicy build() {
+            return new PrivilegePolicy(privileges);
+        }
+    }
 }

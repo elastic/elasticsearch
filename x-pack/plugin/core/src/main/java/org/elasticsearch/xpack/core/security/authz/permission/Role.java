@@ -9,6 +9,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,13 +34,16 @@ public final class Role {
     private final ClusterPermission cluster;
     private final IndicesPermission indices;
     private final ApplicationPermission application;
+    private final PrivilegePolicy privilegePolicy;
     private final RunAsPermission runAs;
 
-    Role(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application, RunAsPermission runAs) {
+    Role(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application,
+         PrivilegePolicy privilegePolicy, RunAsPermission runAs) {
         this.names = names;
         this.cluster = Objects.requireNonNull(cluster);
         this.indices = Objects.requireNonNull(indices);
         this.application = Objects.requireNonNull(application);
+        this.privilegePolicy = Objects.requireNonNull(privilegePolicy);
         this.runAs = Objects.requireNonNull(runAs);
     }
 
@@ -56,6 +61,10 @@ public final class Role {
 
     public ApplicationPermission application() {
         return application;
+    }
+
+    public PrivilegePolicy policy() {
+        return privilegePolicy;
     }
 
     public RunAsPermission runAs() {
@@ -104,6 +113,7 @@ public final class Role {
         private List<IndicesPermission.Group> groups = new ArrayList<>();
         private FieldPermissionsCache fieldPermissionsCache = null;
         private List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
+        private List<PrivilegePolicy> privilegePolicies = new ArrayList<>();
 
         private Builder(String[] names, FieldPermissionsCache fieldPermissionsCache) {
             this.names = names;
@@ -124,6 +134,8 @@ public final class Role {
             for (int i = 0; i < applicationPrivileges.length; i++) {
                 applicationPrivs.add(convertApplicationPrivilege(rd.getName(), i, applicationPrivileges[i]));
             }
+
+            this.privilegePolicies = CollectionUtils.asArrayList(rd.getPrivilegePolicy());
 
             String[] rdRunAs = rd.getRunAs();
             if (rdRunAs != null && rdRunAs.length > 0) {
@@ -156,12 +168,18 @@ public final class Role {
             return this;
         }
 
+        public Builder addPrivilegePolicy(PrivilegePolicy policy) {
+            privilegePolicies.add(policy);
+            return this;
+        }
+
         public Role build() {
             IndicesPermission indices = groups.isEmpty() ? IndicesPermission.NONE :
                 new IndicesPermission(groups.toArray(new IndicesPermission.Group[groups.size()]));
             final ApplicationPermission applicationPermission
                 = applicationPrivs.isEmpty() ? ApplicationPermission.NONE : new ApplicationPermission(applicationPrivs);
-            return new Role(names, cluster, indices, applicationPermission, runAs);
+            PrivilegePolicy privilegePolicy = PrivilegePolicy.merge(privilegePolicies);
+            return new Role(names, cluster, indices, applicationPermission, privilegePolicy, runAs);
         }
 
         static List<IndicesPermission.Group> convertFromIndicesPrivileges(RoleDescriptor.IndicesPrivileges[] indicesPrivileges,

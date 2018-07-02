@@ -68,11 +68,11 @@ public class PrivilegePolicyTests extends ESTestCase {
     }
 
     private PrivilegePolicy clone(PrivilegePolicy original) {
-        final PrivilegePolicy clone = new PrivilegePolicy();
+        final PrivilegePolicy.Builder clone = PrivilegePolicy.builder();
         for (PrivilegePolicy.Category category : PrivilegePolicy.Category.values()) {
             original.get(category).forEach(clone::add);
         }
-        return clone;
+        return clone.build();
     }
 
     private PrivilegePolicy buildSecurityPrivileges() {
@@ -80,8 +80,8 @@ public class PrivilegePolicyTests extends ESTestCase {
     }
 
     private PrivilegePolicy buildSecurityPrivileges(int applicationNameLength) {
-        final PrivilegePolicy privileges = new PrivilegePolicy();
+        final PrivilegePolicy.Builder privileges = PrivilegePolicy.builder();
         privileges.add(ManageApplicationPrivilegesTests.buildPrivileges(applicationNameLength));
-        return privileges;
+        return privileges.build();
     }
 }

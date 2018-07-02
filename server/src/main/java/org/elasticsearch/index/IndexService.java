@@ -88,6 +88,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -109,7 +110,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final NamedXContentRegistry xContentRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final SimilarityService similarityService;
-    private final EngineFactory engineFactory;
+    private final Function<IndexSettings, EngineFactory> engineFactoryFn;
     private final IndexWarmer warmer;
     private volatile Map<Integer, IndexShard> shards = emptyMap();
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -139,7 +140,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             SimilarityService similarityService,
             ShardStoreDeleter shardStoreDeleter,
             AnalysisRegistry registry,
-            EngineFactory engineFactory,
+            Function<IndexSettings, EngineFactory> engineFactoryFn,
             CircuitBreakerService circuitBreakerService,
             BigArrays bigArrays,
             ThreadPool threadPool,
@@ -188,7 +189,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.warmer = new IndexWarmer(indexSettings.getSettings(), threadPool, indexFieldData,
             bitsetFilterCache.createListener(threadPool));
         this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
-        this.engineFactory = Objects.requireNonNull(engineFactory);
+        this.engineFactoryFn = Objects.requireNonNull(engineFactoryFn);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
@@ -380,7 +381,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
             indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
-                indexCache, mapperService, similarityService, engineFactory,
+                indexCache, mapperService, similarityService, engineFactoryFn,
                 eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
                 searchOperationListeners, indexingOperationListeners, () -> globalCheckpointSyncer.accept(shardId),
                 circuitBreakerService);
@@ -681,8 +682,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         void addPendingDelete(ShardId shardId, IndexSettings indexSettings);
     }
 
-    public final EngineFactory getEngineFactory() {
-        return engineFactory;
+    public final Function<IndexSettings, EngineFactory> getEngineFactoryFn() {
+        return engineFactoryFn;
     }
 
     final IndexSearcherWrapper getSearcherWrapper() {

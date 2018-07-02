@@ -94,6 +94,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.contains;
@@ -228,7 +229,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                                   @Nullable IndexSearcherWrapper searcherWrapper, Runnable globalCheckpointSyncer) throws IOException {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, primary, ShardRoutingState.INITIALIZING,
             primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
-        return newShard(shardRouting, indexMetaData, searcherWrapper, new InternalEngineFactory(), globalCheckpointSyncer);
+        return newShard(shardRouting, indexMetaData, searcherWrapper, s -> new InternalEngineFactory(), globalCheckpointSyncer);
     }
 
 
@@ -242,7 +243,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected IndexShard newShard(ShardRouting routing, IndexMetaData indexMetaData, IndexingOperationListener... listeners)
         throws IOException {
-        return newShard(routing, indexMetaData, null, new InternalEngineFactory(), () -> {}, listeners);
+        return newShard(routing, indexMetaData, null, s -> new InternalEngineFactory(), () -> {}, listeners);
     }
 
     /**
@@ -256,7 +257,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected IndexShard newShard(ShardRouting routing, IndexMetaData indexMetaData,
                                   @Nullable IndexSearcherWrapper indexSearcherWrapper,
-                                  @Nullable EngineFactory engineFactory,
+                                  Function<IndexSettings, EngineFactory> engineFactoryFn,
                                   Runnable globalCheckpointSyncer,
                                   IndexingOperationListener... listeners)
         throws IOException {
@@ -264,7 +265,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final ShardId shardId = routing.shardId();
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-        return newShard(routing, shardPath, indexMetaData, indexSearcherWrapper, engineFactory, globalCheckpointSyncer,
+        return newShard(routing, shardPath, indexMetaData, indexSearcherWrapper, engineFactoryFn, globalCheckpointSyncer,
             EMPTY_EVENT_LISTENER, listeners);
     }
 
@@ -280,7 +281,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected IndexShard newShard(ShardRouting routing, ShardPath shardPath, IndexMetaData indexMetaData,
                                   @Nullable IndexSearcherWrapper indexSearcherWrapper,
-                                  @Nullable EngineFactory engineFactory,
+                                  Function<IndexSettings, EngineFactory> engineFactoryFn,
                                   Runnable globalCheckpointSyncer,
                                   IndexEventListener indexEventListener, IndexingOperationListener... listeners) throws IOException {
         final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
@@ -299,7 +300,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(nodeSettings, clusterSettings);
             indexShard = new IndexShard(routing, indexSettings, shardPath, store, () -> null, indexCache, mapperService, similarityService,
-                engineFactory, indexEventListener, indexSearcherWrapper, threadPool,
+                engineFactoryFn, indexEventListener, indexSearcherWrapper, threadPool,
                 BigArrays.NON_RECYCLING_INSTANCE, warmer, Collections.emptyList(), Arrays.asList(listeners), globalCheckpointSyncer,
                 breakerService);
             success = true;
@@ -336,7 +337,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 current.shardPath(),
                 current.indexSettings().getIndexMetaData(),
                 null,
-                current.engineFactory,
+                current.engineFactoryFn,
                 current.getGlobalCheckpointSyncer(),
             EMPTY_EVENT_LISTENER, listeners);
     }

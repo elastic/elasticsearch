@@ -96,7 +96,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             Path blob = new Path(path, blobName);
             // we pass CREATE, which means it fails if a blob already exists.
             EnumSet<CreateFlag> flags = failIfAlreadyExists ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK) :
-                EnumSet.of(CreateFlag.SYNC_BLOCK);
+                EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
             CreateOpts[] opts = {CreateOpts.bufferSize(bufferSize)};
             try (FSDataOutputStream stream = fileContext.create(blob, flags, opts)) {
                 int bytesRead;

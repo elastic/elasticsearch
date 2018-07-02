@@ -58,7 +58,8 @@ public class FileRealmTests extends ESTestCase {
     public void init() throws Exception {
         userPasswdStore = mock(FileUserPasswdStore.class);
         userRolesStore = mock(FileUserRolesStore.class);
-        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
+        globalSettings = Settings.builder().put("path.home", createTempDir()).put("xpack.security.authc.password_hashing.algorithm",
+            randomFrom("bcrypt9", "pbkdf2")).build();
         threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(globalSettings);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -83,12 +84,13 @@ public class FileRealmTests extends ESTestCase {
         assertThat(user.roles(), arrayContaining("role1", "role2"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31697")
     public void testAuthenticateCaching() throws Exception {
         Settings settings = Settings.builder()
-                .put("cache.hash_algo", Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT))
-                .build();
+            .put("cache.hash_algo", Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT)).build();
         RealmConfig config = new RealmConfig("file-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
             threadContext);
+
         when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("test123")), any(Supplier.class)))
                 .thenAnswer(VERIFY_PASSWORD_ANSWER);
         when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});

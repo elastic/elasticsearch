@@ -174,10 +174,8 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
                 }
 
                 final String objectName = objectName(request.getParameters());
-                if (bucket.objects.remove(objectName) != null) {
-                    return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
-                }
-                return newObjectNotFoundError(request.getId(), objectName);
+                bucket.objects.remove(objectName);
+                return new Response(RestStatus.NO_CONTENT.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
             })
         );
 

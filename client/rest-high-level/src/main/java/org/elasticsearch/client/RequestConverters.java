@@ -36,8 +36,10 @@ import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteReposito
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -102,6 +104,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
@@ -604,6 +607,21 @@ final class RequestConverters {
         return request;
     }
 
+    static Request multiSearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest) throws IOException {
+        Request request = new Request(HttpPost.METHOD_NAME, "/_msearch/template");
+
+        Params params = new Params(request);
+        params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        if (multiSearchTemplateRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
+            params.putParam("max_concurrent_searches", Integer.toString(multiSearchTemplateRequest.maxConcurrentSearchRequests()));
+        }
+
+        XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
+        byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
+        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        return request;
+    }
+
     static Request existsAlias(GetAliasesRequest getAliasesRequest) {
         if ((getAliasesRequest.indices() == null || getAliasesRequest.indices().length == 0) &&
                 (getAliasesRequest.aliases() == null || getAliasesRequest.aliases().length == 0)) {
@@ -689,6 +707,17 @@ final class RequestConverters {
         parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
 
         request.setEntity(createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request clusterGetSettings(ClusterGetSettingsRequest clusterGetSettingsRequest) throws IOException {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_cluster/settings");
+
+        Params parameters = new Params(request);
+        parameters.withLocal(clusterGetSettingsRequest.local());
+        parameters.withIncludeDefaults(clusterGetSettingsRequest.includeDefaults());
+        parameters.withMasterTimeout(clusterGetSettingsRequest.masterNodeTimeout());
+
         return request;
     }
 
@@ -891,6 +920,26 @@ final class RequestConverters {
         params.withMasterTimeout(createSnapshotRequest.masterNodeTimeout());
         params.withWaitForCompletion(createSnapshotRequest.waitForCompletion());
         request.setEntity(createEntity(createSnapshotRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getSnapshots(GetSnapshotsRequest getSnapshotsRequest) {
+        EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(getSnapshotsRequest.repository());
+        String endpoint;
+        if (getSnapshotsRequest.snapshots().length == 0) {
+            endpoint = endpointBuilder.addPathPart("_all").build();
+        } else {
+            endpoint = endpointBuilder.addCommaSeparatedPathParts(getSnapshotsRequest.snapshots()).build();
+        }
+
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(getSnapshotsRequest.masterNodeTimeout());
+        parameters.putParam("ignore_unavailable", Boolean.toString(getSnapshotsRequest.ignoreUnavailable()));
+        parameters.putParam("verbose", Boolean.toString(getSnapshotsRequest.verbose()));
+
         return request;
     }
 

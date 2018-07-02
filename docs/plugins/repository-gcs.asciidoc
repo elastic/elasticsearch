@@ -27,9 +27,9 @@ To create a new bucket:
 
 1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
 2. Select your project
-3. Got to the https://console.cloud.google.com/storage/browser[Storage Browser]
+3. Go to the https://console.cloud.google.com/storage/browser[Storage Browser]
 4. Click the "Create Bucket" button
-5. Enter a the name of the new bucket
+5. Enter the name of the new bucket
 6. Select a storage class
 7. Select a location
 8. Click the "Create" button

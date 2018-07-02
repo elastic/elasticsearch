@@ -28,22 +28,20 @@ It can be an exact match:
 include-tagged::{sql-specs}/docs.csv-spec[showFunctionsLikeExact]
 ----
 
+A wildcard for exactly one character:
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[showFunctionsLikeChar]
+----
+
 A wildcard matching zero or more characters:
 ["source","sql",subs="attributes,callouts,macros"]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[showFunctionsLikeWildcard]
 ----
 
-A wildcard for exactly one character:
+Or of course, a variation of the above:
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[showTablesLikeOneChar]
-----
-
-Or of course, a mix of the above:
-
-A wildcard for exactly one character:
-["source","sql",subs="attributes,callouts,macros"]
-----
-include-tagged::{sql-specs}/docs.csv-spec[docShowTablesLikeMixed]
+include-tagged::{sql-specs}/docs.csv-spec[showFunctionsWithPattern]
 ----

@@ -28,14 +28,21 @@ The pattern can be an exact match:
 include-tagged::{sql-specs}/docs.csv-spec[showTablesLikeExact]
 ----
 
-A wildcard:
+Multiple chars:
 ["source","sql",subs="attributes,callouts,macros"]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[showTablesLikeWildcard]
 ----
 
-Or single char:
+A single char:
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[showTablesLikeWildcard]
+include-tagged::{sql-specs}/docs.csv-spec[showTablesLikeOneChar]
+----
+
+
+Or a mixture of single and multiple chars:
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[showTablesLikeMixed]
 ----

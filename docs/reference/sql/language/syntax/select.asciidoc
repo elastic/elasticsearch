@@ -36,23 +36,26 @@ The general execution of `SELECT` is as follows:
 
 As with a table, every output column of a `SELECT` has a name which can be either specified per column through the `AS` keyword :
 
-[source,sql]
+["source","sql",subs="attributes,callouts,macros"]
 ----
-SELECT column AS c
+include-tagged::{sql-specs}/docs.csv-spec[selectColumnAlias]
 ----
+
+Note: `AS` is an optional keyword however it helps with the readability and in some case ambiguity of the query
+which is why it is recommended to specify it.
 
 assigned by {es-sql} if no name is given:
 
-[source,sql]
+["source","sql",subs="attributes,callouts,macros"]
 ----
-SELECT 1 + 1
+include-tagged::{sql-specs}/docs.csv-spec[selectInline]
 ----
 
 or if it's a simple column reference, use its name as the column name:
 
-[source,sql]
+["source","sql",subs="attributes,callouts,macros"]
 ----
-SELECT col FROM table
+include-tagged::{sql-specs}/docs.csv-spec[selectColumn]
 ----
 
 [[sql-syntax-select-wildcard]]
@@ -61,11 +64,11 @@ SELECT col FROM table
 To select all the columns in the source, one can use `*`:
 
 ["source","sql",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{sql-specs}/select.sql-spec[wildcardWithOrder]
---------------------------------------------------
+----
+include-tagged::{sql-specs}/docs.csv-spec[wildcardWithOrder]
+----
 
-which essentially returns all columsn found.
+which essentially returns all(top-level fields, sub-fields, such as multi-fields are ignored] columns found.
 
 [[sql-syntax-from]]
 [float]
@@ -83,16 +86,29 @@ where:
 `table_name`::
 
 Represents the name (optionally qualified) of an existing table, either a concrete or base one (actual index) or alias.
+
+
 If the table name contains special SQL characters (such as `.`,`-`,etc...) use double quotes to escape them:
-[source, sql]
+
+["source","sql",subs="attributes,callouts,macros"]
 ----
-SELECT ... FROM "some-table"
+include-tagged::{sql-specs}/docs.csv-spec[fromTableQuoted]
 ----
 
 The name can be a <<multi-index, pattern>> pointing to multiple indices (likely requiring quoting as mentioned above) with the restriction that *all* resolved concrete tables have **exact mapping**.
 
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[fromTablePatternQuoted]
+----
+
 `alias`::
 A substitute name for the `FROM` item containing the alias. An alias is used for brevity or to eliminate ambiguity. When an alias is provided, it completely hides the actual name of the table and must be used in its place.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[fromTableAlias]
+----
 
 [[sql-syntax-where]]
 [float]
@@ -111,6 +127,11 @@ where:
 
 Represents an expression that evaluates to a `boolean`. Only the rows that match the condition (to `true`) are returned.
 
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[basicWhere]
+----
+
 [[sql-syntax-group-by]]
 [float]
 ==== GROUP BY
@@ -126,9 +147,79 @@ where:
 
 `grouping_element`::
 
-Represents an expression on which rows are being grouped _on_. It can be a column name, name or ordinal number of a column or an arbitrary expression of column values.
+Represents an expression on which rows are being grouped _on_. It can be a column name, alias or ordinal number of a column or an arbitrary expression of column values.
+
+A common, group by column name:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[groupByColumn]
+----
+
+Grouping by output ordinal:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[groupByOrdinal]
+----
+
+Grouping by alias:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[groupByAlias]
+----
+
+And grouping by column expression (typically used along-side an alias):
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[groupByExpression]
+----
 
 When a `GROUP BY` clause is used in a `SELECT`, _all_ output expressions must be either aggregate functions or expressions used for grouping or derivates of (otherwise there would be more than one possible value to return for each ungrouped column).
+
+To wit:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[groupByAndAgg]
+----
+
+Expressions over aggregates used in output:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[groupByAndAggExpression]
+----
+
+Multiple aggregates used:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[groupByAndMultipleAggs]
+----
+
+[[sql-syntax-group-by-implicit]]
+[float]
+===== Implicit Grouping
+
+When an aggregation is used without an associated `GROUP BY`, an __implicit grouping__ is applied, meaning all selected rows are considered to form a single default, or implicit group.
+As such, the query emits only a single row (as there is only a single group).
+
+A common example is counting the number of records:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[groupByImplicitCount]
+----
+
+Of course, multiple aggregations can be applied:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[groupByImplicitMultipleAggs]
+----
 
 [[sql-syntax-having]]
 [float]
@@ -147,13 +238,44 @@ where:
 
 Represents an expression that evaluates to a `boolean`. Only groups that match the condition (to `true`) are returned.
 
-Both `WHERE` and `HAVING` are used for filtering however there are several differences between them:
+Both `WHERE` and `HAVING` are used for filtering however there are several significant differences between them:
 
 . `WHERE` works on individual *rows*, `HAVING` works on the *groups* created by ``GROUP BY``
 . `WHERE` is evaluated *before* grouping, `HAVING` is evaluated *after* grouping
 
-Note that it is possible to have a `HAVING` clause without a ``GROUP BY``. In this case, an __implicit grouping__ is applied, meaning all selected rows are considered to form a single group and `HAVING` can be applied on any of the aggregate functions specified on this group. ` 
-As such a query emits only a single row (as there is only a single group), `HAVING` condition returns either one row (the group) or zero if the condition fails.
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[groupByHaving]
+----
+
+Further more, one can use multiple aggregate expressions inside `HAVING` even ones that are not used in the output (`SELECT`):
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[groupByHavingMultiple]
+----
+
+[[sql-syntax-having-group-by-implicit]]
+[float]
+===== Implicit Grouping
+
+As indicated above, it is possible to have a `HAVING` clause without a ``GROUP BY``. In this case, the so-called <<sql-syntax-group-by-implicit, __implicit grouping__>> is applied, meaning all selected rows are considered to form a single group and `HAVING` can be applied on any of the aggregate functions specified on this group. ` 
+As such, the query emits only a single row (as there is only a single group) and `HAVING` condition returns either one row (the group) or zero if the condition fails.
+
+In this example, `HAVING` matches:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[groupByHavingImplicitMatch]
+----
+
+//However `HAVING` can also not match, in which case an empty result is returned:
+//
+//["source","sql",subs="attributes,callouts,macros"]
+//----
+//include-tagged::{sql-specs}/docs.csv-spec[groupByHavingImplicitNoMatch]
+//----
+
 
 [[sql-syntax-order-by]]
 [float]
@@ -178,30 +300,10 @@ IMPORTANT: When used along-side, `GROUP BY` expression can point _only_ to the c
 
 For example, the following query sorts by an arbitrary input field (`page_count`):
 
-[source,js]
---------------------------------------------------
-POST /_xpack/sql?format=txt
-{
-    "query": "SELECT * FROM library ORDER BY page_count DESC LIMIT 5"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:library]
-
-which results in something like:
-
-[source,text]
---------------------------------------------------
-     author      |        name        |  page_count   | release_date
------------------+--------------------+---------------+------------------------
-Peter F. Hamilton|Pandora's Star      |768            |2004-03-02T00:00:00.000Z
-Vernor Vinge     |A Fire Upon the Deep|613            |1992-06-01T00:00:00.000Z
-Frank Herbert    |Dune                |604            |1965-06-01T00:00:00.000Z
-Alastair Reynolds|Revelation Space    |585            |2000-03-15T00:00:00.000Z
-James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
---------------------------------------------------
-// TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
-// TESTRESPONSE[_cat]
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[orderByBasic]
+----
 
 [[sql-syntax-order-by-score]]
 ==== Order By Score
@@ -215,54 +317,18 @@ combined using the same rules as {es}'s
 
 To sort based on the `score`, use the special function `SCORE()`:
 
-[source,js]
---------------------------------------------------
-POST /_xpack/sql?format=txt
-{
-    "query": "SELECT SCORE(), * FROM library WHERE match(name, 'dune') ORDER BY SCORE() DESC"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:library]
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[orderByScore]
+----
 
-Which results in something like:
+Note that you can return `SCORE()` by using a full-text search predicate in the `WHERE` clause.
+This is possible even if `SCORE()` is not used for sorting:
 
-[source,text]
---------------------------------------------------
-    SCORE()    |    author     |       name        |  page_count   | release_date
----------------+---------------+-------------------+---------------+------------------------
-2.288635       |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00.000Z
-1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00.000Z
-1.6086555      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00.000Z
-1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00.000Z
---------------------------------------------------
-// TESTRESPONSE[s/\|/\\|/ s/\+/\\+/ s/\(/\\\(/ s/\)/\\\)/]
-// TESTRESPONSE[_cat]
-
-Note that you can return `SCORE()` by adding it to the where clause. This
-is possible even if you are not sorting by `SCORE()`:
-
-[source,js]
---------------------------------------------------
-POST /_xpack/sql?format=txt
-{
-    "query": "SELECT SCORE(), * FROM library WHERE match(name, 'dune') ORDER BY page_count DESC"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:library]
-
-[source,text]
---------------------------------------------------
-    SCORE()    |    author     |       name        |  page_count   | release_date
----------------+---------------+-------------------+---------------+------------------------
-2.288635       |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00.000Z
-1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00.000Z
-1.6086555      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00.000Z
-1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00.000Z
---------------------------------------------------
-// TESTRESPONSE[s/\|/\\|/ s/\+/\\+/ s/\(/\\\(/ s/\)/\\\)/]
-// TESTRESPONSE[_cat]
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[orderByScoreWithMatch]
+----
 
 NOTE:
 Trying to return `score` from a non full-text queries will return the same value for all results, as
@@ -284,3 +350,10 @@ where
 count:: is a positive integer or zero indicating the maximum *possible* number of results being returned (as there might be less matches than the limit). If `0` is specified, no results are returned.
 
 ALL:: indicates there is no limit and thus all results are being returned.
+
+To return 
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[limitBasic]
+----

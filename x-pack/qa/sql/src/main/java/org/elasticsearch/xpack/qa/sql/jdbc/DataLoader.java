@@ -48,7 +48,7 @@ public class DataLoader {
         makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
     }
 
-    protected static void loadDocsDatasetIntoEs(RestClient client) throws Exception {
+    public static void loadDocsDatasetIntoEs(RestClient client) throws Exception {
         loadEmpDatasetIntoEs(client, "emp");
         loadLibDatasetIntoEs(client, "library");
         makeAlias(client, "employees", "emp");

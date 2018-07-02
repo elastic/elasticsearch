@@ -7,14 +7,12 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.junit.ClassRule;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Properties;
 
 /**
  * Tests comparing sql queries executed against our jdbc client
@@ -66,13 +64,5 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
 
             assertResults(expected, elasticResults);
         }
-    }
-
-    // TODO: use UTC for now until deciding on a strategy for handling date extraction
-    @Override
-    protected Properties connectionProperties() {
-        Properties connectionProperties = new Properties();
-        connectionProperties.setProperty(JdbcConfiguration.TIME_ZONE, "UTC");
-        return connectionProperties;
     }
 }

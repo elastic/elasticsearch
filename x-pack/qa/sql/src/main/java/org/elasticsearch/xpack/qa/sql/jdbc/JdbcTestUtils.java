@@ -6,13 +6,14 @@
 package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.sql.plugin.CliFormatter;
+import org.elasticsearch.xpack.sql.action.CliFormatter;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 
 import java.sql.JDBCType;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -119,7 +120,13 @@ public abstract class JdbcTestUtils {
         while (rs.next()) {
             List<Object> entry = new ArrayList<>(columns);
             for (int i = 1; i <= columns; i++) {
-                entry.add(rs.getObject(i));
+                Object value = rs.getObject(i);
+                // timestamp to string is similar but not ISO8601 - fix it
+                if (value instanceof Timestamp) {
+                    Timestamp ts = (Timestamp) value;
+                    value = ts.toInstant().toString();
+                }
+                entry.add(value);
             }
             data.add(entry);
         }

@@ -604,9 +604,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Is this template one that is automatically created by xpack? Deleting
-     * these templates doesn't hurt anything but it makes the tests run more
-     * slowly because it then has to wait for the templates to be recreated.
+     * Is this template one that is automatically created by xpack?
      */
     private static boolean isXPackTemplate(String name) {
         if (name.startsWith(".monitoring-")) {

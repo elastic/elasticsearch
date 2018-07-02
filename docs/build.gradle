@@ -39,12 +39,14 @@ integTestCluster {
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
-integTestRunner {
+// remove when https://github.com/elastic/elasticsearch/issues/31305 is fixed
+if (rootProject.ext.runtimeJavaVersion.isJava11()) {
+  integTestRunner {
     systemProperty 'tests.rest.blacklist', [
-        // remove when https://github.com/elastic/elasticsearch/issues/31305 is fixed
-        'plugins/ingest-attachment/line_164',
-        'plugins/ingest-attachment/line_117'
+            'plugins/ingest-attachment/line_164',
+            'plugins/ingest-attachment/line_117'
     ].join(',')
+  }
 }
 // Build the cluster with all plugins
 

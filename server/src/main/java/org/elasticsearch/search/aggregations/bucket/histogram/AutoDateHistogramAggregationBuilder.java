@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -128,8 +129,9 @@ public class AutoDateHistogramAggregationBuilder
             .flatMapToInt(Arrays::stream)
             .boxed()
             .reduce(Integer::max).get();
-        // TODO[PCS] what's the best way to get a hold of SearchService here, so I'm not just using default?
-        int bucketCeiling = MultiBucketConsumerService.DEFAULT_MAX_BUCKETS / maxRoundingInterval;
+        Settings settings = context.getQueryShardContext().getIndexSettings().getNodeSettings();
+        int maxBuckets = MultiBucketConsumerService.MAX_BUCKET_SETTING.get(settings);
+        int bucketCeiling = maxBuckets / maxRoundingInterval;
         if (numBuckets > bucketCeiling) {
             throw new IllegalArgumentException(
                 String.format("%s must be less than %d", NUM_BUCKETS_FIELD.getPreferredName(), bucketCeiling)

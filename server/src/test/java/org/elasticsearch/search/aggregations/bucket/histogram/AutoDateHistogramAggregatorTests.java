@@ -30,8 +30,10 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.network.NetworkUtils;
-import org.elasticsearch.common.rounding.DateTimeUnit;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -50,7 +52,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -645,6 +646,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             DateTime date = startDate.plusSeconds(i);
             dataset.add(format.print(date));
         }
+
         testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(600).field(DATE_FIELD),
                 histogram -> {
@@ -656,6 +658,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         assertEquals(1, bucket.getDocCount());
                     }
                 });
+
         testSearchAndReduceCase(new MatchAllDocsQuery(), dataset,
                 aggregation -> aggregation.setNumBuckets(300).field(DATE_FIELD),
                 histogram -> {
@@ -1265,8 +1268,22 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         testSearchAndReduceCase(query, dataset, configure, verify);
     }
 
+    @Override
+    protected IndexSettings createIndexSettings() {
+        Settings nodeSettings = Settings.builder()
+            .put("search.max_buckets", 100000).build();
+        return new IndexSettings(
+            IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            nodeSettings
+        );
+    }
+
     private void executeTestCase(boolean reduced, Query query, List<String> dataset,
-            Consumer<AutoDateHistogramAggregationBuilder> configure,
+                                 Consumer<AutoDateHistogramAggregationBuilder> configure,
                                  Consumer<Histogram> verify) throws IOException {
 
         try (Directory directory = newDirectory()) {

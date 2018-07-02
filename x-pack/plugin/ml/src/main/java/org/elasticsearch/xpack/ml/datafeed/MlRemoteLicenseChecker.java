@@ -18,7 +18,7 @@ import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.action.LicenseStatus;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
-import org.elasticsearch.xpack.core.action.XPackInfoRequest;
+import org.elasticsearch.xpack.action.XPackInfoRequest;
 
 import java.util.EnumSet;
 import java.util.Iterator;

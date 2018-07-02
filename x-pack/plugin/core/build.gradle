@@ -25,6 +25,7 @@ dependencyLicenses {
 
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
+    compile project(':x-pack-action')
     compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
     compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
     compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
@@ -38,7 +39,6 @@ dependencies {
     compile 'org.bouncycastle:bcprov-jdk15on:1.58'
     compile 'org.bouncycastle:bcpkix-jdk15on:1.58'
     compile project(path: ':modules:transport-netty4', configuration: 'runtime')
-    compile project(':x-pack-action')
 
     testCompile 'org.elasticsearch:securemock:1.2'
     testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"

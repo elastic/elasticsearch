@@ -227,32 +227,22 @@ public class ChainInputTests extends ESTestCase {
     }
 
     public void testThatXContentParametersArePassedToInputs() throws Exception {
-        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5)));
-        ChainInput chainInput = new ChainInput(Collections.singletonList(Tuple.tuple("second", new TestInput(params))));
+        ToXContent.Params randomParams = new ToXContent.MapParams(Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+        ChainInput chainInput = new ChainInput(Collections.singletonList(Tuple.tuple("second", new Input() {
+            @Override
+            public String type() {
+                return "test";
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                assertThat(params, sameInstance(randomParams));
+                return builder;
+            }
+        })));
 
         try (XContentBuilder builder = jsonBuilder()) {
-            chainInput.toXContent(builder, params);
-        }
-    }
-
-    // a test input that checks the xcontent parameters to ensure the correct params have been passed
-    private static final class TestInput implements Input {
-
-        private ToXContent.Params expectedParams;
-
-        TestInput(ToXContent.Params expectedParams) {
-            this.expectedParams = expectedParams;
-        }
-
-        @Override
-        public String type() {
-            return "test";
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            assertThat(params, sameInstance(expectedParams));
-            return builder;
+            chainInput.toXContent(builder, randomParams);
         }
     }
 }

@@ -46,7 +46,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
- * A response for a delete index action.
+ * A response for a get index action.
  */
 public class GetIndexResponse extends ActionResponse implements ToXContentObject {
 
@@ -414,12 +414,12 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     @Override
     public int hashCode() {
         return
-            (31 * Arrays.hashCode(indices)) +
-                Objects.hash(
-                    aliases,
-                    mappings,
-                    settings,
-                    defaultSettings
-                );
+            Objects.hash(
+                Arrays.hashCode(indices),
+                aliases,
+                mappings,
+                settings,
+                defaultSettings
+            );
     }
 }

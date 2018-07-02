@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.resync;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -33,6 +34,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -51,6 +53,8 @@ import java.util.function.Supplier;
 
 public class TransportResyncReplicationAction extends TransportWriteAction<ResyncReplicationRequest,
     ResyncReplicationRequest, ResyncReplicationResponse> implements PrimaryReplicaSyncer.SyncAction {
+
+    private static final Logger logger = ESLoggerFactory.getLogger(TransportResyncReplicationAction.class);
 
     private static String ACTION_NAME = "internal:index/seq_no/resync";
 
@@ -114,11 +118,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
     @Override
     protected WriteReplicaResult shardOperationOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
-        Translog.Location location = performOnReplica(request, replica);
-        return new WriteReplicaResult(request, location, null, replica, logger);
+        final WriteReplicaResult result = performOnReplica(request, replica);
+        return result;
     }
 
-    public static Translog.Location performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
+    public static WriteReplicaResult performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
         for (Translog.Operation operation : request.getOperations()) {
             final Engine.Result operationResult = replica.applyTranslogOperation(operation, Engine.Operation.Origin.REPLICA);
@@ -131,7 +135,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
         if (request.getTrimAboveSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             replica.trimOperationOfPreviousPrimaryTerms(request.getTrimAboveSeqNo());
         }
-        return location;
+        return new WriteReplicaResult(request, location, null, replica, logger);
     }
 
     @Override

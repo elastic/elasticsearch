@@ -61,6 +61,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.mockito.ArgumentCaptor;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
@@ -76,6 +77,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
@@ -153,6 +155,33 @@ public class TransportWriteActionTests extends ESTestCase {
         result.respond(listener);
         assertNotNull(listener.response);
         assertNull(listener.failure);
+        verify(indexShard, never()).refresh(any());
+        verify(indexShard, never()).addRefreshListener(any(), any());
+    }
+
+    public void testShardOperationOnReplicaPrimaryIOExceptionInAsyncAfterWriteAction() throws Exception {
+        final AtomicReference<Consumer<Exception>> syncListenerRef = new AtomicReference<>();
+        when(indexShard.getTranslogDurability()).thenReturn(Translog.Durability.REQUEST);
+        doAnswer(invocationOnMock -> {
+            syncListenerRef.set((Consumer<Exception>) invocationOnMock.getArguments()[1]);
+            return null;
+        }).when(indexShard).sync(any(Translog.Location.class), any(Consumer.class));
+
+        TestRequest request = new TestRequest();
+        request.setRefreshPolicy(RefreshPolicy.NONE);
+        TestAction testAction = new TestAction();
+        TransportWriteAction.WritePrimaryResult<TestRequest, TestResponse> result =
+            testAction.shardOperationOnPrimary(request, indexShard);
+
+        final Consumer<Exception> syncListener = syncListenerRef.get();
+        assertThat(syncListener, notNullValue());
+
+        syncListener.accept(new IOException("xxx"));
+
+        CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
+        result.respond(listener);
+        assertNotNull(listener.failure);
+        assertNull(listener.response);
         verify(indexShard, never()).refresh(any());
         verify(indexShard, never()).addRefreshListener(any(), any());
     }

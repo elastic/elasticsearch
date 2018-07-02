@@ -128,9 +128,11 @@ public abstract class TransportWriteAction<
     public static class WritePrimaryResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
             Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response>
             implements RespondingWriteResult {
-        boolean finishedAsyncActions;
         public final Location location;
-        ActionListener<Response> listener = null;
+        // as AsyncAfterWriteAction could execute on another thread
+        volatile boolean finishedAsyncActions;
+        volatile Exception failure;
+        volatile ActionListener<Response> listener = null;
 
         public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
                                   @Nullable Location location, @Nullable Exception operationFailure,
@@ -154,7 +156,7 @@ public abstract class TransportWriteAction<
         @Override
         public synchronized void respond(ActionListener<Response> listener) {
             this.listener = listener;
-            respondIfPossible(null);
+            respondIfPossible(failure);
         }
 
         /**
@@ -171,6 +173,7 @@ public abstract class TransportWriteAction<
         }
 
         public synchronized void onFailure(Exception exception) {
+            failure = exception;
             finishedAsyncActions = true;
             respondIfPossible(exception);
         }
@@ -186,11 +189,14 @@ public abstract class TransportWriteAction<
     /**
      * Result of taking the action on the replica.
      */
-    protected static class WriteReplicaResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>>
+    public static class WriteReplicaResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>>
             extends ReplicaResult implements RespondingWriteResult {
         public final Location location;
-        boolean finishedAsyncActions;
-        private ActionListener<TransportResponse.Empty> listener;
+        // as AsyncAfterWriteAction could execute on another thread
+        private volatile boolean finishedAsyncActions;
+        private volatile Exception failure;
+        private volatile ActionListener<TransportResponse.Empty> listener;
+
 
         public WriteReplicaResult(ReplicaRequest request, @Nullable Location location,
                                   @Nullable Exception operationFailure, IndexShard replica, Logger logger) {
@@ -206,7 +212,7 @@ public abstract class TransportWriteAction<
         @Override
         public void respond(ActionListener<TransportResponse.Empty> listener) {
             this.listener = listener;
-            respondIfPossible(null);
+            respondIfPossible(failure);
         }
 
         /**
@@ -224,6 +230,7 @@ public abstract class TransportWriteAction<
 
         @Override
         public void onFailure(Exception ex) {
+            failure = ex;
             finishedAsyncActions = true;
             respondIfPossible(ex);
         }

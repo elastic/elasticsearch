@@ -67,7 +67,6 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.tasks.TaskManager;
@@ -619,7 +618,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             MappingUpdatePerformer noopMappingUpdater = (update, shardId, type) -> { };
             result = TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater);
         }
-        TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
+        TransportWriteActionTestHelper.waitForPostWriteActions(result);
         return result;
     }
 
@@ -635,11 +634,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
         replica.acquireReplicaOperationPermit(
             operationPrimaryTerm, globalCheckpointOnPrimary, permitAcquiredFuture, ThreadPool.Names.SAME, request);
-        final Translog.Location location;
+        final TransportWriteAction.WriteReplicaResult<BulkShardRequest> result;
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
-            location = TransportShardBulkAction.performOnReplica(request, replica);
+            result = TransportShardBulkAction.performOnReplica(request, replica);
         }
-        TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
+        TransportWriteActionTestHelper.waitForPostWriteActions(result);
     }
 
     /**
@@ -720,12 +719,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
             new TransportWriteAction.WritePrimaryResult<>(TransportResyncReplicationAction.performOnPrimary(request, primary),
                 new ResyncReplicationResponse(), null, null, primary, logger);
-        TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
+        TransportWriteActionTestHelper.waitForPostWriteActions(result);
         return result;
     }
 
     private void executeResyncOnReplica(IndexShard replica, ResyncReplicationRequest request) throws Exception {
-        final Translog.Location location = TransportResyncReplicationAction.performOnReplica(request, replica);
-        TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
+        final TransportWriteAction.WriteReplicaResult result = TransportResyncReplicationAction.performOnReplica(request, replica);
+        TransportWriteActionTestHelper.waitForPostWriteActions(result);
     }
 }

@@ -76,7 +76,7 @@ import java.util.stream.Collectors;
  * {@link RemoteClusterService#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
  * connections per cluster has been reached.
  */
-final class RemoteClusterConnection extends AbstractComponent implements Closeable, TransportConnectionListener {
+final class RemoteClusterConnection extends AbstractComponent implements TransportConnectionListener, Closeable {
 
     private final TransportService transportService;
     private final ConnectionProfile remoteProfile;

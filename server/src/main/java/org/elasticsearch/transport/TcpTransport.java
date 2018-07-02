@@ -1930,7 +1930,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
         }
 
-
         @Override
         public void onResponseSent(long requestId, String action, TransportResponse response, TransportResponseOptions finalOptions) {
             for (TransportConnectionListener listener : listeners) {

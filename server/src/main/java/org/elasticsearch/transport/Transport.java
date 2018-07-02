@@ -199,7 +199,6 @@ public interface Transport extends LifecycleComponent {
         public String action() {
             return this.action;
         }
-
     }
 
     /**

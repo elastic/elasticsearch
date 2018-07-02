@@ -477,11 +477,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     public WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
-        final Translog.Location location = performOnReplica(request, replica);
-        return new WriteReplicaResult<>(request, location, null, replica, logger);
+        final WriteReplicaResult<BulkShardRequest> result = performOnReplica(request, replica);
+        return result;
     }
 
-    public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
+    public static WriteReplicaResult<BulkShardRequest> performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
@@ -507,7 +507,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     throw new IllegalStateException("illegal replica item execution mode for: " + docWriteRequest);
             }
         }
-        return location;
+        return new WriteReplicaResult<>(request, location, null, replica, logger);
     }
 
     private static Engine.Result performOpOnReplica(DocWriteResponse primaryResponse, DocWriteRequest<?> docWriteRequest,

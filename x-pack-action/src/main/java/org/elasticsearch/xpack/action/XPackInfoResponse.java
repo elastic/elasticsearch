@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.license;
+package org.elasticsearch.xpack.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.action.LicenseStatus;
-import org.elasticsearch.xpack.core.XPackBuild;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,9 +23,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class XPackInfoResponse extends ActionResponse {
+    // Temporary location until we simpmlify and move License.java
+    public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS = Long.MAX_VALUE - TimeUnit.HOURS.toMillis(24 * 365);
 
     @Nullable private BuildInfo buildInfo;
     @Nullable private LicenseInfo licenseInfo;
@@ -85,11 +87,6 @@ public class XPackInfoResponse extends ActionResponse {
         private final long expiryDate;
         private final LicenseStatus status;
 
-        public LicenseInfo(License license) {
-            this(license.uid(), license.type(), license.operationMode().name().toLowerCase(Locale.ROOT),
-                    license.status(), license.expiryDate());
-        }
-
         public LicenseInfo(StreamInput in) throws IOException {
             this(in.readString(), in.readString(), in.readString(), LicenseStatus.readFrom(in), in.readLong());
         }
@@ -129,7 +126,7 @@ public class XPackInfoResponse extends ActionResponse {
                 .field("type", type)
                 .field("mode", mode)
                 .field("status", status.label());
-            if (expiryDate != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
+            if (expiryDate != BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
                 builder.timeField("expiry_date_in_millis", "expiry_date", expiryDate);
             }
             return builder.endObject();
@@ -148,10 +145,6 @@ public class XPackInfoResponse extends ActionResponse {
 
         private final String hash;
         private final String timestamp;
-
-        public BuildInfo(XPackBuild build) {
-            this(build.shortHash(), build.date());
-        }
 
         public BuildInfo(StreamInput input) throws IOException {
             this(input.readString(), input.readString());

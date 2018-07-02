@@ -65,12 +65,15 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
 
         private FollowIndexAction.Request followRequest;
 
-        public FollowIndexAction.Request getFollowRequest() {
-            return followRequest;
+        public Request(FollowIndexAction.Request followRequest) {
+            this.followRequest = Objects.requireNonNull(followRequest);
         }
 
-        public void setFollowRequest(FollowIndexAction.Request followRequest) {
-            this.followRequest = followRequest;
+        Request() {
+        }
+
+        public FollowIndexAction.Request getFollowRequest() {
+            return followRequest;
         }
 
         @Override

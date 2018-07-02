@@ -16,7 +16,7 @@ public class ShardChangesRequestTests extends AbstractStreamableTestCase<ShardCh
     @Override
     protected ShardChangesAction.Request createTestInstance() {
         ShardChangesAction.Request request = new ShardChangesAction.Request(new ShardId("_index", "_indexUUID", 0));
-        request.setMaxOperationCount(randomNonNegativeLong());
+        request.setMaxOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         request.setFromSeqNo(randomNonNegativeLong());
         return request;
     }

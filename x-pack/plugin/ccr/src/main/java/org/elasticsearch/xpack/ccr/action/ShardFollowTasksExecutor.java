@@ -35,6 +35,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.Ccr;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 
@@ -46,6 +47,8 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.ccr.action.ShardFollowNodeTask.DEFAULT_IDLE_SHARD_CHANGES_DELAY;
 
 public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
 
@@ -80,19 +83,19 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                  PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask> taskInProgress,
                                                  Map<String, String> headers) {
         ShardFollowTask params = taskInProgress.getParams();
-        logger.info("{} Creating node task to track leader shard {}, params [{}]",
-            params.getFollowShardId(), params.getLeaderShardId(), params);
-
         final Client leaderClient;
         if (params.getLeaderClusterAlias() != null) {
             leaderClient = wrapClient(client.getRemoteClusterClient(params.getLeaderClusterAlias()), params);
         } else {
             leaderClient = wrapClient(client, params);
         }
+        TimeValue idleShardChangesRequestDelay =
+            settings.getAsTime(CcrSettings.CCR_IDLE_SHARD_CHANGES_DELAY.getKey(), DEFAULT_IDLE_SHARD_CHANGES_DELAY);
         Client followerClient = wrapClient(client, params);
         BiConsumer<TimeValue, Runnable> scheduler =
             (delay, command) -> threadPool.schedule(delay, Ccr.CCR_THREAD_POOL_NAME, command);
-        return new ShardFollowNodeTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers, params, scheduler) {
+        return new ShardFollowNodeTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers, params,
+            scheduler, idleShardChangesRequestDelay) {
 
             @Override
             protected void updateMapping(LongConsumer handler) {
@@ -128,11 +131,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             }
 
             @Override
-            protected void innerSendShardChangesRequest(long from, long size, Consumer<ShardChangesAction.Response> handler,
+            protected void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,
                                                         Consumer<Exception> errorHandler) {
                 ShardChangesAction.Request request = new ShardChangesAction.Request(params.getLeaderShardId());
                 request.setFromSeqNo(from);
-                request.setMaxOperationCount(size);
+                request.setMaxOperationCount(maxOperationCount);
                 request.setMaxOperationSizeInBytes(params.getMaxOperationSizeInBytes());
                 leaderClient.execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
             }

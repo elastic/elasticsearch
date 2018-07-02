@@ -40,7 +40,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     static final ParseField LEADER_SHARD_INDEX_UUID_FIELD = new ParseField("leader_shard_index_uuid");
     static final ParseField LEADER_SHARD_SHARDID_FIELD = new ParseField("leader_shard_shard");
     static final ParseField HEADERS = new ParseField("headers");
-    public static final ParseField MAX_READ_SIZE = new ParseField("max_read_size");
+    public static final ParseField MAX_OPERATION_COUNT = new ParseField("max_operation_count");
     public static final ParseField MAX_CONCURRENT_READS = new ParseField("max_concurrent_reads");
     public static final ParseField MAX_OPERATION_SIZE_IN_BYTES = new ParseField("max_operation_size_in_bytes");
     public static final ParseField MAX_WRITE_SIZE = new ParseField("max_write_size");
@@ -61,7 +61,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_SHARD_INDEX_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_SHARD_INDEX_UUID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), LEADER_SHARD_SHARDID_FIELD);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_READ_SIZE);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_OPERATION_COUNT);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_CONCURRENT_READS);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAX_OPERATION_SIZE_IN_BYTES);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_WRITE_SIZE);
@@ -199,7 +199,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
             builder.field(LEADER_SHARD_SHARDID_FIELD.getPreferredName(), leaderShardId.id());
         }
         {
-            builder.field(MAX_READ_SIZE.getPreferredName(), maxReadSize);
+            builder.field(MAX_OPERATION_COUNT.getPreferredName(), maxReadSize);
         }
         {
             builder.field(MAX_CONCURRENT_READS.getPreferredName(), maxConcurrentReads);

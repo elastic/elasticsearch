@@ -142,8 +142,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         if (op != null) {
             final long expectedSeqNo = lastSeenSeqNo + 1;
             if (op.seqNo() != expectedSeqNo) {
-                throw new IllegalStateException("Not all operations between min_seqno [" + fromSeqNo + "] " +
-                    "and max_seqno [" + toSeqNo + "] found; expected seqno [" + expectedSeqNo + "]; found [" + op + "]");
+                throw new IllegalStateException("Not all operations between from_seqno [" + fromSeqNo + "] " +
+                    "and to_seqno [" + toSeqNo + "] found; expected seqno [" + expectedSeqNo + "]; found [" + op + "]");
             }
         }
     }

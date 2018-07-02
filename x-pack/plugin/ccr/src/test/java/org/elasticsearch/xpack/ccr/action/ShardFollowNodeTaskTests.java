@@ -50,7 +50,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
     public void testDefaults() throws Exception {
         long followGlobalCheckpoint = randomIntBetween(-1, 2048);
-        task = createShardFollowTask(ShardFollowNodeTask.DEFAULT_MAX_READ_SIZE, ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READS,
+        task = createShardFollowTask(ShardFollowNodeTask.DEFAULT_MAX_OPERATION_COUNT, ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READS,
             ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE, ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITES, 10000,
             ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE, followGlobalCheckpoint);
         task.start(followGlobalCheckpoint);
@@ -63,7 +63,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
     public void testHitBufferLimit() throws Exception {
         // Setting buffer limit to 100, so that we are sure the limit will be met
-        task = createShardFollowTask(ShardFollowNodeTask.DEFAULT_MAX_READ_SIZE, 3,
+        task = createShardFollowTask(ShardFollowNodeTask.DEFAULT_MAX_OPERATION_COUNT, 3,
             ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE, 1, 10000, 100, -1);
         task.start(-1);
 
@@ -144,7 +144,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         AtomicInteger readCounter = new AtomicInteger();
         AtomicInteger writeCounter = new AtomicInteger();
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(followGlobalCheckpoint, followGlobalCheckpoint);
-        return new ShardFollowNodeTask(1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler) {
+        return new ShardFollowNodeTask(1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler,
+            TimeValue.timeValueSeconds(1)) {
 
             @Override
             protected void updateMapping(LongConsumer handler) {
@@ -171,7 +172,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             }
 
             @Override
-            protected void innerSendShardChangesRequest(long from, long size, Consumer<ShardChangesAction.Response> handler,
+            protected void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,
                                                         Consumer<Exception> errorHandler) {
                 if (randomlyFailWithRetryableError.get() && writeCounter.incrementAndGet() % 5 == 0) {
                     failedRequests.incrementAndGet();
@@ -188,12 +189,12 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                 if (from > leaderGlobalCheckpoint) {
                     response = new ShardChangesAction.Response(imdVersion.get(), leaderGlobalCheckpoint, new Translog.Operation[0]);
                 } else {
-                    if (randomlyTruncateRequests.get() && size > 10 && truncatedRequests.get() < 5) {
+                    if (randomlyTruncateRequests.get() && maxOperationCount > 10 && truncatedRequests.get() < 5) {
                         truncatedRequests.incrementAndGet();
-                        size = size / 2;
+                        maxOperationCount = maxOperationCount / 2;
                     }
                     List<Translog.Operation> ops = new ArrayList<>();
-                    for (int i = 0; i < size; i++) {
+                    for (int i = 0; i < maxOperationCount; i++) {
                         long seqNo = from + i;
                         if (seqNo <= leaderGlobalCheckpoint) {
                             String id = UUIDs.randomBase64UUID();

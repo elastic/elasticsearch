@@ -71,86 +71,64 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
 
         private String leaderIndex;
         private String followIndex;
-        private int maxReadSize = ShardFollowNodeTask.DEFAULT_MAX_READ_SIZE;
-        private int maxConcurrentReads = ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READS;
-        private long maxOperationSizeInBytes = ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES;
-        private int maxWriteSize = ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE;
-        private int maxConcurrentWrites = ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITES;
-        private int maxBufferSize = ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE;
+        private int maxOperationCount;
+        private int maxConcurrentReads;
+        private long maxOperationSizeInBytes;
+        private int maxWriteSize;
+        private int maxConcurrentWrites;
+        private int maxBufferSize;
+
+        public Request(String leaderIndex, String followIndex, int maxOperationCount, int maxConcurrentReads, long maxOperationSizeInBytes,
+                       int maxWriteSize, int maxConcurrentWrites, int maxBufferSize) {
+            if (maxOperationCount < 1) {
+                throw new IllegalArgumentException("maxOperationCount must be larger than 0");
+            }
+            if (maxConcurrentReads < 1) {
+                throw new IllegalArgumentException("concurrent_processors must be larger than 0");
+            }
+            if (maxOperationSizeInBytes <= 0) {
+                throw new IllegalArgumentException("processor_max_translog_bytes must be larger than 0");
+            }
+            if (maxWriteSize < 1) {
+                throw new IllegalArgumentException("maxWriteSize must be larger than 0");
+            }
+            if (maxConcurrentWrites < 1) {
+                throw new IllegalArgumentException("maxConcurrentWrites must be larger than 0");
+            }
+            if (maxBufferSize < 1) {
+                throw new IllegalArgumentException("maxBufferSize must be larger than 0");
+            }
+
+            this.leaderIndex = Objects.requireNonNull(leaderIndex);
+            this.followIndex = Objects.requireNonNull(followIndex);
+            this.maxOperationCount = maxOperationCount;
+            this.maxConcurrentReads = maxConcurrentReads;
+            this.maxOperationSizeInBytes = maxOperationSizeInBytes;
+            this.maxWriteSize = maxWriteSize;
+            this.maxConcurrentWrites = maxConcurrentWrites;
+            this.maxBufferSize = maxBufferSize;
+        }
+
+        public Request(String leaderIndex, String followIndex) {
+            this(leaderIndex, followIndex, ShardFollowNodeTask.DEFAULT_MAX_OPERATION_COUNT,
+                ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READS, ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES,
+                ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE, ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITES,
+                ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE);
+        }
+
+        Request() {
+        }
 
         public String getLeaderIndex() {
             return leaderIndex;
-        }
-
-        public void setLeaderIndex(String leaderIndex) {
-            this.leaderIndex = leaderIndex;
         }
 
         public String getFollowIndex() {
             return followIndex;
         }
 
-        public void setFollowIndex(String followIndex) {
-            this.followIndex = followIndex;
-        }
-
-        public int getMaxReadSize() {
-            return maxReadSize;
-        }
-
-        public void setMaxReadSize(int maxReadSize) {
-            if (maxReadSize < 1) {
-                throw new IllegalArgumentException("Illegal batch_size [" + maxReadSize + "]");
-            }
-
-            this.maxReadSize = maxReadSize;
-        }
-
-        public void setMaxConcurrentReads(int maxConcurrentReads) {
-            if (maxConcurrentReads < 1) {
-                throw new IllegalArgumentException("concurrent_processors must be larger than 0");
-            }
-            this.maxConcurrentReads = maxConcurrentReads;
-        }
-
-        public void setMaxOperationSizeInBytes(long maxOperationSizeInBytes) {
-            if (maxOperationSizeInBytes <= 0) {
-                throw new IllegalArgumentException("processor_max_translog_bytes must be larger than 0");
-            }
-            this.maxOperationSizeInBytes = maxOperationSizeInBytes;
-        }
-
-        public int getMaxWriteSize() {
-            return maxWriteSize;
-        }
-
-        public void setMaxWriteSize(int maxWriteSize) {
-            if (maxWriteSize < 1) {
-                throw new IllegalArgumentException("maxWriteSize must be larger than 0");
-            }
-            this.maxWriteSize = maxWriteSize;
-        }
-
-        public int getMaxConcurrentWrites() {
-            return maxConcurrentWrites;
-        }
-
-        public void setMaxConcurrentWrites(int maxConcurrentWrites) {
-            if (maxConcurrentWrites < 1) {
-                throw new IllegalArgumentException("maxConcurrentWrites must be larger than 0");
-            }
-            this.maxConcurrentWrites = maxConcurrentWrites;
-        }
-
-        public int getMaxBufferSize() {
-            return maxBufferSize;
-        }
-
-        public void setMaxBufferSize(int maxBufferSize) {
-            if (maxBufferSize < 1) {
-                throw new IllegalArgumentException("maxBufferSize must be larger than 0");
-            }
-            this.maxBufferSize = maxBufferSize;
+        public int getMaxOperationCount() {
+            return maxOperationCount;
         }
 
         @Override
@@ -163,7 +141,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             super.readFrom(in);
             leaderIndex = in.readString();
             followIndex = in.readString();
-            maxReadSize = in.readVInt();
+            maxOperationCount = in.readVInt();
             maxConcurrentReads = in.readVInt();
             maxOperationSizeInBytes = in.readVLong();
             maxWriteSize = in.readVInt();
@@ -176,7 +154,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             super.writeTo(out);
             out.writeString(leaderIndex);
             out.writeString(followIndex);
-            out.writeVInt(maxReadSize);
+            out.writeVInt(maxOperationCount);
             out.writeVInt(maxConcurrentReads);
             out.writeVLong(maxOperationSizeInBytes);
             out.writeVInt(maxWriteSize);
@@ -189,7 +167,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return maxReadSize == request.maxReadSize &&
+            return maxOperationCount == request.maxOperationCount &&
                 maxConcurrentReads == request.maxConcurrentReads &&
                 maxOperationSizeInBytes == request.maxOperationSizeInBytes &&
                 maxWriteSize == request.maxWriteSize &&
@@ -201,7 +179,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(leaderIndex, followIndex, maxReadSize, maxConcurrentReads, maxOperationSizeInBytes,
+            return Objects.hash(leaderIndex, followIndex, maxOperationCount, maxConcurrentReads, maxOperationSizeInBytes,
                 maxWriteSize, maxConcurrentWrites, maxBufferSize);
         }
     }
@@ -243,7 +221,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             ClusterState localClusterState = clusterService.state();
             IndexMetaData followIndexMetadata = localClusterState.getMetaData().index(request.followIndex);
 
-            String[] indices = new String[]{request.getLeaderIndex()};
+            String[] indices = new String[]{request.leaderIndex};
             Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
             if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
                 // Following an index in local cluster, so use local cluster state to fetch leader IndexMetaData:
@@ -300,7 +278,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
                 ShardFollowTask shardFollowTask = new ShardFollowTask(clusterNameAlias,
                         new ShardId(followIndexMetadata.getIndex(), shardId),
                         new ShardId(leaderIndexMetadata.getIndex(), shardId),
-                        request.maxReadSize, request.maxConcurrentReads, request.maxOperationSizeInBytes,
+                        request.maxOperationCount, request.maxConcurrentReads, request.maxOperationSizeInBytes,
                         request.maxWriteSize, request.maxConcurrentWrites, request.maxBufferSize, filteredHeaders);
                 persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
                         new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {

@@ -77,6 +77,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
+        newSettings.put(CcrSettings.CCR_IDLE_SHARD_CHANGES_TIMEOUT.getKey(), TimeValue.timeValueSeconds(1));
         return newSettings.build();
     }
 
@@ -116,7 +117,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         ShardChangesAction.Request request = new ShardChangesAction.Request(shardStats.getShardRouting().shardId());
         request.setFromSeqNo(0L);
-        request.setMaxOperationCount(3L);
+        request.setMaxOperationCount(3);
         ShardChangesAction.Response response = client().execute(ShardChangesAction.INSTANCE, request).get();
         assertThat(response.getOperations().length, equalTo(3));
         Translog.Index operation = (Translog.Index) response.getOperations()[0];
@@ -141,7 +142,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         request = new ShardChangesAction.Request(shardStats.getShardRouting().shardId());
         request.setFromSeqNo(3L);
-        request.setMaxOperationCount(3L);
+        request.setMaxOperationCount(3);
         response = client().execute(ShardChangesAction.INSTANCE, request).get();
         assertThat(response.getOperations().length, equalTo(3));
         operation = (Translog.Index) response.getOperations()[0];
@@ -164,12 +165,8 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureYellow("index1");
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
-        followRequest.setLeaderIndex("index1");
-        followRequest.setFollowIndex("index2");
-
-        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request();
-        createAndFollowRequest.setFollowRequest(followRequest);
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2");
+        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         final int firstBatchNumDocs = randomIntBetween(2, 64);
@@ -226,12 +223,8 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureYellow("index1");
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
-        followRequest.setLeaderIndex("index1");
-        followRequest.setFollowIndex("index2");
-
-        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request();
-        createAndFollowRequest.setFollowRequest(followRequest);
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2");
+        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
@@ -296,14 +289,9 @@ public class ShardChangesIT extends ESIntegTestCase {
         long numDocsIndexed = Math.min(3000 * 2, randomLongBetween(maxReadSize, maxReadSize * 10));
         atLeastDocsIndexed("index1", numDocsIndexed / 3);
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
-        followRequest.setLeaderIndex("index1");
-        followRequest.setFollowIndex("index2");
-        followRequest.setMaxReadSize(maxReadSize);
-        followRequest.setMaxConcurrentReads(randomIntBetween(2, 10));
-        followRequest.setMaxConcurrentWrites(randomIntBetween(2, 10));
-        CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request();
-        createAndFollowRequest.setFollowRequest(followRequest);
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", maxReadSize,
+            randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(32, 2048), randomIntBetween(2, 10), randomIntBetween(1024, 10240));
+        CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         atLeastDocsIndexed("index1", numDocsIndexed);
@@ -341,14 +329,12 @@ public class ShardChangesIT extends ESIntegTestCase {
         });
         thread.start();
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
-        followRequest.setLeaderIndex("index1");
-        followRequest.setFollowIndex("index2");
-        followRequest.setMaxReadSize(randomIntBetween(32, 2048));
-        followRequest.setMaxConcurrentReads(randomIntBetween(2, 10));
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", randomIntBetween(32, 2048),
+            randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(32, 2048), randomIntBetween(2, 10),
+            ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE);
         client().execute(FollowIndexAction.INSTANCE, followRequest).get();
 
-        long maxNumDocsReplicated = Math.min(3000, randomLongBetween(followRequest.getMaxReadSize(), followRequest.getMaxReadSize() * 10));
+        long maxNumDocsReplicated = Math.min(3000, randomLongBetween(followRequest.getMaxOperationCount(), followRequest.getMaxOperationCount() * 10));
         long minNumDocsReplicated = maxNumDocsReplicated / 3L;
         logger.info("waiting for at least [{}] documents to be indexed and then stop a random data node", minNumDocsReplicated);
         awaitBusy(() -> {
@@ -387,9 +373,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         ensureGreen("index1", "index2");
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
-        followRequest.setLeaderIndex("index1");
-        followRequest.setFollowIndex("index2");
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2");
         client().execute(FollowIndexAction.INSTANCE, followRequest).get();
 
         final int numDocs = randomIntBetween(2, 64);
@@ -431,19 +415,15 @@ public class ShardChangesIT extends ESIntegTestCase {
     public void testFollowNonExistentIndex() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test-leader").get());
         assertAcked(client().admin().indices().prepareCreate("test-follower").get());
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
         // Leader index does not exist.
-        followRequest.setLeaderIndex("non-existent-leader");
-        followRequest.setFollowIndex("test-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest).actionGet());
+        FollowIndexAction.Request followRequest1 = new FollowIndexAction.Request("non-existent-leader", "test-follower");
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest1).actionGet());
         // Follower index does not exist.
-        followRequest.setLeaderIndex("test-leader");
-        followRequest.setFollowIndex("non-existent-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest).actionGet());
+        FollowIndexAction.Request followRequest2 = new FollowIndexAction.Request("non-test-leader", "non-existent-follower");
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest2).actionGet());
         // Both indices do not exist.
-        followRequest.setLeaderIndex("non-existent-leader");
-        followRequest.setFollowIndex("non-existent-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest).actionGet());
+        FollowIndexAction.Request followRequest3 = new FollowIndexAction.Request("non-existent-leader", "non-existent-follower");
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest3).actionGet());
     }
 
     public void testFollowIndex_lowMaxTranslogBytes() throws Exception {
@@ -458,13 +438,9 @@ public class ShardChangesIT extends ESIntegTestCase {
             client().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
-        followRequest.setMaxOperationSizeInBytes(1024);
-        followRequest.setLeaderIndex("index1");
-        followRequest.setFollowIndex("index2");
-
-        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request();
-        createAndFollowRequest.setFollowRequest(followRequest);
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", 1024, 1, 1024,
+            1024, 1, 10240);
+        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();

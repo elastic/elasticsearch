@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Arrays;
 import java.util.List;
@@ -33,6 +34,13 @@ public final class CcrSettings {
             Setting.boolSetting("index.xpack.ccr.following_index", false, Setting.Property.IndexScope);
 
     /**
+     * Index setting for controlling the timeout between the next shard changes request when a shard follow
+     * task is idle.
+     */
+    public static final Setting<TimeValue> CCR_IDLE_SHARD_CHANGES_DELAY = Setting.timeSetting(
+        "index.xpack.ccr.idle_shard_changes_delay", TimeValue.timeValueSeconds(10), Property.NodeScope);
+
+    /**
      * The settings defined by CCR.
      *
      * @return the settings
@@ -40,7 +48,8 @@ public final class CcrSettings {
     static List<Setting<?>> getSettings() {
         return Arrays.asList(
                 CCR_ENABLED_SETTING,
-                CCR_FOLLOWING_INDEX_SETTING);
+                CCR_FOLLOWING_INDEX_SETTING,
+                CCR_IDLE_SHARD_CHANGES_DELAY);
     }
 
 }

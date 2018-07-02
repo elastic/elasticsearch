@@ -16,8 +16,6 @@ public class CreateAndFollowIndexRequestTests extends AbstractStreamableTestCase
 
     @Override
     protected CreateAndFollowIndexAction.Request createTestInstance() {
-        CreateAndFollowIndexAction.Request request = new CreateAndFollowIndexAction.Request();
-        request.setFollowRequest(FollowIndexRequestTests.createTestRequest());
-        return request;
+        return new CreateAndFollowIndexAction.Request(FollowIndexRequestTests.createTestRequest());
     }
 }

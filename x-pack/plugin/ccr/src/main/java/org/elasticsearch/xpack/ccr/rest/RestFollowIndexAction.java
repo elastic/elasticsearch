@@ -11,6 +11,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.ccr.action.ShardFollowNodeTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 
 import java.io.IOException;
@@ -37,25 +38,31 @@ public class RestFollowIndexAction extends BaseRestHandler {
     }
 
     static Request createRequest(RestRequest restRequest) {
-        Request request = new Request();
-        request.setLeaderIndex(restRequest.param("leader_index"));
-        request.setFollowIndex(restRequest.param("index"));
-        if (restRequest.hasParam(ShardFollowTask.MAX_READ_SIZE.getPreferredName())) {
-            request.setMaxReadSize(Integer.valueOf(restRequest.param(ShardFollowTask.MAX_READ_SIZE.getPreferredName())));
+        int maxOperationCount = ShardFollowNodeTask.DEFAULT_MAX_OPERATION_COUNT;
+        if (restRequest.hasParam(ShardFollowTask.MAX_OPERATION_COUNT.getPreferredName())) {
+            maxOperationCount = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_OPERATION_COUNT.getPreferredName()));
         }
+        int maxConcurrentReads = ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READS;
         if (restRequest.hasParam(ShardFollowTask.MAX_CONCURRENT_READS.getPreferredName())) {
-            request.setMaxConcurrentReads(Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_READS.getPreferredName())));
+            maxConcurrentReads = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_READS.getPreferredName()));
         }
+        long maxOperationSizeInBytes = ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES;
         if (restRequest.hasParam(ShardFollowTask.MAX_OPERATION_SIZE_IN_BYTES.getPreferredName())) {
-            long value = Long.valueOf(restRequest.param(ShardFollowTask.MAX_OPERATION_SIZE_IN_BYTES.getPreferredName()));
-            request.setMaxOperationSizeInBytes(value);
+            maxOperationSizeInBytes = Long.valueOf(restRequest.param(ShardFollowTask.MAX_OPERATION_SIZE_IN_BYTES.getPreferredName()));
         }
+        int maxWriteSize = ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE;
         if (restRequest.hasParam(ShardFollowTask.MAX_WRITE_SIZE.getPreferredName())) {
-            request.setMaxWriteSize(Integer.valueOf(restRequest.param(ShardFollowTask.MAX_WRITE_SIZE.getPreferredName())));
+            maxWriteSize = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_WRITE_SIZE.getPreferredName()));
         }
+        int maxConcurrentWrites = ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITES;
         if (restRequest.hasParam(ShardFollowTask.MAX_CONCURRENT_WRITES.getPreferredName())) {
-            request.setMaxConcurrentWrites(Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_WRITES.getPreferredName())));
+            maxConcurrentWrites = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_WRITES.getPreferredName()));
         }
-        return request;
+        int maxBufferSize = ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE;
+        if (restRequest.hasParam(ShardFollowTask.MAX_BUFFER_SIZE.getPreferredName())) {
+            maxBufferSize = Integer.parseInt(restRequest.param(ShardFollowTask.MAX_BUFFER_SIZE.getPreferredName()));
+        }
+        return new Request(restRequest.param("leader_index"), restRequest.param("index"), maxOperationCount, maxConcurrentReads,
+            maxOperationSizeInBytes, maxWriteSize, maxConcurrentWrites, maxBufferSize);
     }
 }

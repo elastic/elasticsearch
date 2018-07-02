@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.gcs;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -37,7 +38,7 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.simpleString;
 
-class GoogleCloudStorageRepository extends BlobStoreRepository<GoogleCloudStorageBlobStore> {
+class GoogleCloudStorageRepository extends BlobStoreRepository {
 
     // package private for testing
     static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
@@ -55,10 +56,12 @@ class GoogleCloudStorageRepository extends BlobStoreRepository<GoogleCloudStorag
             byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope, Property.Dynamic);
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
 
-    private final ByteSizeValue chunkSize;
-    private final boolean compress;
-    private final BlobPath basePath;
     private final GoogleCloudStorageService storageService;
+    private final BlobPath basePath;
+    private final boolean compress;
+    private final ByteSizeValue chunkSize;
+    private final String bucket;
+    private final String clientName;
 
     GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
                                         NamedXContentRegistry namedXContentRegistry,
@@ -79,26 +82,20 @@ class GoogleCloudStorageRepository extends BlobStoreRepository<GoogleCloudStorag
 
         this.compress = getSetting(COMPRESS, metadata);
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
+        this.bucket = getSetting(BUCKET, metadata);
+        this.clientName = CLIENT_NAME.get(metadata.settings());
+        logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, compress);
     }
 
     @Override
     protected GoogleCloudStorageBlobStore createBlobStore() {
-        String bucket = getSetting(BUCKET, metadata);
-        String clientName = CLIENT_NAME.get(metadata.settings());
-        logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, compress);
         return new GoogleCloudStorageBlobStore(settings, bucket, clientName, storageService);
     }
 
     // only use for testing
     @Override
-    protected GoogleCloudStorageBlobStore blobStore() {
-        return super.blobStore();
-    }
-
-    // only use for testing
-    @Override
-    protected GoogleCloudStorageBlobStore innerBlobStore() {
-        return super.innerBlobStore();
+    protected BlobStore getBlobStore() {
+        return super.getBlobStore();
     }
 
     @Override

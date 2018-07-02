@@ -72,7 +72,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
         GoogleCloudStorageRepository gcsRepository = (GoogleCloudStorageRepository) repository;
 
         assertThat("gcs blob store has to be lazy initialized",
-            gcsRepository.innerBlobStore(), verify ? is(notNullValue()) : is(nullValue()));
+            gcsRepository.getBlobStore(), verify ? is(notNullValue()) : is(nullValue()));
     }
 
     @AfterClass

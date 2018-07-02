@@ -47,6 +47,6 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
         FsRepository fsRepository = (FsRepository) repository;
 
         assertThat("fs blob store has to be lazy initialized",
-            fsRepository.innerBlobStore(), verify ? is(notNullValue()) : is(nullValue()));
+            fsRepository.getBlobStore(), verify ? is(notNullValue()) : is(nullValue()));
     }
 }

@@ -50,7 +50,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-public final class HdfsRepository extends BlobStoreRepository<HdfsBlobStore> {
+public final class HdfsRepository extends BlobStoreRepository {
 
     private static final Logger LOGGER = Loggers.getLogger(HdfsRepository.class);
 
@@ -223,28 +223,8 @@ public final class HdfsRepository extends BlobStoreRepository<HdfsBlobStore> {
     @Override
     protected HdfsBlobStore createBlobStore() {
         String uriSetting = getMetadata().settings().get("uri");
-        if (Strings.hasText(uriSetting) == false) {
-            throw new IllegalArgumentException("No 'uri' defined for hdfs snapshot/restore");
-        }
         URI uri = URI.create(uriSetting);
-        if ("hdfs".equalsIgnoreCase(uri.getScheme()) == false) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT,
-                "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore", uri.getScheme(), uriSetting));
-        }
-        if (Strings.hasLength(uri.getPath()) && uri.getPath().equals("/") == false) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT,
-                "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore", uri.getPath(), uriSetting));
-        }
-
         String pathSetting = getMetadata().settings().get("path");
-        // get configuration
-        if (pathSetting == null) {
-            throw new IllegalArgumentException("No 'path' defined for hdfs snapshot/restore");
-        }
-
-        // initialize our blobstore using elevated privileges.
-        SpecialPermission.check();
-
         final HdfsBlobStore blobStore =
             AccessController.doPrivileged((PrivilegedAction<HdfsBlobStore>)
                 () -> createBlobstore(uri, pathSetting, getMetadata().settings()));

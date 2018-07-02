@@ -43,7 +43,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             .build();
         final AzureRepository azureRepository = new AzureRepository(new RepositoryMetaData("foo", "azure", internalSettings),
             TestEnvironment.newEnvironment(internalSettings), NamedXContentRegistry.EMPTY, mock(AzureStorageService.class));
-        assertThat(azureRepository.innerBlobStore(), is(nullValue()));
+        assertThat(azureRepository.getBlobStore(), is(nullValue()));
         return azureRepository;
     }
 

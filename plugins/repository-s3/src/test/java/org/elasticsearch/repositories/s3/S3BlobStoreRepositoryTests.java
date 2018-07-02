@@ -110,7 +110,7 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         S3Repository s3Repository = (S3Repository) repository;
 
         assertThat("s3 blob store has to be lazy initialized",
-            s3Repository.innerBlobStore(), verify ? is(notNullValue()) : is(nullValue()));
+            s3Repository.getBlobStore(), verify ? is(notNullValue()) : is(nullValue()));
     }
 
     @Override

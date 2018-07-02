@@ -168,7 +168,7 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  * }
  * </pre>
  */
-public abstract class BlobStoreRepository<BS extends BlobStore> extends AbstractLifecycleComponent implements Repository {
+public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository {
 
     protected final RepositoryMetaData metadata;
 
@@ -226,9 +226,9 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
 
     private final Object lock = new Object();
 
-    private volatile BlobContainer snapshotsBlobContainer;
+    private volatile BlobContainer blobContainer;
 
-    private volatile BS blobStore;
+    private volatile BlobStore blobStore;
 
     /**
      * Constructs new BlobStoreRepository
@@ -280,21 +280,26 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
     }
 
     // package private, only use for testing
-    BlobContainer blobContainer() {
-        return snapshotsBlobContainer;
+    BlobContainer getBlobContainer() {
+        return blobContainer;
+    }
+
+    // for test purposes only
+    protected BlobStore getBlobStore() {
+        return blobStore;
     }
 
     /**
      * maintains single lazy instance of {@link BlobContainer}
      */
-    protected BlobContainer snapshotsBlobContainer() {
-        BlobContainer blobContainer = snapshotsBlobContainer;
+    protected BlobContainer blobContainer() {
+        BlobContainer blobContainer = this.blobContainer;
         if (blobContainer == null) {
            synchronized (lock) {
-               blobContainer = snapshotsBlobContainer;
+               blobContainer = this.blobContainer;
                if (blobContainer == null) {
                    blobContainer = blobStore().blobContainer(basePath());
-                   snapshotsBlobContainer = blobContainer;
+                   this.blobContainer = blobContainer;
                }
            }
         }
@@ -305,8 +310,8 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
     /**
      * maintains single lazy instance of {@link BlobStore}
      */
-    protected BS blobStore() {
-        BS store = blobStore;
+    protected BlobStore blobStore() {
+        BlobStore store = blobStore;
         if (store == null) {
             synchronized (lock) {
                 store = blobStore;
@@ -325,15 +330,10 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
         return store;
     }
 
-    // for test purposes only
-    protected BS innerBlobStore() {
-        return blobStore;
-    }
-
     /**
      * Creates new BlobStore to read and write data.
      */
-    protected abstract BS createBlobStore() throws Exception;
+    protected abstract BlobStore createBlobStore() throws Exception;
 
     /**
      * Returns base path of the repository
@@ -377,12 +377,12 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
             if (repositoryData.getAllSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
                 throw new InvalidSnapshotNameException(metadata.name(), snapshotId.getName(), "snapshot with the same name already exists");
             }
-            if (snapshotFormat.exists(snapshotsBlobContainer(), snapshotId.getUUID())) {
+            if (snapshotFormat.exists(blobContainer(), snapshotId.getUUID())) {
                 throw new InvalidSnapshotNameException(metadata.name(), snapshotId.getName(), "snapshot with the same name already exists");
             }
 
             // Write Global MetaData
-            globalMetaDataFormat.write(clusterMetaData, snapshotsBlobContainer(), snapshotId.getUUID());
+            globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID());
 
             // write the index metadata for each index in the snapshot
             for (IndexId index : indices) {
@@ -479,7 +479,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
 
     private void deleteSnapshotBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final String blobId) {
         try {
-            snapshotFormat.delete(snapshotsBlobContainer(), blobId);
+            snapshotFormat.delete(blobContainer(), blobId);
         } catch (IOException e) {
             if (snapshotInfo != null) {
                 logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete snapshot file [{}]",
@@ -492,7 +492,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
 
     private void deleteGlobalMetaDataBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final String blobId) {
         try {
-            globalMetaDataFormat.delete(snapshotsBlobContainer(), blobId);
+            globalMetaDataFormat.delete(blobContainer(), blobId);
         } catch (IOException e) {
             if (snapshotInfo != null) {
                 logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata file [{}]",
@@ -530,7 +530,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
             startTime, failure, System.currentTimeMillis(), totalShards, shardFailures,
             includeGlobalState);
         try {
-            snapshotFormat.write(blobStoreSnapshot, snapshotsBlobContainer(), snapshotId.getUUID());
+            snapshotFormat.write(blobStoreSnapshot, blobContainer(), snapshotId.getUUID());
             final RepositoryData repositoryData = getRepositoryData();
             writeIndexGen(repositoryData.addSnapshot(snapshotId, blobStoreSnapshot.state(), indices), repositoryStateId);
         } catch (FileAlreadyExistsException ex) {
@@ -548,7 +548,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
     @Override
     public SnapshotInfo getSnapshotInfo(final SnapshotId snapshotId) {
         try {
-            return snapshotFormat.read(snapshotsBlobContainer(), snapshotId.getUUID());
+            return snapshotFormat.read(blobContainer(), snapshotId.getUUID());
         } catch (NoSuchFileException ex) {
             throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
         } catch (IOException | NotXContentException ex) {
@@ -559,7 +559,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
     @Override
     public MetaData getSnapshotGlobalMetaData(final SnapshotId snapshotId) {
         try {
-            return globalMetaDataFormat.read(snapshotsBlobContainer(), snapshotId.getUUID());
+            return globalMetaDataFormat.read(blobContainer(), snapshotId.getUUID());
         } catch (NoSuchFileException ex) {
             throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
         } catch (IOException ex) {
@@ -649,7 +649,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
             final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
 
             RepositoryData repositoryData;
-            try (InputStream blob = snapshotsBlobContainer().readBlob(snapshotsIndexBlobName)) {
+            try (InputStream blob = blobContainer().readBlob(snapshotsIndexBlobName)) {
                 BytesStreamOutput out = new BytesStreamOutput();
                 Streams.copy(blob, out);
                 // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
@@ -663,7 +663,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
             }
 
             // now load the incompatible snapshot ids, if they exist
-            try (InputStream blob = snapshotsBlobContainer().readBlob(INCOMPATIBLE_SNAPSHOTS_BLOB)) {
+            try (InputStream blob = blobContainer().readBlob(INCOMPATIBLE_SNAPSHOTS_BLOB)) {
                 BytesStreamOutput out = new BytesStreamOutput();
                 Streams.copy(blob, out);
                 try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
@@ -728,7 +728,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
         // delete the N-2 index file if it exists, keep the previous one around as a backup
         if (isReadOnly() == false && newGen - 2 >= 0) {
             final String oldSnapshotIndexFile = INDEX_FILE_PREFIX + Long.toString(newGen - 2);
-            snapshotsBlobContainer().deleteBlobIgnoringIfNotExists(oldSnapshotIndexFile);
+            blobContainer().deleteBlobIgnoringIfNotExists(oldSnapshotIndexFile);
         }
 
         // write the current generation to the index-latest file
@@ -737,7 +737,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
             bStream.writeLong(newGen);
             genBytes = bStream.bytes();
         }
-        snapshotsBlobContainer().deleteBlobIgnoringIfNotExists(INDEX_LATEST_BLOB);
+        blobContainer().deleteBlobIgnoringIfNotExists(INDEX_LATEST_BLOB);
         logger.debug("Repository [{}] updating index.latest with generation [{}]", metadata.name(), newGen);
         writeAtomic(INDEX_LATEST_BLOB, genBytes);
     }
@@ -758,7 +758,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
             }
             bytes = bStream.bytes();
         }
-        snapshotsBlobContainer().deleteBlobIgnoringIfNotExists(INCOMPATIBLE_SNAPSHOTS_BLOB);
+        blobContainer().deleteBlobIgnoringIfNotExists(INCOMPATIBLE_SNAPSHOTS_BLOB);
         // write the incompatible snapshots blob
         writeAtomic(INCOMPATIBLE_SNAPSHOTS_BLOB, bytes);
     }
@@ -798,7 +798,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
 
     // package private for testing
     long readSnapshotIndexLatestBlob() throws IOException {
-        try (InputStream blob = snapshotsBlobContainer().readBlob(INDEX_LATEST_BLOB)) {
+        try (InputStream blob = blobContainer().readBlob(INDEX_LATEST_BLOB)) {
             BytesStreamOutput out = new BytesStreamOutput();
             Streams.copy(blob, out);
             return Numbers.bytesToLong(out.bytes().toBytesRef());
@@ -806,7 +806,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
     }
 
     private long listBlobsToGetLatestIndexId() throws IOException {
-        Map<String, BlobMetaData> blobs = snapshotsBlobContainer().listBlobsByPrefix(INDEX_FILE_PREFIX);
+        Map<String, BlobMetaData> blobs = blobContainer().listBlobsByPrefix(INDEX_FILE_PREFIX);
         long latest = RepositoryData.EMPTY_REPO_GEN;
         if (blobs.isEmpty()) {
             // no snapshot index blobs have been written yet
@@ -828,7 +828,7 @@ public abstract class BlobStoreRepository<BS extends BlobStore> extends Abstract
 
     private void writeAtomic(final String blobName, final BytesReference bytesRef) throws IOException {
         try (InputStream stream = bytesRef.streamInput()) {
-            snapshotsBlobContainer().writeBlobAtomic(blobName, stream, bytesRef.length());
+            blobContainer().writeBlobAtomic(blobName, stream, bytesRef.length());
         }
     }
 

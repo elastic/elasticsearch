@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -56,7 +57,7 @@ import static org.elasticsearch.repositories.azure.AzureStorageService.MIN_CHUNK
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-public class AzureRepository extends BlobStoreRepository<AzureBlobStore> {
+public class AzureRepository extends BlobStoreRepository {
 
     public static final String TYPE = "azure";
 
@@ -106,14 +107,8 @@ public class AzureRepository extends BlobStoreRepository<AzureBlobStore> {
 
     // only use for testing
     @Override
-    protected AzureBlobStore blobStore() {
-        return super.blobStore();
-    }
-
-    // only use for testing
-    @Override
-    protected AzureBlobStore innerBlobStore() {
-        return super.innerBlobStore();
+    protected BlobStore getBlobStore() {
+        return super.getBlobStore();
     }
 
     /**
@@ -163,7 +158,7 @@ public class AzureRepository extends BlobStoreRepository<AzureBlobStore> {
     @Override
     public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData clusterMetadata) {
         try {
-            final AzureBlobStore blobStore = blobStore();
+            final AzureBlobStore blobStore = (AzureBlobStore) blobStore();
             if (blobStore.containerExist() == false) {
                 throw new IllegalArgumentException("The bucket [" + blobStore + "] does not exist. Please create it before "
                         + " creating an azure snapshot repository backed by it.");

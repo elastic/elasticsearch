@@ -45,7 +45,7 @@ import java.util.function.Function;
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-public class FsRepository extends BlobStoreRepository<BlobStore> {
+public class FsRepository extends BlobStoreRepository {
 
     public static final String TYPE = "fs";
 
@@ -75,31 +75,6 @@ public class FsRepository extends BlobStoreRepository<BlobStore> {
                         NamedXContentRegistry namedXContentRegistry) {
         super(metadata, environment.settings(), namedXContentRegistry);
         this.environment = environment;
-        checkAndGetLocation(metadata, environment);
-
-        if (CHUNK_SIZE_SETTING.exists(metadata.settings())) {
-            this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
-        } else {
-            this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(settings);
-        }
-        this.compress = COMPRESS_SETTING.exists(metadata.settings())
-            ? COMPRESS_SETTING.get(metadata.settings()) : REPOSITORIES_COMPRESS_SETTING.get(settings);
-        this.basePath = BlobPath.cleanPath();
-    }
-
-    @Override
-    protected BlobStore createBlobStore() throws Exception {
-        final Path locationFile = checkAndGetLocation(metadata, environment);
-        return new FsBlobStore(settings, locationFile);
-    }
-
-    // only use for testing
-    @Override
-    protected BlobStore innerBlobStore() {
-        return super.innerBlobStore();
-    }
-
-    private Path checkAndGetLocation(RepositoryMetaData metadata, Environment environment) {
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {
             logger.warn("the repository location is missing, it should point to a shared file system location"
@@ -120,7 +95,28 @@ public class FsRepository extends BlobStoreRepository<BlobStore> {
                     + "] doesn't match any of the locations specified by path.repo because this setting is empty");
             }
         }
-        return locationFile;
+
+        if (CHUNK_SIZE_SETTING.exists(metadata.settings())) {
+            this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        } else {
+            this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(settings);
+        }
+        this.compress = COMPRESS_SETTING.exists(metadata.settings())
+            ? COMPRESS_SETTING.get(metadata.settings()) : REPOSITORIES_COMPRESS_SETTING.get(settings);
+        this.basePath = BlobPath.cleanPath();
+    }
+
+    @Override
+    protected BlobStore createBlobStore() throws Exception {
+        final String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
+        final Path locationFile = environment.resolveRepoFile(location);
+        return new FsBlobStore(settings, locationFile);
+    }
+
+    // only use for testing
+    @Override
+    protected BlobStore getBlobStore() {
+        return super.getBlobStore();
     }
 
     @Override

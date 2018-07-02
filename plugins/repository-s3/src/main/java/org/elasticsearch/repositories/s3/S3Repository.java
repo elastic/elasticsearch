@@ -23,6 +23,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -49,7 +50,7 @@ import java.util.function.Function;
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-class S3Repository extends BlobStoreRepository<S3BlobStore> {
+class S3Repository extends BlobStoreRepository {
 
     static final String TYPE = "s3";
 
@@ -181,14 +182,16 @@ class S3Repository extends BlobStoreRepository<S3BlobStore> {
         } else {
             this.basePath = BlobPath.cleanPath();
         }
+
+        // (repository settings)
+        if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
+            overrideCredentialsFromClusterState(service);
+        }
     }
 
     @Override
     protected S3BlobStore createBlobStore() {
         final String bucket = BUCKET_SETTING.get(metadata.settings());
-        if (bucket == null) {
-            throw new RepositoryException(metadata.name(), "No bucket defined for s3 repository");
-        }
 
         final boolean serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
         final ByteSizeValue bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
@@ -202,24 +205,19 @@ class S3Repository extends BlobStoreRepository<S3BlobStore> {
                 "buffer_size [{}], cannedACL [{}], storageClass [{}]",
             bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
-        // (repository settings)
-        if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
-            overrideCredentialsFromClusterState(service);
-        }
-
         return new S3BlobStore(settings, service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
     }
 
     // only use for testing
     @Override
-    protected S3BlobStore blobStore() {
+    protected BlobStore blobStore() {
         return super.blobStore();
     }
 
     // only use for testing
     @Override
-    protected S3BlobStore innerBlobStore() {
-        return super.innerBlobStore();
+    protected BlobStore getBlobStore() {
+        return super.getBlobStore();
     }
 
     @Override

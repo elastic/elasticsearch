@@ -218,7 +218,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
         @SuppressWarnings("unchecked") final BlobStoreRepository repository =
             (BlobStoreRepository) repositoriesService.repository(repositoryName);
-        assertThat("blobContainer has to be lazy initialized", repository.blobContainer(), nullValue());
+        assertThat("getBlobContainer has to be lazy initialized", repository.getBlobContainer(), nullValue());
         return repository;
     }
 

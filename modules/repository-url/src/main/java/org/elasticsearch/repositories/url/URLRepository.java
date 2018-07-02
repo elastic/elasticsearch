@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.url;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -48,7 +49,7 @@ import java.util.function.Function;
  * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
  * </dl>
  */
-public class URLRepository extends BlobStoreRepository<URLBlobStore> {
+public class URLRepository extends BlobStoreRepository {
 
     public static final String TYPE = "url";
 
@@ -72,6 +73,8 @@ public class URLRepository extends BlobStoreRepository<URLBlobStore> {
 
     private final BlobPath basePath;
 
+    private final URL url;
+
     /**
      * Constructs a read-only URL-based repository
      */
@@ -86,30 +89,26 @@ public class URLRepository extends BlobStoreRepository<URLBlobStore> {
         supportedProtocols = SUPPORTED_PROTOCOLS_SETTING.get(settings);
         urlWhiteList = ALLOWED_URLS_SETTING.get(settings).toArray(new URIPattern[]{});
         basePath = BlobPath.cleanPath();
-    }
-
-    private URL getUrl() {
-        URL url = URL_SETTING.exists(metadata.settings())
+        url = URL_SETTING.exists(metadata.settings())
             ? URL_SETTING.get(metadata.settings()) : REPOSITORIES_URL_SETTING.get(settings);
-        return checkURL(url);
+        checkURL(url);
     }
 
     @Override
-    protected URLBlobStore createBlobStore() {
-        URL normalizedURL = getUrl();
-        return new URLBlobStore(settings, normalizedURL);
-    }
-
-    // only use for testing
-    @Override
-    protected BlobContainer snapshotsBlobContainer() {
-        return super.snapshotsBlobContainer();
+    protected BlobStore createBlobStore() {
+        return new URLBlobStore(settings, url);
     }
 
     // only use for testing
     @Override
-    protected URLBlobStore innerBlobStore() {
-        return super.innerBlobStore();
+    protected BlobContainer blobContainer() {
+        return super.blobContainer();
+    }
+
+    // only use for testing
+    @Override
+    protected BlobStore getBlobStore() {
+        return super.getBlobStore();
     }
 
     @Override

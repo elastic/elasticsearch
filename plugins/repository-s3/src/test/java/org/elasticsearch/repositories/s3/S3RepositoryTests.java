@@ -119,9 +119,9 @@ public class S3RepositoryTests extends ESTestCase {
     public void testDefaultBufferSize() {
         final RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.EMPTY);
         try (S3Repository s3repo = new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service())) {
-            assertThat(s3repo.innerBlobStore(), is(nullValue()));
-            final long defaultBufferSize = s3repo.blobStore().bufferSizeInBytes();
-            assertThat(s3repo.innerBlobStore(), not(nullValue()));
+            assertThat(s3repo.getBlobStore(), is(nullValue()));
+            final long defaultBufferSize = ((S3BlobStore)s3repo.blobStore()).bufferSizeInBytes();
+            assertThat(s3repo.getBlobStore(), not(nullValue()));
             assertThat(defaultBufferSize, Matchers.lessThanOrEqualTo(100L * 1024 * 1024));
             assertThat(defaultBufferSize, Matchers.greaterThanOrEqualTo(5L * 1024 * 1024));
         }

@@ -93,7 +93,7 @@ if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
 final String minioVersion = 'RELEASE.2018-06-22T23-48-46Z'
 final String minioBinDir = "${buildDir}/minio/bin"
 final String minioDataDir = "${buildDir}/minio/data"
-final String minioAddress = "localhost:60920"
+final String minioAddress = "127.0.0.1:60920"
 
 final String minioDistribution
 final String minioCheckSum
@@ -160,7 +160,6 @@ if (useFixture && minioDistribution) {
               minioDataDir)
       minio.environment().put('MINIO_ACCESS_KEY', s3AccessKey)
       minio.environment().put('MINIO_SECRET_KEY', s3SecretKey)
-      minio.environment().put('MINIO_DOMAIN', 'localhost')
       final Process process = minio.start()
       if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
         try {

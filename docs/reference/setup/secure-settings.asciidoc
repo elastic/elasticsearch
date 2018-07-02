@@ -1,5 +1,5 @@
 [[secure-settings]]
-=== Secure Settings
+=== Secure settings
 
 Some settings are sensitive, and relying on filesystem permissions to protect
 their values is not sufficient. For this use case, Elasticsearch provides a
@@ -15,6 +15,10 @@ Elasticsearch.
 
 NOTE: The elasticsearch keystore currently only provides obfuscation. In the future,
 password protection will be added.
+
+These settings, just like the regular ones in the `elasticsearch.yml` config file,
+need to be specified on each node in the cluster. Currently, all secure settings
+are node-specific settings that must have the same value on every node.
 
 [float]
 [[creating-keystore]]

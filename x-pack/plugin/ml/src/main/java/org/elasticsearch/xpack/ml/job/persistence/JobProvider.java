@@ -63,6 +63,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
@@ -1142,22 +1143,23 @@ public class JobProvider {
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {
-
                     long totalHits = searchResponse.getHits().getTotalHits();
-                    Map<String, Aggregation> aggregations = searchResponse.getAggregations().asMap();
-
+                    Aggregations aggregations = searchResponse.getAggregations();
+                    if (totalHits == 0 || aggregations == null) {
+                        handler.accept(new ForecastStats());
+                        return;
+                    }
+                    Map<String, Aggregation> aggregationsAsMap = aggregations.asMap();
                     StatsAccumulator memoryStats = StatsAccumulator
-                            .fromStatsAggregation((Stats) aggregations.get(ForecastStats.Fields.MEMORY));
+                            .fromStatsAggregation((Stats) aggregationsAsMap.get(ForecastStats.Fields.MEMORY));
                     StatsAccumulator recordStats = StatsAccumulator
-                            .fromStatsAggregation((Stats) aggregations.get(ForecastStats.Fields.RECORDS));
+                            .fromStatsAggregation((Stats) aggregationsAsMap.get(ForecastStats.Fields.RECORDS));
                     StatsAccumulator runtimeStats = StatsAccumulator
-                            .fromStatsAggregation((Stats) aggregations.get(ForecastStats.Fields.RUNTIME));
+                            .fromStatsAggregation((Stats) aggregationsAsMap.get(ForecastStats.Fields.RUNTIME));
                     CountAccumulator statusCount = CountAccumulator
-                            .fromTermsAggregation((StringTerms) aggregations.get(ForecastStats.Fields.STATUSES));
+                            .fromTermsAggregation((StringTerms) aggregationsAsMap.get(ForecastStats.Fields.STATUSES));
 
-                    ForecastStats forecastStats = new ForecastStats(totalHits, memoryStats, recordStats,
-                            runtimeStats, statusCount);
-
+                    ForecastStats forecastStats = new ForecastStats(totalHits, memoryStats, recordStats, runtimeStats, statusCount);
                     handler.accept(forecastStats);
                 }, errorHandler), client::search);
 

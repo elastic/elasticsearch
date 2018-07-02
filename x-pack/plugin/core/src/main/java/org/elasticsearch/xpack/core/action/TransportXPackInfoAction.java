@@ -17,6 +17,7 @@ import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.license.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.action.XPackInfoRequest;
 import org.elasticsearch.xpack.core.XPackBuild;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 

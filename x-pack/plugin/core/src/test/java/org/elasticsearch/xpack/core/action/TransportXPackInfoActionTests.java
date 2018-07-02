@@ -16,6 +16,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.action.LicenseStatus;
+import org.elasticsearch.xpack.action.XPackInfoRequest;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 
 import java.util.Collections;

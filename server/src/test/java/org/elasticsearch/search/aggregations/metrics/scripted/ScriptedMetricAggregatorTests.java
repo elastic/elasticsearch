@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
@@ -107,7 +106,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             });
         SCRIPTS.put("mapScriptScore", params -> {
             Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            ((List<Double>) agg.get("collector")).add(((ScoreAccessor) params.get("_score")).doubleValue());
+            ((List<Double>) agg.get("collector")).add(((Number) params.get("_score")).doubleValue());
             return agg;
         });
         SCRIPTS.put("combineScriptScore", params -> {
@@ -118,7 +117,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         SCRIPTS.put("initScriptParams", params -> {
             Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
             Integer initialValue = (Integer)params.get("initialValue");
-            ArrayList<Integer> collector = new ArrayList();
+            ArrayList<Integer> collector = new ArrayList<>();
             collector.add(initialValue);
             agg.put("collector", collector);
             return agg;
@@ -175,7 +174,6 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     /**
      * without combine script, the "_aggs" map should contain a list of the size of the number of documents matched
      */
-    @SuppressWarnings("unchecked")
     public void testScriptedMetricWithoutCombine() throws IOException {
         try (Directory directory = newDirectory()) {
             int numDocs = randomInt(100);
@@ -190,8 +188,11 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 ScriptedMetric scriptedMetric = search(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder);
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
+                @SuppressWarnings("unchecked")
                 Map<String, Object> agg = (Map<String, Object>) scriptedMetric.aggregation();
-                assertEquals(numDocs, ((List<Integer>) agg.get("collector")).size());
+                @SuppressWarnings("unchecked")
+                List<Integer> list = (List<Integer>) agg.get("collector");
+                assertEquals(numDocs, list.size());
             }
         }
     }
@@ -300,10 +301,9 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31307")
     public void testSelfReferencingAggStateAfterMap() throws IOException {
         try (Directory directory = newDirectory()) {
-            Integer numDocs = randomInt(100);
+            Integer numDocs = randomIntBetween(1, 100);
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < numDocs; i++) {
                     indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));

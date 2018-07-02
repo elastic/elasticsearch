@@ -11,6 +11,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
@@ -34,8 +35,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 
 /**
@@ -120,8 +121,8 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testScope() throws Exception {
-        MlFilter safeIps = new MlFilter("safe_ips", Arrays.asList("111.111.111.111", "222.222.222.222"));
-        assertThat(putMlFilter(safeIps), is(true));
+        MlFilter safeIps = MlFilter.builder("safe_ips").setItems("111.111.111.111", "222.222.222.222").build();
+        assertThat(putMlFilter(safeIps).getFilter(), equalTo(safeIps));
 
         DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().include("ip", "safe_ips")).build();
 
@@ -178,10 +179,12 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         assertThat(records.get(0).getOverFieldValue(), equalTo("333.333.333.333"));
 
         // Now let's update the filter
-        MlFilter updatedFilter = new MlFilter(safeIps.getId(), Collections.singletonList("333.333.333.333"));
-        assertThat(putMlFilter(updatedFilter), is(true));
+        UpdateFilterAction.Request updateFilterRequest = new UpdateFilterAction.Request(safeIps.getId());
+        updateFilterRequest.setRemoveItems(safeIps.getItems());
+        updateFilterRequest.setAddItems(Collections.singletonList("333.333.333.333"));
+        client().execute(UpdateFilterAction.INSTANCE, updateFilterRequest).get();
 
-        // Wait until the notification that the process was updated is indexed
+        // Wait until the notification that the filter was updated is indexed
         assertBusy(() -> {
             SearchResponse searchResponse = client().prepareSearch(".ml-notifications")
                     .setSize(1)
@@ -192,7 +195,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
                     ).get();
             SearchHit[] hits = searchResponse.getHits().getHits();
             assertThat(hits.length, equalTo(1));
-            assertThat(hits[0].getSourceAsMap().get("message"), equalTo("Updated filter [safe_ips] in running process"));
+            assertThat((String) hits[0].getSourceAsMap().get("message"), containsString("Filter [safe_ips] has been modified"));
         });
 
         long secondAnomalyTime = timestamp;
@@ -229,8 +232,8 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
     public void testScopeAndCondition() throws IOException {
         // We have 2 IPs and they're both safe-listed.
         List<String> ips = Arrays.asList("111.111.111.111", "222.222.222.222");
-        MlFilter safeIps = new MlFilter("safe_ips", ips);
-        assertThat(putMlFilter(safeIps), is(true));
+        MlFilter safeIps = MlFilter.builder("safe_ips").setItems(ips).build();
+        assertThat(putMlFilter(safeIps).getFilter(), equalTo(safeIps));
 
         // Ignore if ip in safe list AND actual < 10.
         DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().include("ip", "safe_ips"))

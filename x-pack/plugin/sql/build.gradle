@@ -20,8 +20,11 @@ integTest.enabled = false
 
 dependencies {
     compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
-    compileOnly project(':modules:lang-painless')
-    compile project('sql-proto')
+    compileOnly(project(':modules:lang-painless')) {
+        // exclude ASM to not affect featureAware task on Java 10+
+        exclude group: "org.ow2.asm"
+    }
+    compile project('sql-action')
     compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
     compile "org.antlr:antlr4-runtime:4.5.3"
     testCompile "org.elasticsearch.test:framework:${version}"

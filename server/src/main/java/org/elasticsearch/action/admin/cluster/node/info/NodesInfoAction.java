@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.action.Action;
 
-public class NodesInfoAction extends Action<NodesInfoRequest, NodesInfoResponse> {
+public class NodesInfoAction extends Action<NodesInfoResponse> {
 
     public static final NodesInfoAction INSTANCE = new NodesInfoAction();
     public static final String NAME = "cluster:monitor/nodes/info";

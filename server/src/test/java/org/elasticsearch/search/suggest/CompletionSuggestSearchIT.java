@@ -890,7 +890,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions(searchResponse, true, "suggestions", expected);
     }
 
-    public void assertSuggestions(String suggestionName, SuggestionBuilder suggestBuilder, String... suggestions) {
+    public void assertSuggestions(String suggestionName, SuggestionBuilder<?> suggestBuilder, String... suggestions) {
         SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder)).execute().actionGet();
         assertSuggestions(searchResponse, suggestionName, suggestions);
     }
@@ -971,7 +971,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         if (completionMappingBuilder.contextMappings != null) {
             mapping = mapping.startArray("contexts");
-            for (Map.Entry<String, ContextMapping> contextMapping : completionMappingBuilder.contextMappings.entrySet()) {
+            for (Map.Entry<String, ContextMapping<?>> contextMapping : completionMappingBuilder.contextMappings.entrySet()) {
                 mapping = mapping.startObject()
                         .field("name", contextMapping.getValue().name())
                         .field("type", contextMapping.getValue().type().name());
@@ -1189,7 +1189,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         String indexAnalyzer = "simple";
         Boolean preserveSeparators = random().nextBoolean();
         Boolean preservePositionIncrements = random().nextBoolean();
-        LinkedHashMap<String, ContextMapping> contextMappings = null;
+        LinkedHashMap<String, ContextMapping<?>> contextMappings = null;
 
         public CompletionMappingBuilder searchAnalyzer(String searchAnalyzer) {
             this.searchAnalyzer = searchAnalyzer;
@@ -1208,7 +1208,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             return this;
         }
 
-        public CompletionMappingBuilder context(LinkedHashMap<String, ContextMapping> contextMappings) {
+        public CompletionMappingBuilder context(LinkedHashMap<String, ContextMapping<?>> contextMappings) {
             this.contextMappings = contextMappings;
             return this;
         }

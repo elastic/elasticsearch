@@ -39,7 +39,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -92,7 +91,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Files.copy(resource, dst);
         MetaData read = format.read(xContentRegistry(), dst);
         assertThat(read, notNullValue());
-        assertThat(read.clusterUUID(), equalTo("3O1tDF1IRB6fSJ-GrTMUtg"));
+        assertThat(read.clusterUUID(), equalTo("y9XcwLJGTROoOEfixlRwfQ"));
         // indices are empty since they are serialized separately
     }
 
@@ -237,7 +236,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
     public void testLoadState() throws IOException {
         final Path[] dirs = new Path[randomIntBetween(1, 5)];
         int numStates = randomIntBetween(1, 5);
-        int numLegacy = randomIntBetween(0, numStates);
         List<MetaData> meta = new ArrayList<>();
         for (int i = 0; i < numStates; i++) {
             meta.add(randomMeta());
@@ -247,20 +245,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = createTempDir();
             Files.createDirectories(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME));
-            for (int j = 0; j < numLegacy; j++) {
-                if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {
-                    Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-"+j);
-                    Files.createFile(file); // randomly create 0-byte files -- there is extra logic to skip them
-                } else {
-                    try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(MetaDataStateFormat.FORMAT,
-                        Files.newOutputStream(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j)))) {
-                        xcontentBuilder.startObject();
-                        MetaData.Builder.toXContent(meta.get(j), xcontentBuilder, ToXContent.EMPTY_PARAMS);
-                        xcontentBuilder.endObject();
-                    }
-                }
-            }
-            for (int j = numLegacy; j < numStates; j++) {
+            for (int j = 0; j < numStates; j++) {
                 format.write(meta.get(j), dirs[i]);
                 if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {  // corrupt a file that we do not necessarily need here....
                     Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j + ".st");
@@ -290,20 +275,18 @@ public class MetaDataStateFormatTests extends ESTestCase {
         assertThat(loadedMetaData.indexGraveyard(), equalTo(latestMetaData.indexGraveyard()));
 
         // now corrupt all the latest ones and make sure we fail to load the state
-        if (numStates > numLegacy) {
-            for (int i = 0; i < dirs.length; i++) {
-                Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + (numStates-1) + ".st");
-                if (corruptedFiles.contains(file)) {
-                    continue;
-                }
-                MetaDataStateFormatTests.corruptFile(file, logger);
+        for (int i = 0; i < dirs.length; i++) {
+            Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + (numStates-1) + ".st");
+            if (corruptedFiles.contains(file)) {
+                continue;
             }
-            try {
-                format.loadLatestState(logger, xContentRegistry(), dirList.toArray(new Path[0]));
-                fail("latest version can not be read");
-            } catch (ElasticsearchException ex) {
-                assertThat(ExceptionsHelper.unwrap(ex, CorruptStateException.class), notNullValue());
-            }
+            MetaDataStateFormatTests.corruptFile(file, logger);
+        }
+        try {
+            format.loadLatestState(logger, xContentRegistry(), dirList.toArray(new Path[0]));
+            fail("latest version can not be read");
+        } catch (ElasticsearchException ex) {
+            assertThat(ExceptionsHelper.unwrap(ex, CorruptStateException.class), notNullValue());
         }
     }
 

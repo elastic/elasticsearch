@@ -30,14 +30,18 @@ import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer.Scheme;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import com.fasterxml.jackson.core.JsonFactory;
 
-import static org.hamcrest.Matchers.hasItem;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.hasSize;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -53,10 +57,14 @@ public class ElasticsearchNodesSnifferParseTests extends RestClientTestCase {
         try {
             HttpEntity entity = new InputStreamEntity(in, ContentType.APPLICATION_JSON);
             List<Node> nodes = ElasticsearchNodesSniffer.readHosts(entity, Scheme.HTTP, new JsonFactory());
-            // Use these assertions because the error messages are nicer than hasItems.
+            /*
+             * Use these assertions because the error messages are nicer
+             * than hasItems and we know the results are in order because
+             * that is how we generated the file.
+             */
             assertThat(nodes, hasSize(expected.length));
-            for (Node expectedNode : expected) {
-                assertThat(nodes, hasItem(expectedNode));
+            for (int i = 0; i < expected.length; i++) {
+                assertEquals(expected[i], nodes.get(i));
             }
         } finally {
             in.close();
@@ -66,13 +74,13 @@ public class ElasticsearchNodesSnifferParseTests extends RestClientTestCase {
     public void test2x() throws IOException {
         checkFile("2.0.0_nodes_http.json",
                 node(9200, "m1", "2.0.0", true, false, false),
-                node(9202, "m2", "2.0.0", true, true, false),
-                node(9201, "m3", "2.0.0", true, false, false),
-                node(9205, "d1", "2.0.0", false, true, false),
+                node(9201, "m2", "2.0.0", true, true, false),
+                node(9202, "m3", "2.0.0", true, false, false),
+                node(9203, "d1", "2.0.0", false, true, false),
                 node(9204, "d2", "2.0.0", false, true, false),
-                node(9203, "d3", "2.0.0", false, true, false),
-                node(9207, "c1", "2.0.0", false, false, false),
-                node(9206, "c2", "2.0.0", false, false, false));
+                node(9205, "d3", "2.0.0", false, true, false),
+                node(9206, "c1", "2.0.0", false, false, false),
+                node(9207, "c2", "2.0.0", false, false, false));
     }
 
     public void test5x() throws IOException {
@@ -104,6 +112,10 @@ public class ElasticsearchNodesSnifferParseTests extends RestClientTestCase {
         Set<HttpHost> boundHosts = new HashSet<>(2);
         boundHosts.add(host);
         boundHosts.add(new HttpHost("[::1]", port));
-        return new Node(host, boundHosts, name, version, new Roles(master, data, ingest));
+        Map<String, List<String>> attributes = new HashMap<>();
+        attributes.put("dummy", singletonList("everyone_has_me"));
+        attributes.put("number", singletonList(name.substring(1)));
+        attributes.put("array", Arrays.asList(name.substring(0, 1), name.substring(1)));
+        return new Node(host, boundHosts, name, version, new Roles(master, data, ingest), attributes);
     }
 }

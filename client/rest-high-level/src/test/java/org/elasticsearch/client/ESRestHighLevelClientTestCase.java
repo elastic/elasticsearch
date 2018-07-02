@@ -85,9 +85,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         }
     }
 
-    protected static XContentBuilder buildRandomXContentPipeline() throws IOException {
-        XContentType xContentType = randomFrom(XContentType.values());
-        XContentBuilder pipelineBuilder = XContentBuilder.builder(xContentType.xContent());
+    protected static XContentBuilder buildRandomXContentPipeline(XContentBuilder pipelineBuilder) throws IOException {
         pipelineBuilder.startObject();
         {
             pipelineBuilder.field(Pipeline.DESCRIPTION_KEY, "some random set of processors");
@@ -112,6 +110,12 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         }
         pipelineBuilder.endObject();
         return pipelineBuilder;
+    }
+
+    protected static XContentBuilder buildRandomXContentPipeline() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+        XContentBuilder pipelineBuilder = XContentBuilder.builder(xContentType.xContent());
+        return buildRandomXContentPipeline(pipelineBuilder);
     }
 
     protected static void createPipeline(String pipelineId) throws IOException {

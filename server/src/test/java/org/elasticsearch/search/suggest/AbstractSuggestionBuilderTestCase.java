@@ -140,14 +140,15 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             xContentBuilder.endObject();
 
             XContentBuilder shuffled = shuffleXContent(xContentBuilder, shuffleProtectedFields());
-            XContentParser parser = createParser(shuffled);
-            // we need to skip the start object and the name, those will be parsed by outer SuggestBuilder
-            parser.nextToken();
+            try (XContentParser parser = createParser(shuffled)) {
+                // we need to skip the start object and the name, those will be parsed by outer SuggestBuilder
+                parser.nextToken();
 
-            SuggestionBuilder<?> secondSuggestionBuilder = SuggestionBuilder.fromXContent(parser);
-            assertNotSame(suggestionBuilder, secondSuggestionBuilder);
-            assertEquals(suggestionBuilder, secondSuggestionBuilder);
-            assertEquals(suggestionBuilder.hashCode(), secondSuggestionBuilder.hashCode());
+                SuggestionBuilder<?> secondSuggestionBuilder = SuggestionBuilder.fromXContent(parser);
+                assertNotSame(suggestionBuilder, secondSuggestionBuilder);
+                assertEquals(suggestionBuilder, secondSuggestionBuilder);
+                assertEquals(suggestionBuilder.hashCode(), secondSuggestionBuilder.hashCode());
+            }
         }
     }
 

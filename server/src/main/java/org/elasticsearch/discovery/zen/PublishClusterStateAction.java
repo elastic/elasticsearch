@@ -45,6 +45,7 @@ import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -158,7 +159,8 @@ public class PublishClusterStateAction extends AbstractComponent {
         }
 
         try {
-            innerPublish(clusterChangedEvent, nodesToPublishTo, sendingController, sendFullVersion, serializedStates, serializedDiffs);
+            innerPublish(clusterChangedEvent, nodesToPublishTo, sendingController, ackListener, sendFullVersion, serializedStates,
+                serializedDiffs);
         } catch (Discovery.FailedToCommitClusterStateException t) {
             throw t;
         } catch (Exception e) {
@@ -173,8 +175,9 @@ public class PublishClusterStateAction extends AbstractComponent {
     }
 
     private void innerPublish(final ClusterChangedEvent clusterChangedEvent, final Set<DiscoveryNode> nodesToPublishTo,
-                              final SendingController sendingController, final boolean sendFullVersion,
-                              final Map<Version, BytesReference> serializedStates, final Map<Version, BytesReference> serializedDiffs) {
+                              final SendingController sendingController, final Discovery.AckListener ackListener,
+                              final boolean sendFullVersion, final Map<Version, BytesReference> serializedStates,
+                              final Map<Version, BytesReference> serializedDiffs) {
 
         final ClusterState clusterState = clusterChangedEvent.state();
         final ClusterState previousState = clusterChangedEvent.previousState();
@@ -195,8 +198,12 @@ public class PublishClusterStateAction extends AbstractComponent {
 
         sendingController.waitForCommit(discoverySettings.getCommitTimeout());
 
+        final long commitTime = System.nanoTime() - publishingStartInNanos;
+
+        ackListener.onCommit(TimeValue.timeValueNanos(commitTime));
+
         try {
-            long timeLeftInNanos = Math.max(0, publishTimeout.nanos() - (System.nanoTime() - publishingStartInNanos));
+            long timeLeftInNanos = Math.max(0, publishTimeout.nanos() - commitTime);
             final BlockingClusterStatePublishResponseHandler publishResponseHandler = sendingController.getPublishResponseHandler();
             sendingController.setPublishingTimedOut(!publishResponseHandler.awaitAllNodes(TimeValue.timeValueNanos(timeLeftInNanos)));
             if (sendingController.getPublishingTimedOut()) {
@@ -441,14 +448,14 @@ public class PublishClusterStateAction extends AbstractComponent {
     private class SendClusterStateRequestHandler implements TransportRequestHandler<BytesTransportRequest> {
 
         @Override
-        public void messageReceived(BytesTransportRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(BytesTransportRequest request, final TransportChannel channel, Task task) throws Exception {
             handleIncomingClusterStateRequest(request, channel);
         }
     }
 
     private class CommitClusterStateRequestHandler implements TransportRequestHandler<CommitClusterStateRequest> {
         @Override
-        public void messageReceived(CommitClusterStateRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(CommitClusterStateRequest request, final TransportChannel channel, Task task) throws Exception {
             handleCommitRequest(request, channel);
         }
     }

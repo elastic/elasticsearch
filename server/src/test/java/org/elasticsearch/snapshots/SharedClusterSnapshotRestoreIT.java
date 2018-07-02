@@ -1474,7 +1474,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(client.admin().indices().prepareClose("test-idx-closed"));
         ClusterStateResponse stateResponse = client.admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metaData().index("test-idx-closed").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test-idx-closed"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test-idx-closed"), notNullValue());
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx*").get();

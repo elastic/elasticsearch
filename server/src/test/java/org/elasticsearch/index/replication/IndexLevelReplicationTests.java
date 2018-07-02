@@ -452,7 +452,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         }
 
         @Override
-        public Engine newReadWriteEngine(EngineConfig config) {
+        public Engine newReadWriteEngine(EngineConfig config, boolean closed) {
             return InternalEngineTests.createInternalEngine((directory, writerConfig) ->
                     new IndexWriter(directory, writerConfig) {
                         @Override

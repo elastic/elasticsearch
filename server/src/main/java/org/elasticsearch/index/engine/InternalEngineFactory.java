@@ -21,7 +21,11 @@ package org.elasticsearch.index.engine;
 
 public class InternalEngineFactory implements EngineFactory {
     @Override
-    public Engine newReadWriteEngine(EngineConfig config) {
-        return new InternalEngine(config);
+    public Engine newReadWriteEngine(EngineConfig config, boolean closed) {
+        if (closed) {
+            return new NoOpEngine(config);
+        } else {
+            return new InternalEngine(config);
+        }
     }
 }

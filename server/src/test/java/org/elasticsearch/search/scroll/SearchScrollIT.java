@@ -524,6 +524,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             client().admin().indices().prepareClose("test").get();
             client().admin().indices().prepareOpen("test").get();
             ensureGreen("test");
+            client().prepareClearScroll().addScrollId("_all").get();
         } else {
             client().admin().indices().prepareDelete("test").get();
         }

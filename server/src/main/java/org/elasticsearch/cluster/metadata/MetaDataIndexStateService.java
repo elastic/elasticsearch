@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.ack.OpenIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -57,7 +56,8 @@ import java.util.Set;
  */
 public class MetaDataIndexStateService extends AbstractComponent {
 
-    public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", false, false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE);
+    public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", false,
+        false, true, RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE);
 
     private final ClusterService clusterService;
 
@@ -85,7 +85,8 @@ public class MetaDataIndexStateService extends AbstractComponent {
         }
 
         final String indicesAsString = Arrays.toString(request.indices());
-        clusterService.submitStateUpdateTask("close-indices " + indicesAsString, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+        clusterService.submitStateUpdateTask("close-indices " + indicesAsString,
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                 return new ClusterStateUpdateResponse(acknowledged);
@@ -109,7 +110,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 RestoreService.checkIndexClosing(currentState, indicesToClose);
                 // Check if index closing conflicts with any running snapshots
                 SnapshotsService.checkIndexClosing(currentState, indicesToClose);
-                logger.info("closing indices [{}]", indicesAsString);
+                logger.info("closing indices {}", indicesAsString);
 
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
@@ -122,20 +123,14 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
                 ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
 
-                RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
-                for (IndexMetaData index : indicesToClose) {
-                    rtBuilder.remove(index.getIndex().getName());
-                }
-
-                //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
-                return  allocationService.reroute(
-                        ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build(),
-                        "indices closed [" + indicesAsString + "]");
+                // no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
+                return allocationService.reroute(ClusterState.builder(updatedState).build(), "indices closed " + indicesAsString);
             }
         });
     }
 
-    public void openIndex(final OpenIndexClusterStateUpdateRequest request, final ActionListener<OpenIndexClusterStateUpdateResponse> listener) {
+    public void openIndex(final OpenIndexClusterStateUpdateRequest request,
+                          final ActionListener<OpenIndexClusterStateUpdateResponse> listener) {
         onlyOpenIndex(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
                 String[] indexNames = Arrays.stream(request.indices()).map(Index::getName).toArray(String[]::new);
@@ -153,13 +148,15 @@ public class MetaDataIndexStateService extends AbstractComponent {
         }, listener::onFailure));
     }
 
-    private void onlyOpenIndex(final OpenIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    private void onlyOpenIndex(final OpenIndexClusterStateUpdateRequest request,
+                               final ActionListener<ClusterStateUpdateResponse> listener) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
 
         final String indicesAsString = Arrays.toString(request.indices());
-        clusterService.submitStateUpdateTask("open-indices " + indicesAsString, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+        clusterService.submitStateUpdateTask("open-indices " + indicesAsString,
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                 return new ClusterStateUpdateResponse(acknowledged);
@@ -179,7 +176,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     return currentState;
                 }
 
-                logger.info("opening indices [{}]", indicesAsString);
+                logger.info("opening indices {}", indicesAsString);
 
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
@@ -204,15 +201,8 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
                 ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
 
-                RoutingTable.Builder rtBuilder = RoutingTable.builder(updatedState.routingTable());
-                for (IndexMetaData index : indicesToOpen) {
-                    rtBuilder.addAsFromCloseToOpen(updatedState.metaData().getIndexSafe(index.getIndex()));
-                }
-
                 //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
-                return allocationService.reroute(
-                        ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build(),
-                        "indices opened [" + indicesAsString + "]");
+                return allocationService.reroute(ClusterState.builder(updatedState).build(), "indices opened " + indicesAsString);
             }
         });
     }

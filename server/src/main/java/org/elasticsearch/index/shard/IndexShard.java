@@ -83,6 +83,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -217,6 +218,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final IndexShardOperationPermits indexShardOperationPermits;
 
+    private final AtomicBoolean transitioningEngine = new AtomicBoolean(false);
+
+    // Always changed under a lock
+    private volatile boolean usingNoOpEngine = false;
+
     private static final EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.POST_RECOVERY);
     // for primaries, we only allow to write when actually started (so the cluster has decided we started)
     // in case we have a relocation of a primary, we also allow to write after phase 2 completed, where the shard may be
@@ -319,6 +325,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
+        usingNoOpEngine = isClosed();
+        logger.trace("index shard created with initial {} state", usingNoOpEngine ? "NOOP" : "REGULAR");
     }
 
     public ThreadPool getThreadPool() {
@@ -521,6 +529,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             // set this last, once we finished updating all internal state.
             this.shardRouting = newRouting;
+
+            // Transition shard to a closed/open engine, if needed
+            transitionShardEngineIfNeeded();
+
             shardStateUpdated.countDown();
         }
         if (currentRouting != null && currentRouting.active() == false && newRouting.active()) {
@@ -528,6 +540,130 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         if (newRouting.equals(currentRouting) == false) {
             indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
+        }
+    }
+
+    private void removeTranslogAndStopEngine(Engine engine) throws IOException {
+        logger.trace("flushing and closing existing engine");
+        if (engine instanceof InternalEngine) {
+            InternalEngine internalEngine = (InternalEngine) engine;
+            internalEngine.getTranslog().getDeletionPolicy().disableRetention();
+            internalEngine.syncTranslog();
+            internalEngine.flush(true, true);
+        }
+        engine.close();
+    }
+
+    private void sanityCheckNoOpEngine() {
+        // Sanity checks
+        if (this.usingNoOpEngine) {
+            // Sanity check the new engine, if these are not satisfied then peer recovery will fail
+            final long localCkp = getLocalCheckpoint();
+            final long globalCkp = getGlobalCheckpoint();
+            if (localCkp != globalCkp) {
+                throw new IllegalStateException("unable to validate engine transition, local checkpoint (" + localCkp +
+                    ") != global checkpoint (" + globalCkp + ")");
+            }
+            final long translogOps = translogStats().estimatedNumberOfOperations();
+            if (translogOps > 0) {
+                throw new IllegalStateException("unable to validate engine transition, there are " + translogOps +
+                    " translog operations when there should be 0");
+            }
+        }
+    }
+
+    private void transitionShardEngine() throws IOException {
+        final boolean newEngineIsNoOp = isClosed();
+
+        if (usingNoOpEngine == newEngineIsNoOp) {
+            // The engine has already been transitioned
+            logger.trace("skipping transition of already transitioned engine, NOOP: " + usingNoOpEngine);
+            return;
+        }
+
+        logger.debug("starting transition from {} engine to {} engine",
+            usingNoOpEngine ? "NOOP" : "REGULAR", newEngineIsNoOp ? "NOOP" : "REGULAR");
+
+        final Engine engine = this.currentEngineReference.get();
+        final boolean isNoOpEngine = engine instanceof NoOpEngine;
+
+        if (engine != null) {
+            removeTranslogAndStopEngine(engine);
+        }
+
+        logger.trace("creating new transitioned engine ({})", newEngineIsNoOp ? "NOOP" : "REGULAR");
+        final EngineConfig config = newEngineConfig();
+        final Engine newEngine = newEngine(config, newEngineIsNoOp);
+        onNewEngine(newEngine);
+
+        if (newEngineIsNoOp == false) {
+            logger.trace("starting translog recovery for engine transition");
+            // First, reset the recovery state so assertions aren't tripped
+            // because numbers come from a previous recovery
+            this.recoveryState.reset();
+            newEngine.recoverFromTranslog();
+        }
+
+        // Update new noOp state and engine reference
+        this.usingNoOpEngine = newEngineIsNoOp;
+        this.currentEngineReference.set(newEngine);
+
+        logger.debug("transition from {} engine to {} engine complete",
+            isNoOpEngine ? "NOOP" : "REGULAR", newEngine instanceof InternalEngine ? "REGULAR" : "NOOP");
+
+        sanityCheckNoOpEngine();
+    }
+
+    private void transitionShardEngineIfNeeded() {
+        if (state != IndexShardState.STARTED) {
+            return;
+        }
+
+        if (usingNoOpEngine == isClosed()) {
+            // Engine already matches state in index metadata, no work to be done
+            return;
+        }
+
+        if (transitioningEngine.compareAndSet(false, true)) {
+
+            // If the task fails and the shard is failed, we don't want to
+            // continually try to transition, so keep track of failure
+            final AtomicBoolean failed = new AtomicBoolean(false);
+
+            AbstractRunnable task = new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    failed.set(true);
+                    failShard("shard failed during transition", e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    // Block operations, where they are all blocked, the shard engine will be transitioned under a lock
+                    indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
+                        synchronized (mutex) {
+                            transitionShardEngine();
+                        }
+                    });
+                }
+
+                @Override
+                public void onAfter() {
+                    transitioningEngine.set(false);
+                    // Only attempt to re-transition if there was no failure and the shard is still started
+                    if (failed.get() == false && state == IndexShardState.STARTED) {
+                        // It's possible a transition was needed in the meantime while transitioning,
+                        // if so, we need to check, so we call the transition method again, which will
+                        // check the states again
+                        transitionShardEngineIfNeeded();
+                    }
+                }
+            };
+
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(task);
+
+        } else {
+            logger.trace("skipping transition as one is already ongoing");
         }
     }
 
@@ -1121,7 +1257,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void failShard(String reason, @Nullable Exception e) {
         // fail the engine. This will cause this shard to also be removed from the node's index service.
-        getEngine().failEngine(reason, e);
+        try {
+            getEngine().failEngine(reason, e);
+        } catch (AlreadyClosedException ace) {
+            ace.addSuppressed(e);
+            throw ace;
+        }
     }
     public Engine.Searcher acquireSearcher(String source) {
         return acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
@@ -2102,8 +2243,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (state == IndexShardState.CLOSED) {
                 throw new AlreadyClosedException(shardId + " can't create engine - shard is closed");
             }
-            assert this.currentEngineReference.get() == null;
-            Engine engine = newEngine(config);
+            assert this.currentEngineReference.get() == null : "expected no existing engine but got: " + this.currentEngineReference.get();
+            Engine engine = newEngine(config, isClosed());
             onNewEngine(engine); // call this before we pass the memory barrier otherwise actions that happen
             // inside the callback are not visible. This one enforces happens-before
             this.currentEngineReference.set(engine);
@@ -2120,8 +2261,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engine;
     }
 
-    protected Engine newEngine(EngineConfig config) {
-        return engineFactory.newReadWriteEngine(config);
+    protected Engine newEngine(EngineConfig config, final boolean closed) {
+        return engineFactory.newReadWriteEngine(config, closed);
     }
 
     private static void persistMetadata(
@@ -2593,5 +2734,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
         }
+    }
+
+    /**
+     * Return true if this shard is currently closed, false otherwise
+     */
+    public boolean isClosed() {
+        return indexSettings.getIndexMetaData().getState() == IndexMetaData.State.CLOSE;
     }
 }

@@ -357,9 +357,8 @@ public class RestIndicesAction extends AbstractCatAction {
             IndexMetaData.State state = indexMetaData.getState();
 
             if (status != null) {
-                if (state == IndexMetaData.State.CLOSE ||
-                        (indexHealth == null && !ClusterHealthStatus.RED.equals(status)) ||
-                        !indexHealth.getStatus().equals(status)) {
+                if ((indexHealth == null && ClusterHealthStatus.RED.equals(status) == false) ||
+                        indexHealth.getStatus().equals(status) == false) {
                     continue;
                 }
             }
@@ -368,7 +367,7 @@ public class RestIndicesAction extends AbstractCatAction {
             final CommonStats totalStats = indexStats == null ? new CommonStats() : indexStats.getTotal();
 
             table.startRow();
-            table.addCell(state == IndexMetaData.State.OPEN ? (indexHealth == null ? "red*" : indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)) : null);
+            table.addCell(indexHealth == null ? "red*" : indexHealth.getStatus().toString().toLowerCase(Locale.ROOT));
             table.addCell(state.toString().toLowerCase(Locale.ROOT));
             table.addCell(indexName);
             table.addCell(index.getUUID());

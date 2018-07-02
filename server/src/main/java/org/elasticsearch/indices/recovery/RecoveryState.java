@@ -139,6 +139,15 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         return this.stage;
     }
 
+    /**
+     * Resets all of the tracked states for the recovery
+     */
+    public void reset() {
+        getTranslog().reset();
+        getTimer().reset();
+        getIndex().reset();
+        getVerifyIndex().reset();
+    }
 
     private void validateAndSetStage(Stage expected, Stage next) {
         if (stage != expected) {

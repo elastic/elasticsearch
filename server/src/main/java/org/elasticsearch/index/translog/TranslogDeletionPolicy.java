@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TranslogDeletionPolicy {
 
     private final Map<Object, RuntimeException> openTranslogRef;
+    private boolean enabled = true;
 
     public void assertNoOpenTranslogRefs() {
         if (openTranslogRef.isEmpty() == false) {
@@ -93,11 +94,21 @@ public class TranslogDeletionPolicy {
     }
 
     public synchronized void setRetentionSizeInBytes(long bytes) {
-        retentionSizeInBytes = bytes;
+        if (enabled) {
+            retentionSizeInBytes = bytes;
+        }
     }
 
     public synchronized void setRetentionAgeInMillis(long ageInMillis) {
-        retentionAgeInMillis = ageInMillis;
+        if (enabled) {
+            retentionAgeInMillis = ageInMillis;
+        }
+    }
+
+    public synchronized void disableRetention() {
+        enabled = false;
+        retentionAgeInMillis = -1;
+        retentionSizeInBytes = -1;
     }
 
     /**

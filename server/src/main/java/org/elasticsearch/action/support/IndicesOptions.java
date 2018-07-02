@@ -89,10 +89,16 @@ public class IndicesOptions implements ToXContentFragment {
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES), EnumSet.of(WildcardStates.OPEN));
     public static final IndicesOptions LENIENT_EXPAND_OPEN =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE), EnumSet.of(WildcardStates.OPEN));
+    public static final IndicesOptions LENIENT_EXPAND_ALL =
+        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE),
+            EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED));
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES), EnumSet.of(WildcardStates.OPEN, WildcardStates.CLOSED));
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED =
         new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.FORBID_CLOSED_INDICES), EnumSet.of(WildcardStates.OPEN));
+    public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND =
+        new IndicesOptions(EnumSet.of(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES),
+            EnumSet.noneOf(WildcardStates.class));
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED =
         new IndicesOptions(EnumSet.of(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES, Option.FORBID_CLOSED_INDICES),
             EnumSet.noneOf(WildcardStates.class));
@@ -394,11 +400,27 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     /**
+     * @return indices option that requires each specified index or alias to exist, doesn't expand wildcards and
+     * throws error if any of the aliases resolves to multiple indices
+     */
+    public static IndicesOptions strictSingleIndexNoExpand() {
+        return STRICT_SINGLE_INDEX_NO_EXPAND;
+    }
+
+    /**
      * @return indices options that ignores unavailable indices, expands wildcards only to open indices and
      *         allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions lenientExpandOpen() {
         return LENIENT_EXPAND_OPEN;
+    }
+
+    /**
+     * @return indices options that ignores unavailable indices, expands wildcards to open and closed indices and
+     *         allows that no indices are resolved from wildcard expressions (not returning an error).
+     */
+    public static IndicesOptions lenientExpandAll() {
+        return LENIENT_EXPAND_ALL;
     }
 
     @Override

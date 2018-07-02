@@ -424,8 +424,7 @@ public class InternalEngine extends Engine {
         return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier, engineConfig.getPrimaryTermSupplier());
     }
 
-    // Package private for testing purposes only
-    Translog getTranslog() {
+    public Translog getTranslog() {
         ensureOpen();
         return translog;
     }

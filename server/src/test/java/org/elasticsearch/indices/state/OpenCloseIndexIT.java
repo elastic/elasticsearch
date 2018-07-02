@@ -28,7 +28,9 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -38,9 +40,10 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.concurrent.ExecutionException;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
@@ -332,7 +335,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         }
     }
 
-    public void testOpenCloseWithDocs() throws IOException, ExecutionException, InterruptedException {
+    public void testOpenCloseWithDocs() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().
                 startObject().
                 startObject("type").
@@ -356,12 +359,14 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         if (randomBoolean()) {
             client().admin().indices().prepareFlush("test").setForce(true).execute().get();
         }
-        client().admin().indices().prepareClose("test").execute().get();
+        close("test");
 
         // check the index still contains the records that we indexed
-        client().admin().indices().prepareOpen("test").execute().get();
+        open("test");
         ensureGreen();
-        SearchResponse searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchQuery("test", "init")).get();
+        waitForOpen("test");
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", "init")).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, docs);
     }
@@ -419,5 +424,189 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
                 disableIndexBlock("test", blockSetting);
             }
         }
+    }
+
+    private void close(String... indices) {
+        logger.info("--> closing: {}", Arrays.toString(indices));
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose(indices).execute().actionGet();
+        assertAcked(closeIndexResponse);
+        assertIndexIsClosed(indices);
+    }
+
+    private void open(String... indices) {
+        logger.info("--> opening: {}", Arrays.toString(indices));
+        OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen(indices).execute().actionGet();
+        assertAcked(openIndexResponse);
+        assertThat(openIndexResponse.isShardsAcknowledged(), equalTo(true));
+        assertIndexIsOpened(indices);
+    }
+
+    public void testCloseOpenThenIndex() throws Exception {
+        Client client = client();
+        createIndex("test");
+        waitForRelocation(ClusterHealthStatus.GREEN);
+        int docs = between(1, 10);
+        IndexRequestBuilder[] builder = new IndexRequestBuilder[docs];
+        for (int i = 0; i < docs ; i++) {
+            builder[i] = client().prepareIndex("test", "type", "" + i).setSource("test", "init");
+        }
+        indexRandom(true, builder);
+
+        assertHitCount(client.prepareSearch("test").get(), docs);
+
+        close("test");
+        open("test");
+        ensureGreen("test");
+        waitForOpen("test");
+
+        client().prepareIndex("test", "type", "" + docs + 1).setSource("test", "foo").get();
+        refresh("test");
+        assertHitCount(client.prepareSearch("test").get(), docs + 1);
+    }
+
+    public void testDeleteClosedIndex() {
+        Client client = client();
+        createIndex("test");
+        waitForRelocation(ClusterHealthStatus.GREEN);
+
+        close("test");
+
+        assertAcked(client.admin().indices().prepareDelete("test"));
+        // No weirdness with recreating the index with the same name
+        createIndex("test");
+    }
+
+    public void   testClosedAndIncreaseReplicas() throws Exception {
+        assumeTrue("need to be able to increment replicas at least to 1 but there are only " +
+            cluster().numDataNodes() + " data node(s)", cluster().numDataNodes() > 1);
+        Client client = client();
+        createIndex("test", Settings.builder().put("index.number_of_replicas", 0).build());
+        ensureGreen("test");
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        int docs = randomIntBetween(20, 40);
+        for (int i = 0; i < docs; i++) {
+            builders.add(client.prepareIndex("test", "_doc", "" + i).setSource("{\"foo\": " + i + "}", XContentType.JSON));
+        }
+        indexRandom(false, builders);
+
+        close("test");
+
+        int replicaCount = randomIntBetween(1, maximumNumberOfReplicas());
+        logger.info("--> updating replicas to {}", replicaCount);
+        client.admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put("index.number_of_replicas", replicaCount).build()).get();
+        ensureGreen("test");
+
+        open("test");
+        waitForOpen("test");
+
+        assertHitCount(client.prepareSearch("test").get(), docs);
+    }
+
+    public void testClosedAndRestartDataNode() throws Exception {
+        assumeTrue("need to have at least to 2 data nodes " + cluster().numDataNodes() + " data node(s)", cluster().numDataNodes() > 1);
+        createIndex("test");
+        ensureGreen("test");
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        int docs = randomIntBetween(20, 40);
+        for (int i = 0; i < docs; i++) {
+            builders.add(client().prepareIndex("test", "_doc", "" + i).setSource("{\"foo\": " + i + "}", XContentType.JSON));
+        }
+        indexRandom(false, builders);
+
+        close("test");
+
+        internalCluster().restartRandomDataNode();
+        assertIndexIsClosed("test");
+
+        open("test");
+        ensureGreen("test");
+
+        client().prepareIndex("test", "_doc").setSource("{\"foo\": 1000}", XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        assertHitCount(client().prepareSearch("test").get(), docs + 1);
+    }
+
+    public void testCloseAndRestartCluster() throws Exception {
+        assumeTrue("need to have at least to 2 data nodes " + cluster().numDataNodes() + " data node(s)", cluster().numDataNodes() > 1);
+        createIndex("test");
+        ensureGreen("test");
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        int docs = randomIntBetween(20, 40);
+        for (int i = 0; i < docs; i++) {
+            builders.add(client().prepareIndex("test", "_doc", "" + i).setSource("{\"foo\": " + i + "}", XContentType.JSON));
+        }
+        indexRandom(false, builders);
+
+        close("test");
+
+        internalCluster().fullRestart();
+        assertBusy(() -> assertIndexIsClosed("test"));
+
+        open("test");
+        ensureGreen("test");
+
+        client().prepareIndex("test", "_doc").setSource("{\"foo\": 1000}", XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        assertHitCount(client().prepareSearch("test").get(), docs + 1);
+    }
+
+    public void testCloseOpenWhileClusterStateUpdates() throws Exception {
+        Client client = client();
+        createIndex("test");
+        waitForRelocation(ClusterHealthStatus.GREEN);
+        int docs = between(1, 10);
+        IndexRequestBuilder[] builder = new IndexRequestBuilder[docs];
+        for (int i = 0; i < docs ; i++) {
+            builder[i] = client().prepareIndex("test", "_doc", "" + i).setSource("test", "init");
+        }
+        indexRandom(true, builder);
+
+        assertHitCount(client.prepareSearch("test").get(), docs);
+
+        final AtomicBoolean run = new AtomicBoolean(true);
+        Thread clusterUpdateThread = new Thread(() -> {
+            // Spin in a loop updating the cluster state
+            while (run.get()) {
+                client().admin().cluster().prepareReroute().execute();
+                try {
+                    Thread.sleep(randomIntBetween(500, 1500));
+                } catch (InterruptedException e) {
+                    // Ignore if this is interrupted
+                }
+            }
+        });
+
+        clusterUpdateThread.start();
+
+        int iters = scaledRandomIntBetween(5, 50);
+        for (int i = 0; i < iters; i++) {
+            close("test");
+            open("test");
+            if (randomBoolean()) {
+                client().admin().indices().prepareRefresh("test").get();
+            }
+            if (randomBoolean()) {
+                ensureGreen("test");
+                logger.info("--> indexing a random doc");
+                try {
+                    client().prepareIndex("test", "_doc").setSource("foo", "bar").get();
+                    docs++;
+                } catch (Exception e) {
+                    // that's fine, we aren't waiting on close/open and it's asynchronous
+                }
+            }
+        }
+
+        waitForOpen("test");
+        ensureGreen("test");
+        refresh("test");
+
+        run.set(false);
+        clusterUpdateThread.join(10000);
+
+        assertHitCount(client.prepareSearch("test").get(), docs);
     }
 }

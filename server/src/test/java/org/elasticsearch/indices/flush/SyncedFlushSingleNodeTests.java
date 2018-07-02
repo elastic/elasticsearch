@@ -143,13 +143,13 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
         final ShardId shardId = shard.shardId();
 
+        // Works on closed indices
         client().admin().indices().prepareClose("test").get();
         listener = new SyncedFlushUtil.LatchedListener();
         flushService.attemptSyncedFlush(shardId, listener);
         listener.latch.await();
-        assertNotNull(listener.error);
-        assertNull(listener.result);
-        assertEquals("closed", listener.error.getMessage());
+        assertNull(listener.error);
+        assertNotNull(listener.result);
 
         listener = new SyncedFlushUtil.LatchedListener();
         flushService.attemptSyncedFlush(new ShardId("index not found", "_na_", 0), listener);

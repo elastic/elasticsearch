@@ -60,6 +60,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
@@ -894,6 +895,51 @@ public abstract class ESIntegTestCase extends ESTestCase {
             logger.debug("allowNodes: updating [{}]'s setting to [{}]", index, build.toDelimitedString(';'));
             client().admin().indices().prepareUpdateSettings(index).setSettings(build).execute().actionGet();
         }
+    }
+
+    public void waitForClose(String index) throws Exception {
+        assertBusy(() -> {
+            logger.info("--> waiting for {} to be closed", index);
+            try {
+                SearchResponse response = client().prepareSearch(index).get();
+                for (ShardSearchFailure failure : response.getShardFailures()) {
+                    Throwable t = failure.getCause();
+                    if (ExceptionsHelper.detailedMessage(t).contains("IndexClosedException[closed]") == false) {
+                        assert false : "index " + index + " not yet closed";
+                    } else {
+                        throw new ElasticsearchException(t);
+                    }
+                }
+                assert false : "index " + index + " not yet closed";
+            } catch (Exception e) {
+                if (ExceptionsHelper.detailedMessage(e).contains("IndexClosedException[closed]") == false) {
+                    throw new ElasticsearchException(e);
+                }
+            }
+        });
+    }
+
+    public void waitForOpen(final String index) throws Exception {
+        assertBusy(() -> {
+            logger.info("--> waiting for {} to be open", index);
+            try {
+                SearchResponse response = client().prepareSearch(index).get();
+                for (ShardSearchFailure failure : response.getShardFailures()) {
+                    Throwable t = failure.getCause();
+                    if (ExceptionsHelper.detailedMessage(t).contains("searching is not supported on a noOp engine")) {
+                        assert false : "index: " + index + " shard: " + failure.shard() + " not yet open";
+                    } else {
+                        throw new ElasticsearchException(t);
+                    }
+                }
+            } catch (Exception e) {
+                if (ExceptionsHelper.detailedMessage(e).contains("searching is not supported on a noOp engine")) {
+                    assert false : "index " + index + " not yet open";
+                } else {
+                    throw e;
+                }
+            }
+        }, 1, TimeUnit.MINUTES);
     }
 
     /**

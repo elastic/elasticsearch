@@ -133,9 +133,8 @@ public class AutoDateHistogramAggregationBuilder
         int maxBuckets = MultiBucketConsumerService.MAX_BUCKET_SETTING.get(settings);
         int bucketCeiling = maxBuckets / maxRoundingInterval;
         if (numBuckets > bucketCeiling) {
-            throw new IllegalArgumentException(
-                String.format("%s must be less than %d", NUM_BUCKETS_FIELD.getPreferredName(), bucketCeiling)
-            );
+            throw new IllegalArgumentException(NUM_BUCKETS_FIELD.getPreferredName()+
+                " must be less than " + bucketCeiling);
         }
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent, subFactoriesBuilder, metaData);
     }

@@ -31,6 +31,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+/**
+ * Utility class for doing JUnit-style asserts over JDBC.
+ */
 public class JdbcAssert {
     private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
 
@@ -42,6 +45,13 @@ public class JdbcAssert {
         assertResultSets(expected, actual, logger, false);
     }
 
+    /**
+     * Assert the given result sets, potentially in a lenient way.
+     * When lenient is specified, the type comparison of a column is widden to reach a common, compatible ground.
+     * This means promoting integer types to long and floating types to double and comparing their values.
+     * For example in a non-lenient, strict case a comparison between an int and a tinyint would fail, with lenient it will succeed as
+     * long as the actual value is the same.
+     */
     public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger, boolean lenient) throws SQLException {
         try (ResultSet ex = expected; ResultSet ac = actual) {
             assertResultSetMetadata(ex, ac, logger, lenient);
@@ -204,7 +214,10 @@ public class JdbcAssert {
         }
     }
 
-    public static int typeOf(int columnType, boolean lenient) {
+    /**
+     * Returns the value of the given type either in a lenient fashion (widened) or strict.
+     */
+    private static int typeOf(int columnType, boolean lenient) {
         if (lenient) {
             // integer upcast to long
             if (columnType == TINYINT || columnType == SMALLINT || columnType == INTEGER || columnType == BIGINT) {

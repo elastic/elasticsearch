@@ -275,7 +275,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param indexMetaData          indexMetaData for the shard, including any mapping
      * @param indexSearcherWrapper   an optional wrapper to be used during searchers
      * @param globalCheckpointSyncer callback for syncing global checkpoints
-     * @param indexEventListener
+     * @param indexEventListener     index even listener
      * @param listeners              an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardRouting routing, ShardPath shardPath, IndexMetaData indexMetaData,

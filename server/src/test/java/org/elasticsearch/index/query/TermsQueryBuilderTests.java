@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.instanceOf;
@@ -77,9 +78,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         // terms query or lookup query
         if (randomBoolean()) {
             // make between 0 and 5 different values of the same type
-            String fieldName;
-            fieldName = randomValueOtherThanMany(choice -> choice.equals(GEO_POINT_FIELD_NAME) || choice.equals(GEO_SHAPE_FIELD_NAME)
-                    || choice.equals(INT_RANGE_FIELD_NAME) || choice.equals(DATE_RANGE_FIELD_NAME), () -> getRandomFieldName());
+            String fieldName = randomValueOtherThanMany(choice ->
+                    choice.equals(GEO_POINT_FIELD_NAME) ||
+                    choice.equals(GEO_POINT_ALIAS_FIELD_NAME) ||
+                    choice.equals(GEO_SHAPE_FIELD_NAME) ||
+                    choice.equals(INT_RANGE_FIELD_NAME) ||
+                    choice.equals(DATE_RANGE_FIELD_NAME),
+                () -> getRandomFieldName());
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
                 values[i] = getRandomValueForFieldName(fieldName);
@@ -129,7 +134,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 terms = queryBuilder.values();
             }
 
-            TermInSetQuery expected = new TermInSetQuery(queryBuilder.fieldName(),
+            String fieldName = expectedFieldName(queryBuilder.fieldName());
+            TermInSetQuery expected = new TermInSetQuery(fieldName,
                     terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList()));
             assertEquals(expected, query);
         }

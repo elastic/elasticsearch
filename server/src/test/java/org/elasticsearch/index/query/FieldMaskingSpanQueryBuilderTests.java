@@ -45,11 +45,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
 
     @Override
     protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        String fieldInQuery = queryBuilder.fieldName();
-        MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(fieldInQuery);
-        if (fieldType != null) {
-            fieldInQuery = fieldType.name();
-        }
+        String fieldInQuery = expectedFieldName(queryBuilder.fieldName());
         assertThat(query, instanceOf(FieldMaskingSpanQuery.class));
         FieldMaskingSpanQuery fieldMaskingSpanQuery = (FieldMaskingSpanQuery) query;
         assertThat(fieldMaskingSpanQuery.getField(), equalTo(fieldInQuery));

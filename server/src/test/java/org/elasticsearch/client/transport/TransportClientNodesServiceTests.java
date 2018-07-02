@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -469,7 +470,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void messageReceived(ClusterStateRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(ClusterStateRequest request, TransportChannel channel, Task task) throws Exception {
             if (block.get()) {
                 release.await();
                 return;

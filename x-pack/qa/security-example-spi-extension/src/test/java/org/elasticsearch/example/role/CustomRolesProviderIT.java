@@ -16,9 +16,9 @@ import org.elasticsearch.example.realm.CustomRealm;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.core.test.XPackIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Integration test for custom roles providers.
  */
-public class CustomRolesProviderIT extends XPackIntegTestCase {
+public class CustomRolesProviderIT extends ESIntegTestCase {
 
     private static final String TEST_USER = "test_user";
     private static final String TEST_PWD = "change_me";
@@ -53,7 +53,7 @@ public class CustomRolesProviderIT extends XPackIntegTestCase {
 
     public void setupTestUser(String role) {
         SecurityClient securityClient = new SecurityClient(client());
-        securityClient.preparePutUser(TEST_USER, TEST_PWD.toCharArray(), role).get();
+        securityClient.preparePutUser(TEST_USER, TEST_PWD.toCharArray(), Hasher.BCRYPT, role).get();
     }
 
     public void testAuthorizedCustomRoleSucceeds() throws Exception {

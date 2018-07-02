@@ -58,10 +58,11 @@ public class NestedIdentityTests extends ESTestCase {
             builder.prettyPrint();
         }
         builder = nestedIdentity.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = createParser(builder);
-        NestedIdentity parsedNestedIdentity = NestedIdentity.fromXContent(parser);
-        assertEquals(nestedIdentity, parsedNestedIdentity);
-        assertNull(parser.nextToken());
+        try (XContentParser parser = createParser(builder)) {
+            NestedIdentity parsedNestedIdentity = NestedIdentity.fromXContent(parser);
+            assertEquals(nestedIdentity, parsedNestedIdentity);
+            assertNull(parser.nextToken());
+        }
     }
 
     public void testToXContent() throws IOException {

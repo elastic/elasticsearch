@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -42,7 +41,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.reindex.test.ObjectCleanerThreadThreadFilter;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -66,7 +64,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.reindex.ReindexTestCase.matcher;
 import static org.hamcrest.Matchers.containsString;
 
-@ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
 public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     private TransportAddress address;
 
@@ -107,8 +104,9 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
      * Build a {@link RemoteInfo}, defaulting values that we don't care about in this test to values that don't hurt anything.
      */
     private RemoteInfo newRemoteInfo(String username, String password, Map<String, String> headers) {
-        return new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), username, password,
-                headers, RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+        return new RemoteInfo("http", address.getAddress(), address.getPort(), null,
+            new BytesArray("{\"match_all\":{}}"), username, password, headers,
+            RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
     }
 
     public void testReindexFromRemoteWithAuthentication() throws Exception {

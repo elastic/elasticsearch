@@ -19,11 +19,10 @@
 
 package org.elasticsearch.transport.netty4;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import org.elasticsearch.test.ObjectCleanerThreadThreadFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -51,7 +50,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
-@ThreadLeakFilters(filters = {ObjectCleanerThreadThreadFilter.class})
 public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase {
 
     public static MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
@@ -94,7 +92,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         final Netty4Transport t = (Netty4Transport) transport;
         @SuppressWarnings("unchecked")
         final TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
-        TcpChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
+        CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }
 
     public void testConnectException() throws UnknownHostException {

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -42,7 +41,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ClearRealmsCacheTests extends SecurityIntegTestCase {
-    private static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString("passwd".toCharArray())));
 
     private static String[] usernames;
 
@@ -186,8 +184,10 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
     @Override
     protected String configUsers() {
         StringBuilder builder = new StringBuilder(SecuritySettingsSource.CONFIG_STANDARD_USER);
+        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(new SecureString
+            ("passwd".toCharArray())));
         for (String username : usernames) {
-            builder.append(username).append(":").append(USERS_PASSWD_HASHED).append("\n");
+            builder.append(username).append(":").append(usersPasswdHashed).append("\n");
         }
         return builder.toString();
     }

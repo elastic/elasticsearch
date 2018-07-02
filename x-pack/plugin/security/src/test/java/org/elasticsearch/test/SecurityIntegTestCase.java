@@ -3,7 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-
 package org.elasticsearch.test;
 
 import io.netty.util.ThreadDeathWatcher;
@@ -40,10 +39,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.core.test.XPackIntegTestCase;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -76,7 +76,7 @@ import static org.hamcrest.core.IsCollectionContaining.hasItem;
  *
  * @see SecuritySettingsSource
  */
-public abstract class SecurityIntegTestCase extends XPackIntegTestCase {
+public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;
     protected static SecureString BOOTSTRAP_PASSWORD = null;
@@ -88,7 +88,6 @@ public abstract class SecurityIntegTestCase extends XPackIntegTestCase {
      * to how {@link #nodeSettings(int)} and {@link #transportClientSettings()} work.
      */
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
-
 
     @BeforeClass
     public static void generateBootstrapPassword() {
@@ -522,5 +521,9 @@ public abstract class SecurityIntegTestCase extends XPackIntegTestCase {
 
     protected boolean isTransportSSLEnabled() {
         return customSecuritySettingsSource.isSslEnabled();
+    }
+
+    protected static Hasher getFastStoredHashAlgoForTests() {
+        return Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
     }
 }

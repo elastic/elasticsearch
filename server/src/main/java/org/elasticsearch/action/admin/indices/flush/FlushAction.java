@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.Action;
 
-public class FlushAction extends Action<FlushRequest, FlushResponse> {
+public class FlushAction extends Action<FlushResponse> {
 
     public static final FlushAction INSTANCE = new FlushAction();
     public static final String NAME = "indices:admin/flush";

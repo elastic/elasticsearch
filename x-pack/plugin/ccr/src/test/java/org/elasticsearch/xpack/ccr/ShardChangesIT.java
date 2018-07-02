@@ -77,7 +77,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
-        newSettings.put(CcrSettings.CCR_IDLE_SHARD_CHANGES_TIMEOUT.getKey(), TimeValue.timeValueSeconds(1));
+        newSettings.put(CcrSettings.CCR_IDLE_SHARD_CHANGES_DELAY.getKey(), TimeValue.timeValueSeconds(1));
         return newSettings.build();
     }
 
@@ -334,7 +334,8 @@ public class ShardChangesIT extends ESIntegTestCase {
             ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE);
         client().execute(FollowIndexAction.INSTANCE, followRequest).get();
 
-        long maxNumDocsReplicated = Math.min(3000, randomLongBetween(followRequest.getMaxOperationCount(), followRequest.getMaxOperationCount() * 10));
+        long maxNumDocsReplicated = Math.min(3000, randomLongBetween(followRequest.getMaxOperationCount(),
+            followRequest.getMaxOperationCount() * 10));
         long minNumDocsReplicated = maxNumDocsReplicated / 3L;
         logger.info("waiting for at least [{}] documents to be indexed and then stop a random data node", minNumDocsReplicated);
         awaitBusy(() -> {

@@ -20,9 +20,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.SecurityPrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.SecurityPrivileges.Category;
-import org.elasticsearch.xpack.core.security.authz.privilege.SecurityPrivileges.ConditionalPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy;
+import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy.Category;
+import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy.ConditionalPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.util.Arrays;
@@ -72,11 +72,11 @@ public class RoleDescriptorTests extends ESTestCase {
                 .build()
         };
 
-        final SecurityPrivileges securityPrivileges = new SecurityPrivileges();
-        securityPrivileges.add(new SecurityPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))));
+        final PrivilegePolicy privilegePolicy = new PrivilegePolicy();
+        privilegePolicy.add(new PrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))));
 
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
-            securityPrivileges, new String[] { "sudo" }, Collections.emptyMap(), Collections.emptyMap());
+            privilegePolicy, new String[] { "sudo" }, Collections.emptyMap(), Collections.emptyMap());
 
         assertThat(descriptor.toString(), is("Role[name=test, cluster=[all,none], indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], " +
                 "privileges=[read], field_security=[grant=[body,title], except=null], query={\"query\": {\"match_all\": {}}}],]" +
@@ -100,12 +100,12 @@ public class RoleDescriptorTests extends ESTestCase {
                 .resources("*")
                 .build()
         };
-        final SecurityPrivileges securityPrivileges = new SecurityPrivileges();
-        securityPrivileges.add(new SecurityPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))));
+        final PrivilegePolicy privilegePolicy = new PrivilegePolicy();
+        privilegePolicy.add(new PrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))));
 
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
-            securityPrivileges, new String[]{ "sudo" }, metadata, Collections.emptyMap());
+            privilegePolicy, new String[]{ "sudo" }, metadata, Collections.emptyMap());
         XContentBuilder builder = descriptor.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
         RoleDescriptor parsed = RoleDescriptor.parse("test", BytesReference.bytes(builder), false, XContentType.JSON);
         assertThat(parsed, equalTo(descriptor));
@@ -164,7 +164,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 "     {\"resources\": [\"object-123\",\"object-456\"], \"privileges\":[\"read\", \"delete\"], \"application\":\"app1\"}," +
                 "     {\"resources\": [\"*\"], \"privileges\":[\"admin\"], \"application\":\"app2\" }" +
                 " ]," +
-                " \"security\": { \"application\": { \"manage\": { \"applications\" : [ \"kibana\", \"logstash\" ] } } }" +
+                " \"policy\": { \"application\": { \"manage\": { \"applications\" : [ \"kibana\", \"logstash\" ] } } }" +
                 "}";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertThat(rd.getName(), equalTo("test"));
@@ -180,14 +180,14 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(rd.getApplicationPrivileges()[1].getResources(), arrayContaining("*"));
         assertThat(rd.getApplicationPrivileges()[1].getPrivileges(), arrayContaining("admin"));
         assertThat(rd.getApplicationPrivileges()[1].getApplication(), equalTo("app2"));
-        assertThat(rd.getSecurityPrivileges(), notNullValue());
-        final Collection<ConditionalPrivilege> securityApplication = rd.getSecurityPrivileges().get(Category.APPLICATION);
+        assertThat(rd.getPrivilegePolicy(), notNullValue());
+        final Collection<ConditionalPrivilege> securityApplication = rd.getPrivilegePolicy().get(Category.APPLICATION);
         assertThat(securityApplication, iterableWithSize(1));
 
         final ConditionalPrivilege conditionalPrivilege = securityApplication.iterator().next();
         assertThat(conditionalPrivilege.getCategory(), equalTo(Category.APPLICATION));
-        assertThat(conditionalPrivilege, instanceOf(SecurityPrivileges.ManageApplicationPrivileges.class));
-        assertThat(((SecurityPrivileges.ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
+        assertThat(conditionalPrivilege, instanceOf(PrivilegePolicy.ManageApplicationPrivileges.class));
+        assertThat(((PrivilegePolicy.ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
             containsInAnyOrder("kibana", "logstash"));
 
         q = "{\"applications\": [{\"application\": \"myapp\", \"resources\": [\"*\"], \"privileges\": [\"login\" ]}] }";
@@ -224,12 +224,12 @@ public class RoleDescriptorTests extends ESTestCase {
                 .resources("*")
                 .build()
         };
-        final SecurityPrivileges securityPrivileges = new SecurityPrivileges();
-        securityPrivileges.add(new SecurityPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))));
+        final PrivilegePolicy privilegePolicy = new PrivilegePolicy();
+        privilegePolicy.add(new PrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))));
 
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
         final RoleDescriptor descriptor = new RoleDescriptor("test", new String[]{"all", "none"}, groups, applicationPrivileges,
-            securityPrivileges, new String[] { "sudo" }, metadata, null);
+            privilegePolicy, new String[] { "sudo" }, metadata, null);
         RoleDescriptor.writeTo(descriptor, output);
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),

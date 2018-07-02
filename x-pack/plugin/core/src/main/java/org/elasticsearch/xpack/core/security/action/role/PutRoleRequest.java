@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.SecurityPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     private String[] clusterPrivileges = Strings.EMPTY_ARRAY;
     private List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
     private List<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges = new ArrayList<>();
-    private SecurityPrivileges securityPrivileges;
+    private PrivilegePolicy privilegePolicy;
     private String[] runAs = Strings.EMPTY_ARRAY;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
@@ -101,8 +101,8 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         this.applicationPrivileges.addAll(Arrays.asList(privileges));
     }
 
-    void securityPrivileges(SecurityPrivileges securityPrivileges) {
-        this.securityPrivileges = securityPrivileges;
+    void securityPrivileges(PrivilegePolicy privilegePolicy) {
+        this.privilegePolicy = privilegePolicy;
     }
 
     public void runAs(String... usernames) {
@@ -162,7 +162,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         refreshPolicy = RefreshPolicy.readFrom(in);
         metadata = in.readMap();
         if(in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            securityPrivileges = SecurityPrivileges.createFrom(in);
+            privilegePolicy = PrivilegePolicy.createFrom(in);
         }
     }
 
@@ -179,7 +179,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         refreshPolicy.writeTo(out);
         out.writeMap(metadata);
         if(out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            securityPrivileges.writeTo(out);
+            privilegePolicy.writeTo(out);
         }
     }
 
@@ -188,7 +188,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
                 clusterPrivileges,
                 indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]),
                 applicationPrivileges.toArray(new RoleDescriptor.ApplicationResourcePrivileges[applicationPrivileges.size()]),
-                securityPrivileges,
+            privilegePolicy,
                 runAs,
                 metadata,
                 Collections.emptyMap());

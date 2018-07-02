@@ -108,7 +108,7 @@
         "application" : {
           "type" : "keyword"
         },
-        "security": {
+        "policy": {
           "type": "object",
           "properties": {
             "application": {

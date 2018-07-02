@@ -37,25 +37,25 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
-public class SecurityPrivileges implements ToXContentObject, Writeable {
-    public static final SecurityPrivileges EMPTY = new SecurityPrivileges();
+public class PrivilegePolicy implements ToXContentObject, Writeable {
+    public static final PrivilegePolicy EMPTY = new PrivilegePolicy();
 
     private Map<Category, List<ConditionalPrivilege>> privileges;
 
-    public SecurityPrivileges() {
+    public PrivilegePolicy() {
         this(new HashMap<>());
     }
 
-    private SecurityPrivileges(Map<Category, List<ConditionalPrivilege>> privileges) {
+    private PrivilegePolicy(Map<Category, List<ConditionalPrivilege>> privileges) {
         this.privileges = privileges;
     }
 
-    public static SecurityPrivileges createFrom(StreamInput in) throws IOException {
+    public static PrivilegePolicy createFrom(StreamInput in) throws IOException {
         final Map<Category, List<ConditionalPrivilege>> map = in.readMapOfLists(
             Category::read,
             i -> i.readNamedWriteable(ConditionalPrivilege.class)
         );
-        return new SecurityPrivileges(map);
+        return new PrivilegePolicy(map);
     }
 
     @Override
@@ -63,7 +63,7 @@ public class SecurityPrivileges implements ToXContentObject, Writeable {
         out.writeMapOfLists(this.privileges, StreamOutput::writeEnum, StreamOutput::writeNamedWriteable);
     }
 
-    public static SecurityPrivileges parse(XContentParser parser) throws IOException {
+    public static PrivilegePolicy parse(XContentParser parser) throws IOException {
         Map<Category, List<ConditionalPrivilege>> map = new HashMap<>();
 
         if (parser.currentToken() == null) {
@@ -87,7 +87,7 @@ public class SecurityPrivileges implements ToXContentObject, Writeable {
             expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
         }
 
-        return new SecurityPrivileges(map);
+        return new PrivilegePolicy(map);
     }
 
     private static void expectedToken(XContentParser.Token read, XContentParser parser, XContentParser.Token expected) {
@@ -128,7 +128,7 @@ public class SecurityPrivileges implements ToXContentObject, Writeable {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        final SecurityPrivileges that = (SecurityPrivileges) o;
+        final PrivilegePolicy that = (PrivilegePolicy) o;
         return this.privileges.equals(that.privileges);
     }
 

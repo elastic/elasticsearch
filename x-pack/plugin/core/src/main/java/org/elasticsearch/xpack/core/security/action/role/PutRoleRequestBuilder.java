@@ -42,7 +42,7 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         request.cluster(descriptor.getClusterPrivileges());
         request.addIndex(descriptor.getIndicesPrivileges());
         request.addApplicationPrivileges(descriptor.getApplicationPrivileges());
-        request.securityPrivileges(descriptor.getSecurityPrivileges());
+        request.securityPrivileges(descriptor.getPrivilegePolicy());
         request.runAs(descriptor.getRunAs());
         request.metadata(descriptor.getMetadata());
         return this;

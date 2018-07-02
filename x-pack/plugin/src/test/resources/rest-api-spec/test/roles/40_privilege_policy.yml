@@ -12,7 +12,7 @@ setup:
         body:  >
             {
               "password": "s3krit",
-              "roles" : [ "cond_priv" ]
+              "roles" : [ "with_policy" ]
             }
 
 ---
@@ -23,7 +23,7 @@ teardown:
         ignore: 404
   - do:
       xpack.security.delete_role:
-        name: "cond_priv"
+        name: "with_policy"
         ignore: 404
 
 
@@ -31,10 +31,10 @@ teardown:
 "Test put role with conditional security privileges":
   - do:
       xpack.security.put_role:
-        name: "cond_priv"
+        name: "with_policy"
         body:  >
             {
-              "security": {
+              "policy": {
                 "application": {
                   "manage": {
                     "applications": [ "app1-*" , "app2-*" ]
@@ -47,6 +47,6 @@ teardown:
 
   - do:
       xpack.security.get_role:
-        name: "cond_priv"
-  - match: { cond_priv.security.application.manage.applications.0:  "app1-*" }
-  - match: { cond_priv.security.application.manage.applications.1:  "app2-*" }
+        name: "with_policy"
+  - match: { with_policy.policy.application.manage.applications.0:  "app1-*" }
+  - match: { with_policy.policy.application.manage.applications.1:  "app2-*" }

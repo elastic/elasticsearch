@@ -44,7 +44,6 @@ teardown:
             }
   - match: { role: { created: true } }
 
-
   - do:
       xpack.security.get_role:
         name: "with_policy"

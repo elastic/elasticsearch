@@ -20,9 +20,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy;
-import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy.Category;
-import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy.ConditionalPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy.Category;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy.ConditionalPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.util.Arrays;
@@ -72,8 +72,8 @@ public class RoleDescriptorTests extends ESTestCase {
                 .build()
         };
 
-        final PrivilegePolicy privilegePolicy = PrivilegePolicy.builder()
-            .add(new PrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))))
+        final ClusterPrivilegePolicy privilegePolicy = ClusterPrivilegePolicy.builder()
+            .add(new ClusterPrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))))
             .build();
 
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
@@ -101,8 +101,8 @@ public class RoleDescriptorTests extends ESTestCase {
                 .resources("*")
                 .build()
         };
-        final PrivilegePolicy privilegePolicy = PrivilegePolicy.builder()
-            .add(new PrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))))
+        final ClusterPrivilegePolicy privilegePolicy = ClusterPrivilegePolicy.builder()
+            .add(new ClusterPrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))))
             .build();
 
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
@@ -188,8 +188,8 @@ public class RoleDescriptorTests extends ESTestCase {
 
         final ConditionalPrivilege conditionalPrivilege = securityApplication.iterator().next();
         assertThat(conditionalPrivilege.getCategory(), equalTo(Category.APPLICATION));
-        assertThat(conditionalPrivilege, instanceOf(PrivilegePolicy.ManageApplicationPrivileges.class));
-        assertThat(((PrivilegePolicy.ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
+        assertThat(conditionalPrivilege, instanceOf(ClusterPrivilegePolicy.ManageApplicationPrivileges.class));
+        assertThat(((ClusterPrivilegePolicy.ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
             containsInAnyOrder("kibana", "logstash"));
 
         q = "{\"applications\": [{\"application\": \"myapp\", \"resources\": [\"*\"], \"privileges\": [\"login\" ]}] }";
@@ -226,8 +226,8 @@ public class RoleDescriptorTests extends ESTestCase {
                 .resources("*")
                 .build()
         };
-        final PrivilegePolicy privilegePolicy = PrivilegePolicy.builder()
-            .add(new PrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))))
+        final ClusterPrivilegePolicy privilegePolicy = ClusterPrivilegePolicy.builder()
+            .add(new ClusterPrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))))
             .build();
 
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;

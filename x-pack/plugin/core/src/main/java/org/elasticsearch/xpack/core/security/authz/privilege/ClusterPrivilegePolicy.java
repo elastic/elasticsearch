@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
@@ -37,25 +37,25 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
-public class PrivilegePolicy implements ToXContentObject, Writeable {
-    public static final PrivilegePolicy EMPTY = new PrivilegePolicy();
+public class ClusterPrivilegePolicy implements ToXContentObject, Writeable {
+    public static final ClusterPrivilegePolicy EMPTY = new ClusterPrivilegePolicy();
 
     private final Map<Category, List<ConditionalPrivilege>> privileges;
 
-    protected PrivilegePolicy() {
+    protected ClusterPrivilegePolicy() {
         this(Collections.emptyMap());
     }
 
-    private PrivilegePolicy(Map<Category, List<ConditionalPrivilege>> privileges) {
+    private ClusterPrivilegePolicy(Map<Category, List<ConditionalPrivilege>> privileges) {
         this.privileges = privileges;
     }
 
-    public static PrivilegePolicy createFrom(StreamInput in) throws IOException {
+    public static ClusterPrivilegePolicy createFrom(StreamInput in) throws IOException {
         final Map<Category, List<ConditionalPrivilege>> map = in.readMapOfLists(
             Category::read,
             i -> i.readNamedWriteable(ConditionalPrivilege.class)
         );
-        return new PrivilegePolicy(map);
+        return new ClusterPrivilegePolicy(map);
     }
 
     @Override
@@ -63,7 +63,7 @@ public class PrivilegePolicy implements ToXContentObject, Writeable {
         out.writeMapOfLists(this.privileges, StreamOutput::writeEnum, StreamOutput::writeNamedWriteable);
     }
 
-    public static PrivilegePolicy parse(XContentParser parser) throws IOException {
+    public static ClusterPrivilegePolicy parse(XContentParser parser) throws IOException {
         Map<Category, List<ConditionalPrivilege>> map = new HashMap<>();
 
         if (parser.currentToken() == null) {
@@ -87,7 +87,7 @@ public class PrivilegePolicy implements ToXContentObject, Writeable {
             expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
         }
 
-        return new PrivilegePolicy(map);
+        return new ClusterPrivilegePolicy(map);
     }
 
     private static void expectedToken(XContentParser.Token read, XContentParser parser, XContentParser.Token expected) {
@@ -128,7 +128,7 @@ public class PrivilegePolicy implements ToXContentObject, Writeable {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        final PrivilegePolicy that = (PrivilegePolicy) o;
+        final ClusterPrivilegePolicy that = (ClusterPrivilegePolicy) o;
         return this.privileges.equals(that.privileges);
     }
 
@@ -150,7 +150,7 @@ public class PrivilegePolicy implements ToXContentObject, Writeable {
         return Collections.unmodifiableCollection(privileges.getOrDefault(category, Collections.emptyList()));
     }
 
-    public static PrivilegePolicy merge(List<PrivilegePolicy> privilegePolicies) {
+    public static ClusterPrivilegePolicy merge(List<ClusterPrivilegePolicy> privilegePolicies) {
         Builder merged = builder();
         privilegePolicies.stream()
             .flatMap(p -> p.privileges.values().stream())
@@ -163,12 +163,18 @@ public class PrivilegePolicy implements ToXContentObject, Writeable {
         return new Builder();
     }
 
+    public boolean check(String action, TransportRequest request) {
+        return this.privileges.values().stream()
+            .flatMap(List::stream)
+            .anyMatch(priv -> priv.getPrivilege().predicate().test(action) && priv.getRequestPredicate().test(request));
+    }
+
     public interface ConditionalPrivilege extends NamedWriteable, ToXContentFragment {
         Category getCategory();
 
-        Privilege getPrivilege();
+        ClusterPrivilege getPrivilege();
 
-        Predicate<ActionRequest> getRequestPredicate();
+        Predicate<TransportRequest> getRequestPredicate();
     }
 
     public static class ManageApplicationPrivileges implements ConditionalPrivilege {
@@ -180,12 +186,12 @@ public class PrivilegePolicy implements ToXContentObject, Writeable {
 
         private final Set<String> applicationNames;
         private final Predicate<String> applicationPredicate;
-        private final Predicate<ActionRequest> requestPredicate;
+        private final Predicate<TransportRequest> requestPredicate;
 
         public ManageApplicationPrivileges(Set<String> applicationNames) {
             this.applicationNames = Collections.unmodifiableSet(applicationNames);
             this.applicationPredicate = Automatons.predicate(applicationNames);
-            this.requestPredicate = new Predicate<ActionRequest>() {
+            this.requestPredicate = new Predicate<TransportRequest>() {
 
                 private boolean testApplication(String application) {
                     return applicationPredicate.test(application);
@@ -196,7 +202,7 @@ public class PrivilegePolicy implements ToXContentObject, Writeable {
                 }
 
                 @Override
-                public boolean test(ActionRequest request) {
+                public boolean test(TransportRequest request) {
                     if (request instanceof GetPrivilegesRequest) {
                         return testApplication(((GetPrivilegesRequest) request).application());
                     }
@@ -217,12 +223,12 @@ public class PrivilegePolicy implements ToXContentObject, Writeable {
         }
 
         @Override
-        public Privilege getPrivilege() {
+        public ClusterPrivilege getPrivilege() {
             return PRIVILEGE;
         }
 
         @Override
-        public Predicate<ActionRequest> getRequestPredicate() {
+        public Predicate<TransportRequest> getRequestPredicate() {
             return this.requestPredicate;
         }
 
@@ -318,8 +324,8 @@ public class PrivilegePolicy implements ToXContentObject, Writeable {
             return this;
         }
 
-        public PrivilegePolicy build() {
-            return new PrivilegePolicy(privileges);
+        public ClusterPrivilegePolicy build() {
+            return new ClusterPrivilegePolicy(privileges);
         }
     }
 }

@@ -36,8 +36,8 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy;
-import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy.ManageApplicationPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -382,7 +382,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 .resources("settings/*")
                 .privileges("read")
                 .build()
-        }, PrivilegePolicy.builder().add(manage1).build(),
+        }, ClusterPrivilegePolicy.builder().add(manage1).build(),
             new String[]{"app-user-1"}, null, null);
 
         final ManageApplicationPrivileges manage2 = new ManageApplicationPrivileges(Sets.newHashSet("app2a", "app2b"));
@@ -402,7 +402,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 .resources("*")
                 .privileges("read")
                 .build()
-        }, PrivilegePolicy.builder().add(manage2).build(),
+        }, ClusterPrivilegePolicy.builder().add(manage2).build(),
             new String[]{"app-user-2"}, null, null);
 
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -454,8 +454,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         role.application().grants(new ApplicationPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
 
         assertThat(role.policy().isEmpty(), equalTo(false));
-        assertThat(role.policy().get(PrivilegePolicy.Category.APPLICATION), iterableWithSize(2));
-        assertThat(role.policy().get(PrivilegePolicy.Category.APPLICATION), containsInAnyOrder(manage1, manage2));
+        assertThat(role.policy().get(ClusterPrivilegePolicy.Category.APPLICATION), iterableWithSize(2));
+        assertThat(role.policy().get(ClusterPrivilegePolicy.Category.APPLICATION), containsInAnyOrder(manage1, manage2));
     }
 
     public void testCustomRolesProviderFailures() throws Exception {

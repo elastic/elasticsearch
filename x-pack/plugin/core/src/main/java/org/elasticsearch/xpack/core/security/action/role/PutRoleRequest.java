@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     private String[] clusterPrivileges = Strings.EMPTY_ARRAY;
     private List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
     private List<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges = new ArrayList<>();
-    private PrivilegePolicy privilegePolicy;
+    private ClusterPrivilegePolicy privilegePolicy;
     private String[] runAs = Strings.EMPTY_ARRAY;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
@@ -101,7 +101,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         this.applicationPrivileges.addAll(Arrays.asList(privileges));
     }
 
-    void securityPrivileges(PrivilegePolicy privilegePolicy) {
+    void securityPrivileges(ClusterPrivilegePolicy privilegePolicy) {
         this.privilegePolicy = privilegePolicy;
     }
 
@@ -162,7 +162,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         refreshPolicy = RefreshPolicy.readFrom(in);
         metadata = in.readMap();
         if(in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            privilegePolicy = PrivilegePolicy.createFrom(in);
+            privilegePolicy = ClusterPrivilegePolicy.createFrom(in);
         }
     }
 

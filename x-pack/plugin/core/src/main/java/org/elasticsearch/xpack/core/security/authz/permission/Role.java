@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,11 +34,11 @@ public final class Role {
     private final ClusterPermission cluster;
     private final IndicesPermission indices;
     private final ApplicationPermission application;
-    private final PrivilegePolicy privilegePolicy;
+    private final ClusterPrivilegePolicy privilegePolicy;
     private final RunAsPermission runAs;
 
     Role(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application,
-         PrivilegePolicy privilegePolicy, RunAsPermission runAs) {
+         ClusterPrivilegePolicy privilegePolicy, RunAsPermission runAs) {
         this.names = names;
         this.cluster = Objects.requireNonNull(cluster);
         this.indices = Objects.requireNonNull(indices);
@@ -63,7 +63,7 @@ public final class Role {
         return application;
     }
 
-    public PrivilegePolicy policy() {
+    public ClusterPrivilegePolicy policy() {
         return privilegePolicy;
     }
 
@@ -113,7 +113,7 @@ public final class Role {
         private List<IndicesPermission.Group> groups = new ArrayList<>();
         private FieldPermissionsCache fieldPermissionsCache = null;
         private List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
-        private List<PrivilegePolicy> privilegePolicies = new ArrayList<>();
+        private List<ClusterPrivilegePolicy> privilegePolicies = new ArrayList<>();
 
         private Builder(String[] names, FieldPermissionsCache fieldPermissionsCache) {
             this.names = names;
@@ -168,7 +168,7 @@ public final class Role {
             return this;
         }
 
-        public Builder addPrivilegePolicy(PrivilegePolicy policy) {
+        public Builder addPrivilegePolicy(ClusterPrivilegePolicy policy) {
             privilegePolicies.add(policy);
             return this;
         }
@@ -178,7 +178,7 @@ public final class Role {
                 new IndicesPermission(groups.toArray(new IndicesPermission.Group[groups.size()]));
             final ApplicationPermission applicationPermission
                 = applicationPrivs.isEmpty() ? ApplicationPermission.NONE : new ApplicationPermission(applicationPrivs);
-            PrivilegePolicy privilegePolicy = PrivilegePolicy.merge(privilegePolicies);
+            ClusterPrivilegePolicy privilegePolicy = ClusterPrivilegePolicy.merge(privilegePolicies);
             return new Role(names, cluster, indices, applicationPermission, privilegePolicy, runAs);
         }
 

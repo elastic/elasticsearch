@@ -26,15 +26,15 @@ import java.io.ByteArrayOutputStream;
 import static org.elasticsearch.common.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PrivilegePolicyTests extends ESTestCase {
+public class ClusterPrivilegePolicyTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        final PrivilegePolicy original = buildSecurityPrivileges();
+        final ClusterPrivilegePolicy original = buildSecurityPrivileges();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             original.writeTo(out);
             final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
-                final PrivilegePolicy copy = PrivilegePolicy.createFrom(in);
+                final ClusterPrivilegePolicy copy = ClusterPrivilegePolicy.createFrom(in);
                 assertThat(copy, equalTo(original));
                 assertThat(original, equalTo(copy));
             }
@@ -46,13 +46,13 @@ public class PrivilegePolicyTests extends ESTestCase {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             final XContentBuilder builder = new XContentBuilder(xContent, out);
 
-            final PrivilegePolicy original = buildSecurityPrivileges();
+            final ClusterPrivilegePolicy original = buildSecurityPrivileges();
             original.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.flush();
 
             final byte[] bytes = out.toByteArray();
             try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, bytes)) {
-                final PrivilegePolicy clone = PrivilegePolicy.parse(parser);
+                final ClusterPrivilegePolicy clone = ClusterPrivilegePolicy.parse(parser);
                 assertThat(clone, equalTo(original));
                 assertThat(original, equalTo(clone));
             }
@@ -61,26 +61,26 @@ public class PrivilegePolicyTests extends ESTestCase {
 
     public void testEqualsAndHashCode() {
         final int applicationNameLength = randomIntBetween(4, 7);
-        final PrivilegePolicy privileges = buildSecurityPrivileges(applicationNameLength);
-        final EqualsHashCodeTestUtils.MutateFunction<PrivilegePolicy> mutate = orig ->
-            rarely() ? PrivilegePolicy.EMPTY : buildSecurityPrivileges(applicationNameLength + randomIntBetween(1, 3));
+        final ClusterPrivilegePolicy privileges = buildSecurityPrivileges(applicationNameLength);
+        final EqualsHashCodeTestUtils.MutateFunction<ClusterPrivilegePolicy> mutate = orig ->
+            rarely() ? ClusterPrivilegePolicy.EMPTY : buildSecurityPrivileges(applicationNameLength + randomIntBetween(1, 3));
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(privileges, this::clone, mutate);
     }
 
-    private PrivilegePolicy clone(PrivilegePolicy original) {
-        final PrivilegePolicy.Builder clone = PrivilegePolicy.builder();
-        for (PrivilegePolicy.Category category : PrivilegePolicy.Category.values()) {
+    private ClusterPrivilegePolicy clone(ClusterPrivilegePolicy original) {
+        final ClusterPrivilegePolicy.Builder clone = ClusterPrivilegePolicy.builder();
+        for (ClusterPrivilegePolicy.Category category : ClusterPrivilegePolicy.Category.values()) {
             original.get(category).forEach(clone::add);
         }
         return clone.build();
     }
 
-    private PrivilegePolicy buildSecurityPrivileges() {
+    private ClusterPrivilegePolicy buildSecurityPrivileges() {
         return buildSecurityPrivileges(randomIntBetween(4, 7));
     }
 
-    private PrivilegePolicy buildSecurityPrivileges(int applicationNameLength) {
-        final PrivilegePolicy.Builder privileges = PrivilegePolicy.builder();
+    private ClusterPrivilegePolicy buildSecurityPrivileges(int applicationNameLength) {
+        final ClusterPrivilegePolicy.Builder privileges = ClusterPrivilegePolicy.builder();
         privileges.add(ManageApplicationPrivilegesTests.buildPrivileges(applicationNameLength));
         return privileges.build();
     }

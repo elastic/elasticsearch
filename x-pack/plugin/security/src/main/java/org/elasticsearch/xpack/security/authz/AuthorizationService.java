@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -178,8 +179,9 @@ public class AuthorizationService extends AbstractComponent {
 
         // first, we'll check if the action is a cluster action. If it is, we'll only check it against the cluster permissions
         if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
-            ClusterPermission cluster = permission.cluster();
-            if (cluster.check(action) || checkSameUserPermissions(action, request, authentication)) {
+            final ClusterPermission cluster = permission.cluster();
+            final ClusterPrivilegePolicy policy = permission.policy();
+            if (cluster.check(action) || policy.check(action, request) || checkSameUserPermissions(action, request, authentication) ) {
                 putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                 auditTrail.accessGranted(authentication, action, request, permission.names());
                 return;
@@ -335,6 +337,7 @@ public class AuthorizationService extends AbstractComponent {
 
         auditTrail.accessGranted(authentication, action, request, permission.names());
     }
+
 
     private boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
         for (String index : SecurityIndexManager.indexNames()) {

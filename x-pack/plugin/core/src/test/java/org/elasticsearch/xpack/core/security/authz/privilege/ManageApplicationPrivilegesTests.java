@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
@@ -32,7 +33,7 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
-import org.elasticsearch.xpack.core.security.authz.privilege.PrivilegePolicy.ManageApplicationPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy.ManageApplicationPrivileges;
 
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
@@ -112,8 +113,8 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
     public void testRequestPredicate() {
         final ManageApplicationPrivileges kibanaAndLogstash = new ManageApplicationPrivileges(Sets.newHashSet("kibana-*", "logstash"));
         final ManageApplicationPrivileges cloudAndSwiftype = new ManageApplicationPrivileges(Sets.newHashSet("cloud-*", "swiftype"));
-        final Predicate<ActionRequest> kibanaAndLogstashPredicate = kibanaAndLogstash.getRequestPredicate();
-        final Predicate<ActionRequest> cloudAndSwiftypePredicate = cloudAndSwiftype.getRequestPredicate();
+        final Predicate<TransportRequest> kibanaAndLogstashPredicate = kibanaAndLogstash.getRequestPredicate();
+        final Predicate<TransportRequest> cloudAndSwiftypePredicate = cloudAndSwiftype.getRequestPredicate();
         assertThat(kibanaAndLogstashPredicate, notNullValue());
         assertThat(cloudAndSwiftypePredicate, notNullValue());
 

@@ -90,6 +90,9 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
     }
 
+    /**
+     * This implementation ignores the failIfAlreadyExists flag as the S3 API has no way to enforce this due to its weak consistency model.
+     */
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         SocketAccess.doPrivilegedIOException(() -> {

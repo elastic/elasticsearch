@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 
 class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore {
@@ -163,16 +164,19 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      */
     InputStream readBlob(String blobName) throws IOException {
         final BlobId blobId = BlobId.of(bucketName, blobName);
-        final Blob blob = SocketAccess.doPrivilegedIOException(() -> client().get(blobId));
-        if (blob == null) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exit");
-        }
-        final ReadChannel readChannel = SocketAccess.doPrivilegedIOException(blob::reader);
+        final ReadChannel readChannel = SocketAccess.doPrivilegedIOException(() -> client().reader(blobId));
         return Channels.newInputStream(new ReadableByteChannel() {
             @SuppressForbidden(reason = "Channel is based of a socket not a file")
             @Override
             public int read(ByteBuffer dst) throws IOException {
-                return SocketAccess.doPrivilegedIOException(() -> readChannel.read(dst));
+                try {
+                    return SocketAccess.doPrivilegedIOException(() -> readChannel.read(dst));
+                } catch (StorageException e) {
+                    if (e.getCode() == HTTP_NOT_FOUND) {
+                        throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+                    }
+                    throw e;
+                }
             }
 
             @Override

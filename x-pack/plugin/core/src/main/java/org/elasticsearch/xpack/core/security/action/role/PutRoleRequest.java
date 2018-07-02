@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
@@ -151,6 +152,9 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         for (int i = 0; i < indicesSize; i++) {
             indicesPrivileges.add(RoleDescriptor.IndicesPrivileges.createFrom(in));
         }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            applicationPrivileges = in.readList(RoleDescriptor.ApplicationResourcePrivileges::createFrom);
+        }
         runAs = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
         metadata = in.readMap();
@@ -165,9 +169,13 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         for (RoleDescriptor.IndicesPrivileges index : indicesPrivileges) {
             index.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeStreamableList(applicationPrivileges);
+        }
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
         out.writeMap(metadata);
+
     }
 
     public RoleDescriptor roleDescriptor() {

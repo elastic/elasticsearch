@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -228,14 +227,14 @@ public class ChainInputTests extends ESTestCase {
 
     public void testThatXContentParametersArePassedToInputs() throws Exception {
         ToXContent.Params randomParams = new ToXContent.MapParams(Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5)));
-        ChainInput chainInput = new ChainInput(Collections.singletonList(Tuple.tuple("second", new Input() {
+        ChainInput chainInput = new ChainInput(Collections.singletonList(Tuple.tuple("whatever", new Input() {
             @Override
             public String type() {
                 return "test";
             }
 
             @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
                 assertThat(params, sameInstance(randomParams));
                 return builder;
             }

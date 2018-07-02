@@ -8,13 +8,16 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
+import org.junit.BeforeClass;
 
 import java.util.Arrays;
 
@@ -28,6 +31,22 @@ import static org.hamcrest.Matchers.notNullValue;
  * Integration tests for the built in realm
  */
 public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
+
+    private static Hasher hasher;
+
+    @BeforeClass
+    public static void setHasher() {
+        hasher = getFastStoredHashAlgoForTests();
+    }
+
+    @Override
+    public Settings nodeSettings(int nodeOrdinal) {
+        Settings settings = Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put("xpack.security.authc.password_hashing.algorithm", hasher.name())
+            .build();
+        return settings;
+    }
 
     public void testAuthenticate() {
         for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME)) {
@@ -76,7 +95,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         }
 
         ChangePasswordResponse response = securityClient()
-                .prepareChangePassword(username, Arrays.copyOf(newPassword, newPassword.length))
+            .prepareChangePassword(username, Arrays.copyOf(newPassword, newPassword.length), hasher)
                 .get();
         assertThat(response, notNullValue());
 

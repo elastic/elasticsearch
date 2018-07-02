@@ -52,7 +52,7 @@ import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTI
 public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<GetIndexResponse> {
 
     /**
-     * The following byte response was generated from the v6.3.0 tag with the following code snippet
+     * The following byte response was generated from the v6.3.0 tag
      */
     private static final String TEST_6_3_0_RESPONSE_BYTES =
         "AQhteV9pbmRleAEIbXlfaW5kZXgBA2RvYwNkb2OePID6KURGTACqVkrLTM1JiTdUsqpWKqksSFWyUiouKcrMS1eqrQUAAAD//" +

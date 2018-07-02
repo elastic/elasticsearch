@@ -107,8 +107,13 @@ class S3BlobContainer extends AbstractBlobContainer {
         if (blobExists(blobName) == false) {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
+        deleteBlobIgnoringIfNotExists(blobName);
+    }
 
+    @Override
+    public void deleteBlobIgnoringIfNotExists(String blobName) throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            // There is no way to know if an non-versioned object existed before the deletion
             SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObject(blobStore.bucket(), buildKey(blobName)));
         } catch (final AmazonClientException e) {
             throw new IOException("Exception when deleting blob [" + blobName + "]", e);

@@ -53,8 +53,8 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         Settings passwordHashingSettings = Settings.builder().
             put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hashingAlgorithm).build();
-        TransportService transportService = new TransportService(passwordHashingSettings, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null, Collections.emptySet());
+        TransportService transportService = new TransportService(passwordHashingSettings, null, null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         TransportChangePasswordAction action = new TransportChangePasswordAction(settings, transportService,
             mock(ActionFilters.class), usersStore);
 
@@ -88,8 +88,8 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         Settings passwordHashingSettings = Settings.builder().
             put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), hashingAlgorithm).build();
-        TransportService transportService = new TransportService(passwordHashingSettings, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null, Collections.emptySet());
+        TransportService transportService = new TransportService(passwordHashingSettings, null, null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         TransportChangePasswordAction action = new TransportChangePasswordAction(Settings.EMPTY, transportService,
             mock(ActionFilters.class), usersStore);
 

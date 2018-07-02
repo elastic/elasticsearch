@@ -84,6 +84,7 @@ public class FileRealmTests extends ESTestCase {
         assertThat(user.roles(), arrayContaining("role1", "role2"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31697")
     public void testAuthenticateCaching() throws Exception {
         Settings settings = Settings.builder()
             .put("cache.hash_algo", Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT)).build();

@@ -21,9 +21,11 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.Pipeline;
@@ -163,5 +165,13 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     protected static void createPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
         assertOK(client().performRequest(RequestConverters.putPipeline(putPipelineRequest)));
+    }
+
+    protected static void clusterUpdateSettings(Settings persistentSettings,
+                                                Settings transientSettings) throws IOException {
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        request.persistentSettings(persistentSettings);
+        request.transientSettings(transientSettings);
+        assertOK(client().performRequest(RequestConverters.clusterPutSettings(request)));
     }
 }

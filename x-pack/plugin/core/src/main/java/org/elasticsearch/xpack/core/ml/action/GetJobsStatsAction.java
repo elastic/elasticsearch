@@ -320,7 +320,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();;
+            builder.startObject();
             jobsStats.doXContentBody(builder, params);
             builder.endObject();
             return builder;

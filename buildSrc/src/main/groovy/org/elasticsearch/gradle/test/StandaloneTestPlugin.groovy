@@ -47,15 +47,8 @@ public class StandaloneTestPlugin implements Plugin<Project> {
         test.configure(BuildPlugin.commonTestConfig(project))
         BuildPlugin.configureCompile(project)
         test.classpath = project.sourceSets.test.runtimeClasspath
-        test.testClassesDir project.sourceSets.test.output.classesDir
+        test.testClassesDirs = project.sourceSets.test.output.classesDirs
         test.mustRunAfter(project.precommit)
         project.check.dependsOn(test)
-
-        project.tasks.withType(JavaCompile) {
-            // This will be the default in Gradle 5.0
-            if (options.compilerArgs.contains("-processor") == false) {
-                options.compilerArgs << '-proc:none'
-            }
-        }
     }
 }

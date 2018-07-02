@@ -485,32 +485,6 @@ GET /_search
 // CONSOLE
 // TEST[setup:twitter]
 
-
-[[highlight-all]]
-[float]
-=== Highlight in all fields
-
-By default, only fields that contains a query match are highlighted. Set
-`require_field_match` to `false` to highlight all fields.
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "require_field_match": false,
-        "fields": {
-                "_all" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-
 [[matched-fields]]
 [float]
 === Combine matches on multiple fields

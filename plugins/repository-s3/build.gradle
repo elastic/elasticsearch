@@ -5,6 +5,8 @@ import org.elasticsearch.gradle.test.AntFixture
 import org.elasticsearch.gradle.test.ClusterConfiguration
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
+import java.lang.reflect.Field
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -142,10 +144,11 @@ if (useFixture && minioDistribution) {
     fileMode 0755
   }
 
-  long minioPid
-
   task startMinio {
     dependsOn installMinio
+
+    ext.minioPid = 0L
+
     doLast {
       new File("${minioDataDir}/${s3Bucket}").mkdirs()
       // we skip these tests on Windows so we do no need to worry about compatibility here
@@ -155,12 +158,26 @@ if (useFixture && minioDistribution) {
               "--address",
               minioAddress,
               minioDataDir)
-      minio.addShutdownHook { minio.destroy() }
       minio.environment().put('MINIO_ACCESS_KEY', s3AccessKey)
       minio.environment().put('MINIO_SECRET_KEY', s3SecretKey)
       minio.environment().put('MINIO_DOMAIN', 'localhost')
       final Process process = minio.start()
-      minioPid = process.pid()
+      if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
+        try {
+          Class<?> cProcessImpl = process.getClass()
+          Field fPid = cProcessImpl.getDeclaredField("pid")
+          if (!fPid.isAccessible()) {
+            fPid.setAccessible(true)
+          }
+          minioPid = fPid.getInt(process)
+        } catch (Exception e) {
+          logger.error("failed to read pid from minio process", e)
+          process.destroyForcibly()
+          throw e
+        }
+      } else {
+        minioPid = process.pid()
+      }
 
       new BufferedReader(new InputStreamReader(process.getInputStream())).withReader { br ->
         String line
@@ -193,13 +210,13 @@ if (useFixture && minioDistribution) {
   }
 
   task stopMinio(type: LoggedExec) {
-    onlyIf { minioPid > 0 }
+    onlyIf { startMinio.minioPid > 0 }
 
     doFirst {
-      logger.info("Shutting down minio with pid ${minioPid}")
+      logger.info("Shutting down minio with pid ${startMinio.minioPid}")
     }
 
-    final Object pid = "${ -> minioPid }"
+    final Object pid = "${ -> startMinio.minioPid }"
 
     // we skip these tests on Windows so we do no need to worry about compatibility here
     executable = 'kill'

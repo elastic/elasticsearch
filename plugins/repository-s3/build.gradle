@@ -84,6 +84,8 @@ if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
   s3Bucket = 'bucket-test'
   s3BasePath = 'integration_test'
   useFixture = true
+} else if (!s3AccessKey || !s3SecretKey || !s3Bucket || !s3BasePath) {
+  throw new IllegalArgumentException("not all options specified to run against external S3 service")
 }
 
 final String minioVersion = 'RELEASE.2018-06-22T23-48-46Z'

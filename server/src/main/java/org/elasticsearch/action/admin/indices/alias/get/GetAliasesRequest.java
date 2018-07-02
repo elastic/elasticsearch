@@ -98,9 +98,9 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
     }
 
     /**
-     * Returns aliases originally specified by the user
+     * Returns the aliases as was originally specified by the user
      */
-    String[] getOriginalAliases() {
+    public String[] getOriginalAliases() {
         return originalAliases;
     }
 

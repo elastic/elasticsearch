@@ -263,7 +263,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return ImmutableOpenMap.of();
         }
 
-        boolean matchAllAliases = Strings.isAllOrWildcard(aliases);
+        boolean matchAllAliases = matchAllAliases(aliases);
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
         for (String index : concreteIndices) {
             IndexMetaData indexMetaData = indices.get(index);
@@ -282,6 +282,15 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
         }
         return mapBuilder.build();
+    }
+
+    private static boolean matchAllAliases(final String[] aliases) {
+        for (String alias : aliases) {
+            if (alias.equals(ALL)) {
+                return true;
+            }
+        }
+        return aliases.length == 0;
     }
 
     /**

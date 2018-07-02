@@ -2127,9 +2127,7 @@ public class RequestConvertersTests extends ESTestCase {
         SnapshotsStatusRequest snapshotsStatusRequest = new SnapshotsStatusRequest(repository, snapshots);
         setRandomMasterTimeout(snapshotsStatusRequest, expectedParams);
         snapshotsStatusRequest.ignoreUnavailable(ignoreUnavailable);
-        if (ignoreUnavailable) {
-            expectedParams.put("ignore_unavailable", Boolean.toString(true));
-        }
+        expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
 
         Request request = RequestConverters.snapshotsStatus(snapshotsStatusRequest);
         assertThat(request.getEndpoint(), equalTo(endpoint));

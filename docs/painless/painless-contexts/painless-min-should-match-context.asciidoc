@@ -1,5 +1,5 @@
 [[painless-min-should-match-context]]
-=== Minimum Should Match Context
+=== Minimum should match context
 
 Use a Painless script to specify the
 {es_version}/query-dsl-terms-set-query.html[minimum] number of terms that a

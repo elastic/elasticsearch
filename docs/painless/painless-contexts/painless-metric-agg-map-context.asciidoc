@@ -1,5 +1,5 @@
 [[painless-metric-agg-map-context]]
-=== Metric Aggregation Map Context
+=== Metric aggregation map context
 
 Use a Painless script to
 {es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[map]

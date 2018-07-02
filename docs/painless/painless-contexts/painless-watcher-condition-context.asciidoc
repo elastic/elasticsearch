@@ -1,5 +1,5 @@
 [[painless-watcher-condition-context]]
-=== Watcher Condition Context
+=== Watcher condition context
 
 Use a Painless script as a {xp_version}/condition-script.html[watcher condition]
 to test if a response is necessary.

@@ -1,5 +1,5 @@
 [[painless-sort-context]]
-=== Sort Context
+=== Sort context
 
 Use a Painless script to
 {es_version}/search-request-sort.html[sort] the documents in a query.

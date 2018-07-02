@@ -1,5 +1,5 @@
 [[painless-watcher-transform-context]]
-=== Watcher Transform Context
+=== Watcher transform context
 
 Use a Painless script to {xp_version}/transform-script.html[transform] watch
 data into a new payload for use in a response to a condition.

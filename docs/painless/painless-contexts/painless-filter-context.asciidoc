@@ -1,5 +1,5 @@
 [[painless-filter-context]]
-=== Filter Context
+=== Filter context
 
 Use a Painless script as a {es_version}/query-dsl-script-query.html[filter] in a
 query to include and exclude documents.

@@ -1,5 +1,5 @@
 [[painless-update-by-query-context]]
-=== Update By Query Context
+=== Update by query context
 
 Use a Painless script in an
 {es_version}/docs-update-by-query.html[update by query] operation to add,
@@ -36,8 +36,8 @@ result of query.
 *Side Effects*
 
 `ctx['_op']`::
-        Use the default of `'index'` to update a document. Set to `'none'` to
-        specify no operation or `'delete'` to delete the current document from
+        Use the default of `index` to update a document. Set to `none` to
+        specify no operation or `delete` to delete the current document from
         the index.
 
 {es_version}/mapping-source-field.html[`ctx['_source']`]::

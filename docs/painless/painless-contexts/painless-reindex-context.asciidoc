@@ -1,9 +1,9 @@
 [[painless-reindex-context]]
-=== Reindex Context
+=== Reindex context
 
 Use a Painless script in a {es_version}/docs-reindex.html[reindex] operation to
 add, modify, or delete fields within each document in an original index as its
-re-indexed into a target index.
+reindexed into a target index.
 
 *Variables*
 
@@ -35,8 +35,8 @@ re-indexed into a target index.
 *Side Effects*
 
 `ctx['_op']`::
-        Use the default of `'index'` to update a document. Set to `'none'` to
-        specify no operation or `'delete'` to delete the current document from
+        Use the default of `index` to update a document. Set to `none` to
+        specify no operation or `delete` to delete the current document from
         the index.
 
 {es_version}/mapping-routing-field.html[`ctx['_routing']`]::

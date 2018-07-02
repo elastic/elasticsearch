@@ -1,5 +1,5 @@
 [[painless-metric-agg-init-context]]
-=== Metric Aggregation Initialization Context
+=== Metric aggregation initialization context
 
 Use a Painless script to
 {es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[initialize]

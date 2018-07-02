@@ -1,5 +1,5 @@
 [[painless-bucket-agg-context]]
-=== Bucket Aggregation Context
+=== Bucket aggregation context
 
 Use a Painless script in an
 {es_version}/search-aggregations-pipeline-bucket-script-aggregation.html[bucket aggregation]

@@ -1,5 +1,5 @@
 [[painless-update-context]]
-=== Update Context
+=== Update context
 
 Use a Painless script in an {es_version}/docs-update.html[update] operation to
 add, modify, or delete fields within a single document.
@@ -37,8 +37,8 @@ add, modify, or delete fields within a single document.
 *Side Effects*
 
 `ctx['_op']`::
-        Use the default of `'index'` to update a document. Set to `'none'` to
-        specify no operation or `'delete'` to delete the current document from
+        Use the default of `index` to update a document. Set to `none` to
+        specify no operation or `delete` to delete the current document from
         the index.
 
 {es_version}/mapping-source-field.html[`ctx['_source']`]::

@@ -1,5 +1,5 @@
 [[painless-ingest-processor-context]]
-=== Ingest Processor Context
+=== Ingest processor context
 
 Use a Painless script in an {es_version}/script-processor.html[ingest processor]
 to modify documents upon insertion.

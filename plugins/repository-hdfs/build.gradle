@@ -227,6 +227,8 @@ if (rootProject.ext.compilerJavaVersion.isJava11()) {
             'hdfs_repository/30_snapshot_readonly/Get a snapshot - readonly',
     ].join(',')
   }
+}
+if (rootProject.ext.runtimeJavaVersion.isJava11()) {
   // TODO remove when: https://github.com/elastic/elasticsearch/issues/31498
   integTestHa.enabled = false
 }

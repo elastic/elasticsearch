@@ -48,7 +48,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotShardFailure;
+import org.elasticsearch.snapshots.SnapshotState;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -496,7 +499,14 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-snapshots-execute
 
         // tag::get-snapshots-response
-        List<SnapshotInfo> snapshotsInfos = response.getSnapshots(); // <1>
+        List<SnapshotInfo> snapshotsInfos = response.getSnapshots();
+        SnapshotInfo snapshotInfo = snapshotsInfos.get(0);
+        RestStatus restStatus = snapshotInfo.status();
+        SnapshotId snapshotId = snapshotInfo.snapshotId();
+        SnapshotState snapshotState = snapshotInfo.state();
+        List<SnapshotShardFailure> snapshotShardFailures = snapshotInfo.shardFailures();
+        long startTime = snapshotInfo.startTime();
+        long endTime = snapshotInfo.endTime();
         // end::get-snapshots-response
         assertEquals(1, snapshotsInfos.size());
     }

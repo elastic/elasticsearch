@@ -93,11 +93,10 @@ argument.
 [[java-rest-high-snapshot-get-snapshots-response]]
 ==== Get Snapshots Response
 
-Use the `GetSnapshotsResponse` to retrieve information about the evaluated
-request:
+The returned `GetSnapshotsResponse` allows the retrieval of information about the requested
+snapshots:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-snapshots-response]
 --------------------------------------------------
-<1> Indicates the node has started the request.

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -57,8 +56,8 @@ public class ParsedGeoHashGrid extends ParsedMultiBucketAggregation<ParsedGeoHas
         private String geohashAsString;
 
         @Override
-        public GeoPoint getKey() {
-            return GeoPoint.fromGeohash(geohashAsString);
+        public String getKey() {
+            return geohashAsString;
         }
 
         @Override

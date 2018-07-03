@@ -1,7 +1,3 @@
-package org.elasticsearch.painless;
-
-import org.elasticsearch.common.SuppressForbidden;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -20,6 +16,10 @@ import org.elasticsearch.common.SuppressForbidden;
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package org.elasticsearch.painless;
+
+import org.elasticsearch.common.SuppressForbidden;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
@@ -72,16 +72,16 @@ public final class DefBootstrap {
     public static final int SHIFT_OPERATOR = 9;
     /** static bootstrap parameter indicating a request to normalize an index for array-like-access */
     public static final int INDEX_NORMALIZE = 10;
-    
+
     // constants for the flags parameter of operators
-    /** 
-     * static bootstrap parameter indicating the binary operator allows nulls (e.g. == and +) 
+    /**
+     * static bootstrap parameter indicating the binary operator allows nulls (e.g. == and +)
      * <p>
      * requires additional {@link MethodHandles#catchException} guard, which will invoke
      * the fallback if a null is encountered.
      */
     public static final int OPERATOR_ALLOWS_NULL = 1 << 0;
-    
+
     /**
      * static bootstrap parameter indicating the binary operator is part of compound assignment (e.g. +=).
      * <p>
@@ -89,7 +89,7 @@ public final class DefBootstrap {
      * to cast back to the receiver's type, depending on types seen.
      */
     public static final int OPERATOR_COMPOUND_ASSIGNMENT = 1 << 1;
-    
+
     /**
      * static bootstrap parameter indicating an explicit cast to the return type.
      * <p>
@@ -129,7 +129,7 @@ public final class DefBootstrap {
 
             setTarget(fallback);
         }
-        
+
         /**
          * guard method for inline caching: checks the receiver's class is the same
          * as the cached class
@@ -162,7 +162,7 @@ public final class DefBootstrap {
                 default: throw new AssertionError();
             }
         }
-        
+
         /**
          * Creates the {@link MethodHandle} for the megamorphic call site
          * using {@link ClassValue} and {@link MethodHandles#exactInvoker(MethodType)}:
@@ -182,7 +182,7 @@ public final class DefBootstrap {
                 }
             };
             return MethodHandles.foldArguments(MethodHandles.exactInvoker(type),
-                    MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache));            
+                    MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache));
         }
 
         /**
@@ -195,18 +195,18 @@ public final class DefBootstrap {
             if (depth >= MAX_DEPTH) {
                 // we revert the whole cache and build a new megamorphic one
                 final MethodHandle target = this.createMegamorphicHandle();
-                
+
                 setTarget(target);
-                return target.invokeWithArguments(callArgs);                    
+                return target.invokeWithArguments(callArgs);
             } else {
                 final Class<?> receiver = callArgs[0].getClass();
                 final MethodHandle target = lookup(flavor, name, receiver).asType(type());
-    
+
                 MethodHandle test = CHECK_CLASS.bindTo(receiver);
                 MethodHandle guard = MethodHandles.guardWithTest(test, target, getTarget());
-                
+
                 depth++;
-    
+
                 setTarget(guard);
                 return target.invokeWithArguments(callArgs);
             }
@@ -225,7 +225,7 @@ public final class DefBootstrap {
                         MethodType.methodType(Object.class, Object[].class));
                 MethodHandle mh = publicLookup.findVirtual(ClassValue.class, "get",
                         MethodType.methodType(Object.class, Class.class));
-                mh = MethodHandles.filterArguments(mh, 1, 
+                mh = MethodHandles.filterArguments(mh, 1,
                         publicLookup.findVirtual(Object.class, "getClass", MethodType.methodType(Class.class)));
                 MEGAMORPHIC_LOOKUP = mh.asType(mh.type().changeReturnType(MethodHandle.class));
             } catch (ReflectiveOperationException e) {
@@ -233,7 +233,7 @@ public final class DefBootstrap {
             }
         }
     }
-    
+
     /**
      * CallSite that implements the monomorphic inlining cache (for operators).
      */
@@ -252,14 +252,14 @@ public final class DefBootstrap {
             if (initialDepth > 0) {
                 initialized = true;
             }
-            
+
             MethodHandle fallback = FALLBACK.bindTo(this)
               .asCollector(Object[].class, type.parameterCount())
               .asType(type);
 
             setTarget(fallback);
         }
-        
+
         /**
          * Does a slow lookup for the operator
          */
@@ -290,7 +290,7 @@ public final class DefBootstrap {
                 default: throw new AssertionError();
             }
         }
-        
+
         private MethodHandle lookupGeneric() {
             MethodHandle target = DefMath.lookupGeneric(name);
             if ((flags & OPERATOR_EXPLICIT_CAST) != 0) {
@@ -302,7 +302,7 @@ public final class DefBootstrap {
             }
             return target;
         }
-        
+
         /**
          * Called when a new type is encountered or if cached type does not match.
          * In that case we revert to a generic, but slower operator handling.
@@ -315,7 +315,7 @@ public final class DefBootstrap {
                 setTarget(generic.asType(type()));
                 return generic.invokeWithArguments(args);
             }
-            
+
             final MethodType type = type();
             MethodHandle target = lookup(args);
             // for math operators: WrongMethodType can be confusing. convert into a ClassCastException if they screw up.
@@ -361,18 +361,18 @@ public final class DefBootstrap {
             // very special cases, where even the receiver can be null (see JLS rules for string concat)
             // we wrap + with an NPE catcher, and use our generic method in that case.
             if (flavor == BINARY_OPERATOR && (flags & OPERATOR_ALLOWS_NULL) != 0) {
-                MethodHandle handler = MethodHandles.dropArguments(lookupGeneric().asType(type()), 
-                                                                   0, 
+                MethodHandle handler = MethodHandles.dropArguments(lookupGeneric().asType(type()),
+                                                                   0,
                                                                    NullPointerException.class);
                 guard = MethodHandles.catchException(guard, NullPointerException.class, handler);
             }
-            
+
             initialized = true;
 
             setTarget(guard);
             return target.invokeWithArguments(args);
         }
-        
+
         /**
          * guard method for inline caching: checks the receiver's class is the same
          * as the cached class
@@ -388,7 +388,7 @@ public final class DefBootstrap {
         static boolean checkRHS(Class<?> left, Class<?> right, Object leftObject, Object rightObject) {
             return rightObject.getClass() == right;
         }
-        
+
         /**
          * guard method for inline caching: checks the receiver's class and the first argument
          * are the same as the cached receiver and first argument.
@@ -396,7 +396,7 @@ public final class DefBootstrap {
         static boolean checkBoth(Class<?> left, Class<?> right, Object leftObject, Object rightObject) {
             return leftObject.getClass() == left && rightObject.getClass() == right;
         }
-        
+
         private static final MethodHandle CHECK_LHS;
         private static final MethodHandle CHECK_RHS;
         private static final MethodHandle CHECK_BOTH;

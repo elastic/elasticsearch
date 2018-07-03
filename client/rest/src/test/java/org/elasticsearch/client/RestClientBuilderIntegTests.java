@@ -107,6 +107,8 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     private static SSLContext getSslContext() throws Exception {
         SSLContext sslContext = SSLContext.getInstance("TLS");
         try (InputStream certFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test.crt")) {
+            // Build a keystore of default type programmatically since we can't use JKS keystores to
+            // init a KeyManagerFactory in FIPS 140 JVMs.
             KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
             keyStore.load(null, "password".toCharArray());
             CertificateFactory certFactory = CertificateFactory.getInstance("X.509");

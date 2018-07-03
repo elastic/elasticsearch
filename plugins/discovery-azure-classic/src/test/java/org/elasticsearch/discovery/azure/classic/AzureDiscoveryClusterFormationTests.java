@@ -40,6 +40,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TcpTransport;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -87,6 +89,14 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
 
     private static Path keyStoreFile;
 
+    @ClassRule
+    public static final ExternalResource MUTE_IN_FIPS_JVM = new ExternalResource() {
+        @Override
+        protected void before() {
+            assumeFalse("Can't run in a FIPS JVM because none if the supported Keystore types can be used", inFipsJvm());
+        }
+    };
+
     @BeforeClass
     public static void setupKeyStore() throws IOException {
         Path tempDir = createTempDir();
@@ -99,9 +109,6 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        if (inFipsJvm()) {
-            return Settings.EMPTY;
-        }
         Path resolve = logDir.resolve(Integer.toString(nodeOrdinal));
         try {
             Files.createDirectory(resolve);
@@ -137,9 +144,6 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
      */
     @BeforeClass
     public static void startHttpd() throws Exception {
-        if (inFipsJvm()) {
-            return;
-        }
         logDir = createTempDir();
         SSLContext sslContext = getSSLContext();
         httpsServer = MockHttpServer.createHttps(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
@@ -265,9 +269,6 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
 
     @AfterClass
     public static void stopHttpd() throws IOException {
-        if (inFipsJvm()) {
-            return;
-        }
         for (int i = 0; i < internalCluster().size(); i++) {
             // shut them all down otherwise we get spammed with connection refused exceptions
             internalCluster().stopRandomDataNode();
@@ -278,7 +279,6 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
     }
 
     public void testJoin() throws ExecutionException, InterruptedException {
-        assumeFalse("Can't run in a FIPS JVM because none if the supported Keystore types can be used", inFipsJvm());
         // only wait for the cluster to form
         ensureClusterSizeConsistency();
         // add one more node and wait for it to join

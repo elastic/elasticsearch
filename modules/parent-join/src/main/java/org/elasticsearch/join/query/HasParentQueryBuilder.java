@@ -58,7 +58,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
-    private static final ParseField TYPE_FIELD = new ParseField("parent_type");
+    private static final ParseField PARENT_TYPE_FIELD = new ParseField("parent_type");
     private static final ParseField SCORE_FIELD = new ParseField("score");
     private static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
@@ -74,8 +74,8 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     }
 
     private HasParentQueryBuilder(String type, QueryBuilder query, boolean score, InnerHitBuilder innerHitBuilder) {
-        this.type = requireValue(type, "[" + NAME + "] requires 'type' field");
-        this.query = requireValue(query, "[" + NAME + "] requires 'query' field");
+        this.type = requireValue(type, "[" + NAME + "] requires '" + PARENT_TYPE_FIELD.getPreferredName()  + "' field");
+        this.query = requireValue(query, "[" + NAME + "] requires '" + QUERY_FIELD.getPreferredName() + "' field");
         this.score = score;
         this.innerHitBuilder = innerHitBuilder;
     }
@@ -201,7 +201,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         builder.startObject(NAME);
         builder.field(QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
-        builder.field(TYPE_FIELD.getPreferredName(), type);
+        builder.field(PARENT_TYPE_FIELD.getPreferredName(), type);
         builder.field(SCORE_FIELD.getPreferredName(), score);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
         printBoostAndQueryName(builder);
@@ -235,7 +235,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                         "[has_parent] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (PARENT_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     parentType = parser.text();
                 } else if (SCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     score = parser.booleanValue();

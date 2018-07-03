@@ -88,6 +88,7 @@ Alias Management::
 * <<java-rest-high-exists-alias>>
 * <<java-rest-high-get-alias>>
 
+include::indices/analyze.asciidoc[]
 include::indices/create_index.asciidoc[]
 include::indices/delete_index.asciidoc[]
 include::indices/indices_exists.asciidoc[]
@@ -118,9 +119,11 @@ include::indices/get_templates.asciidoc[]
 The Java High Level REST Client supports the following Cluster APIs:
 
 * <<java-rest-high-cluster-put-settings>>
+* <<java-rest-high-cluster-get-settings>>
 * <<java-rest-high-cluster-health>>
 
 include::cluster/put_settings.asciidoc[]
+include::cluster/get_settings.asciidoc[]
 include::cluster/health.asciidoc[]
 
 == Ingest APIs

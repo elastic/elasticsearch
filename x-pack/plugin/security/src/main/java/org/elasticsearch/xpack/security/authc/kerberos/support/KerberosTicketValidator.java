@@ -65,13 +65,13 @@ public class KerberosTicketValidator {
      * keytab and the principal is selected based on the request.
      * <p>
      * The GSS security context establishment state is handled as follows: <br>
-     * If context is established it will call {@link ActionListener#onResponse} with
-     * an {@link Tuple} of username and outToken for peer reply. <br>
+     * If the context is established it will call {@link ActionListener#onResponse}
+     * with a {@link Tuple} of username and outToken for peer reply. <br>
      * If the context is not established then it will call
-     * {@link ActionListener#onResponse} with an Tuple where username is null but
-     * with an outToken that needs to be sent to peer for further negotiation. <br>
-     * Never calls @l{@link ActionListener#onResponse} with {@code null} tuple. <br>
-     * On failure it will call {@link ActionListener#onFailure(Exception)}
+     * {@link ActionListener#onResponse} with a Tuple where username is null but
+     * with a outToken that needs to be sent to peer for further negotiation. <br>
+     * Never calls {@link ActionListener#onResponse} with a {@code null} tuple. <br>
+     * On failure, it will call {@link ActionListener#onFailure(Exception)}
      *
      * @param decodedToken base64 decoded kerberos ticket bytes
      * @param keytabPath Path to Service key tab file containing credentials for ES

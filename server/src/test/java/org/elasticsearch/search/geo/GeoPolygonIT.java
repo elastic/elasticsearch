@@ -58,10 +58,10 @@ public class GeoPolygonIT extends ESIntegTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
                 Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location").field("type", "geo_point");
-        xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
+
+        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", "location",
+            "type=geo_point", "alias",
+            "type=alias,path=location"));
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -131,5 +131,18 @@ public class GeoPolygonIT extends ESIntegTestCase {
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.getId(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
         }
+    }
+
+    public void testFieldAlias() {
+        List<GeoPoint> points = new ArrayList<>();
+        points.add(new GeoPoint(40.7, -74.0));
+        points.add(new GeoPoint(40.7, -74.1));
+        points.add(new GeoPoint(40.8, -74.1));
+        points.add(new GeoPoint(40.8, -74.0));
+        points.add(new GeoPoint(40.7, -74.0));
+        SearchResponse searchResponse = client().prepareSearch("test") // from NY
+            .setQuery(boolQuery().must(geoPolygonQuery("alias", points)))
+            .execute().actionGet();
+        assertHitCount(searchResponse, 4);
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
@@ -502,5 +503,34 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
             .execute().actionGet();
 
         assertEquals(2, response.getHits().getTotalHits());
+    }
+
+    public void testFieldAlias() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("location")
+                        .field("type", "geo_shape")
+                        .field("tree", randomBoolean() ? "quadtree" : "geohash")
+                    .endObject()
+                    .startObject("alias")
+                        .field("type", "alias")
+                        .field("path", "location")
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject();
+
+        createIndex("test", Settings.EMPTY, "type", mapping);
+
+        ShapeBuilder shape = RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.MULTIPOINT);
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("location", shape).endObject())
+            .setRefreshPolicy(IMMEDIATE).get();
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(geoShapeQuery("alias", shape))
+            .execute().actionGet();
+        assertEquals(1, response.getHits().getTotalHits());
     }
 }

@@ -16,27 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle;
+package org.elasticsearch.gradle.clusterformation;
 
-public enum Distribution {
-
-    INTEG_TEST_ZIP("integ-test", "zip"),
-    ZIP("elasticsearch", "zip"),
-    ZIP_OSS("elasticsearch-oss", "zip");
-
-    private final String fileName;
-    private final String extension;
-
-    Distribution(String fileName, String extension) {
-        this.fileName = fileName;
-        this.extension = extension;
-    }
-
-    public String getFileName() {
-        return fileName;
-    }
-
-    public String getExtension() {
-        return extension;
+public class ClusterFormationException extends RuntimeException {
+    public ClusterFormationException(String message) {
+        super(message);
     }
 }

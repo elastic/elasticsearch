@@ -19,6 +19,8 @@
 package org.elasticsearch.gradle.clusterformation;
 
 import org.elasticsearch.GradleServicesAdapter;
+import org.elasticsearch.model.Distribution;
+import org.elasticsearch.model.Version;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -26,8 +28,10 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.tasks.Sync;
 
 import java.io.File;
+import java.text.MessageFormat;
 import java.util.List;
 
 public class ClusterformationPlugin implements Plugin<Project> {
@@ -37,17 +41,28 @@ public class ClusterformationPlugin implements Plugin<Project> {
     public static final String TASK_EXTENSION_NAME = "clusterFormation";
 
     private static final String HELPER_CONFIGURATION_NAME = "_internalClusterFormationConfiguration";
+    public static final String SYNC_ARTIFACTS_TASK_NAME = "syncClusterFormationArtifacts";
 
     private final Logger logger =  Logging.getLogger(ClusterformationPlugin.class);
 
     @Override
     public void apply(Project project) {
+        Project rootProject = project.getRootProject();
+
+        // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<? extends ElasticsearchConfiguration> container = project.container(
             ElasticsearchNode.class,
-            (name) -> new ElasticsearchNode(name, GradleServicesAdapter.getInstance(project))
+            (name) -> new ElasticsearchNode(name, GradleServicesAdapter.getInstance(project), getArtifactsDir(project))
         );
         project.getExtensions().add(EXTENSION_NAME, container);
 
+        // register an extension for all current and future tasks, so that any task can declare that it wants to use a
+        // specific cluster.
+        project.getTasks().all((Task task) ->
+            task.getExtensions().create(TASK_EXTENSION_NAME, ClusterFormationTaskExtension.class, task)
+        );
+
+        // Utility task to list all clusters defined
         Task listTask = project.getTasks().create(LIST_TASK_NAME);
         listTask.setGroup("ES cluster formation");
         listTask.setDescription("Lists all ES clusters configured for this project");
@@ -57,57 +72,70 @@ public class ClusterformationPlugin implements Plugin<Project> {
             )
         );
 
+        // Have a single common location to set up the required artifacts
+        if (rootProject.getConfigurations().findByName(HELPER_CONFIGURATION_NAME) == null) {
+            Configuration helperConfiguration = rootProject.getConfigurations().create(HELPER_CONFIGURATION_NAME);
+            helperConfiguration.setDescription(
+                "Internal helper configuration used by cluster configuration to download " +
+                "ES distributions and plugins."
+            );
+            rootProject.getRepositories().add(
+                rootProject.getRepositories().mavenCentral()
+            );
 
-        project.getRootProject().getConfigurations().create(HELPER_CONFIGURATION_NAME);
-        getHelperConfiguration(project).setDescription("Internal helper configuration used by cluster configuration to download " +
-            "ES distributions and plugins");
-        project.getRepositories().add(
-            project.getRepositories().mavenCentral()
-        );
-        // stage any artifacts needed by cluster formation.
-        // this causes a download if the  artifacts are not in the Gradle cache, but that is no different than Gradle
-        // dependencies in general
-        // TODO: do this depending on the cluster configuration containers
-        // TODO: write test for multi project builds ( multiple applies ) - and fix accordingly
-        project.getRootProject().getDependencies().add(
-            HELPER_CONFIGURATION_NAME,
-            "org.elasticsearch.distribution.zip:elasticsearch:6.2.4@zip"
-        );
+            Sync syncTask = rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, Sync.class);
+            syncTask.from(helperConfiguration);
+            syncTask.into(getArtifactsDir(rootProject));
+        }
 
-        // register an extension for all current and future tasks, so that any task can declare that it wants to use a
-        // specific cluster.
-        project.getTasks().all((Task task) ->
-            task.getExtensions().create(TASK_EXTENSION_NAME, ClusterFormationTaskExtension.class, task)
-        );
+        // When the project evaluated we know of all tasks that use clusters.
+        // Each of these have to depend on the artifacts being synced.
+        project.afterEvaluate(ip -> {
+            container.forEach(esConfig -> {
+                // declare dependencies against artifacts needed by cluster formation.
+                // this causes a download if the  artifacts are not in the Gradle cache, but that is no different than Gradle
+                // dependencies in general
+                esConfig.assertValid();
+                String dependency = MessageFormat.format(
+                    "org.elasticsearch.distribution.{0}:{1}:{2}@{0}",
+                    esConfig.getDistribution().getExtension(),
+                    esConfig.getDistribution().getFileName(),
+                    esConfig.getVersion()
+                );
+                logger.info("Cluster {} depends on {}", esConfig.getName(), dependency);
+                rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
+            });
+            ip.getTasks().forEach( task -> {
+                if (getTaskExtension(task).getClaimedClusters().isEmpty() == false) {
+                    task.dependsOn(rootProject.getTasks().getByName(SYNC_ARTIFACTS_TASK_NAME));
+                }
+            });
+        });
 
         // Make sure we only claim the clusters for the tasks that will actually execute
         project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
-            taskExecutionGraph.getAllTasks().forEach(task ->
-                {
+            taskExecutionGraph.getAllTasks().forEach(task -> {
                     List<ElasticsearchConfiguration> claimedClusters = getTaskExtension(task).getClaimedClusters();
                     claimedClusters.forEach(ElasticsearchConfiguration::claim);
-                    // Stage the artifacts before tasks execute.
-                    // TODO: this should be a task every other task that uses cluster formation depends on to benefit from up to date checks
-                    project.sync(spec -> {
-                        spec.from(getHelperConfiguration(project));
-                        spec.into(new File(project.getRootProject().getBuildDir(), "clusterformation-artifacts"));
-                    });
-                }
-            )
+            })
         );
 
-        // create the listener to start the clusters on-demand and terminate when no longer claimed.
+        // create the listener to start the clusters on-demand and terminate as soon as  no longer claimed.
         // we need to use a task execution listener, as well as an action listener, so we don't start the task that
         // claimed it is up to date.
         project.getGradle().addListener(new ClusterFormationTaskExecutionListener());
     }
 
-    static ClusterFormationTaskExtension getTaskExtension(Task task) {
-        return task.getExtensions().getByType(ClusterFormationTaskExtension.class);
+    private static File getArtifactsDir(Project project) {
+        return new File(project.getRootProject().getBuildDir(), "clusterformation-artifacts");
     }
 
-    static Configuration getHelperConfiguration(Project project) {
-        return project.getRootProject().getConfigurations().getByName(HELPER_CONFIGURATION_NAME);
+    public static File getArtifact(File sharedArtifactsDir, Distribution distro, Version version) {
+        return new File(sharedArtifactsDir, distro.getFileName() + "-" + version + "." + distro.getExtension());
+    }
+
+    static ClusterFormationTaskExtension getTaskExtension(Task task) {
+        return task.getExtensions().getByType(ClusterFormationTaskExtension.class);
     }
 
 }

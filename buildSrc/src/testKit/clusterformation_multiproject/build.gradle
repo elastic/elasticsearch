@@ -22,21 +22,3 @@ task user2 {
         println "user2 executing"
     }
 }
-
-task upToDate1 {
-    clusterFormation.use elasticSearchClusters.myTestCluster
-}
-
-task upToDate2 {
-    clusterFormation.use elasticSearchClusters.myTestCluster
-}
-
-task skipped1 {
-    enabled = false
-    clusterFormation.use elasticSearchClusters.myTestCluster
-}
-
-task skipped2 {
-    enabled = false
-    clusterFormation.use elasticSearchClusters.myTestCluster
-}

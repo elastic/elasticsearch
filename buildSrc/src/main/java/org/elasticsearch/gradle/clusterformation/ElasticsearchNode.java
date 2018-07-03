@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.Version;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
+import java.io.File;
 import java.util.Objects;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,13 +37,15 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
     private final AtomicInteger noOfClaims = new AtomicInteger();
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
+    private final File sharedArtifactsDir;
 
     private Distribution distribution;
     private Version version;
 
-    public ElasticsearchNode(String name, GradleServicesAdapter services) {
+    public ElasticsearchNode(String name, GradleServicesAdapter services, File sharedArtifactsDir) {
         this.name = name;
         this.services = services;
+        this.sharedArtifactsDir = sharedArtifactsDir;
     }
 
     @Override
@@ -88,6 +91,10 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
             logger.lifecycle("Already started cluster: {}", name);
         } else {
             logger.lifecycle("Starting cluster: {}", name);
+        }
+        File artifact = ClusterformationPlugin.getArtifact(sharedArtifactsDir, getDistribution(), getVersion());
+        if (artifact.exists() == false) {
+            throw new ClusterFormationException("Can not start node, missing artifact: " + artifact);
         }
         return null;
     }

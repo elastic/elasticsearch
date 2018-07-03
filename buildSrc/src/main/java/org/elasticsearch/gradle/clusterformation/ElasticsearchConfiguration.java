@@ -43,4 +43,13 @@ public interface ElasticsearchConfiguration {
     Future<Void> start();
 
     void unClaimAndStop();
+
+    default void assertValid() {
+        if (getDistribution() == null) {
+            throw new ClusterFormationException("Missing distribution for cluster `" + getName() + "`");
+        }
+        if (getVersion() == null) {
+            throw new ClusterFormationException("Missing version for cluster `" + getName() + "`");
+        }
+    }
 }

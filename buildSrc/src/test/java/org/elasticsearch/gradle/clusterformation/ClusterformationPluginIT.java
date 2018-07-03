@@ -23,9 +23,6 @@ import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.TaskOutcome;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-
 public class ClusterformationPluginIT extends GradleIntegrationTestCase {
 
     public void testListClusters() {
@@ -140,6 +137,25 @@ public class ClusterformationPluginIT extends GradleIntegrationTestCase {
             "Starting cluster: myTestCluster",
             "Stopping myTestCluster, number of claims is 0"
         );
+    }
+
+    public void testMultiProject() {
+        BuildResult result = GradleRunner.create()
+            .withProjectDir(getProjectDir("clusterformation_multiproject"))
+            .withArguments("user1", "user2", "-s")
+            .withPluginClasspath()
+            .build();
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":user1").getOutcome());
+        assertEquals(TaskOutcome.SUCCESS, result.task(":user2").getOutcome());
+        String output = result.getOutput();
+        assertOutputContains(
+            output,
+            "Starting cluster: myTestCluster",
+            "Not stopping myTestCluster, since cluster still has 1 claim(s)",
+            "Stopping myTestCluster, number of claims is 0"
+        );
+        assertOutputOnlyOnce(output, "Task :syncClusterFormationArtifacts");
     }
 
 }

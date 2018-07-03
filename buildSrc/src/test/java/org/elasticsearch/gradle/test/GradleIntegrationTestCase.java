@@ -111,4 +111,11 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         );
     }
 
+    public void assertOutputOnlyOnce(String output, String text) {
+        if(output.indexOf(text) !=
+            output.lastIndexOf(text)) {
+            fail("Expected `" + text + "` to appear at most once, but it did multiple times.\n\nOutout is:\n"+ output);
+        }
+    }
+
 }

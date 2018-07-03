@@ -642,7 +642,10 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
      * @throws Exception
      */
     @Override
-    public void reload(Settings settings) throws Exception {
+    public void reload(Settings settings) {
+        if (enabled == false || transportClient) {
+            return;
+        }
         for (NotificationService service : reloadableServices) {
             service.reload(settings);
         }

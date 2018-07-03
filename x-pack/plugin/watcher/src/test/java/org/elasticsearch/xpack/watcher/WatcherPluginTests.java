@@ -124,9 +124,9 @@ public class WatcherPluginTests extends ESTestCase {
         }
     }
 
-    public void testReload() throws Exception {
+    public void testReload() {
         Settings settings = Settings.builder()
-            .put("xpack.watcher.enabled", false)
+            .put("xpack.watcher.enabled", true)
             .put("path.home", createTempDir())
             .build();
         NotificationService mockService = mock(NotificationService.class);
@@ -137,5 +137,18 @@ public class WatcherPluginTests extends ESTestCase {
         verify(mockService, times(0)).reload(settings);
         watcher.reload(settings);
         verify(mockService, times(1)).reload(settings);
+    }
+
+    public void testReloadDisabled() {
+        Settings settings = Settings.builder()
+            .put("xpack.watcher.enabled", false)
+            .put("path.home", createTempDir())
+            .build();
+        NotificationService mockService = mock(NotificationService.class);
+        Watcher watcher = new Watcher(settings);
+
+        verify(mockService, times(0)).reload(settings);
+        watcher.reload(settings);
+        verify(mockService, times(0)).reload(settings);
     }
 }

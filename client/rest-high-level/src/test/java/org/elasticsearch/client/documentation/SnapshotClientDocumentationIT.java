@@ -417,7 +417,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::create-snapshot-request-waitForCompletion
 
         // tag::create-snapshot-execute
-        CreateSnapshotResponse response = client.snapshot().createSnapshot(request, RequestOptions.DEFAULT);
+        CreateSnapshotResponse response = client.snapshot().create(request, RequestOptions.DEFAULT);
         // end::create-snapshot-execute
 
         // tag::create-snapshot-response
@@ -452,7 +452,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::create-snapshot-execute-async
-            client.snapshot().createSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.snapshot().createAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::create-snapshot-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

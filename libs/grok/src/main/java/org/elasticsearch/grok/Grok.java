@@ -52,7 +52,7 @@ public final class Grok {
             "%\\{" +
             "(?<name>" +
             "(?<pattern>[A-z0-9]+)" +
-            "(?::(?<subname>[A-z0-9_:.-]+))?" +
+            "(?::(?<subname>[[:alnum:]@\\[\\]_:.-]+))?" +
             ")" +
             "(?:=(?<definition>" +
             "(?:" +
@@ -81,11 +81,11 @@ public final class Grok {
     public Grok(Map<String, String> patternBank, String grokPattern) {
         this(patternBank, grokPattern, true, ThreadWatchdog.noop());
     }
-    
+
     public Grok(Map<String, String> patternBank, String grokPattern, ThreadWatchdog threadWatchdog) {
         this(patternBank, grokPattern, true, threadWatchdog);
     }
-    
+
     Grok(Map<String, String> patternBank, String grokPattern, boolean namedCaptures) {
         this(patternBank, grokPattern, namedCaptures, ThreadWatchdog.noop());
     }

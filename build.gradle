@@ -486,25 +486,17 @@ task run(type: Run) {
   impliesSubProjects = true
 }
 
-task wrapper(type: Wrapper)
-
-gradle.projectsEvaluated {
-
-  allprojects {
-    tasks.withType(Wrapper) { Wrapper wrapper ->
-      wrapper.distributionType = DistributionType.ALL
-
-      wrapper.doLast {
+wrapper {
+    distributionType = DistributionType.ALL
+    doLast {
         final DistributionLocator locator = new DistributionLocator()
         final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
         final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
         final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
         final String sha256Sum = new String(sha256Uri.toURL().bytes)
         wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
-      }
+        println "Added checksum to wrapper properties"
     }
-  }
-
 }
 
 static void assertLinesInFile(final Path path, final List<String> expectedLines) {
@@ -591,7 +583,7 @@ if (System.properties.get("build.compare") != null) {
       }
     }
     sourceBuild {
-      gradleVersion = "4.7" // does not default to gradle weapper of project dir, but current version
+      gradleVersion = "4.8.1" // does not default to gradle weapper of project dir, but current version
       projectDir = referenceProject
       tasks = ["clean", "assemble"]
       arguments = ["-Dbuild.compare_friendly=true"]

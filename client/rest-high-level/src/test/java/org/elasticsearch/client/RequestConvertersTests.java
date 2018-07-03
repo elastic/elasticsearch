@@ -36,6 +36,7 @@ import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteReposito
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -1374,42 +1375,42 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(Collections.emptyMap(), request.getParameters());
         assertToXContentBody(searchTemplateRequest, request.getEntity());
     }
-    
+
     public void testMultiSearchTemplate() throws Exception {
         final int numSearchRequests = randomIntBetween(1, 10);
         MultiSearchTemplateRequest multiSearchTemplateRequest = new MultiSearchTemplateRequest();
-        
+
         for (int i = 0; i < numSearchRequests; i++) {
             // Create a random request.
             String[] indices = randomIndicesNames(0, 5);
             SearchRequest searchRequest = new SearchRequest(indices);
-            
+
             Map<String, String> expectedParams = new HashMap<>();
             setRandomSearchParams(searchRequest, expectedParams);
-    
+
             // scroll is not supported in the current msearch or msearchtemplate api, so unset it:
             searchRequest.scroll((Scroll) null);
             // batched reduce size is currently not set-able on a per-request basis as it is a query string parameter only
             searchRequest.setBatchedReduceSize(SearchRequest.DEFAULT_BATCHED_REDUCE_SIZE);
-            
+
             setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, expectedParams);
-            
+
             SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest(searchRequest);
-    
+
             searchTemplateRequest.setScript("{\"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" }}}");
             searchTemplateRequest.setScriptType(ScriptType.INLINE);
             searchTemplateRequest.setProfile(randomBoolean());
-    
+
             Map<String, Object> scriptParams = new HashMap<>();
             scriptParams.put("field", "name");
             scriptParams.put("value", randomAlphaOfLengthBetween(2, 5));
             searchTemplateRequest.setScriptParams(scriptParams);
-    
-            multiSearchTemplateRequest.add(searchTemplateRequest);            
+
+            multiSearchTemplateRequest.add(searchTemplateRequest);
         }
 
         Request multiRequest = RequestConverters.multiSearchTemplate(multiSearchTemplateRequest);
-        
+
         assertEquals(HttpPost.METHOD_NAME, multiRequest.getMethod());
         assertEquals("/_msearch/template", multiRequest.getEndpoint());
         List<SearchTemplateRequest> searchRequests = multiSearchTemplateRequest.requests();
@@ -1418,9 +1419,9 @@ public class RequestConvertersTests extends ESTestCase {
         HttpEntity actualEntity = multiRequest.getEntity();
         byte[] expectedBytes = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, XContentType.JSON.xContent());
         assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
-        assertEquals(new BytesArray(expectedBytes), new BytesArray(EntityUtils.toByteArray(actualEntity)));        
+        assertEquals(new BytesArray(expectedBytes), new BytesArray(EntityUtils.toByteArray(actualEntity)));
     }
-    
+
     public void testExistsAlias() {
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
         String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
@@ -1633,6 +1634,21 @@ public class RequestConvertersTests extends ESTestCase {
         Request expectedRequest = RequestConverters.clusterPutSettings(request);
         assertEquals("/_cluster/settings", expectedRequest.getEndpoint());
         assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(expectedParams, expectedRequest.getParameters());
+    }
+
+    public void testClusterGetSettings() throws IOException {
+        ClusterGetSettingsRequest request = new ClusterGetSettingsRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(request, expectedParams);
+        request.includeDefaults(randomBoolean());
+        if (request.includeDefaults()) {
+            expectedParams.put("include_defaults", String.valueOf(true));
+        }
+
+        Request expectedRequest = RequestConverters.clusterGetSettings(request);
+        assertEquals("/_cluster/settings", expectedRequest.getEndpoint());
+        assertEquals(HttpGet.METHOD_NAME, expectedRequest.getMethod());
         assertEquals(expectedParams, expectedRequest.getParameters());
     }
 

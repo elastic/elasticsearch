@@ -96,8 +96,8 @@ public final class ApplicationPrivilege extends Privilege {
         if (Strings.isEmpty(application)) {
             throw new IllegalArgumentException("Application names cannot be blank");
         }
-        final int astrix = application.indexOf('*');
-        if (astrix != -1) {
+        final int asterisk = application.indexOf('*');
+        if (asterisk != -1) {
             if (allowWildcard == false) {
                 throw new IllegalArgumentException("Application names may not contain '*' (found '" + application + "')");
             }
@@ -105,7 +105,7 @@ public final class ApplicationPrivilege extends Privilege {
                 // this is allowed and short-circuiting here makes the later validation simpler
                 return;
             }
-            if (astrix != application.length() - 1) {
+            if (asterisk != application.length() - 1) {
                 throw new IllegalArgumentException("Application name patterns only support trailing wildcards (found '" + application
                     + "')");
             }
@@ -123,7 +123,7 @@ public final class ApplicationPrivilege extends Privilege {
             throw new IllegalArgumentException("An application name prefix must match the pattern " + VALID_APPLICATION_PREFIX.pattern()
                 + " (found '" + prefix + "')");
         }
-        if (prefix.length() < 3 && astrix == -1) {
+        if (prefix.length() < 3 && asterisk == -1) {
             throw new IllegalArgumentException("An application name prefix must be at least 3 characters long (found '" + prefix + "')");
         }
 

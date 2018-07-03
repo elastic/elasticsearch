@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStatsTests;
-import org.elasticsearch.xpack.core.ml.stats.StatsAccumulatorTests;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.junit.Before;
 

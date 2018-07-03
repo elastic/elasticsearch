@@ -49,7 +49,10 @@ public enum LicenseStatus implements Writeable {
     }
 
     public static LicenseStatus readFrom(StreamInput in) throws IOException {
-        String value = in.readString();
+        return fromString(in.readString());
+    }
+
+    public static LicenseStatus fromString(String value) {
         switch (value) {
             case "active":
                 return ACTIVE;

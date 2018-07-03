@@ -19,10 +19,9 @@
 
 package org.elasticsearch.protocol.xpack;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.license.LicenseStatus;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.BuildInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
@@ -30,20 +29,40 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.Featur
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.io.IOException;
-
-import static org.hamcrest.CoreMatchers.equalTo;
 
 public class XPackInfoResponseTests extends AbstractStreamableXContentTestCase<XPackInfoResponse> {
     @Override
-    protected XPackInfoResponse doParseInstance(XContentParser parser) {
+    protected XPackInfoResponse doParseInstance(XContentParser parser) throws IOException {
         return XPackInfoResponse.fromXContent(parser);
     }
 
     @Override
     protected XPackInfoResponse createBlankInstance() {
         return new XPackInfoResponse();
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return path -> path.equals("features")
+                || (path.startsWith("features") && path.endsWith("native_code_info"));
+    }
+
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        Map<String, String> params = new HashMap<>();
+        if (randomBoolean()) {
+            params.put("human", randomBoolean() ? "true" : "false");
+        }
+        if (randomBoolean()) {
+            params.put("categories", "_none");
+        }
+        return new ToXContent.MapParams(params);
     }
 
     @Override
@@ -56,20 +75,21 @@ public class XPackInfoResponseTests extends AbstractStreamableXContentTestCase<X
 
     @Override
     protected XPackInfoResponse mutateInstance(XPackInfoResponse response) {
+        @SuppressWarnings("unchecked")
         Function<XPackInfoResponse, XPackInfoResponse> mutator = randomFrom(
             r -> new XPackInfoResponse(
                     mutateBuildInfo(r.getBuildInfo()),
                     r.getLicenseInfo(),
-                    r.getFeatureSetInfo()),
+                    r.getFeatureSetsInfo()),
             r -> new XPackInfoResponse(
                     r.getBuildInfo(),
                     mutateLicenseInfo(r.getLicenseInfo()),
-                    r.getFeatureSetInfo()),
+                    r.getFeatureSetsInfo()),
             r -> new XPackInfoResponse(
                     r.getBuildInfo(),
                     r.getLicenseInfo(),
-                    mutateFeatureSetInfo(r.getFeatureSetInfo())));
-        return mutator.accept(response);
+                    mutateFeatureSetsInfo(r.getFeatureSetsInfo())));
+        return mutator.apply(response);
     }
 
     private BuildInfo randomBuildInfo() {
@@ -88,7 +108,8 @@ public class XPackInfoResponseTests extends AbstractStreamableXContentTestCase<X
     private LicenseInfo randomLicenseInfo() {
         return new LicenseInfo(
             randomAlphaOfLength(10),
-            randomAlphaOfLength(2),
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(5),
             randomFrom(LicenseStatus.values()),
             randomLong());
     }
@@ -102,9 +123,9 @@ public class XPackInfoResponseTests extends AbstractStreamableXContentTestCase<X
 
     private FeatureSetsInfo randomFeatureSetsInfo() {
         int size = between(0, 10);
-        Map<String, FeatureSet> featureSets = new HashMap<>(size);
-        while (featureSize.size() < size) {
-            featureSets.put(randomAlphaOfLength(5), randomFeatureSet());
+        Set<FeatureSet> featureSets = new HashSet<>(size);
+        while (featureSets.size() < size) {
+            featureSets.add(randomFeatureSet());
         }
         return new FeatureSetsInfo(featureSets);
     }

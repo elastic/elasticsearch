@@ -1,0 +1,119 @@
+[[java-rest-high-analyze]]
+=== Analyze API
+
+[[java-rest-high-analyze-request]]
+==== Analyze Request
+
+An `AnalyzeRequest` contains the text to analyze, and one of several options to
+specify how the analysis should be performed.
+
+The simplest version uses a built-in analyzer:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-builtin-request]
+---------------------------------------------------
+<1> The text to include.  Multiple strings are treated as a multi-valued field
+<2> A built-in analyzer
+
+You can configure a custom analyzer:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-custom-request]
+---------------------------------------------------
+<1> Configure char filters
+<2> Configure the tokenizer
+<3> Add a built-in tokenfilter
+<4> Configuration for a custom tokenfilter
+<5> Add the custom tokenfilter
+
+You can also build a custom normalizer, by including only charfilters and
+tokenfilters:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-custom-normalizer-request]
+---------------------------------------------------
+
+You can analyze text using an analyzer defined in an existing index:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-index-request]
+---------------------------------------------------
+<1> The index containing the mappings
+<2> The analyzer defined on this index to use
+
+Or you can use a normalizer:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-index-normalizer-request]
+---------------------------------------------------
+<1> The index containing the mappings
+<2> The normalizer defined on this index to use
+
+You can analyze text using the mappings for a particular field in an index:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-field-request]
+---------------------------------------------------
+
+==== Optional arguemnts
+The following arguments can also optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-request-explain]
+---------------------------------------------------
+<1> Setting `explain` to true will add further details to the response
+<2> Setting `attributes` allows you to return only token attributes that you are
+interested in
+
+[[java-rest-high-analyze-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-request-sync]
+---------------------------------------------------
+
+[[java-rest-high-analyze-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of an analyze request requires both the `AnalyzeRequest`
+instance and an `ActionListener` instance to be passed to the asyncronous method:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-request-async]
+---------------------------------------------------
+
+The asynchronous method does not block and returns immediately.  Once it is
+completed the `ActionListener` is called back using the `onResponse` method if the
+execution successfully completed or using the `onFailure` method if it failed.
+
+A typical listener for `AnalyzeResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-execute-listener]
+---------------------------------------------------
+
+[[java-rest-high-analyze-response]]
+==== Analyze Response
+
+The returned `AnalyzeResponse` allows you to retrieve details of the analysis as
+follows:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-response-tokens]
+---------------------------------------------------
+<1> `AnalyzeToken` holds information about the individual tokens produced by analysis
+
+If `explain` was set to `true`, then information is instead returned from the `detail()`
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-response-detail]
+---------------------------------------------------
+<1> `DetailAnalyzeResponse` holds more detailed information about tokens produced by
+the various substeps in the analysis chain.

@@ -284,7 +284,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 if (false == "".equals(templates)) {
                     for (String template : templates.split("\n")) {
                         if (isXPackTemplate(template)) continue;
-                        if ("".equals(templates)) {
+                        if ("".equals(template)) {
                             throw new IllegalStateException("empty template in templates list:\n" + templates);
                         }
                         logger.debug("Clearing template [{}]", template);

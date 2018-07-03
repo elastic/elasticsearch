@@ -407,7 +407,9 @@ public abstract class DataTypeConversion {
 
         NUMERIC_TO_BOOLEAN(fromLong(value -> value != 0)),
         STRING_TO_BOOLEAN(fromString(DataTypeConversion::convertToBoolean, "Boolean")),
-        DATE_TO_BOOLEAN(fromDate(value -> value != 0));
+        DATE_TO_BOOLEAN(fromDate(value -> value != 0)),
+
+        BOOL_TO_LONG(fromBool(value -> value ? 1L : 0L));
 
         private final Function<Object, Object> converter;
 

@@ -142,6 +142,13 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(false, conversion.convert(0));
         }
         {
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.LONG, DataType.BOOLEAN);
+            assertNull(conversion.convert(null));
+            assertEquals(true, conversion.convert(10));
+            assertEquals(true, conversion.convert(-10));
+            assertEquals(false, conversion.convert(0));
+        }
+        {
             Conversion conversion = DataTypeConversion.conversionFor(DataType.DOUBLE, DataType.BOOLEAN);
             assertNull(conversion.convert(null));
             assertEquals(true, conversion.convert(10.0));

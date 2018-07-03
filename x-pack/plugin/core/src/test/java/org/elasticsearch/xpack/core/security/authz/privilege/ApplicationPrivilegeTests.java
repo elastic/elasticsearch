@@ -29,24 +29,25 @@ import static org.hamcrest.Matchers.equalTo;
 public class ApplicationPrivilegeTests extends ESTestCase {
 
     public void testValidationOfApplicationName() {
-        final String specialCharacters = ":;$#%()+=/\\'.,{}[]<>!@^&|\"'?";
+        final String specialCharacters = ":;$#%()+='.{}[]!@^&'";
         final Supplier<Character> specialCharacter = () -> specialCharacters.charAt(randomInt(specialCharacters.length() - 1));
 
-        assertValidationFailure("ap", "Application names", () -> ApplicationPrivilege.validateApplicationName("ap"));
+        assertValidationFailure("a p p", "application name", () -> ApplicationPrivilege.validateApplicationName("a p p"));
+        assertValidationFailure("ap", "application name", () -> ApplicationPrivilege.validateApplicationName("ap"));
         for (String app : Arrays.asList(
             "App",// must start with lowercase
             "1app",  // must start with letter
             "app" + specialCharacter.get() // cannot contain special characters unless preceded by a "-" or "_"
         )) {
-            assertValidationFailure(app, "Application names", () -> ApplicationPrivilege.validateApplicationName(app));
-            assertValidationFailure(app, "Application names", () -> ApplicationPrivilege.validateApplicationNameOrWildcard(app));
+            assertValidationFailure(app, "application name", () -> ApplicationPrivilege.validateApplicationName(app));
+            assertValidationFailure(app, "application name", () -> ApplicationPrivilege.validateApplicationNameOrWildcard(app));
         }
 
         // no wildcards
-        assertValidationFailure("app*", "Application names", () -> ApplicationPrivilege.validateApplicationName("app*"));
+        assertValidationFailure("app*", "application names", () -> ApplicationPrivilege.validateApplicationName("app*"));
         // no special characters with wildcards
         final String appNameWithSpecialCharAndWildcard = "app" + specialCharacter.get() + "*";
-        assertValidationFailure(appNameWithSpecialCharAndWildcard, "Application names",
+        assertValidationFailure(appNameWithSpecialCharAndWildcard, "application name",
             () -> ApplicationPrivilege.validateApplicationNameOrWildcard(appNameWithSpecialCharAndWildcard));
 
         String appNameWithSpecialChars = "myapp" + randomFrom('-', '_');
@@ -54,7 +55,7 @@ public class ApplicationPrivilegeTests extends ESTestCase {
             appNameWithSpecialChars = appNameWithSpecialChars + specialCharacter.get();
         }
         // these should all be OK
-        for (String app : Arrays.asList("app", "app1", "myApp", "myApp-:;$#%()+=/'.,", "myApp_:;$#%()+=/'.,", appNameWithSpecialChars)) {
+        for (String app : Arrays.asList("app", "app1", "myApp", "myApp-:;$#%()+='.", "myApp_:;$#%()+='.", appNameWithSpecialChars)) {
             assertNoException(app, () -> ApplicationPrivilege.validateApplicationName(app));
             assertNoException(app, () -> ApplicationPrivilege.validateApplicationNameOrWildcard(app));
         }
@@ -148,7 +149,7 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         final IllegalArgumentException exception;
         try {
             exception = expectThrows(IllegalArgumentException.class, body);
-            assertThat(exception.getMessage(), containsString(messageContent));
+            assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString(messageContent.toLowerCase(Locale.ROOT)));
         } catch (AssertionFailedError e) {
             fail(reason + " - " + e.getMessage());
         }

@@ -73,6 +73,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -88,6 +89,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -3080,6 +3082,38 @@ public class IndexShardTests extends IndexShardTestCase {
             assertTrue(segment.search);
         }
         closeShards(primary);
+    }
+
+    public void testOnCloseStats() throws IOException {
+        final IndexShard indexShard = newStartedShard(true);
+
+        for (int i = 0; i < 3; i++) {
+            indexDoc(indexShard, "_doc", "" + i, "{\"foo\" : \"" + randomAlphaOfLength(10) + "\"}");
+            indexShard.refresh("test"); // produce segments
+        }
+
+        // check stats on closed and on opened shard
+        if (randomBoolean()) {
+            closeShards(indexShard);
+
+            expectThrows(AlreadyClosedException.class, () -> indexShard.seqNoStats());
+            expectThrows(AlreadyClosedException.class, () -> indexShard.commitStats());
+            expectThrows(AlreadyClosedException.class, () -> indexShard.storeStats());
+
+        } else {
+            final SeqNoStats seqNoStats = indexShard.seqNoStats();
+            assertThat(seqNoStats.getLocalCheckpoint(), equalTo(2L));
+
+            final CommitStats commitStats = indexShard.commitStats();
+            assertThat(commitStats.getGeneration(), equalTo(2L));
+
+            final StoreStats storeStats = indexShard.storeStats();
+
+            assertThat(storeStats.sizeInBytes(), greaterThan(0L));
+
+            closeShards(indexShard);
+        }
+
     }
 
 }

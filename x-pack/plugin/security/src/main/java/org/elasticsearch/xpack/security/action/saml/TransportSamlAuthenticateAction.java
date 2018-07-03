@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.security.authc.saml.SamlToken;
  */
 public final class TransportSamlAuthenticateAction extends HandledTransportAction<SamlAuthenticateRequest, SamlAuthenticateResponse> {
 
+    private final ThreadPool threadPool;
     private final AuthenticationService authenticationService;
     private final TokenService tokenService;
 
@@ -38,14 +40,14 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
     public TransportSamlAuthenticateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                            ActionFilters actionFilters, AuthenticationService authenticationService,
                                            TokenService tokenService) {
-        super(settings, SamlAuthenticateAction.NAME, threadPool, transportService, actionFilters, SamlAuthenticateRequest::new);
+        super(settings, SamlAuthenticateAction.NAME, transportService, actionFilters, SamlAuthenticateRequest::new);
+        this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;
     }
 
     @Override
-    protected void doExecute(SamlAuthenticateRequest request,
-                             ActionListener<SamlAuthenticateResponse> listener) {
+    protected void doExecute(Task task, SamlAuthenticateRequest request, ActionListener<SamlAuthenticateResponse> listener) {
         final SamlToken saml = new SamlToken(request.getSaml(), request.getValidRequestIds());
         logger.trace("Attempting to authenticate SamlToken [{}]", saml);
         final ThreadContext threadContext = threadPool.getThreadContext();

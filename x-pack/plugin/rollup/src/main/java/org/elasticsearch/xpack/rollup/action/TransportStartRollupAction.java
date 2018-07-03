@@ -34,9 +34,9 @@ public class TransportStartRollupAction extends TransportTasksAction<RollupJobTa
     private final XPackLicenseState licenseState;
 
     @Inject
-    public TransportStartRollupAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportStartRollupAction(Settings settings, TransportService transportService,
                                       ActionFilters actionFilters, ClusterService clusterService, XPackLicenseState licenseState) {
-        super(settings, StartRollupJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(settings, StartRollupJobAction.NAME, clusterService, transportService, actionFilters,
             StartRollupJobAction.Request::new, StartRollupJobAction.Response::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
     }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
@@ -19,6 +20,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
 
@@ -26,6 +29,11 @@ import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
  * A container for xpack setting constants.
  */
 public class XPackSettings {
+
+    private XPackSettings() {
+        throw new IllegalStateException("Utility class should not be instantiated");
+    }
+
     /** Setting for enabling or disabling security. Defaults to true. */
     public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);
 
@@ -105,6 +113,17 @@ public class XPackSettings {
         DEFAULT_CIPHERS = ciphers;
     }
 
+    /*
+     * Do not allow insecure hashing algorithms to be used for password hashing
+     */
+    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
+        "xpack.security.authc.password_hashing.algorithm", "bcrypt", Function.identity(), (v, s) -> {
+        if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
+            throw new IllegalArgumentException("Invalid algorithm: " + v + ". Only pbkdf2 or bcrypt family algorithms can be used for " +
+                "password hashing.");
+        }
+    }, Setting.Property.NodeScope);
+
     public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1", "TLSv1");
     public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
     public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;
@@ -143,6 +162,7 @@ public class XPackSettings {
         settings.add(SQL_ENABLED);
         settings.add(USER_SETTING);
         settings.add(ROLLUP_ENABLED);
+        settings.add(PASSWORD_HASHING_ALGORITHM);
         return Collections.unmodifiableList(settings);
     }
 

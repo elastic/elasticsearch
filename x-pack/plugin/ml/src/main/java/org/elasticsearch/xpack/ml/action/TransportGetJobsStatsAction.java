@@ -53,10 +53,10 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     private final JobProvider jobProvider;
 
     @Inject
-    public TransportGetJobsStatsAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportGetJobsStatsAction(Settings settings, TransportService transportService,
                                        ActionFilters actionFilters, ClusterService clusterService,
                                        AutodetectProcessManager processManager, JobProvider jobProvider) {
-        super(settings, GetJobsStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(settings, GetJobsStatsAction.NAME, clusterService, transportService, actionFilters,
             GetJobsStatsAction.Request::new, GetJobsStatsAction.Response::new,
                 ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;

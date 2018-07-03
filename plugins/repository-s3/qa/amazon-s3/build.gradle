@@ -31,47 +31,81 @@ integTestCluster {
     plugin ':plugins:repository-s3'
 }
 
+forbiddenApisTest {
+    // we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+    bundledSignatures -= 'jdk-non-portable'
+    bundledSignatures += 'jdk-internal'
+}
+
 boolean useFixture = false
 
-String s3AccessKey = System.getenv("amazon_s3_access_key")
-String s3SecretKey = System.getenv("amazon_s3_secret_key")
-String s3Bucket = System.getenv("amazon_s3_bucket")
-String s3BasePath = System.getenv("amazon_s3_base_path")
+// We test against two repositories, one which uses the usual two-part "permanent" credentials and
+// the other which uses three-part "temporary" or "session" credentials.
 
-if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
-    s3AccessKey = 's3_integration_test_access_key'
-    s3SecretKey = 's3_integration_test_secret_key'
-    s3Bucket = 'bucket_test'
-    s3BasePath = 'integration_test'
+String s3PermanentAccessKey = System.getenv("amazon_s3_access_key")
+String s3PermanentSecretKey = System.getenv("amazon_s3_secret_key")
+String s3PermanentBucket = System.getenv("amazon_s3_bucket")
+String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
+
+String s3TemporaryAccessKey = System.getenv("amazon_s3_access_key_temporary")
+String s3TemporarySecretKey = System.getenv("amazon_s3_secret_key_temporary")
+String s3TemporarySessionToken = System.getenv("amazon_s3_session_token_temporary")
+String s3TemporaryBucket = System.getenv("amazon_s3_bucket_temporary")
+String s3TemporaryBasePath = System.getenv("amazon_s3_base_path_temporary")
+
+// If all these variables are missing then we are testing against the internal fixture instead, which has the following
+// credentials hard-coded in.
+
+if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath
+ && !s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3TemporaryBasePath && !s3TemporarySessionToken) {
+
+    s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
+    s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
+    s3PermanentBucket = 'permanent_bucket_test'
+    s3PermanentBasePath = 'integration_test'
+
+    s3TemporaryAccessKey = 's3_integration_test_temporary_access_key'
+    s3TemporarySecretKey = 's3_integration_test_temporary_secret_key'
+    s3TemporaryBucket = 'temporary_bucket_test'
+    s3TemporaryBasePath = 'integration_test'
+    s3TemporarySessionToken = 's3_integration_test_temporary_session_token'
+
     useFixture = true
 }
 
 /** A task to start the AmazonS3Fixture which emulates a S3 service **/
 task s3Fixture(type: AntFixture) {
-    dependsOn testClasses
+    dependsOn compileTestJava
     env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
     executable = new File(project.runtimeJavaHome, 'bin/java')
-    args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3Bucket
+    args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3PermanentBucket, s3TemporaryBucket
 }
 
 Map<String, Object> expansions = [
-        'bucket': s3Bucket,
-        'base_path': s3BasePath
+    'permanent_bucket': s3PermanentBucket,
+    'permanent_base_path': s3PermanentBasePath,
+    'temporary_bucket': s3TemporaryBucket,
+    'temporary_base_path': s3TemporaryBasePath
 ]
-
 processTestResources {
     inputs.properties(expansions)
     MavenFilteringHack.filter(it, expansions)
 }
 
 integTestCluster {
-    keystoreSetting 's3.client.integration_test.access_key', s3AccessKey
-    keystoreSetting 's3.client.integration_test.secret_key', s3SecretKey
+    keystoreSetting 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
+    keystoreSetting 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
+
+    keystoreSetting 's3.client.integration_test_temporary.access_key', s3TemporaryAccessKey
+    keystoreSetting 's3.client.integration_test_temporary.secret_key', s3TemporarySecretKey
+    keystoreSetting 's3.client.integration_test_temporary.session_token', s3TemporarySessionToken
 
     if (useFixture) {
+        println "Using internal test service to test the repository-s3 plugin"
         dependsOn s3Fixture
         /* Use a closure on the string to delay evaluation until tests are executed */
-        setting 's3.client.integration_test.endpoint', "http://${-> s3Fixture.addressAndPort}"
+        setting 's3.client.integration_test_permanent.endpoint', "http://${-> s3Fixture.addressAndPort}"
+        setting 's3.client.integration_test_temporary.endpoint', "http://${-> s3Fixture.addressAndPort}"
     } else {
         println "Using an external service to test the repository-s3 plugin"
     }

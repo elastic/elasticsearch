@@ -150,7 +150,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         node = new Node(new HttpHost("localhost", 9200));
         failureListener = new HostsTrackingFailureListener();
         restClient = new RestClient(httpClient, 10000, defaultHeaders,
-                singletonList(node), null, failureListener);
+                singletonList(node), null, failureListener, NodeSelector.ANY);
     }
 
     /**
@@ -314,7 +314,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddHeaders()}.
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests}.
      */
     @Deprecated
     public void tesPerformRequestOldStyleNullHeaders() throws IOException {

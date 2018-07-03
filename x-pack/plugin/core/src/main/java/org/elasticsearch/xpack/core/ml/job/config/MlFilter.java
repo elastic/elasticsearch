@@ -15,6 +15,9 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -56,8 +59,8 @@ public class MlFilter implements ToXContentObject, Writeable {
     private final String description;
     private final SortedSet<String> items;
 
-    public MlFilter(String id, String description, SortedSet<String> items) {
-        this.id = Objects.requireNonNull(id, ID.getPreferredName() + " must not be null");
+    private MlFilter(String id, String description, SortedSet<String> items) {
+        this.id = Objects.requireNonNull(id);
         this.description = description;
         this.items = Objects.requireNonNull(items, ITEMS.getPreferredName() + " must not be null");
     }
@@ -69,8 +72,7 @@ public class MlFilter implements ToXContentObject, Writeable {
         } else {
             description = null;
         }
-        items = new TreeSet<>();
-        items.addAll(Arrays.asList(in.readStringArray()));
+        items = new TreeSet<>(Arrays.asList(in.readStringArray()));
     }
 
     @Override
@@ -163,9 +165,13 @@ public class MlFilter implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setItems(SortedSet<String> items) {
+            this.items = items;
+            return this;
+        }
+
         public Builder setItems(List<String> items) {
-            this.items = new TreeSet<>();
-            this.items.addAll(items);
+            this.items = new TreeSet<>(items);
             return this;
         }
 
@@ -175,6 +181,10 @@ public class MlFilter implements ToXContentObject, Writeable {
         }
 
         public MlFilter build() {
+            ExceptionsHelper.requireNonNull(id, MlFilter.ID.getPreferredName());
+            if (!MlStrings.isValidId(id)) {
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
+            }
             return new MlFilter(id, description, items);
         }
     }

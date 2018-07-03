@@ -94,7 +94,8 @@ public class BooleanFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public BooleanFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
+                throws MapperParsingException {
             BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {

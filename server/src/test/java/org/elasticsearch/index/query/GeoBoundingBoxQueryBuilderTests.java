@@ -450,6 +450,26 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(expectedJson, GeoExecType.MEMORY, parsed.type());
     }
 
+    public void testHonorsCoercion() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+            "  \"geo_bounding_box\": {\n" +
+            "    \"validation_method\": \"COERCE\",\n" +
+            "    \"" + GEO_POINT_FIELD_NAME + "\": {\n" +
+            "      \"top_left\": {\n" +
+            "        \"lat\": -15.5,\n" +
+            "        \"lon\": 176.5\n" +
+            "      },\n" +
+            "      \"bottom_right\": {\n" +
+            "        \"lat\": -19.6,\n" +
+            "        \"lon\": 181\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}\n";
+        assertGeoBoundingBoxQuery(query);
+    }
+
     @Override
     public void testMustRewrite() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);

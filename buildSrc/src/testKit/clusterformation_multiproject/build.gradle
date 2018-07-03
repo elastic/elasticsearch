@@ -2,6 +2,12 @@ plugins {
     id 'elasticsearch.clusterformation'
 }
 
+allprojects {
+    repositories {
+        mavenCentral()
+    }
+}
+
 elasticSearchClusters {
     myTestCluster {
         distribution = 'ZIP'

@@ -79,9 +79,6 @@ public class ClusterformationPlugin implements Plugin<Project> {
                 "Internal helper configuration used by cluster configuration to download " +
                 "ES distributions and plugins."
             );
-            rootProject.getRepositories().add(
-                rootProject.getRepositories().mavenCentral()
-            );
 
             Sync syncTask = rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, Sync.class);
             syncTask.from(helperConfiguration);

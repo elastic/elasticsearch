@@ -9,6 +9,12 @@ elasticSearchClusters {
     }
 }
 
+allprojects {
+    repositories {
+        mavenCentral()
+    }
+}
+
 task user1 {
     clusterFormation.use elasticSearchClusters.myTestCluster
     doLast {

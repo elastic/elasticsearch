@@ -84,8 +84,6 @@ public class CapturingTransport implements Transport {
 
     private ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
     private BlockingQueue<CapturedRequest> capturedRequests = ConcurrentCollections.newBlockingQueue();
-    private final AtomicLong requestId = new AtomicLong();
-
 
     /** returns all requests captured so far. Doesn't clear the captured request list. See {@link #clear()} */
     public CapturedRequest[] capturedRequests() {

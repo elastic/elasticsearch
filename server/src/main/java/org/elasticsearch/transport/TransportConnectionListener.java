@@ -34,7 +34,7 @@ public interface TransportConnectionListener {
      * @param action the request action
      *
      */
-    default void onRequestReceived(long requestId, String action) {};
+    default void onRequestReceived(long requestId, String action) {}
 
     /**
      * Called for every action response sent after the response has been passed to the underlying network implementation.
@@ -43,7 +43,7 @@ public interface TransportConnectionListener {
      * @param response the response send
      * @param finalOptions the response options
      */
-    default void onResponseSent(long requestId, String action, TransportResponse response, TransportResponseOptions finalOptions) {};
+    default void onResponseSent(long requestId, String action, TransportResponse response, TransportResponseOptions finalOptions) {}
 
     /***
      * Called for every failed action response after the response has been passed to the underlying network implementation.
@@ -51,7 +51,7 @@ public interface TransportConnectionListener {
      * @param action the request action
      * @param error the error sent back to the caller
      */
-    default void onResponseSent(long requestId, String action, Exception error) {};
+    default void onResponseSent(long requestId, String action, Exception error) {}
 
     /**
      * Called for every request sent to a server after the request has been passed to the underlying network implementation
@@ -62,26 +62,26 @@ public interface TransportConnectionListener {
      * @param finalOptions the request options
      */
     default void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                               TransportRequestOptions finalOptions) {};
+                               TransportRequestOptions finalOptions) {}
 
     /**
      * Called once a connection was opened
      * @param connection the connection
      */
-    default void onConnectionOpened(Transport.Connection connection) {};
+    default void onConnectionOpened(Transport.Connection connection) {}
 
     /**
      * Called once a connection ws closed.
      * @param connection the closed connection
      */
-    default void onConnectionClosed(Transport.Connection connection) {};
+    default void onConnectionClosed(Transport.Connection connection) {}
 
     /**
      * Called for every response received
      * @param requestId the request id for this reponse
      * @param context the response context or null if the context was already processed ie. due to a timeout.
      */
-    default void onResponseReceived(long requestId, Transport.ResponseContext context) {};
+    default void onResponseReceived(long requestId, Transport.ResponseContext context) {}
 
     /**
      * Called once a node connection is opened and registered.

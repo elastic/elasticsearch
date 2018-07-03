@@ -75,7 +75,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -139,11 +138,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -243,75 +240,6 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("store index should be corrupted", Store.canOpenIndex(logger, shardPath.resolveIndex(), shard.shardId(),
             (shardId, lockTimeoutMS) -> new DummyShardLock(shardId)),
             equalTo(false));
-    }
-
-    public void testFailOnEnsureTranslogSynced() throws Exception {
-        final AtomicReference<Exception> consumedException = new AtomicReference<>();
-        final AtomicReference<Exception> failEngineException = new AtomicReference<>();
-
-        // set up to have InternalEngine that fails on ensureTranslogSynced
-        final boolean primary = randomBoolean();
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("index", "_na_", 0), randomAlphaOfLength(10),
-            primary,
-            ShardRoutingState.INITIALIZING,
-            primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
-
-        assert shardRouting.initializing() : shardRouting;
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        IndexMetaData.Builder indexMetaData = IndexMetaData.builder(shardRouting.getIndexName())
-            .settings(settings)
-            .primaryTerm(0, primaryTerm)
-            .putMapping("_doc", "{ \"properties\": {} }");
-
-        final AtomicInteger exceptionCount = new AtomicInteger();
-
-        final IOException ioException = new IOException("xxx");
-        final Function<ShardRouting, IOException> exceptionFunction = routing -> {
-            exceptionCount.incrementAndGet();
-            return ioException;
-        };
-        final IndexShard shard = newShard(shardRouting, indexMetaData.build(), null,
-            new InternalEngineFactory() {
-                @Override
-                public Engine newReadWriteEngine(EngineConfig config) {
-                    return new InternalEngine(config) {
-                        @Override
-                        public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
-                            final IOException exception = exceptionFunction.apply(shardRouting);
-                            if (exception != null) {
-                                throw exception;
-                            }
-                            return super.ensureTranslogSynced(locations);
-                        }
-
-                        @Override
-                        public void failEngine(String reason, Exception failure) {
-                            assertThat(reason, equalTo("failed to sync translog"));
-                            failEngineException.set(failure);
-                            super.failEngine(reason, failure);
-                        }
-                    };
-                }
-            },
-            () -> { }, new IndexingOperationListener[0]);
-
-        if (primary) {
-            recoverShardFromStore(shard);
-        } else {
-            recoveryEmptyReplica(shard);
-        }
-
-        // do sync
-        shard.sync(new Translog.Location(1, 1, 100), consumedException::set);
-
-        // post action checks
-        assertThat(consumedException.get(), equalTo(ioException));
-        assertThat(failEngineException.get(), equalTo(ioException));
-
-        closeShards(shard);
     }
 
     ShardStateMetaData getShardStateMetadata(IndexShard shard) {

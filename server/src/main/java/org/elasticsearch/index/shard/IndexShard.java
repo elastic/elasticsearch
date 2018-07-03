@@ -1120,7 +1120,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * <code>e</code> is caused by index corruption
      */
     public void failShard(String reason, @Nullable Exception e) {
-        logger.debug(reason, e);
         // fail the engine. This will cause this shard to also be removed from the node's index service.
         getEngine().failEngine(reason, e);
     }
@@ -2314,11 +2313,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // that's fine since we already synced everything on engine close - this also is conform with the methods
                 // documentation
             } catch (IOException ex) { // if this fails we are in deep shit - fail the request
-                try {
-                    failShard("failed to sync translog", ex);
-                } catch (Exception inner) {
-                    ex.addSuppressed(inner);
-                }
+                logger.debug("failed to sync translog", ex);
                 throw ex;
             }
         }

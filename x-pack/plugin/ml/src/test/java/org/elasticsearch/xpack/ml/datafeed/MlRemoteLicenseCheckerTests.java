@@ -11,10 +11,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.XPackInfoResponse;
+import org.elasticsearch.protocol.license.LicenseStatus;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.action.LicenseStatus;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 
 import java.util.ArrayList;

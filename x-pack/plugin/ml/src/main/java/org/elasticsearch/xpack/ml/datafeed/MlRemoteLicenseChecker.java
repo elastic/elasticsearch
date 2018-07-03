@@ -13,12 +13,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.License;
+import org.elasticsearch.protocol.license.LicenseStatus;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.action.LicenseStatus;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
-import org.elasticsearch.xpack.action.XPackInfoRequest;
-import org.elasticsearch.xpack.action.XPackInfoResponse;
 
 import java.util.EnumSet;
 import java.util.Iterator;

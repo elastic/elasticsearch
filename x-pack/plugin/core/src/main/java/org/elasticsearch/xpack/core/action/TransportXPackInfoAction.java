@@ -12,15 +12,16 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.action.XPackInfoRequest;
-import org.elasticsearch.xpack.action.XPackInfoResponse;
-import org.elasticsearch.xpack.action.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
-import org.elasticsearch.xpack.action.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.xpack.core.XPackBuild;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 

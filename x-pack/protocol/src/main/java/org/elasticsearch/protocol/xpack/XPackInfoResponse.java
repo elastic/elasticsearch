@@ -21,24 +21,27 @@ package org.elasticsearch.protocol.xpack;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.action.LicenseStatus;
+import org.elasticsearch.protocol.license.LicenseStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-public class XPackInfoResponse extends ActionResponse {
+public class XPackInfoResponse extends ActionResponse implements ToXContentObject {
     // Temporary location until we simpmlify and move License.java
     public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS = Long.MAX_VALUE - TimeUnit.HOURS.toMillis(24 * 365);
 
@@ -91,17 +94,57 @@ public class XPackInfoResponse extends ActionResponse {
         this.featureSetsInfo = in.readOptionalWriteable(FeatureSetsInfo::new);
     }
 
-    public static class LicenseInfo implements ToXContentObject, Writeable {
+    @Override
+    public boolean equals(Object other) {
+        if (other == null || other.getClass() != getClass()) return false;
+        if (this == other) return true;
+        XPackInfoResponse rhs = (XPackInfoResponse) other;
+        return Objects.equals(buildInfo, rhs.buildInfo)
+                && Objects.equals(licenseInfo, rhs.licenseInfo)
+                && Objects.equals(featureSetsInfo, rhs.featureSetsInfo);
+    }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(buildInfo, licenseInfo, featureSetsInfo);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+
+        if (buildInfo != null) {
+            builder.field("build", buildInfo, params);
+        }
+
+        EnumSet<XPackInfoRequest.Category> categories = XPackInfoRequest.Category
+                .toSet(Strings.splitStringByCommaToArray(params.param("categories", "_all")));
+        if (licenseInfo != null) {
+            builder.field("license", licenseInfo, params);
+        } else if (categories.contains(XPackInfoRequest.Category.LICENSE)) {
+            // if the user requested the license info, and there is no license, we should send
+            // back an explicit null value (indicating there is no license). This is different
+            // than not adding the license info at all
+            builder.nullField("license");
+        }
+
+        if (featureSetsInfo != null) {
+            builder.field("features", featureSetsInfo, params);
+        }
+
+        if (params.paramAsBoolean("human", true)) {
+            builder.field("tagline", "You know, for X");
+        }
+
+        return builder.endObject();
+    }
+
+    public static class LicenseInfo implements ToXContentObject, Writeable {
         private final String uid;
         private final String type;
         private final String mode;
         private final long expiryDate;
         private final LicenseStatus status;
-
-        public LicenseInfo(StreamInput in) throws IOException {
-            this(in.readString(), in.readString(), in.readString(), LicenseStatus.readFrom(in), in.readLong());
-        }
 
         public LicenseInfo(String uid, String type, String mode, LicenseStatus status, long expiryDate) {
             this.uid = uid;
@@ -109,6 +152,19 @@ public class XPackInfoResponse extends ActionResponse {
             this.mode = mode;
             this.status = status;
             this.expiryDate = expiryDate;
+        }
+
+        public LicenseInfo(StreamInput in) throws IOException {
+            this(in.readString(), in.readString(), in.readString(), LicenseStatus.readFrom(in), in.readLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(uid);
+            out.writeString(type);
+            out.writeString(mode);
+            status.writeTo(out);
+            out.writeLong(expiryDate);
         }
 
         public String getUid() {
@@ -132,6 +188,23 @@ public class XPackInfoResponse extends ActionResponse {
         }
 
         @Override
+        public boolean equals(Object other) {
+            if (other == null || other.getClass() != getClass()) return false;
+            if (this == other) return true;
+            LicenseInfo rhs = (LicenseInfo) other;
+            return Objects.equals(uid, rhs.uid)
+                    && Objects.equals(type, rhs.type)
+                    && Objects.equals(mode, rhs.mode)
+                    && expiryDate == rhs.expiryDate
+                    && Objects.equals(status, rhs.status);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(uid, type, mode, expiryDate, status);
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject()
                 .field("uid", uid)
@@ -143,28 +216,25 @@ public class XPackInfoResponse extends ActionResponse {
             }
             return builder.endObject();
         }
-
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(uid);
-            out.writeString(type);
-            out.writeString(mode);
-            status.writeTo(out);
-            out.writeLong(expiryDate);
-        }
     }
 
     public static class BuildInfo implements ToXContentObject, Writeable {
-
         private final String hash;
         private final String timestamp;
+
+        public BuildInfo(String hash, String timestamp) {
+            this.hash = hash;
+            this.timestamp = timestamp;
+        }
 
         public BuildInfo(StreamInput input) throws IOException {
             this(input.readString(), input.readString());
         }
 
-        public BuildInfo(String hash, String timestamp) {
-            this.hash = hash;
-            this.timestamp = timestamp;
+        @Override
+        public void writeTo(StreamOutput output) throws IOException {
+            output.writeString(hash);
+            output.writeString(timestamp);
         }
 
         public String getHash() {
@@ -176,22 +246,38 @@ public class XPackInfoResponse extends ActionResponse {
         }
 
         @Override
+        public boolean equals(Object other) {
+            if (other == null || other.getClass() != getClass()) return false;
+            if (this == other) return true;
+            BuildInfo rhs = (BuildInfo) other;
+            return Objects.equals(hash, rhs.hash)
+                    && Objects.equals(timestamp, rhs.timestamp);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(hash, timestamp);
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
                     .field("hash", hash)
                     .field("date", timestamp)
                     .endObject();
         }
-
-        public void writeTo(StreamOutput output) throws IOException {
-            output.writeString(hash);
-            output.writeString(timestamp);
-        }
     }
 
     public static class FeatureSetsInfo implements ToXContentObject, Writeable {
-
         private final Map<String, FeatureSet> featureSets;
+
+        public FeatureSetsInfo(Set<FeatureSet> featureSets) {
+            Map<String, FeatureSet> map = new HashMap<>(featureSets.size());
+            for (FeatureSet featureSet : featureSets) {
+                map.put(featureSet.name, featureSet);
+            }
+            this.featureSets = Collections.unmodifiableMap(map);
+        }
 
         public FeatureSetsInfo(StreamInput in) throws IOException {
             int size = in.readVInt();
@@ -203,16 +289,29 @@ public class XPackInfoResponse extends ActionResponse {
             this.featureSets = Collections.unmodifiableMap(featureSets);
         }
 
-        public FeatureSetsInfo(Set<FeatureSet> featureSets) {
-            Map<String, FeatureSet> map = new HashMap<>(featureSets.size());
-            for (FeatureSet featureSet : featureSets) {
-                map.put(featureSet.name, featureSet);
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(featureSets.size());
+            for (FeatureSet featureSet : featureSets.values()) {
+                featureSet.writeTo(out);
             }
-            this.featureSets = Collections.unmodifiableMap(map);
         }
 
         public Map<String, FeatureSet> getFeatureSets() {
             return featureSets;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (other == null || other.getClass() != getClass()) return false;
+            if (this == other) return true;
+            FeatureSetsInfo rhs = (FeatureSetsInfo) other;
+            return Objects.equals(featureSets, rhs.featureSets);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(featureSets);
         }
 
         @Override
@@ -225,25 +324,12 @@ public class XPackInfoResponse extends ActionResponse {
             return builder.endObject();
         }
 
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(featureSets.size());
-            for (FeatureSet featureSet : featureSets.values()) {
-                featureSet.writeTo(out);
-            }
-        }
-
         public static class FeatureSet implements ToXContentObject, Writeable {
-
             private final String name;
             @Nullable private final String description;
             private final boolean available;
             private final boolean enabled;
             @Nullable private final Map<String, Object> nativeCodeInfo;
-
-            public FeatureSet(StreamInput in) throws IOException {
-                this(in.readString(), in.readOptionalString(), in.readBoolean(), in.readBoolean(),
-                        in.getVersion().onOrAfter(Version.V_5_4_0) ? in.readMap() : null);
-            }
 
             public FeatureSet(String name, @Nullable String description, boolean available, boolean enabled,
                               @Nullable Map<String, Object> nativeCodeInfo) {
@@ -252,6 +338,22 @@ public class XPackInfoResponse extends ActionResponse {
                 this.available = available;
                 this.enabled = enabled;
                 this.nativeCodeInfo = nativeCodeInfo;
+            }
+
+            public FeatureSet(StreamInput in) throws IOException {
+                this(in.readString(), in.readOptionalString(), in.readBoolean(), in.readBoolean(),
+                        in.getVersion().onOrAfter(Version.V_5_4_0) ? in.readMap() : null);
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeString(name);
+                out.writeOptionalString(description);
+                out.writeBoolean(available);
+                out.writeBoolean(enabled);
+                if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
+                    out.writeMap(nativeCodeInfo);
+                }
             }
 
             public String name() {
@@ -276,6 +378,24 @@ public class XPackInfoResponse extends ActionResponse {
                 return nativeCodeInfo;
             }
 
+            @Override
+            public boolean equals(Object other) {
+                if (other == null || other.getClass() != getClass()) return false;
+                if (this == other) return true;
+                FeatureSet rhs = (FeatureSet) other;
+                return Objects.equals(name, rhs.name)
+                        && Objects.equals(description, rhs.description)
+                        && available == rhs.available
+                        && enabled == rhs.enabled
+                        && Objects.equals(nativeCodeInfo, rhs.nativeCodeInfo);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(name, description, available, enabled, nativeCodeInfo);
+            }
+
+            @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
                 if (description != null) {
@@ -288,17 +408,6 @@ public class XPackInfoResponse extends ActionResponse {
                 }
                 return builder.endObject();
             }
-
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(name);
-                out.writeOptionalString(description);
-                out.writeBoolean(available);
-                out.writeBoolean(enabled);
-                if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
-                    out.writeMap(nativeCodeInfo);
-                }
-            }
         }
-
     }
 }

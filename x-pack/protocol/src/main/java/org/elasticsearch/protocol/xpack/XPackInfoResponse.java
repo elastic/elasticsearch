@@ -143,8 +143,8 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
         private final String uid;
         private final String type;
         private final String mode;
-        private final long expiryDate;
         private final LicenseStatus status;
+        private final long expiryDate;
 
         public LicenseInfo(String uid, String type, String mode, LicenseStatus status, long expiryDate) {
             this.uid = uid;

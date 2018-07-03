@@ -33,7 +33,7 @@ public class SlackMessage implements MessageElement {
     // Slack with fail to send a message if it has no attachments AND no text.
     // Slack will succeed with attachments OR text.
     public SlackMessage(String from, String[] to, String icon, Attachment[] attachments) {
-        this(from, to, icon, null, null); // Empty text
+        this(from, to, icon, null, attachments); // Empty text
     }
 
     public SlackMessage(String from, String[] to, String icon, String text) {

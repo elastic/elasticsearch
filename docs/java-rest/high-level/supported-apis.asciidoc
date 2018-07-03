@@ -81,6 +81,7 @@ Index Management::
 
 Mapping Management::
 * <<java-rest-high-put-mapping>>
+* <<java-rest-high-get-mappings>>
 * <<java-rest-high-get-field-mappings>>
 
 Alias Management::

@@ -47,7 +47,8 @@ import java.util.function.Consumer;
 public class ReplicationOperation<
             Request extends ReplicationRequest<Request>,
             ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
-            PrimaryResultT extends ReplicationOperation.PrimaryResult<ReplicaRequest>
+            PrimaryResultT extends ReplicationOperation.PrimaryResult<ReplicaRequest>,
+            ReplicaResponseT extends ReplicationResponse
         > {
     private final Logger logger;
     private final Request request;
@@ -75,15 +76,31 @@ public class ReplicationOperation<
     private final List<ReplicationResponse.ShardInfo.Failure> shardReplicaFailures = Collections.synchronizedList(new ArrayList<>());
 
     public ReplicationOperation(Request request, Primary<Request, ReplicaRequest, PrimaryResultT> primary,
-                                ActionListener<PrimaryResultT> listener,
+                                ActionListener<ReplicaResponseT> listener,
                                 Replicas<ReplicaRequest> replicas,
                                 Logger logger, String opType) {
         this.replicasProxy = replicas;
         this.primary = primary;
-        this.resultListener = listener;
+        final ActionListener<ReplicaResponseT> wrappedListener = primaryShardFailedListener(listener);
+        this.resultListener = ActionListener.wrap(result -> result.respond(wrappedListener), listener::onFailure);
         this.logger = logger;
         this.request = request;
         this.opType = opType;
+    }
+
+    private ActionListener<ReplicaResponseT> primaryShardFailedListener(ActionListener<ReplicaResponseT> listener) {
+        return new ActionListener<ReplicaResponseT>() {
+            @Override
+            public void onResponse(ReplicaResponseT response) {
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                final ShardId shardId = primary.routingEntry().shardId();
+                listener.onFailure(new RetryOnPrimaryException(shardId, "primary shard failed", e));
+            }
+        };
     }
 
     public void execute() throws Exception {
@@ -422,5 +439,7 @@ public class ReplicationOperation<
         @Nullable RequestT replicaRequest();
 
         void setShardInfo(ReplicationResponse.ShardInfo shardInfo);
+
+        void respond(ActionListener listener);
     }
 }

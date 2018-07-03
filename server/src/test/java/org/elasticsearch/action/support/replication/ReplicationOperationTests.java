@@ -111,7 +111,7 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         Request request = new Request(shardId);
-        PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
+        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         final TestReplicaProxy replicasProxy = new TestReplicaProxy(primaryTerm, simulatedFailures);
 
         final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup);
@@ -196,7 +196,7 @@ public class ReplicationOperationTests extends ESTestCase {
         expectedFailures.put(failedReplica, new CorruptIndexException("simulated", (String) null));
 
         Request request = new Request(shardId);
-        PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
+        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         final boolean testPrimaryDemotedOnStaleShardCopies = randomBoolean();
         final TestReplicaProxy replicasProxy = new TestReplicaProxy(primaryTerm, expectedFailures) {
             @Override
@@ -278,7 +278,7 @@ public class ReplicationOperationTests extends ESTestCase {
         };
 
         Request request = new Request(shardId);
-        PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
+        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener,
             new TestReplicaProxy(primaryTerm));
         op.execute();
@@ -320,7 +320,7 @@ public class ReplicationOperationTests extends ESTestCase {
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
         final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards);
 
-        PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
+        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         final ShardRouting primaryShard = shardRoutingTable.primaryShard();
         final TestReplicationOperation op = new TestReplicationOperation(request,
             new TestPrimary(primaryShard, () -> initialReplicationGroup),
@@ -381,7 +381,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         };
 
-        final PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
+        final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         final ReplicationOperation.Replicas<Request> replicas = new TestReplicaProxy(primaryTerm, Collections.emptyMap());
         TestReplicationOperation operation = new TestReplicationOperation(request, primary, listener, replicas);
         operation.execute();
@@ -439,6 +439,10 @@ public class ReplicationOperationTests extends ESTestCase {
         }
     }
 
+    static class TestResponse extends ReplicationResponse {
+    }
+
+
     static class TestPrimary implements ReplicationOperation.Primary<Request, Request, TestPrimary.Result> {
         final ShardRouting routing;
         final long localCheckpoint;
@@ -492,6 +496,13 @@ public class ReplicationOperationTests extends ESTestCase {
 
             public ShardInfo getShardInfo() {
                 return shardInfo;
+            }
+
+            @Override
+            public void respond(ActionListener listener) {
+                final TestResponse response = new TestResponse();
+                response.setShardInfo(shardInfo);
+                listener.onResponse(response);
             }
         }
 
@@ -616,14 +627,14 @@ public class ReplicationOperationTests extends ESTestCase {
         }
     }
 
-    class TestReplicationOperation extends ReplicationOperation<Request, Request, TestPrimary.Result> {
+    class TestReplicationOperation extends ReplicationOperation<Request, Request, TestPrimary.Result, TestResponse> {
         TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
-                ActionListener<TestPrimary.Result> listener, Replicas<Request> replicas) {
+                ActionListener<TestResponse> listener, Replicas<Request> replicas) {
             this(request, primary, listener, replicas, ReplicationOperationTests.this.logger, "test");
         }
 
         TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
-                                 ActionListener<TestPrimary.Result> listener,
+                                 ActionListener<TestResponse> listener,
                                  Replicas<Request> replicas, Logger logger, String opType) {
             super(request, primary, listener, replicas, logger, opType);
         }

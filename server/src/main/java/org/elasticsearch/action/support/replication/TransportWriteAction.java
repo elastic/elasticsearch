@@ -154,7 +154,7 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public synchronized void respond(ActionListener<Response> listener) {
+        public synchronized void respond(ActionListener listener) {
             this.listener = listener;
             respondIfPossible();
         }

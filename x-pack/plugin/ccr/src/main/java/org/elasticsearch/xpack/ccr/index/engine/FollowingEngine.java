@@ -59,6 +59,12 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     @Override
+    public int fillSeqNoGaps(long primaryTerm) throws IOException {
+        // a noop implementation, because follow shard does not own the history but the leader shard does.
+        return 0;
+    }
+
+    @Override
     protected boolean assertPrimaryIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
         // sequence number should be set when operation origin is primary
         assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations on a following index must have an assigned sequence number";

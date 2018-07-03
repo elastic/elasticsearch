@@ -66,7 +66,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
             try {
                 if ("this".equals(type)) {
                     // user's own function
-                    Method interfaceMethod = locals.getDefinition().ClassToType(expected).struct.functionalMethod;
+                    Method interfaceMethod = locals.getDefinition().getPainlessStructFromJavaClass(expected).functionalMethod;
                     if (interfaceMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                            "to [" + Definition.ClassToName(expected) + "], not a functional interface");

@@ -36,6 +36,7 @@ import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteReposito
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -605,7 +606,7 @@ final class RequestConverters {
         request.setEntity(createEntity(searchTemplateRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
-    
+
     static Request multiSearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_msearch/template");
 
@@ -619,7 +620,7 @@ final class RequestConverters {
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
         request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
         return request;
-    }    
+    }
 
     static Request existsAlias(GetAliasesRequest getAliasesRequest) {
         if ((getAliasesRequest.indices() == null || getAliasesRequest.indices().length == 0) &&
@@ -706,6 +707,17 @@ final class RequestConverters {
         parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
 
         request.setEntity(createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request clusterGetSettings(ClusterGetSettingsRequest clusterGetSettingsRequest) throws IOException {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_cluster/settings");
+
+        Params parameters = new Params(request);
+        parameters.withLocal(clusterGetSettingsRequest.local());
+        parameters.withIncludeDefaults(clusterGetSettingsRequest.includeDefaults());
+        parameters.withMasterTimeout(clusterGetSettingsRequest.masterNodeTimeout());
+
         return request;
     }
 

@@ -161,7 +161,7 @@ final class UserAgentParser {
     }
 
     public Details parse(String agentString) {
-        Details details = cache.get(name, agentString);;
+        Details details = cache.get(name, agentString);
 
         if (details == null) {
             VersionedName userAgent = findMatch(uaPatterns, agentString);

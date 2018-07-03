@@ -132,7 +132,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
         final String blobName = blobName(name);
         writeTo(obj, blobName, bytesArray -> {
             try (InputStream stream = bytesArray.streamInput()) {
-                blobContainer.writeBlobAtomic(blobName, stream, bytesArray.length());
+                blobContainer.writeBlobAtomic(blobName, stream, bytesArray.length(), true);
             }
         });
     }
@@ -150,7 +150,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
         final String blobName = blobName(name);
         writeTo(obj, blobName, bytesArray -> {
             try (InputStream stream = bytesArray.streamInput()) {
-                blobContainer.writeBlob(blobName, stream, bytesArray.length());
+                blobContainer.writeBlob(blobName, stream, bytesArray.length(), true);
             }
         });
     }

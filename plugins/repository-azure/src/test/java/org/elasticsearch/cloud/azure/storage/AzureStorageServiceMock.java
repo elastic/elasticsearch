@@ -108,9 +108,10 @@ public class AzureStorageServiceMock extends AzureStorageService {
     }
 
     @Override
-    public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize)
+    public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize,
+                          boolean failIfAlreadyExists)
         throws URISyntaxException, StorageException, FileAlreadyExistsException {
-        if (blobs.containsKey(blobName)) {
+        if (failIfAlreadyExists && blobs.containsKey(blobName)) {
             throw new FileAlreadyExistsException(blobName);
         }
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {

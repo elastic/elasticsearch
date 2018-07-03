@@ -1,0 +1,38 @@
+[[painless-watcher-condition-context]]
+=== Watcher condition context
+
+Use a Painless script as a {xp_version}/condition-script.html[watcher condition]
+to test if a response is necessary.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`ctx['watch_id']` (`String`, read-only)::
+        The id of the watch.
+
+`ctx['execution_time']` (`DateTime`, read-only)::
+        The start time for the watch.
+
+`ctx['trigger']['scheduled_time']` (`DateTime`, read-only)::
+        The scheduled trigger time for the watch.
+
+`ctx['trigger']['triggered_time']` (`DateTime`, read-only)::
+        The actual trigger time for the watch.
+
+`ctx['metadata']` (`Map`, read-only)::
+        Any metadata associated with the watch.
+
+`ctx['payload']` (`Map`, read-only)::
+        The accessible watch data based upon the
+        {xp_version}/input.html[watch input].
+
+*Return*
+
+`boolean`::
+        Expects `true` if the condition is met, and `false` otherwise.
+
+*API*
+
+The standard <<painless-api-reference, Painless API>> is available.

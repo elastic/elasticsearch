@@ -193,14 +193,55 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 return newAggregation;
             });
 
+            scripts.put("state.items = new ArrayList()", vars ->
+                aggContextScript(vars, state -> ((HashMap) state).put("items", new ArrayList())));
+
+            scripts.put("state.items.add(1)", vars ->
+                aggContextScript(vars, state -> {
+                    HashMap stateMap = (HashMap) state;
+                    List items = (List) stateMap.get("items");
+                    items.add(1);
+                }));
+
+            scripts.put("sum context state values", vars -> {
+                int sum = 0;
+                HashMap state = (HashMap) vars.get("state");
+                List items = (List) state.get("items");
+
+                for (Object x : items) {
+                    sum += (Integer)x;
+                }
+
+                return sum;
+            });
+
+            scripts.put("sum context states", vars -> {
+                Integer sum = 0;
+
+                List<?> states = (List<?>) vars.get("states");
+                for (Object state : states) {
+                    sum += ((Number) state).intValue();
+                }
+
+                return sum;
+            });
+
             return scripts;
         }
 
-        @SuppressWarnings("unchecked")
         static <T> Object aggScript(Map<String, Object> vars, Consumer<T> fn) {
-            T agg = (T) vars.get("_agg");
-            fn.accept(agg);
-            return agg;
+            return aggScript(vars, fn, "_agg");
+        }
+
+        static <T> Object aggContextScript(Map<String, Object> vars, Consumer<T> fn) {
+            return aggScript(vars, fn, "state");
+        }
+
+        @SuppressWarnings("unchecked")
+        private static <T> Object aggScript(Map<String, Object> vars, Consumer<T> fn, String stateVarName) {
+            T aggState = (T) vars.get(stateVarName);
+            fn.accept(aggState);
+            return aggState;
         }
     }
 
@@ -1014,5 +1055,38 @@ public class ScriptedMetricIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, builder::get);
         assertThat(ex.getCause().getMessage(), containsString("Parameter name \"param1\" used in both aggregation and script parameters"));
+    }
+
+    public void testAggFromContext() {
+        Script initScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.items = new ArrayList()", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "state.items.add(1)", Collections.emptyMap());
+        Script combineScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum context state values", Collections.emptyMap());
+        Script reduceScript =
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum context states",
+                Collections.emptyMap());
+
+        SearchResponse response = client()
+            .prepareSearch("idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                scriptedMetric("scripted")
+                    .initScript(initScript)
+                    .mapScript(mapScript)
+                    .combineScript(combineScript)
+                    .reduceScript(reduceScript))
+            .get();
+
+        Aggregation aggregation = response.getAggregations().get("scripted");
+        assertThat(aggregation, notNullValue());
+        assertThat(aggregation, instanceOf(ScriptedMetric.class));
+
+        ScriptedMetric scriptedMetricAggregation = (ScriptedMetric) aggregation;
+        assertThat(scriptedMetricAggregation.getName(), equalTo("scripted"));
+        assertThat(scriptedMetricAggregation.aggregation(), notNullValue());
+
+        assertThat(scriptedMetricAggregation.aggregation(), instanceOf(Integer.class));
+        Integer aggResult = (Integer) scriptedMetricAggregation.aggregation();
+        long totalAgg = aggResult.longValue();
+        assertThat(totalAgg, equalTo(numDocs));
     }
 }

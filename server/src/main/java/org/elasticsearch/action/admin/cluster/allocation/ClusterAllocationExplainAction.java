@@ -24,7 +24,7 @@ import org.elasticsearch.action.Action;
 /**
  * Action for explaining shard allocation for a shard in the cluster
  */
-public class ClusterAllocationExplainAction extends Action<ClusterAllocationExplainRequest, ClusterAllocationExplainResponse> {
+public class ClusterAllocationExplainAction extends Action<ClusterAllocationExplainResponse> {
 
     public static final ClusterAllocationExplainAction INSTANCE = new ClusterAllocationExplainAction();
     public static final String NAME = "cluster:monitor/allocation/explain";

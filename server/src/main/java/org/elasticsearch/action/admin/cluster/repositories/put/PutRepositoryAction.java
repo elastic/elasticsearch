@@ -24,7 +24,7 @@ import org.elasticsearch.action.Action;
 /**
  * Register repository action
  */
-public class PutRepositoryAction extends Action<PutRepositoryRequest, PutRepositoryResponse> {
+public class PutRepositoryAction extends Action<PutRepositoryResponse> {
 
     public static final PutRepositoryAction INSTANCE = new PutRepositoryAction();
     public static final String NAME = "cluster:admin/repository/put";

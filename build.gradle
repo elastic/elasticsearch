@@ -170,8 +170,8 @@ task verifyVersions {
  * the enabled state of every bwc task. It should be set back to true
  * after the backport of the backcompat code is complete.
  */
-final boolean bwc_tests_enabled = true
-final String bwc_tests_disabled_issue = "" /* place a PR link here when commiting bwc changes */
+final boolean bwc_tests_enabled = false
+final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/31675" /* place a PR link here when commiting bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -325,6 +325,9 @@ gradle.projectsEvaluated {
     if (project.path == ':test:framework') {
       // :test:framework:test cannot run before and after :server:test
       return
+    }
+    if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
+      integTest.mustRunAfter test
     }
     configurations.all { Configuration configuration ->
       /*
@@ -483,25 +486,17 @@ task run(type: Run) {
   impliesSubProjects = true
 }
 
-task wrapper(type: Wrapper)
-
-gradle.projectsEvaluated {
-
-  allprojects {
-    tasks.withType(Wrapper) { Wrapper wrapper ->
-      wrapper.distributionType = DistributionType.ALL
-
-      wrapper.doLast {
+wrapper {
+    distributionType = DistributionType.ALL
+    doLast {
         final DistributionLocator locator = new DistributionLocator()
         final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
         final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
         final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
         final String sha256Sum = new String(sha256Uri.toURL().bytes)
         wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
-      }
+        println "Added checksum to wrapper properties"
     }
-  }
-
 }
 
 static void assertLinesInFile(final Path path, final List<String> expectedLines) {
@@ -572,6 +567,31 @@ gradle.projectsEvaluated {
         project.tasks.remove(dependenciesInfo)
         project.precommit.dependsOn.remove('dependenciesInfo')
       }
+    }
+  }
+}
+
+if (System.properties.get("build.compare") != null) {
+  apply plugin: 'compare-gradle-builds'
+  compareGradleBuilds {
+    ext.referenceProject = System.properties.get("build.compare")
+    doFirst {
+      if (file(referenceProject).exists() == false) {
+        throw new GradleException(
+                "Use git worktree to check out a version to compare against to ../elasticsearch_build_reference"
+        )
+      }
+    }
+    sourceBuild {
+      gradleVersion = "4.8.1" // does not default to gradle weapper of project dir, but current version
+      projectDir = referenceProject
+      tasks = ["clean", "assemble"]
+      arguments = ["-Dbuild.compare_friendly=true"]
+    }
+    targetBuild {
+      tasks = ["clean", "assemble"]
+      // use -Dorg.gradle.java.home= to alter jdk versions
+      arguments = ["-Dbuild.compare_friendly=true"]
     }
   }
 }

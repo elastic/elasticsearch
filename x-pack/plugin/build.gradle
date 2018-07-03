@@ -36,7 +36,7 @@ subprojects {
         // default to main class files if such a source set exists
         final List files = []
         if (project.sourceSets.findByName("main")) {
-          files.add(project.sourceSets.main.output.classesDir)
+          files.add(project.sourceSets.main.output.classesDirs)
           dependsOn project.tasks.classes
         }
         // filter out non-existent classes directories from empty source sets
@@ -151,6 +151,7 @@ integTestCluster {
   setting 'xpack.license.self_generated.type', 'trial'
   keystoreSetting 'bootstrap.password', 'x-pack-test-password'
   keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'keypass'
+  keystoreSetting 'xpack.security.ingest.hash.processor.key', 'hmackey'
   distribution = 'zip' // this is important since we use the reindex module in ML
 
   setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
@@ -192,3 +193,7 @@ integTestCluster {
       return tmpFile.exists()
   }
 }
+if (integTestCluster.distribution.startsWith("oss-")) {
+  integTest.enabled = false
+}
+

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.notification.slack;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -28,9 +29,9 @@ public class SlackService extends NotificationService<SlackAccount> {
             Setting.affixKeySetting("xpack.notification.slack.account.", "url",
                     (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
 
-    private static final Setting.AffixSetting<String> SETTING_URL_SECURE =
+    private static final Setting.AffixSetting<SecureString> SETTING_URL_SECURE =
             Setting.affixKeySetting("xpack.notification.slack.account.", "secure_url",
-                    (key) -> SecureSetting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> SecureSetting.secureString(key, null));
 
     private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS =
             Setting.affixKeySetting("xpack.notification.slack.account.", "message_defaults",

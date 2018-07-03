@@ -425,6 +425,12 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::create-snapshot-response
 
         assertEquals(RestStatus.OK, status);
+
+        // tag::create-snapshot-response-snapshot-info
+        SnapshotInfo snapshotInfo = response.getSnapshotInfo(); // <1>
+        // end::create-snapshot-response-snapshot-info
+
+        assertNotNull(snapshotInfo);
     }
 
     public void testSnapshotCreateAsync() throws InterruptedException {

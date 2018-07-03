@@ -24,6 +24,7 @@ import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.WorkResult;
 import org.gradle.process.ExecResult;
+import org.gradle.process.ExecSpec;
 import org.gradle.process.JavaExecSpec;
 
 import java.io.File;
@@ -68,5 +69,9 @@ public class GradleServicesAdapter {
 
     public boolean delete(File path) {
         return project.delete(path);
+    }
+
+    public ExecResult exec(Action<? super ExecSpec> action) {
+        return project.exec(action);
     }
 }

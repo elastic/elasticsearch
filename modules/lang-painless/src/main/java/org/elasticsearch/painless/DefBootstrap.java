@@ -1,15 +1,3 @@
-package org.elasticsearch.painless;
-
-import org.elasticsearch.common.SuppressForbidden;
-
-import java.lang.invoke.CallSite;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodHandles.Lookup;
-import java.lang.invoke.MethodType;
-import java.lang.invoke.MutableCallSite;
-import java.lang.invoke.WrongMethodTypeException;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -28,6 +16,18 @@ import java.lang.invoke.WrongMethodTypeException;
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package org.elasticsearch.painless;
+
+import org.elasticsearch.common.SuppressForbidden;
+
+import java.lang.invoke.CallSite;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
+import java.lang.invoke.MethodType;
+import java.lang.invoke.MutableCallSite;
+import java.lang.invoke.WrongMethodTypeException;
 
 /**
  * Painless invokedynamic bootstrap for the call site.

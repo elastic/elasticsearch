@@ -229,6 +229,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     private SetOnce<JiraService> jiraService = new SetOnce<>();
     private SetOnce<SlackService> slackService = new SetOnce<>();
     private SetOnce<PagerDutyService> pagerDutyService = new SetOnce<>();
+    List<NotificationService> reloadableServices = new ArrayList<>();
 
     public Watcher(final Settings settings) {
         this.settings = settings;
@@ -278,10 +279,16 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
         // notification
         emailService.set(new EmailService(settings, cryptoService, clusterService.getClusterSettings()));
+        reloadableServices.add(emailService.get());
         hipChatService.set(new HipChatService(settings, httpClient, clusterService.getClusterSettings()));
+        reloadableServices.add(hipChatService.get());
         jiraService.set(new JiraService(settings, httpClient, clusterService.getClusterSettings()));
+        reloadableServices.add(jiraService.get());
         slackService.set(new SlackService(settings, httpClient, clusterService.getClusterSettings()));
+        reloadableServices.add(slackService.get());
         pagerDutyService.set(new PagerDutyService(settings, httpClient, clusterService.getClusterSettings()));
+        reloadableServices.add(pagerDutyService.get());
+
 
         TextTemplateEngine templateEngine = new TextTemplateEngine(settings, scriptService);
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
@@ -624,18 +631,6 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         IOUtils.closeWhileHandlingException(httpClient);
     }
 
-    /**
-     * Used to detect which {@link NotificationService} get reloaded. Also useful for testing the reload in tests.
-     * @return
-     */
-    protected List<NotificationService> getReloadableServices() {
-        return Arrays.asList(
-            emailService.get(),
-            hipChatService.get(),
-            jiraService.get(),
-            slackService.get(),
-            pagerDutyService.get());
-    }
 
     /**
      * Reloads all reloadable services' settings.
@@ -648,7 +643,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
      */
     @Override
     public void reload(Settings settings) throws Exception {
-        for (NotificationService service : getReloadableServices()) {
+        for (NotificationService service : reloadableServices) {
             service.reload(settings);
         }
     }

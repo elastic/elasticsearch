@@ -25,6 +25,9 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class WatcherPluginTests extends ESTestCase {
 
@@ -126,17 +129,13 @@ public class WatcherPluginTests extends ESTestCase {
             .put("xpack.watcher.enabled", false)
             .put("path.home", createTempDir())
             .build();
-        TestNotificationService service = new TestNotificationService(settings, "test");
-        Watcher watcher = new Watcher(settings) {
-            @Override
-            protected List<NotificationService> getReloadableServices() {
-                return Collections.singletonList(service);
-            }
-        };
+        NotificationService mockService = mock(NotificationService.class);
+        Watcher watcher = new Watcher(settings);
+        watcher.reloadableServices.clear();
+        watcher.reloadableServices.add(mockService);
 
-        assertFalse(service.calledCreateAccount);
+        verify(mockService, times(0)).reload(settings);
         watcher.reload(settings);
-        assertTrue(service.calledCreateAccount);
-
+        verify(mockService, times(1)).reload(settings);
     }
 }

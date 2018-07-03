@@ -238,8 +238,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
 
         // apply filters from the previous nested level
         if (nested != null) {
-            parentQuery = Queries.filtered(parentQuery,
-                new ToParentBlockJoinQuery(nested.getInnerQuery(), nested.getRootFilter(), ScoreMode.None));
+            parentQuery = new ToParentBlockJoinQuery(nested.getInnerQuery(), nested.getRootFilter(), ScoreMode.None);
 
             if (objectMapper != null) {
                 childQuery = Queries.filtered(childQuery,

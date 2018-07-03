@@ -641,7 +641,8 @@ public class DateFormatters {
         } else if ("ordinalDateTimeNoMillis".equals(input) || "ordinal_date_time_no_millis".equals(input)) {
             return new DateFormatter(ORDINAL_DATE_TIME_NO_MILLIS);
         } else if ("time".equals(input)) {
-            return new DateFormatter(TIME_ZONE_FORMATTER_ZONE_ID, TIME_ZONE_FORMATTER_WITH_COLON, TIME_ZONE_FORMATTER_WITHOUT_COLON);
+//            return new DateFormatter(TIME_PREFIX, TIME_ZONE_ID, TIME_ZONE_WITH_COLON, TIME_ZONE_WITHOUT_COLON);
+            return new DateFormatter(TIME_ZONE_ID, TIME_ZONE_WITH_COLON, TIME_ZONE_WITHOUT_COLON);
         } else if ("timeNoMillis".equals(input) || "time_no_millis".equals(input)) {
             return new DateFormatter(TIME_NO_MILLIS);
         } else if ("tTime".equals(input) || "t_time".equals(input)) {
@@ -746,8 +747,7 @@ public class DateFormatters {
                 DateTimeFormatter[] formatters = new DateTimeFormatter[formats.length];
                 for (int i = 0; i < formats.length; i++) {
                     try {
-//                        formatters[i] = new DateTimeFormatterBuilder().appendPattern(input).toFormatter(locale);
-                        formatters[i] = forPattern(input, locale).formatters()[0];
+                        formatters[i] = forPattern(formats[i], locale).formatters()[0];
                     } catch (IllegalArgumentException e) {
                         throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
                     }

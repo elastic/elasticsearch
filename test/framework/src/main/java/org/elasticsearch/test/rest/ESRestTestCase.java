@@ -281,11 +281,18 @@ public abstract class ESRestTestCase extends ESTestCase {
                 Request request = new Request("GET", "_cat/templates");
                 request.addParameter("h", "name");
                 String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
-                for (String template : templates.split("\n")) {
-                    if (isXPackTemplate(template)) continue;
-                    adminClient().performRequest(new Request("DELETE", "_template/" + template));
+                if (false == "".equals(templates)) {
+                    for (String template : templates.split("\n")) {
+                        if (isXPackTemplate(template)) continue;
+                        if ("".equals(templates)) {
+                            throw new IllegalStateException("empty template in templates list:\n" + templates);
+                        }
+                        logger.debug("Clearing template [{}]", template);
+                        adminClient().performRequest(new Request("DELETE", "_template/" + template));
+                    }
                 }
             } else {
+                logger.debug("Clearing all templates");
                 adminClient().performRequest(new Request("DELETE", "_template/*"));
             }
         }

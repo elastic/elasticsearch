@@ -74,7 +74,7 @@ field alias to query over multiple target fields in a single clause.
 ==== Unsupported APIs
 
 Writes to field aliases are not supported: attempting to use an alias in an index or update request
-will result in a failure. This also precludes aliases from being the target of `copy_to`.
+will result in a failure. Likewise, aliases cannot be used as the target of `copy_to`.
 
 Because alias names are not present in the document source, aliases cannot be used when performing
 source filtering. For example, the following request will return an empty result for `_source`:
@@ -92,6 +92,10 @@ GET /_search
 // CONSOLE
 // TEST[continued]
 
-Finally, currently only the search and field capabilities APIs will accept and resolve
-field aliases. Other APIs that accept field names, such as <<docs-termvectors, term vectors>>,
-cannot be used with field aliases.
+Currently only the search and field capabilities APIs will accept and resolve field aliases.
+Other APIs that accept field names, such as <<docs-termvectors, term vectors>>, cannot be used
+with field aliases.
+
+Finally, some queries, such as `terms`, `geo_shape`, and `more_like_this`, allow for fetching query
+information from an indexed document. Because field aliases aren't supported when fetching documents,
+the part of the query that specifies the lookup path cannot refer to a field by its alias.

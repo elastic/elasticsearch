@@ -118,7 +118,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         private final Map<ShardRouting, Object> shards = new HashMap<>();
 
         TestTransportBroadcastByNodeAction(Settings settings, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request, String executor) {
-            super(settings, "indices:admin/test", THREAD_POOL, TransportBroadcastByNodeActionTests.this.clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor);
+            super(settings, "indices:admin/test", TransportBroadcastByNodeActionTests.this.clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor);
         }
 
         @Override
@@ -364,7 +364,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         TestTransportChannel channel = new TestTransportChannel();
 
-        handler.messageReceived(action.new NodeRequest(nodeId, new Request(), new ArrayList<>(shards)), channel);
+        handler.messageReceived(action.new NodeRequest(nodeId, new Request(), new ArrayList<>(shards)), channel, null);
 
         // check the operation was executed only on the expected shards
         assertEquals(shards, action.getResults().keySet());

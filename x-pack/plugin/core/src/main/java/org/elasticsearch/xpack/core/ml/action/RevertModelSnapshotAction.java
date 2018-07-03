@@ -29,8 +29,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RevertModelSnapshotAction
-extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Response> {
+public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.Response> {
 
     public static final RevertModelSnapshotAction INSTANCE = new RevertModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/revert";

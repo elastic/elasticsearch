@@ -84,7 +84,7 @@ public class PutRoleRequestTests extends ESTestCase {
         request.cluster(randomSubsetOf(Arrays.asList("monitor", "manage", "all", "manage_security", "manage_ml", "monitor_watcher"))
             .toArray(Strings.EMPTY_ARRAY));
 
-        for (int i = randomIntBetween(1, 4); i > 0; i--) {
+        for (int i = randomIntBetween(0, 4); i > 0; i--) {
             request.addIndex(
                 generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), false, false),
                 randomSubsetOf(randomIntBetween(1, 2), "read", "write", "index", "all").toArray(Strings.EMPTY_ARRAY),
@@ -96,7 +96,7 @@ public class PutRoleRequestTests extends ESTestCase {
 
         final Supplier<String> stringWithInitialLowercase = ()
             -> randomAlphaOfLength(1).toLowerCase(Locale.ROOT) + randomAlphaOfLengthBetween(3, 12);
-        final ApplicationResourcePrivileges[] applicationPrivileges = new ApplicationResourcePrivileges[randomIntBetween(1, 5)];
+        final ApplicationResourcePrivileges[] applicationPrivileges = new ApplicationResourcePrivileges[randomIntBetween(0, 5)];
         for (int i = 0; i < applicationPrivileges.length; i++) {
             applicationPrivileges[i] = ApplicationResourcePrivileges.builder()
                 .application(stringWithInitialLowercase.get())

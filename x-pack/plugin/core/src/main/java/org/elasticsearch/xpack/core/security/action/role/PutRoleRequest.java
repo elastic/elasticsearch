@@ -175,7 +175,6 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
         out.writeMap(metadata);
-
     }
 
     public RoleDescriptor roleDescriptor() {

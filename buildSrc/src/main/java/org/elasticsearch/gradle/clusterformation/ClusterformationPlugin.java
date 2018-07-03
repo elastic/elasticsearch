@@ -52,7 +52,12 @@ public class ClusterformationPlugin implements Plugin<Project> {
         // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<? extends ElasticsearchConfiguration> container = project.container(
             ElasticsearchNode.class,
-            (name) -> new ElasticsearchNode(name, GradleServicesAdapter.getInstance(project), getArtifactsDir(project))
+            (name) -> new ElasticsearchNode(
+                name,
+                GradleServicesAdapter.getInstance(project),
+                getArtifactsDir(project),
+                new File(project.getBuildDir(), "clusterFormation")
+            )
         );
         project.getExtensions().add(EXTENSION_NAME, container);
 

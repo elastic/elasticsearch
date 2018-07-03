@@ -22,4 +22,8 @@ public class ClusterFormationException extends RuntimeException {
     public ClusterFormationException(String message) {
         super(message);
     }
+
+    public ClusterFormationException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

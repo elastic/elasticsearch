@@ -40,7 +40,7 @@ import java.io.File;
  */
 public class GradleServicesAdapter {
 
-    public final Project project;
+    private final Project project;
 
     public GradleServicesAdapter(Project project) {
         this.project = project;
@@ -64,5 +64,9 @@ public class GradleServicesAdapter {
 
     public FileTree zipTree(File zipPath) {
         return project.zipTree(zipPath);
+    }
+
+    public boolean delete(File path) {
+        return project.delete(path);
     }
 }

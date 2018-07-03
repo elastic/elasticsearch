@@ -40,7 +40,7 @@ public interface ElasticsearchConfiguration {
 
     void claim();
 
-    Future<Void> start();
+    Future<?> start();
 
     void unClaimAndStop();
 

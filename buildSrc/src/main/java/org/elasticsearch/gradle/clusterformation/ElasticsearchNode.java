@@ -26,26 +26,36 @@ import org.gradle.api.logging.Logging;
 
 import java.io.File;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ElasticsearchNode implements ElasticsearchConfiguration {
 
+    static private final ExecutorService threadPool = Executors.newCachedThreadPool();
+
+    private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
+
     private final String name;
     private final GradleServicesAdapter services;
     private final AtomicInteger noOfClaims = new AtomicInteger();
-    private final AtomicBoolean started = new AtomicBoolean(false);
-    private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
     private final File sharedArtifactsDir;
+    private final File workDir;
+
 
     private Distribution distribution;
     private Version version;
+    private volatile Future<?> runner = null;
 
-    public ElasticsearchNode(String name, GradleServicesAdapter services, File sharedArtifactsDir) {
+    public ElasticsearchNode(String name, GradleServicesAdapter services, File sharedArtifactsDir, File workDirBase) {
         this.name = name;
         this.services = services;
         this.sharedArtifactsDir = sharedArtifactsDir;
+        this.workDir = new File(workDirBase, name);
     }
 
     @Override
@@ -86,9 +96,10 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
      * @return future of thread running in the background
      */
     @Override
-    public Future<Void> start() {
-        if (started.getAndSet(true)) {
+    public synchronized Future<?> start() {
+        if (runner != null) {
             logger.lifecycle("Already started cluster: {}", name);
+            return runner;
         } else {
             logger.lifecycle("Starting cluster: {}", name);
         }
@@ -96,28 +107,50 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
         if (artifact.exists() == false) {
             throw new ClusterFormationException("Can not start node, missing artifact: " + artifact);
         }
-        return null;
+
+        runner = threadPool.submit(() -> {
+            services.sync(copySpec -> {
+                if (getDistribution().getExtension() == "zip") {
+                    copySpec.from(services.zipTree(artifact));
+                } else {
+                    throw new ClusterFormationException("Only ZIP distributions are supported for now");
+                }
+                copySpec.into(workDir);
+            });
+        });
+        return runner;
     }
 
     /**
      * Stops a running cluster if it's not claimed. Does nothing otherwise.
      */
     @Override
-    public void unClaimAndStop() {
+    public synchronized void unClaimAndStop() {
         int decrementedClaims = noOfClaims.decrementAndGet();
         if (decrementedClaims > 0) {
             logger.lifecycle("Not stopping {}, since cluster still has {} claim(s)", name, decrementedClaims);
             return;
         }
-        if (started.get() == false) {
+        if (runner == null) {
             logger.lifecycle("Asked to unClaimAndStop, but cluster was not running: {}", name);
             return;
         }
         logger.lifecycle("Stopping {}, number of claims is {}", name, decrementedClaims);
+
+        try {
+            runner.get(5, TimeUnit.MINUTES);
+        } catch (ExecutionException e) {
+            throw new ClusterFormationException("Exception while starting cluster `" + getName() + "`.", e);
+        } catch (TimeoutException e) {
+            throw new ClusterFormationException("Timed out while waiting for cluster to stop `" + getName() + "`.", e);
+        } catch (InterruptedException e) {
+            logger.warn("Interrupted while waiting for runner", e);
+            Thread.currentThread().interrupt();
+        }
     }
 
-    private void checkNotRunning() {
-        if (started.get()) {
+    private synchronized void checkNotRunning() {
+        if (runner != null) {
             throw new IllegalStateException("Configuration can not be altered while running ");
         }
     }

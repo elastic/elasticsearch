@@ -142,7 +142,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         OptionParser parser = muor.getParser();
         OptionSet options = parser.parse("-u", username, "-p", password, "-U", url);
         Set<String> roles = muor.getRolesThatExist(t, settings, new Environment(settings, conf), options);
-        logger.info("--> output: \n{}", t.getOutput());;
+        logger.info("--> output: \n{}", t.getOutput());
         for (String r : addedRoles) {
             assertThat("expected list to contain: " + r, roles.contains(r), is(true));
         }

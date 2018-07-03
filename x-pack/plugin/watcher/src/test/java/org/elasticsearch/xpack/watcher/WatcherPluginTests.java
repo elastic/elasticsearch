@@ -104,26 +104,6 @@ public class WatcherPluginTests extends ESTestCase {
         assertThat(Watcher.getWatcherThreadPoolSize(noDataNodeSettings), is(1));
     }
 
-    private class TestNotificationService extends NotificationService<Account> {
-
-        boolean calledCreateAccount = false;
-
-        TestNotificationService(Settings settings, String type) {
-            super(settings, type);
-        }
-
-        @Override
-        protected Account createAccount(String name, Settings accountSettings) {
-            return null;
-        }
-
-        @Override
-        public synchronized void reload(Settings settings) {
-            calledCreateAccount = true;
-            super.reload(settings);
-        }
-    }
-
     public void testReload() {
         Settings settings = Settings.builder()
             .put("xpack.watcher.enabled", true)

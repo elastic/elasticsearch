@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ClusterUpdateSettingsRequestTests extends ESTestCase {
 

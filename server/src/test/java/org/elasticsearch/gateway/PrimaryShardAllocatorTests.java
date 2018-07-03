@@ -169,7 +169,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         String allocId1 = randomAlphaOfLength(10);
         String allocId2 = randomAlphaOfLength(10);
         final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(), CLUSTER_RECOVERED,
-            allocId1, allocId2);;
+            allocId1, allocId2);
         testAllocator.addData(node1, allocId1, randomBoolean(),
             new ShardLockObtainFailedException(shardId, "test"));
         testAllocator.addData(node2, allocId2, randomBoolean(), null);
@@ -310,7 +310,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     public void testFoundAllocationButNoDecider() {
         final RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(noAllocationDeciders(), CLUSTER_RECOVERED,
             "allocId1");
-        testAllocator.addData(node1, "allocId1", randomBoolean());;
+        testAllocator.addData(node1, "allocId1", randomBoolean());
         testAllocator.allocateUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertThat(allocation.routingNodes().unassigned().ignored().isEmpty(), equalTo(true));

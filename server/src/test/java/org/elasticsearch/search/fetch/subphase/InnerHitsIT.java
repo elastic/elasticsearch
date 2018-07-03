@@ -474,7 +474,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                         .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false)))).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
-        hit = response.getHits().getAt(0);;
+        hit = response.getHits().getAt(0);
         assertThat(hit.getId(), equalTo("1"));
         messages = hit.getInnerHits().get("comments.messages");
         assertThat(messages.getTotalHits(), equalTo(1L));

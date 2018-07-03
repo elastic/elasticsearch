@@ -22,8 +22,6 @@ package org.elasticsearch.index.query;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import org.elasticsearch.test.AbstractQueryTestCase;
-
 import java.util.Random;
 
 import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_ALIAS_FIELD_NAME;

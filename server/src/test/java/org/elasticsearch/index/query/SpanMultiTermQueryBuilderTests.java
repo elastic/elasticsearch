@@ -172,7 +172,6 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     }
 
     public void testToQueryInnerSpanMultiTerm() throws IOException {
-
         Query query = new SpanOrQueryBuilder(createTestQueryBuilder()).toQuery(createShardContext());
         //verify that the result is still a span query, despite the boost that might get set (SpanBoostQuery rather than BoostQuery)
         assertThat(query, instanceOf(SpanQuery.class));

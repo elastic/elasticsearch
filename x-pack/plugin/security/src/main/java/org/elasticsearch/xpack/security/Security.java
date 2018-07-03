@@ -77,6 +77,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -429,23 +430,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         securityIndex.get().addIndexStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
 
-        AuthenticationFailureHandler failureHandler = null;
-        String extensionName = null;
-        for (SecurityExtension extension : securityExtensions) {
-            AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler();
-            if (extensionFailureHandler != null && failureHandler != null) {
-                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] " +
-                    "both set an authentication failure handler");
-            }
-            failureHandler = extensionFailureHandler;
-            extensionName = extension.toString();
-        }
-        if (failureHandler == null) {
-            logger.debug("Using default authentication failure handler");
-            failureHandler = new DefaultAuthenticationFailureHandler();
-        } else {
-            logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
-        }
+        final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
 
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
                 anonymousUser, tokenService));
@@ -493,6 +478,45 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
 
         return components;
+    }
+
+    private AuthenticationFailureHandler createAuthenticationFailureHandler(final Realms realms) {
+        AuthenticationFailureHandler failureHandler = null;
+        String extensionName = null;
+        for (SecurityExtension extension : securityExtensions) {
+            AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler();
+            if (extensionFailureHandler != null && failureHandler != null) {
+                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] "
+                        + "both set an authentication failure handler");
+            }
+            failureHandler = extensionFailureHandler;
+            extensionName = extension.toString();
+        }
+        if (failureHandler == null) {
+            logger.debug("Using default authentication failure handler");
+            final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
+            realms.asList().stream().forEach((realm) -> {
+                Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
+                realmFailureHeaders.entrySet().stream().forEach((e) -> {
+                    String key = e.getKey();
+                    e.getValue().stream()
+                            .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v) == false)
+                            .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
+                });
+            });
+
+            if (TokenService.isTokenServiceEnabled(settings)) {
+                String bearerScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
+                if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
+                        .contains(bearerScheme) == false) {
+                    defaultFailureResponseHeaders.get("WWW-Authenticate").add(bearerScheme);
+                }
+            }
+            failureHandler = new DefaultAuthenticationFailureHandler(defaultFailureResponseHeaders);
+        } else {
+            logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
+        }
+        return failureHandler;
     }
 
     @Override

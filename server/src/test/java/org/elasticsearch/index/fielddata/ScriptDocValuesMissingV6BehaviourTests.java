@@ -50,7 +50,7 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
             }
         }));
         assertWarnings("Script: returning default values for missing document values is deprecated. " +
-            "Set system property '-Des.script.exception_for_missing_value=true' " +
+            "Set system property '-Des.scripting.exception_for_missing_value=true' " +
             "to make behaviour compatible with future major versions.");
     }
 

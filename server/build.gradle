@@ -156,6 +156,15 @@ if (isEclipse) {
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
+// TODO: remove in 7.0
+additionalTest('testScriptDocValuesJodaBwc') {
+  include '**/ScriptDocValuesJodaBwcTests.class'
+  systemProperty 'es.scripting.use_java_time', 'false'
+}
+test {
+  exclude '**/ScriptDocValuesJodaBwcTests.class'
+}
+
 forbiddenPatterns {
   exclude '**/*.json'
   exclude '**/*.jmx'

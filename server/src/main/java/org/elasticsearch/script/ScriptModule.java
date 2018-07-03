@@ -41,7 +41,7 @@ import java.util.stream.Stream;
 public class ScriptModule {
 
     /** Whether scripts should expose dates as java time objects instead of joda time. */
-    public static final boolean USE_JAVA_TIME = Booleans.parseBoolean(System.getProperty("es.script.use_java_time"), false);
+    public static final boolean USE_JAVA_TIME = Booleans.parseBoolean(System.getProperty("es.scripting.use_java_time"), false);
 
     public static final Map<String, ScriptContext<?>> CORE_CONTEXTS;
     static {

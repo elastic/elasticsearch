@@ -706,7 +706,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             // TODO: remove this once joda time is removed from scriptin in 7.0
-            systemProperty 'es.script.use_java_time', 'true'
+            systemProperty 'es.scripting.use_java_time', 'true'
 
             boolean assertionsEnabled = Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))
             enableSystemAssertions assertionsEnabled

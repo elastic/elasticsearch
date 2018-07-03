@@ -18,14 +18,14 @@
  */
 
 
+
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 
-import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
 
 import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
-
 /**
  * This is a dummy project which does a local checkout of the previous
  * wire compat version's branch, and builds a snapshot. This allows backcompat
@@ -183,8 +183,8 @@ subprojects {
     } else if (showStacktraceName.equals("ALWAYS_FULL")) {
       args "--full-stacktrace"
     }
-    standardOutput = new IdentingOutputStream(System.out)
-    errorOutput = new IdentingOutputStream(System.err)
+    standardOutput = new IndentingOutputStream(System.out)
+    errorOutput = new IndentingOutputStream(System.err)
     doLast {
       List missing = artifactFiles.grep { file ->
         false == file.exists()
@@ -205,11 +205,12 @@ subprojects {
   }
 }
 
-class IdentingOutputStream extends OutputStream {
+class IndentingOutputStream extends OutputStream {
 
+  public static final byte[] INDENT = "  [bwc] ".getBytes(StandardCharsets.UTF_8)
   private final OutputStream delegate
 
-  public IdentingOutputStream(OutputStream delegate) {
+  public IndentingOutputStream(OutputStream delegate) {
       this.delegate = delegate
   }
 
@@ -219,10 +220,11 @@ class IdentingOutputStream extends OutputStream {
   }
 
   public void write(int[] bytes, int offset, int length) {
-    delegate.write(
-            new String(bytes, offset, length)
-                    .replace("\n", "\n  [bwc] ")
-                    .getBytes(Charset.forName("UTF-8"))
-    )
+    for (int i = 0; i < bytes.length; i++) {
+      delegate.write(bytes[i])
+      if (bytes[i] == '\n') {
+        delegate.write(INDENT)
+      }
+    }
   }
 }

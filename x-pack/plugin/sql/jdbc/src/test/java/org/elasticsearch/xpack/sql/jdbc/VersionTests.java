@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.client.shared.Version;
+import org.elasticsearch.xpack.sql.client.Version;
 
 public class VersionTests extends ESTestCase {
     public void testVersionIsCurrent() {

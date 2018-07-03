@@ -19,14 +19,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 import com.amazonaws.util.json.Jackson;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -38,6 +30,15 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
+
+import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
@@ -60,33 +61,29 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         });
     }
 
-    private final AwsS3Service awsS3Service;
+    private final S3Service service;
 
-    public S3RepositoryPlugin(Settings settings) {
-        this.awsS3Service = getAwsS3Service(settings);
+    public S3RepositoryPlugin(final Settings settings) {
+        this(settings, new S3Service(settings));
+    }
+
+    S3RepositoryPlugin(final Settings settings, final S3Service service) {
+        this.service = Objects.requireNonNull(service, "S3 service must not be null");
         // eagerly load client settings so that secure settings are read
         final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings);
-        this.awsS3Service.refreshAndClearCache(clientsSettings);
-    }
-
-    protected S3RepositoryPlugin(AwsS3Service awsS3Service) {
-        this.awsS3Service = awsS3Service;
+        this.service.refreshAndClearCache(clientsSettings);
     }
 
     // proxy method for testing
-    protected S3Repository getS3Repository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry)
-            throws IOException {
-        return new S3Repository(metadata, settings, namedXContentRegistry, awsS3Service);
-    }
-
-    // proxy method for testing
-    protected AwsS3Service getAwsS3Service(Settings settings) {
-        return new InternalAwsS3Service(settings);
+    protected S3Repository createRepository(final RepositoryMetaData metadata,
+                                            final Settings settings,
+                                            final NamedXContentRegistry registry) throws IOException {
+        return new S3Repository(metadata, settings, registry, service);
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
-        return Collections.singletonMap(S3Repository.TYPE, (metadata) -> getS3Repository(metadata, env.settings(), namedXContentRegistry));
+    public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry) {
+        return Collections.singletonMap(S3Repository.TYPE, (metadata) -> createRepository(metadata, env.settings(), registry));
     }
 
     @Override
@@ -95,6 +92,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             // named s3 client configuration settings
             S3ClientSettings.ACCESS_KEY_SETTING,
             S3ClientSettings.SECRET_KEY_SETTING,
+            S3ClientSettings.SESSION_TOKEN_SETTING,
             S3ClientSettings.ENDPOINT_SETTING,
             S3ClientSettings.PROTOCOL_SETTING,
             S3ClientSettings.PROXY_HOST_SETTING,
@@ -112,11 +110,11 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     public void reload(Settings settings) {
         // secure settings should be readable
         final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings);
-        awsS3Service.refreshAndClearCache(clientsSettings);
+        service.refreshAndClearCache(clientsSettings);
     }
 
     @Override
     public void close() throws IOException {
-        awsS3Service.close();
+        service.close();
     }
 }

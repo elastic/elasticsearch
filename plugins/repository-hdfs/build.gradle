@@ -158,7 +158,6 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
 project.afterEvaluate {
   for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
     ClusterConfiguration cluster = project.extensions.getByName("${integTestTaskName}Cluster") as ClusterConfiguration
-    cluster.distribution = 'integ-test-zip'
     cluster.dependsOn(project.bundlePlugin)
 
     Task restIntegTestTask = project.tasks.getByName(integTestTaskName)

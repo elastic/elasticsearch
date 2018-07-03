@@ -19,6 +19,7 @@
 
 package org.elasticsearch.packaging.util;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -259,11 +260,11 @@ public class Archives {
         ).forEach(config -> assertThat(es.config(config), file(File, owner, owner, p660)));
     }
 
-    public static void runElasticsearch(Installation installation) {
+    public static void runElasticsearch(Installation installation) throws IOException {
         runElasticsearch(installation, new Shell());
     }
 
-    public static void runElasticsearch(Installation installation, Shell sh) {
+    public static void runElasticsearch(Installation installation, Shell sh) throws IOException {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
         if (Platforms.LINUX) {

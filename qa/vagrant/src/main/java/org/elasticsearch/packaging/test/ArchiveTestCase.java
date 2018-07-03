@@ -34,6 +34,7 @@ import org.junit.runners.MethodSorters;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -175,7 +176,7 @@ public abstract class ArchiveTestCase {
     }
 
     @Test
-    public void test50StartAndStop() {
+    public void test50StartAndStop() throws IOException {
         assumeThat(installation, is(notNullValue()));
 
         Archives.runElasticsearch(installation);
@@ -206,7 +207,7 @@ public abstract class ArchiveTestCase {
     }
 
     @Test
-    public void test70CustomPathConfAndJvmOptions() {
+    public void test70CustomPathConfAndJvmOptions() throws IOException {
         assumeThat(installation, is(notNullValue()));
 
         final Path tempConf = getTempDir().resolve("esconf-alternate");
@@ -259,7 +260,7 @@ public abstract class ArchiveTestCase {
     }
 
     @Test
-    public void test80RelativePathConf() {
+    public void test80RelativePathConf() throws IOException {
         assumeThat(installation, is(notNullValue()));
 
         final Path temp = getTempDir().resolve("esconf-alternate");

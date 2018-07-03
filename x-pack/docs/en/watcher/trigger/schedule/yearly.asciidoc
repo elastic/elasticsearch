@@ -37,6 +37,7 @@ example, the following `yearly` schedule triggers once a year at noon on January
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 NOTE: You can also specify the month, day, and time with the `month`, `day`, and
       `time` attributes, they are interchangeable with `in`, `on`, and `at`.
@@ -61,6 +62,7 @@ on July 20th.
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 Alternatively, you can specify the months, days, and times in an object that has
 `in`, `on`, and `minute` attributes that contain an array of values. For example,
@@ -81,3 +83,4 @@ January 20th, December 10th, and December 20th.
   }
 }
 --------------------------------------------------
+// NOTCONSOLE

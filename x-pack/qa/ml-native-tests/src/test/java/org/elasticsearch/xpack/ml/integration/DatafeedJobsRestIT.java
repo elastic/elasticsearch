@@ -802,7 +802,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     @After
     public void clearMlState() throws Exception {
-        new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
+        new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
         XPackRestTestHelper.waitForPendingTasks(adminClient());
     }
 

@@ -60,13 +60,13 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
-        assert msg instanceof Netty4HttpResponse : "Invalid message type: " + msg.getClass();;
+        assert msg instanceof Netty4HttpResponse : "Invalid message type: " + msg.getClass();
         Netty4HttpResponse response = (Netty4HttpResponse) msg;
         boolean success = false;
         try {
             List<Tuple<Netty4HttpResponse, ChannelPromise>> readyResponses = aggregator.write(response, promise);
             for (Tuple<Netty4HttpResponse, ChannelPromise> readyResponse : readyResponses) {
-                ctx.write(readyResponse.v1().getResponse(), readyResponse.v2());
+                ctx.write(readyResponse.v1(), readyResponse.v2());
             }
             success = true;
         } catch (IllegalStateException e) {

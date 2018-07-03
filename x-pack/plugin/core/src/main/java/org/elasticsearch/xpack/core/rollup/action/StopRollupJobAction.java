@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StopRollupJobAction extends Action<StopRollupJobAction.Request, StopRollupJobAction.Response> {
+public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
 
     public static final StopRollupJobAction INSTANCE = new StopRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/stop";

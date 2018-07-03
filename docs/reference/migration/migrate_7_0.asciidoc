@@ -4,6 +4,8 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 7.0.
 
+See also <<release-highlights>> and <<es-release-notes>>.
+
 [float]
 === Indices created before 7.0
 

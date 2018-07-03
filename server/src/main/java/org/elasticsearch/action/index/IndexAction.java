@@ -21,7 +21,7 @@ package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.Action;
 
-public class IndexAction extends Action<IndexRequest, IndexResponse> {
+public class IndexAction extends Action<IndexResponse> {
 
     public static final IndexAction INSTANCE = new IndexAction();
     public static final String NAME = "indices:data/write/index";

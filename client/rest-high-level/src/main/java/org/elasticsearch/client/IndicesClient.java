@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -37,6 +39,8 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -57,6 +61,8 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -184,6 +190,35 @@ public final class IndicesClient {
                                  ActionListener<GetMappingsResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(getMappingsRequest, RequestConverters::getMappings, options,
             GetMappingsResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Retrieves the field mappings on an index or indices using the Get Field Mapping API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-field-mapping.html">
+     * Get Field Mapping API on elastic.co</a>
+     * @param getFieldMappingsRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetFieldMappingsResponse getFieldMapping(GetFieldMappingsRequest getFieldMappingsRequest,
+                                                    RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getFieldMappingsRequest, RequestConverters::getFieldMapping, options,
+            GetFieldMappingsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieves the field mappings on an index on indices using the Get Field Mapping API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-field-mapping.html">
+     * Get Field Mapping API on elastic.co</a>
+     * @param getFieldMappingsRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getFieldMappingAsync(GetFieldMappingsRequest getFieldMappingsRequest, RequestOptions options,
+                                     ActionListener<GetFieldMappingsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getFieldMappingsRequest, RequestConverters::getFieldMapping, options,
+            GetFieldMappingsResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -662,6 +697,36 @@ public final class IndicesClient {
     }
 
     /**
+     * Validate a potentially expensive query without executing it.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-validate.html"> Validate Query API
+     * on elastic.co</a>
+     * @param validateQueryRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ValidateQueryResponse validateQuery(ValidateQueryRequest validateQueryRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(validateQueryRequest, RequestConverters::validateQuery, options,
+            ValidateQueryResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously validate a potentially expensive query without executing it.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-validate.html"> Validate Query API
+     * on elastic.co</a>
+     * @param validateQueryRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void validateQueryAsync(ValidateQueryRequest validateQueryRequest, RequestOptions options,
+                                   ActionListener<ValidateQueryResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(validateQueryRequest, RequestConverters::validateQuery, options,
+            ValidateQueryResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Gets index templates using the Index Templates API
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
      * on elastic.co</a>
@@ -688,5 +753,33 @@ public final class IndicesClient {
                                  ActionListener<GetIndexTemplatesResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(getIndexTemplatesRequest, RequestConverters::getTemplates,
             options, GetIndexTemplatesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Calls the analyze API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-analyze.html">Analyze API on elastic.co</a>
+     *
+     * @param request   the request
+     * @param options   the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public AnalyzeResponse analyze(AnalyzeRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::analyze, options,
+            AnalyzeResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously calls the analyze API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-analyze.html">Analyze API on elastic.co</a>
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void analyzeAsync(AnalyzeRequest request, RequestOptions options,
+                             ActionListener<AnalyzeResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::analyze, options,
+            AnalyzeResponse::fromXContent, listener, emptySet());
     }
 }

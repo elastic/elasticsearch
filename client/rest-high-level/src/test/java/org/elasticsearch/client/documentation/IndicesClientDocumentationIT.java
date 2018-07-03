@@ -27,6 +27,9 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
+import org.elasticsearch.action.admin.indices.analyze.DetailAnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -41,6 +44,8 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -62,6 +67,9 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -81,6 +89,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 
@@ -698,6 +707,110 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
+
+    public void testGetFieldMapping() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"), RequestOptions.DEFAULT);
+            assertTrue(createIndexResponse.isAcknowledged());
+            PutMappingRequest request = new PutMappingRequest("twitter");
+            request.type("tweet");
+            request.source(
+                "{\n" +
+                    "  \"properties\": {\n" +
+                    "    \"message\": {\n" +
+                    "      \"type\": \"text\"\n" +
+                    "    },\n" +
+                    "    \"timestamp\": {\n" +
+                    "      \"type\": \"date\"\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", // <1>
+                XContentType.JSON);
+            PutMappingResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
+            assertTrue(putMappingResponse.isAcknowledged());
+        }
+
+        // tag::get-field-mapping-request
+        GetFieldMappingsRequest request = new GetFieldMappingsRequest(); // <1>
+        request.indices("twitter"); // <2>
+        request.types("tweet"); // <3>
+        request.fields("message", "timestamp"); // <4>
+        // end::get-field-mapping-request
+
+        // tag::get-field-mapping-request-indicesOptions
+        request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+        // end::get-field-mapping-request-indicesOptions
+
+        // tag::get-field-mapping-request-local
+        request.local(true); // <1>
+        // end::get-field-mapping-request-local
+
+        {
+
+            // tag::get-field-mapping-execute
+            GetFieldMappingsResponse response =
+                client.indices().getFieldMapping(request, RequestOptions.DEFAULT);
+            // end::get-field-mapping-execute
+
+            // tag::get-field-mapping-response
+            final Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings =
+                response.mappings();// <1>
+            final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> typeMappings =
+                mappings.get("twitter").get("tweet"); // <2>
+            final GetFieldMappingsResponse.FieldMappingMetaData metaData =
+                typeMappings.get("message");// <3>
+
+            final String fullName = metaData.fullName();// <4>
+            final Map<String, Object> source = metaData.sourceAsMap(); // <5>
+            // end::get-field-mapping-response
+        }
+
+        {
+            // tag::get-field-mapping-execute-listener
+            ActionListener<GetFieldMappingsResponse> listener =
+                new ActionListener<GetFieldMappingsResponse>() {
+                    @Override
+                    public void onResponse(GetFieldMappingsResponse putMappingResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-field-mapping-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            final ActionListener<GetFieldMappingsResponse> latchListener = new LatchedActionListener<>(listener, latch);
+            listener = ActionListener.wrap(r -> {
+                final Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings =
+                    r.mappings();
+                final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> typeMappings =
+                    mappings.get("twitter").get("tweet");
+                final GetFieldMappingsResponse.FieldMappingMetaData metaData1 = typeMappings.get("message");
+
+                final String fullName = metaData1.fullName();
+                final Map<String, Object> source = metaData1.sourceAsMap();
+                latchListener.onResponse(r);
+            }, e -> {
+                latchListener.onFailure(e);
+                fail("should not fail");
+            });
+
+            // tag::get-field-mapping-execute-async
+            client.indices().getFieldMappingAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-field-mapping-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+
+    }
+
 
     public void testOpenIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
@@ -2127,5 +2240,207 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::get-templates-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testValidateQuery() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String index = "some_index";
+        createIndex(index, Settings.EMPTY);
+
+        // tag::validate-query-request
+        ValidateQueryRequest request = new ValidateQueryRequest(index); // <1>
+        // end::validate-query-request
+
+        // tag::validate-query-request-query
+        QueryBuilder builder = QueryBuilders
+            .boolQuery() // <1>
+            .must(QueryBuilders.queryStringQuery("*:*"))
+            .filter(QueryBuilders.termQuery("user", "kimchy"));
+        request.query(builder); // <2>
+        // end::validate-query-request-query
+
+        // tag::validate-query-request-explain
+        request.explain(true); // <1>
+        // end::validate-query-request-explain
+
+        // tag::validate-query-request-allShards
+        request.allShards(true); // <1>
+        // end::validate-query-request-allShards
+
+        // tag::validate-query-request-rewrite
+        request.rewrite(true); // <1>
+        // end::validate-query-request-rewrite
+
+        // tag::validate-query-execute
+        ValidateQueryResponse response = client.indices().validateQuery(request, RequestOptions.DEFAULT); // <1>
+        // end::validate-query-execute
+
+        // tag::validate-query-response
+        boolean isValid = response.isValid(); // <1>
+        int totalShards = response.getTotalShards(); // <2>
+        int successfulShards = response.getSuccessfulShards(); // <3>
+        int failedShards = response.getFailedShards(); // <4>
+        if (failedShards > 0) {
+            for(DefaultShardOperationFailedException failure: response.getShardFailures()) { // <5>
+                String failedIndex = failure.index(); // <6>
+                int shardId = failure.shardId(); // <7>
+                String reason = failure.reason(); // <8>
+            }
+        }
+        for(QueryExplanation explanation: response.getQueryExplanation()) { // <9>
+            String explanationIndex = explanation.getIndex(); // <10>
+            int shardId = explanation.getShard(); // <11>
+            String explanationString = explanation.getExplanation(); // <12>
+        }
+        // end::validate-query-response
+
+        // tag::validate-query-execute-listener
+        ActionListener<ValidateQueryResponse> listener =
+            new ActionListener<ValidateQueryResponse>() {
+                @Override
+                public void onResponse(ValidateQueryResponse validateQueryResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::validate-query-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::validate-query-execute-async
+        client.indices().validateQueryAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::validate-query-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testAnalyze() throws IOException, InterruptedException {
+
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::analyze-builtin-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.text("Some text to analyze", "Some more text to analyze");  // <1>
+            request.analyzer("english");    // <2>
+            // end::analyze-builtin-request
+        }
+
+        {
+            // tag::analyze-custom-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.text("<b>Some text to analyze</b>");
+            request.addCharFilter("html_strip");                // <1>
+            request.tokenizer("standard");                      // <2>
+            request.addTokenFilter("lowercase");                // <3>
+
+            Map<String, Object> stopFilter = new HashMap<>();
+            stopFilter.put("type", "stop");
+            stopFilter.put("stopwords", new String[]{ "to" });  // <4>
+            request.addTokenFilter(stopFilter);                 // <5>
+            // end::analyze-custom-request
+        }
+
+        {
+            // tag::analyze-custom-normalizer-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.text("<b>BaR</b>");
+            request.addTokenFilter("lowercase");
+            // end::analyze-custom-normalizer-request
+
+            // tag::analyze-request-explain
+            request.explain(true);                      // <1>
+            request.attributes("keyword", "type");      // <2>
+            // end::analyze-request-explain
+
+            // tag::analyze-request-sync
+            AnalyzeResponse response = client.indices().analyze(request, RequestOptions.DEFAULT);
+            // end::analyze-request-sync
+
+            // tag::analyze-response-tokens
+            List<AnalyzeResponse.AnalyzeToken> tokens = response.getTokens();   // <1>
+            // end::analyze-response-tokens
+            // tag::analyze-response-detail
+            DetailAnalyzeResponse detail = response.detail();                   // <1>
+            // end::analyze-response-detail
+
+            assertNull(tokens);
+            assertNotNull(detail.tokenizer());
+        }
+
+        CreateIndexRequest req = new CreateIndexRequest("my_index");
+        CreateIndexResponse resp = client.indices().create(req, RequestOptions.DEFAULT);
+        assertTrue(resp.isAcknowledged());
+
+        PutMappingRequest pmReq = new PutMappingRequest()
+            .indices("my_index")
+            .type("_doc")
+            .source("my_field", "type=text,analyzer=english");
+        PutMappingResponse pmResp = client.indices().putMapping(pmReq, RequestOptions.DEFAULT);
+        assertTrue(pmResp.isAcknowledged());
+
+        {
+            // tag::analyze-index-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.index("my_index");              // <1>
+            request.analyzer("my_analyzer");        // <2>
+            request.text("some text to analyze");
+            // end::analyze-index-request
+
+            // tag::analyze-execute-listener
+            ActionListener<AnalyzeResponse> listener = new ActionListener<AnalyzeResponse>() {
+                @Override
+                public void onResponse(AnalyzeResponse analyzeTokens) {
+
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+
+                }
+            };
+            // end::analyze-execute-listener
+
+            // use a built-in analyzer in the test
+            request = new AnalyzeRequest();
+            request.index("my_index");
+            request.field("my_field");
+            request.text("some text to analyze");
+            // Use a blocking listener in the test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::analyze-request-async
+            client.indices().analyzeAsync(request, RequestOptions.DEFAULT, listener);
+            // end::analyze-request-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::analyze-index-normalizer-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.index("my_index");                  // <1>
+            request.normalizer("my_normalizer");        // <2>
+            request.text("some text to analyze");
+            // end::analyze-index-normalizer-request
+        }
+
+        {
+            // tag::analyze-field-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.index("my_index");
+            request.field("my_field");
+            request.text("some text to analyze");
+            // end::analyze-field-request
+        }
+
     }
 }

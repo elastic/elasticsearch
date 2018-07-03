@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.spi.Whitelist;
+import org.objectweb.asm.Opcodes;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -202,16 +203,28 @@ public final class Definition {
 
         public void write(MethodWriter writer) {
             final org.objectweb.asm.Type type;
+            final Class<?> clazz;
             if (augmentation != null) {
                 assert java.lang.reflect.Modifier.isStatic(modifiers);
+                clazz = augmentation;
                 type = org.objectweb.asm.Type.getType(augmentation);
             } else {
+                clazz = owner.clazz;
                 type = owner.type;
             }
 
             if (java.lang.reflect.Modifier.isStatic(modifiers)) {
-                writer.invokeStatic(type, method);
-            } else if (java.lang.reflect.Modifier.isInterface(owner.clazz.getModifiers())) {
+                // invokeStatic assumes that the owner class is not an interface, so this is a
+                // special case for interfaces where the interface method boolean needs to be set to
+                // true to reference the appropriate class constant when calling a static interface
+                // method since java 8 did not check, but java 9 and 10 do
+                if (java.lang.reflect.Modifier.isInterface(clazz.getModifiers())) {
+                    writer.visitMethodInsn(Opcodes.INVOKESTATIC,
+                            type.getInternalName(), name, getMethodType().toMethodDescriptorString(), true);
+                } else {
+                    writer.invokeStatic(type, method);
+                }
+            } else if (java.lang.reflect.Modifier.isInterface(clazz.getModifiers())) {
                 writer.invokeInterface(type, method);
             } else {
                 writer.invokeVirtual(type, method);

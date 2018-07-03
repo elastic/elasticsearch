@@ -37,22 +37,18 @@ import java.util.ArrayList;
  */
 public final class RequestOptions {
     public static final RequestOptions DEFAULT = new Builder(
-        Collections.<Header>emptyList(), NodeSelector.ANY,
-        HeapBufferedResponseConsumerFactory.DEFAULT).build();
+            Collections.<Header>emptyList(), HeapBufferedResponseConsumerFactory.DEFAULT).build();
 
     private final List<Header> headers;
-    private final NodeSelector nodeSelector;
     private final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
 
     private RequestOptions(Builder builder) {
         this.headers = Collections.unmodifiableList(new ArrayList<>(builder.headers));
-        this.nodeSelector = builder.nodeSelector;
         this.httpAsyncResponseConsumerFactory = builder.httpAsyncResponseConsumerFactory;
     }
 
     public Builder toBuilder() {
-        Builder builder = new Builder(headers, nodeSelector, httpAsyncResponseConsumerFactory);
-        return builder;
+        return new Builder(headers, httpAsyncResponseConsumerFactory);
     }
 
     /**
@@ -60,14 +56,6 @@ public final class RequestOptions {
      */
     public List<Header> getHeaders() {
         return headers;
-    }
-
-    /**
-     * The selector that chooses which nodes are valid destinations for
-     * {@link Request}s with these options.
-     */
-    public NodeSelector getNodeSelector() {
-        return nodeSelector;
     }
 
     /**
@@ -93,9 +81,6 @@ public final class RequestOptions {
                 b.append(headers.get(h).toString());
             }
         }
-        if (nodeSelector != NodeSelector.ANY) {
-            b.append(", nodeSelector=").append(nodeSelector);
-        }
         if (httpAsyncResponseConsumerFactory != HttpAsyncResponseConsumerFactory.DEFAULT) {
             b.append(", consumerFactory=").append(httpAsyncResponseConsumerFactory);
         }
@@ -113,24 +98,20 @@ public final class RequestOptions {
 
         RequestOptions other = (RequestOptions) obj;
         return headers.equals(other.headers)
-                && nodeSelector.equals(other.nodeSelector)
                 && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(headers, nodeSelector, httpAsyncResponseConsumerFactory);
+        return Objects.hash(headers, httpAsyncResponseConsumerFactory);
     }
 
     public static class Builder {
         private final List<Header> headers;
-        private NodeSelector nodeSelector;
         private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
 
-        private Builder(List<Header> headers, NodeSelector nodeSelector,
-                HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {
+        private Builder(List<Header> headers, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {
             this.headers = new ArrayList<>(headers);
-            this.nodeSelector = nodeSelector;
             this.httpAsyncResponseConsumerFactory = httpAsyncResponseConsumerFactory;
         }
 
@@ -148,14 +129,6 @@ public final class RequestOptions {
             Objects.requireNonNull(name, "header name cannot be null");
             Objects.requireNonNull(value, "header value cannot be null");
             this.headers.add(new ReqHeader(name, value));
-        }
-
-        /**
-         * Configure the selector that chooses which nodes are valid
-         * destinations for {@link Request}s with these options
-         */
-        public void setNodeSelector(NodeSelector nodeSelector) {
-            this.nodeSelector = Objects.requireNonNull(nodeSelector, "nodeSelector cannot be null");
         }
 
         /**

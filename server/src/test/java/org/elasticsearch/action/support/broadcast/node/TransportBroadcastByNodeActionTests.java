@@ -52,6 +52,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -139,7 +140,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         }
 
         @Override
-        protected EmptyResult shardOperation(Request request, ShardRouting shardRouting) {
+        protected EmptyResult shardOperation(Task task, Request request, ShardRouting shardRouting) {
             if (rarely()) {
                 shards.put(shardRouting, Boolean.TRUE);
                 return EmptyResult.INSTANCE;

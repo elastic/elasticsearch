@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -89,7 +90,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
     }
 
     @Override
-    protected ShardSegments shardOperation(IndicesSegmentsRequest request, ShardRouting shardRouting) {
+    protected ShardSegments shardOperation(Task task, IndicesSegmentsRequest request, ShardRouting shardRouting) {
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.index());
         IndexShard indexShard = indexService.getShard(shardRouting.id());
         return new ShardSegments(indexShard.routingEntry(), indexShard.segments(request.verbose()));

@@ -186,11 +186,13 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
     /**
      * Executes the shard-level operation. This method is called once per shard serially on the receiving node.
      *
+     *
+     * @param task
      * @param request      the node-level request
      * @param shardRouting the shard on which to execute the operation
      * @return the result of the shard-level operation for the shard
      */
-    protected abstract ShardOperationResult shardOperation(Request request, ShardRouting shardRouting) throws IOException;
+    protected abstract ShardOperationResult shardOperation(Task task, Request request, ShardRouting shardRouting) throws IOException;
 
     /**
      * Determines the shards on which this operation will be executed on. The operation is executed once per shard.
@@ -399,7 +401,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             int shardIndex = -1;
             for (final ShardRouting shardRouting : shards) {
                 shardIndex++;
-                onShardOperation(request, shardResultOrExceptions, shardIndex, shardRouting);
+                onShardOperation(task, request, shardResultOrExceptions, shardIndex, shardRouting);
             }
 
             List<BroadcastShardOperationFailedException> accumulatedExceptions = new ArrayList<>();
@@ -415,12 +417,13 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             channel.sendResponse(new NodeResponse(request.getNodeId(), totalShards, results, accumulatedExceptions));
         }
 
-        private void onShardOperation(final NodeRequest request, final Object[] shardResults, final int shardIndex, final ShardRouting shardRouting) {
+        private void onShardOperation(final Task task, final NodeRequest request, final Object[] shardResults,
+                                      final int shardIndex, final ShardRouting shardRouting) {
             try {
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}]  executing operation for shard [{}]", actionName, shardRouting.shortSummary());
                 }
-                ShardOperationResult result = shardOperation(request.indicesLevelRequest, shardRouting);
+                ShardOperationResult result = shardOperation(task, request.indicesLevelRequest, shardRouting);
                 shardResults[shardIndex] = result;
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}]  completed operation for shard [{}]", actionName, shardRouting.shortSummary());
@@ -561,7 +564,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
     }
 
     /**
-     * Can be used for implementations of {@link #shardOperation(BroadcastRequest, ShardRouting) shardOperation} for
+     * Can be used for implementations of {@link #shardOperation(Task, BroadcastRequest, ShardRouting) shardOperation} for
      * which there is no shard-level return value.
      */
     public static final class EmptyResult implements Streamable {

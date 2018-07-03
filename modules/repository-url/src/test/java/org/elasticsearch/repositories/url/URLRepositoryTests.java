@@ -60,11 +60,9 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), repoPath)
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
-        URLRepository repository = new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
-            new NamedXContentRegistry(Collections.emptyList()));
-        assertThat(repository.getBlobStore(), is(nullValue()));
         try {
-            repository.blobContainer();
+            new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
+                new NamedXContentRegistry(Collections.emptyList()));
             fail("RepositoryException should have been thrown.");
         } catch (RepositoryException e) {
             String msg = "[url] file url [" + repoPath
@@ -83,11 +81,9 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.SUPPORTED_PROTOCOLS_SETTING.getKey(), "http,https")
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
-        URLRepository repository = new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
-            new NamedXContentRegistry(Collections.emptyList()));
-        assertThat(repository.getBlobStore(), is(nullValue()));
         try {
-            repository.blobContainer();
+            new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
+                new NamedXContentRegistry(Collections.emptyList()));
             fail("RepositoryException should have been thrown.");
         } catch (RepositoryException e) {
             assertEquals("[url] unsupported url protocol [file] from URL [" + repoPath +"]", e.getMessage());

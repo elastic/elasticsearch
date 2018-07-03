@@ -2356,8 +2356,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::analyze-custom-normalizer-request
 
             // tag::analyze-request-explain
-            request.explain(true);
-            request.attributes("keyword", "type");
+            request.explain(true);                      // <1>
+            request.attributes("keyword", "type");      // <2>
             // end::analyze-request-explain
 
             // tag::analyze-request-sync
@@ -2368,7 +2368,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             List<AnalyzeResponse.AnalyzeToken> tokens = response.getTokens();   // <1>
             // end::analyze-response-tokens
             // tag::analyze-response-detail
-            DetailAnalyzeResponse detail = response.detail();                   // <2>
+            DetailAnalyzeResponse detail = response.detail();                   // <1>
             // end::analyze-response-detail
 
             assertNull(tokens);

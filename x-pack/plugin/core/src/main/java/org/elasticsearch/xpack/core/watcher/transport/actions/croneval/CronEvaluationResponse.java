@@ -10,14 +10,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class CronEvaluationResponse extends ActionResponse {
 
     private List<String> timestamps;
 
-    public CronEvaluationResponse() {}
+    CronEvaluationResponse() {
+        this(Collections.emptyList());
+    }
 
     public CronEvaluationResponse(List<String> timestamps) {
         this.timestamps = timestamps;
@@ -30,12 +32,12 @@ public class CronEvaluationResponse extends ActionResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        in.readList(StreamInput::readString);
+        timestamps = in.readList(StreamInput::readString);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringList(new ArrayList<>(timestamps));
+        out.writeStringList(timestamps);
     }
 }

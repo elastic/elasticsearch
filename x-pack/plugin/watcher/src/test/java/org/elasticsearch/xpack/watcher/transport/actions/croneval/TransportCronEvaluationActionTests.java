@@ -5,11 +5,17 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.croneval;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.watcher.transport.actions.croneval.CronEvaluationAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.croneval.CronEvaluationRequest;
+import org.elasticsearch.xpack.core.watcher.transport.actions.croneval.CronEvaluationResponse;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -22,5 +28,32 @@ public class TransportCronEvaluationActionTests extends ESTestCase {
         assertThat(timestamps.get(0), is("Thu, 1 Jan 2099 00:00:00"));
         assertThat(timestamps.get(1), is("Sun, 1 Feb 2099 00:00:00"));
         assertThat(timestamps.get(2), is("Sun, 1 Mar 2099 00:00:00"));
+    }
+
+    public void testRequestSerialization() throws Exception {
+        CronEvaluationRequest request = new CronEvaluationRequest();
+        request.setExpression("test");
+        int count = randomIntBetween(1, 100);
+        boolean isCountSet = randomBoolean();
+        if (isCountSet) {
+            request.setCount(count);
+        }
+
+        BytesStreamOutput bytes = new BytesStreamOutput();
+        request.writeTo(bytes);
+        request = new CronEvaluationRequest();
+        request.readFrom(bytes.bytes().streamInput());
+        assertThat(request.getExpression(), is("test"));
+        assertThat(request.getCount(), is(isCountSet ? count : 10));
+    }
+
+    public void testResponseSerialization() throws Exception {
+        CronEvaluationResponse response = new CronEvaluationResponse(Arrays.asList("1", "2", "3"));
+        BytesStreamOutput bytes = new BytesStreamOutput();
+        response.writeTo(bytes);
+
+        response = CronEvaluationAction.INSTANCE.newResponse();
+        response.readFrom(bytes.bytes().streamInput());
+        assertThat(response.getTimestamps(), contains("1", "2", "3"));
     }
 }

@@ -52,13 +52,19 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
 
     /** Request handlers for the requests made by the S3 client **/
     private final PathTrie<RequestHandler> handlers;
+    private final String permanentBucketName;
+    private final String temporaryBucketName;
 
     /**
      * Creates a {@link AmazonS3Fixture}
      */
-    private AmazonS3Fixture(final String workingDir, final String bucket) {
+    private AmazonS3Fixture(final String workingDir, final String permanentBucketName, final String temporaryBucketName) {
         super(workingDir);
-        this.buckets.put(bucket, new Bucket(bucket));
+        this.permanentBucketName = permanentBucketName;
+        this.temporaryBucketName = temporaryBucketName;
+
+        this.buckets.put(permanentBucketName, new Bucket(permanentBucketName));
+        this.buckets.put(temporaryBucketName, new Bucket(temporaryBucketName));
         this.handlers = defaultHandlers(buckets);
     }
 
@@ -67,21 +73,47 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         final RequestHandler handler = handlers.retrieve(request.getMethod() + " " + request.getPath(), request.getParameters());
         if (handler != null) {
             final String authorization = request.getHeader("Authorization");
-            if (authorization == null
-                || (authorization.length() > 0 && authorization.contains("s3_integration_test_access_key") == false)) {
-                return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Access Denied", "");
+            final String permittedBucket;
+            if (authorization.contains("s3_integration_test_permanent_access_key")) {
+                final String sessionToken = request.getHeader("x-amz-security-token");
+                if (sessionToken != null) {
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Unexpected session token", "");
+                }
+                permittedBucket = permanentBucketName;
+            } else if (authorization.contains("s3_integration_test_temporary_access_key")) {
+                final String sessionToken = request.getHeader("x-amz-security-token");
+                if (sessionToken == null) {
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "No session token", "");
+                }
+                if (sessionToken.equals("s3_integration_test_temporary_session_token") == false) {
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
+                }
+                permittedBucket = temporaryBucketName;
+            } else {
+                return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad access key", "");
             }
-            return handler.handle(request);
+
+            if (handler != null) {
+                final String bucket = request.getParam("bucket");
+                if (bucket != null && permittedBucket.equals(bucket) == false) {
+                    // allow a null bucket to support bucket-free APIs
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad bucket", "");
+                }
+                return handler.handle(request);
+            } else {
+                return newInternalError(request.getId(), "No handler defined for request [" + request + "]");
+            }
         }
         return null;
     }
 
     public static void main(final String[] args) throws Exception {
-        if (args == null || args.length != 2) {
-            throw new IllegalArgumentException("AmazonS3Fixture <working directory> <bucket>");
+        if (args == null || args.length != 3) {
+            throw new IllegalArgumentException(
+                "AmazonS3Fixture <working directory> <bucket for permanent creds> <bucket for temporary creds>");
         }
 
-        final AmazonS3Fixture fixture = new AmazonS3Fixture(args[0], args[1]);
+        final AmazonS3Fixture fixture = new AmazonS3Fixture(args[0], args[1], args[2]);
         fixture.listen();
     }
 

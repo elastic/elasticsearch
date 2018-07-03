@@ -158,36 +158,26 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
                 }
                 if (Fields.TOKEN.equals(field)) {
                     term = parser.text();
-                }
-                else if (Fields.POSITION.equals(field)) {
+                } else if (Fields.POSITION.equals(field)) {
                     position = parser.intValue();
-                }
-                else if (Fields.START_OFFSET.equals(field)) {
+                } else if (Fields.START_OFFSET.equals(field)) {
                     startOffset = parser.intValue();
-                }
-                else if (Fields.END_OFFSET.equals(field)) {
+                } else if (Fields.END_OFFSET.equals(field)) {
                     endOffset = parser.intValue();
-                }
-                else if (Fields.POSITION_LENGTH.equals(field)) {
+                } else if (Fields.POSITION_LENGTH.equals(field)) {
                     positionLength = parser.intValue();
-                }
-                else if (Fields.TYPE.equals(field)) {
+                } else if (Fields.TYPE.equals(field)) {
                     type = parser.text();
-                }
-                else {
+                } else {
                     if (t == XContentParser.Token.VALUE_STRING) {
                         attributes.put(field, parser.text());
-                    }
-                    else if (t == XContentParser.Token.VALUE_NUMBER) {
+                    } else if (t == XContentParser.Token.VALUE_NUMBER) {
                         attributes.put(field, parser.numberValue());
-                    }
-                    else if (t == XContentParser.Token.VALUE_BOOLEAN) {
+                    } else if (t == XContentParser.Token.VALUE_BOOLEAN) {
                         attributes.put(field, parser.booleanValue());
-                    }
-                    else if (t == XContentParser.Token.START_OBJECT) {
+                    } else if (t == XContentParser.Token.START_OBJECT) {
                         attributes.put(field, parser.map());
-                    }
-                    else if (t == XContentParser.Token.START_ARRAY) {
+                    } else if (t == XContentParser.Token.START_ARRAY) {
                         attributes.put(field, parser.list());
                     }
                 }

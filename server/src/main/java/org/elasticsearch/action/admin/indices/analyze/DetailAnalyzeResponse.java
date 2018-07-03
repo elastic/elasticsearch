@@ -42,34 +42,14 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
 
-    DetailAnalyzeResponse() {
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DetailAnalyzeResponse that = (DetailAnalyzeResponse) o;
-        return customAnalyzer == that.customAnalyzer &&
-            Objects.equals(analyzer, that.analyzer) &&
-            Arrays.equals(charfilters, that.charfilters) &&
-            Objects.equals(tokenizer, that.tokenizer) &&
-            Arrays.equals(tokenfilters, that.tokenfilters);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = Objects.hash(customAnalyzer, analyzer, tokenizer);
-        result = 31 * result + Arrays.hashCode(charfilters);
-        result = 31 * result + Arrays.hashCode(tokenfilters);
-        return result;
-    }
-
     private boolean customAnalyzer = false;
     private AnalyzeTokenList analyzer;
     private CharFilteredText[] charfilters;
     private AnalyzeTokenList tokenizer;
     private AnalyzeTokenList[] tokenfilters;
+
+    DetailAnalyzeResponse() {
+    }
 
     public DetailAnalyzeResponse(AnalyzeTokenList analyzer) {
         this(false, analyzer, null, null, null);
@@ -129,6 +109,26 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         this.customAnalyzer = true;
         this.tokenfilters = tokenfilters;
         return this;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DetailAnalyzeResponse that = (DetailAnalyzeResponse) o;
+        return customAnalyzer == that.customAnalyzer &&
+            Objects.equals(analyzer, that.analyzer) &&
+            Arrays.equals(charfilters, that.charfilters) &&
+            Objects.equals(tokenizer, that.tokenizer) &&
+            Arrays.equals(tokenfilters, that.tokenfilters);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(customAnalyzer, analyzer, tokenizer);
+        result = 31 * result + Arrays.hashCode(charfilters);
+        result = 31 * result + Arrays.hashCode(tokenfilters);
+        return result;
     }
 
     @Override

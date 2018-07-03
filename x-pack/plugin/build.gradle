@@ -36,7 +36,7 @@ subprojects {
         // default to main class files if such a source set exists
         final List files = []
         if (project.sourceSets.findByName("main")) {
-          files.add(project.sourceSets.main.output.classesDir)
+          files.add(project.sourceSets.main.output.classesDirs)
           dependsOn project.tasks.classes
         }
         // filter out non-existent classes directories from empty source sets

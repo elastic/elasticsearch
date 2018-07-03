@@ -58,17 +58,7 @@ include::xpack-indices.asciidoc[]
 endif::include-xpack[]
 
 [[windows-running]]
-==== Running Elasticsearch from the command line
-
-Elasticsearch can be started from the command line as follows:
-
-[source,sh]
---------------------------------------------
-.\bin\elasticsearch.bat
---------------------------------------------
-
-By default, Elasticsearch runs in the foreground, prints its logs to `STDOUT`,
-and can be stopped by pressing `Ctrl-C`.
+include::zip-windows-start.asciidoc[]
 
 [[windows-configuring]]
 ==== Configuring Elasticsearch on the command line

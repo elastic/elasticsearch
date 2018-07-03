@@ -257,7 +257,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         indexMetaDataFormat = new ChecksumBlobStoreFormat<>(INDEX_METADATA_CODEC, METADATA_NAME_FORMAT,
             IndexMetaData::fromXContent, namedXContentRegistry, isCompress());
         snapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
-            SnapshotInfo::fromXContent, namedXContentRegistry, isCompress());
+            SnapshotInfo::fromXContentInternal, namedXContentRegistry, isCompress());
     }
 
     @Override
@@ -556,7 +556,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 String blobName = "master.dat";
                 BytesArray bytes = new BytesArray(testBytes);
                 try (InputStream stream = bytes.streamInput()) {
-                    testContainer.writeBlobAtomic(blobName, stream, bytes.length());
+                    testContainer.writeBlobAtomic(blobName, stream, bytes.length(), true);
                 }
                 return seed;
             }
@@ -664,13 +664,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // write the index file
         final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
         logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
-        writeAtomic(indexBlob, snapshotsBytes);
+        writeAtomic(indexBlob, snapshotsBytes, true);
         // delete the N-2 index file if it exists, keep the previous one around as a backup
         if (isReadOnly() == false && newGen - 2 >= 0) {
             final String oldSnapshotIndexFile = INDEX_FILE_PREFIX + Long.toString(newGen - 2);
-            if (snapshotsBlobContainer.blobExists(oldSnapshotIndexFile)) {
-                snapshotsBlobContainer.deleteBlob(oldSnapshotIndexFile);
-            }
+            snapshotsBlobContainer.deleteBlobIgnoringIfNotExists(oldSnapshotIndexFile);
         }
 
         // write the current generation to the index-latest file
@@ -679,11 +677,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             bStream.writeLong(newGen);
             genBytes = bStream.bytes();
         }
-        if (snapshotsBlobContainer.blobExists(INDEX_LATEST_BLOB)) {
-            snapshotsBlobContainer.deleteBlob(INDEX_LATEST_BLOB);
-        }
         logger.debug("Repository [{}] updating index.latest with generation [{}]", metadata.name(), newGen);
-        writeAtomic(INDEX_LATEST_BLOB, genBytes);
+        writeAtomic(INDEX_LATEST_BLOB, genBytes, false);
     }
 
     /**
@@ -702,11 +697,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             bytes = bStream.bytes();
         }
-        if (snapshotsBlobContainer.blobExists(INCOMPATIBLE_SNAPSHOTS_BLOB)) {
-            snapshotsBlobContainer.deleteBlob(INCOMPATIBLE_SNAPSHOTS_BLOB);
-        }
         // write the incompatible snapshots blob
-        writeAtomic(INCOMPATIBLE_SNAPSHOTS_BLOB, bytes);
+        writeAtomic(INCOMPATIBLE_SNAPSHOTS_BLOB, bytes, false);
     }
 
     /**
@@ -772,9 +764,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return latest;
     }
 
-    private void writeAtomic(final String blobName, final BytesReference bytesRef) throws IOException {
+    private void writeAtomic(final String blobName, final BytesReference bytesRef, boolean failIfAlreadyExists) throws IOException {
         try (InputStream stream = bytesRef.streamInput()) {
-            snapshotsBlobContainer.writeBlobAtomic(blobName, stream, bytesRef.length());
+            snapshotsBlobContainer.writeBlobAtomic(blobName, stream, bytesRef.length(), failIfAlreadyExists);
         }
     }
 
@@ -819,7 +811,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try  {
                 BytesArray bytes = new BytesArray(seed);
                 try (InputStream stream = bytes.streamInput()) {
-                    testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", stream, bytes.length());
+                    testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", stream, bytes.length(), true);
                 }
             } catch (IOException exp) {
                 throw new RepositoryVerificationException(metadata.name(), "store location [" + blobStore() + "] is not accessible on the node [" + localNode + "]", exp);
@@ -1258,7 +1250,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                                                   snapshotRateLimitingTimeInNanos::inc);
                     }
                     inputStream = new AbortableInputStream(inputStream, fileInfo.physicalName());
-                    blobContainer.writeBlob(fileInfo.partName(i), inputStream, partBytes);
+                    blobContainer.writeBlob(fileInfo.partName(i), inputStream, partBytes, true);
                 }
                 Store.verify(indexInput);
                 snapshotStatus.addProcessedFile(fileInfo.length());

@@ -615,16 +615,16 @@ public class RestClient implements Closeable {
      */
     private NodeTuple<Iterator<Node>> nextNode() throws IOException {
         NodeTuple<List<Node>> nodeTuple = this.nodeTuple;
-        List<Node> hosts = selectHosts(nodeTuple, blacklist, lastNodeIndex, nodeSelector);
+        Iterable<Node> hosts = selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector);
         return new NodeTuple<>(hosts.iterator(), nodeTuple.authCache);
     }
 
     /**
-     * Select hosts to try. Package private for testing.
+     * Select nodes to try and sorts them so that the first one will be tried initially, then the following ones
+     * if the previous attempt failed and so on. Package private for testing.
      */
-    static List<Node> selectHosts(NodeTuple<List<Node>> nodeTuple,
-            Map<HttpHost, DeadHostState> blacklist, AtomicInteger lastNodeIndex,
-            NodeSelector nodeSelector) throws IOException {
+    static Iterable<Node> selectNodes(NodeTuple<List<Node>> nodeTuple, Map<HttpHost, DeadHostState> blacklist,
+                                      AtomicInteger lastNodeIndex, NodeSelector nodeSelector) throws IOException {
         /*
          * Sort the nodes into living and dead lists.
          */
@@ -653,8 +653,8 @@ public class RestClient implements Closeable {
             nodeSelector.select(selectedLivingNodes);
             if (false == selectedLivingNodes.isEmpty()) {
                 /*
-                 * Rotate the list so subsequent requests will prefer the
-                 * nodes in a different order.
+                 * Rotate the list using a global counter as the distance so subsequent
+                 * requests will try the nodes in a different order.
                  */
                 Collections.rotate(selectedLivingNodes, lastNodeIndex.getAndIncrement());
                 return selectedLivingNodes;
@@ -662,15 +662,13 @@ public class RestClient implements Closeable {
         }
 
         /*
-         * Last resort: If there are no good nodes to use, either because
+         * Last resort: there are no good nodes to use, either because
          * the selector rejected all the living nodes or because there aren't
          * any living ones. Either way, we want to revive a single dead node
-         * that the NodeSelectors are OK with. We do this by sorting the dead
-         * nodes by their revival time and passing them through the
-         * NodeSelector so it can have its say in which nodes are ok and their
-         * ordering. If the selector is ok with any of the nodes then use just
-         * the first one in the list because we only want to revive a single
-         * node.
+         * that the NodeSelectors are OK with. We do this by passing the dead
+         * nodes through the NodeSelector so it can have its say in which nodes
+         * are ok. If the selector is ok with any of the nodes then we will take
+         * the one in the list that has the lowest revival time and try it.
          */
         if (false == deadNodes.isEmpty()) {
             final List<DeadNode> selectedDeadNodes = new ArrayList<>(deadNodes);
@@ -796,8 +794,10 @@ public class RestClient implements Closeable {
         Objects.requireNonNull(path, "path must not be null");
         try {
             String fullPath;
-            if (pathPrefix != null) {
-                if (path.startsWith("/")) {
+            if (pathPrefix != null && pathPrefix.isEmpty() == false) {
+                if (pathPrefix.endsWith("/") && path.startsWith("/")) {
+                    fullPath = pathPrefix.substring(0, pathPrefix.length() - 1) + path;
+                } else if (pathPrefix.endsWith("/") || path.startsWith("/")) {
                     fullPath = pathPrefix + path;
                 } else {
                     fullPath = pathPrefix + "/" + path;
@@ -1010,8 +1010,8 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Adapts an <code>Iterator<DeadNodeAndRevival></code> into an
-     * <code>Iterator<Node></code>.
+     * Adapts an <code>Iterator&lt;DeadNodeAndRevival&gt;</code> into an
+     * <code>Iterator&lt;Node&gt;</code>.
      */
     private static class DeadNodeIteratorAdapter implements Iterator<Node> {
         private final Iterator<DeadNode> itr;

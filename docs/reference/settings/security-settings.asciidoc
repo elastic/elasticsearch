@@ -328,7 +328,7 @@ role mappings are not considered. Defaults to `false`.
 `files.role_mapping`::
 The {xpack-ref}/security-files.html[location] for the {xpack-ref}/mapping-roles.html#mapping-roles[
 YAML role mapping configuration file]. Defaults to
-`CONFIG_DIR/role_mapping.yml`.
+`ES_PATH_CONF/role_mapping.yml`.
 
 `follow_referrals`::
 Specifies whether {security} should follow referrals returned
@@ -494,7 +494,7 @@ considered. Defaults to `false`.
 
 `files.role_mapping`::
 The {xpack-ref}/security-files.html[location] for the YAML
-role mapping configuration file. Defaults to `CONFIG_DIR/role_mapping.yml`.
+role mapping configuration file. Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `user_search.base_dn`::
 The context to search for a user. Defaults to the root
@@ -719,7 +719,7 @@ for SSL. This setting cannot be used with `certificate_authorities`.
 `files.role_mapping`::
 Specifies the {xpack-ref}/security-files.html[location] of the
 {xpack-ref}/mapping-roles.html[YAML role  mapping configuration file].
-Defaults to `CONFIG_DIR/role_mapping.yml`.
+Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 

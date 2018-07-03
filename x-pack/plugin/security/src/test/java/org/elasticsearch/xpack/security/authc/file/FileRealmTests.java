@@ -89,7 +89,6 @@ public class FileRealmTests extends ESTestCase {
             .put("cache.hash_algo", Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT)).build();
         RealmConfig config = new RealmConfig("file-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
             threadContext);
-
         when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("test123")), any(Supplier.class)))
                 .thenAnswer(VERIFY_PASSWORD_ANSWER);
         when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});

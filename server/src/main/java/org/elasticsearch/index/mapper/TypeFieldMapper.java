@@ -34,7 +34,10 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -89,6 +92,8 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     static final class TypeFieldType extends StringFieldType {
+
+        private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(ESLoggerFactory.getLogger(TypeFieldType.class));
 
         TypeFieldType() {
         }
@@ -151,6 +156,33 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                 }
             } else {
                 return new MatchNoDocsQuery("Type list does not contain the index type");
+            }
+        }
+
+        @Override
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+            if (hasDocValues()) {
+                return new TermRangeQuery(name(), lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                        upperTerm == null ? null : indexedValueForSearch(upperTerm), includeLower, includeUpper);
+            } else {
+                // this means the index has a single type and the type field is implicit
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("range_single_type",
+                        "Running [range] query on [_type] field for an index with a single type. As types are deprecated, this functionality will be removed in future releases.");
+                String type = context.getMapperService().documentMapper().type();
+                Query result = new MatchAllDocsQuery();
+                if (lowerTerm != null && lowerTerm instanceof BytesRef) {
+                    int comp = type.compareTo(((BytesRef) lowerTerm).utf8ToString());
+                    if (comp < 0 || (comp == 0 && includeLower == false)) {
+                        result = new MatchNoDocsQuery("[_type] was less then lower bound of range");
+                    }
+                }
+                if (upperTerm != null && upperTerm instanceof BytesRef) {
+                    int comp = type.compareTo(((BytesRef) upperTerm).utf8ToString());
+                    if (comp > 0 || (comp == 0 && includeUpper == false)) {
+                        result = new MatchNoDocsQuery("[_type] was higher then upper bound of range");
+                    }
+                }
+                return result;
             }
         }
 

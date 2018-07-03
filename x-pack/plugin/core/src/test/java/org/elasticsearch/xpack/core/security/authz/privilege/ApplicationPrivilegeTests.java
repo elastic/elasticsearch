@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import junit.framework.AssertionFailedError;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
@@ -17,6 +18,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -27,62 +29,60 @@ import static org.hamcrest.Matchers.equalTo;
 public class ApplicationPrivilegeTests extends ESTestCase {
 
     public void testValidationOfApplicationName() {
-        // too short
-        assertValidationFailure("Application names", () -> ApplicationPrivilege.validateApplicationName("ap"));
-        // must start with lowercase
-        assertValidationFailure("Application names", () -> ApplicationPrivilege.validateApplicationName("App"));
-        // must start with letter
-        assertValidationFailure("Application names", () -> ApplicationPrivilege.validateApplicationName("1app"));
-        // cannot contain special characters
-        assertValidationFailure("Application names",
-            () -> ApplicationPrivilege.validateApplicationName("app" + randomFrom(":;$#%()+=/'.,".toCharArray())));
+        final String specialCharacters = ":;$#%()+=/\\'.,{}[]<>!@^&|\"'?";
+        final Supplier<Character> specialCharacter = () -> specialCharacters.charAt(randomInt(specialCharacters.length() - 1));
+
+        assertValidationFailure("ap", "Application names", () -> ApplicationPrivilege.validateApplicationName("ap"));
+        for (String app : Arrays.asList(
+            "App",// must start with lowercase
+            "1app",  // must start with letter
+            "app" + specialCharacter.get() // cannot contain special characters unless preceded by a "-" or "_"
+        )) {
+            assertValidationFailure(app, "Application names", () -> ApplicationPrivilege.validateApplicationName(app));
+            assertValidationFailure(app, "Application names", () -> ApplicationPrivilege.validateApplicationNameOrWildcard(app));
+        }
 
         // no wildcards
-        assertValidationFailure("Application names", () -> ApplicationPrivilege.validateApplicationName("app*"));
+        assertValidationFailure("app*", "Application names", () -> ApplicationPrivilege.validateApplicationName("app*"));
         // no special characters with wildcards
-        assertValidationFailure("Application names",
-            () -> ApplicationPrivilege.validateApplicationNameOrWildcard("app" + randomFrom((":;$#%()+=/'.,").toCharArray()) + "*"));
+        final String appNameWithSpecialCharAndWildcard = "app" + specialCharacter.get() + "*";
+        assertValidationFailure(appNameWithSpecialCharAndWildcard, "Application names",
+            () -> ApplicationPrivilege.validateApplicationNameOrWildcard(appNameWithSpecialCharAndWildcard));
 
+        String appNameWithSpecialChars = "myapp" + randomFrom('-', '_');
+        for (int i = randomIntBetween(1, 12); i > 0; i--) {
+            appNameWithSpecialChars = appNameWithSpecialChars + specialCharacter.get();
+        }
         // these should all be OK
-        assertNoException(() -> ApplicationPrivilege.validateApplicationName("app"));
-        assertNoException(() -> ApplicationPrivilege.validateApplicationName("app1"));
-        assertNoException(() -> ApplicationPrivilege.validateApplicationName("myApp"));
-        assertNoException(() -> ApplicationPrivilege.validateApplicationName("my-App"));
-        assertNoException(() -> ApplicationPrivilege.validateApplicationName("my_App"));
-        assertNoException(() -> ApplicationPrivilege.validateApplicationNameOrWildcard("app*"));
+        for (String app : Arrays.asList("app", "app1", "myApp", "myApp-:;$#%()+=/'.,", "myApp_:;$#%()+=/'.,", appNameWithSpecialChars)) {
+            assertNoException(app, () -> ApplicationPrivilege.validateApplicationName(app));
+            assertNoException(app, () -> ApplicationPrivilege.validateApplicationNameOrWildcard(app));
+        }
     }
 
     public void testValidationOfPrivilegeName() {
         // must start with lowercase
-        assertValidationFailure("privilege names", () -> ApplicationPrivilege.validatePrivilegeName("Read"));
+        assertValidationFailure("Read", "privilege names", () -> ApplicationPrivilege.validatePrivilegeName("Read"));
         // must start with letter
-        assertValidationFailure("privilege names", () -> ApplicationPrivilege.validatePrivilegeName("1read"));
+        assertValidationFailure("1read", "privilege names", () -> ApplicationPrivilege.validatePrivilegeName("1read"));
         // cannot contain special characters
-        final String withSpecialChar = "read" + randomFrom(":;$#%()+=/',".toCharArray());
-        assertValidationFailure("privilege names", () -> ApplicationPrivilege.validatePrivilegeName(withSpecialChar));
+        final String specialChars = ":;$#%()+=/',";
+        final String withSpecialChar = "read" + specialChars.charAt(randomInt(specialChars.length()-1));
+        assertValidationFailure(withSpecialChar, "privilege names", () -> ApplicationPrivilege.validatePrivilegeName(withSpecialChar));
 
         // these should all be OK
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeName("read"));
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeName("read1"));
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeName("readData"));
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeName("read-data"));
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeName("read.data"));
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeName("read_data"));
+        for (String priv : Arrays.asList("read", "read1", "readData", "read-data", "read.data", "read_data")) {
+            assertNoException(priv, () -> ApplicationPrivilege.validatePrivilegeName(priv));
+            assertNoException(priv, () -> ApplicationPrivilege.validatePrivilegeOrActionName(priv));
+        }
 
-        assertValidationFailure("privilege names and action", () -> ApplicationPrivilege.validatePrivilegeOrActionName("r e a d"));
-        assertValidationFailure("privilege names and action", () -> ApplicationPrivilege.validatePrivilegeOrActionName("read\n"));
-        assertValidationFailure("privilege names and action", () -> ApplicationPrivilege.validatePrivilegeOrActionName("copy®"));
+        for (String priv : Arrays.asList("r e a d", "read\n", "copy®")) {
+            assertValidationFailure(priv, "privilege names and action", () -> ApplicationPrivilege.validatePrivilegeOrActionName(priv));
+        }
 
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeOrActionName("read"));
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeOrActionName("read1"));
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeOrActionName("readData"));
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeOrActionName("read-data"));
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeOrActionName("read.data"));
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeOrActionName("read_data"));
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeOrActionName("read:*"));
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeOrActionName("read/*"));
-        assertNoException(() -> ApplicationPrivilege.validatePrivilegeOrActionName("read/a_b.c-d+e%f#(g)"));
-
+        for (String priv : Arrays.asList("read:*", "read/*", "read/a_b.c-d+e%f#(g)")) {
+            assertNoException(priv, () -> ApplicationPrivilege.validatePrivilegeOrActionName(priv));
+        }
     }
 
     public void testGetPrivilegeByName() {
@@ -144,17 +144,22 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         }
     }
 
-    private void assertValidationFailure(String messageContent, ThrowingRunnable body) {
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, body);
-        assertThat(exception.getMessage(), containsString(messageContent));
+    private void assertValidationFailure(String reason,String messageContent, ThrowingRunnable body) {
+        final IllegalArgumentException exception;
+        try {
+            exception = expectThrows(IllegalArgumentException.class, body);
+            assertThat(exception.getMessage(), containsString(messageContent));
+        } catch (AssertionFailedError e) {
+            fail(reason + " - " + e.getMessage());
+        }
     }
 
-    private void assertNoException(ThrowingRunnable body) {
+    private void assertNoException(String reason, ThrowingRunnable body) {
         try {
             body.run();
             // pass
         } catch (Throwable e) {
-            Assert.fail("Expected no exception, but got: " + e);
+            Assert.fail(reason + " - Expected no exception, but got: " + e);
         }
     }
 

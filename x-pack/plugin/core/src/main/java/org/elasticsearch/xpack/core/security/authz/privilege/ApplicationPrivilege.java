@@ -29,8 +29,16 @@ import java.util.stream.Collectors;
  */
 public final class ApplicationPrivilege extends Privilege {
 
-    private static final Pattern VALID_APPLICATION = Pattern.compile("^[a-z][A-Za-z0-9_-]{2,}$");
-    private static final Pattern VALID_APPLICATION_OR_WILDCARD = Pattern.compile("^[a-z*][A-Za-z0-9_*-]*");
+    /**
+     * Application name validation. App names must
+     * - Start with a lower case letter
+     * - Followed by 2 or more alpha-numeric ASCII characters
+     * - Optionally followed by:
+     *   - A single "-" or "_"
+     *   - Then any number of printable, visible ASCII characters (letter, numbers, symbols) other than '*'
+      */
+    private static final Pattern VALID_APPLICATION = Pattern.compile("^[a-z][A-Za-z0-9]{2,}([_-][\\p{Graph}&&[^*]]*)?$");
+    private static final Pattern VALID_APPLICATION_OR_WILDCARD = Pattern.compile("^[a-z*][A-Za-z0-9*]*([_-]\\p{Graph}*)?$");
     private static final Pattern VALID_NAME = Pattern.compile("^[a-z][a-zA-Z0-9_.-]*$");
 
     /**

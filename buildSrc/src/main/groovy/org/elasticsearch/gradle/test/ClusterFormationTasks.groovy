@@ -65,16 +65,10 @@ class ClusterFormationTasks {
          * snapshots survive failures / test runs and there is no simple way
          * today to fix that. */
         if (config.cleanShared) {
-          Task cleanup = project.tasks.create(
-            name: "${prefix}#prepareCluster.cleanShared",
-            type: Delete,
-            dependsOn: startDependencies) {
-              delete sharedDir
-              doLast {
-                  sharedDir.mkdirs()
-              }
-          }
-          startDependencies = cleanup
+            runner.doFirst {
+                project.delete(sharedDir)
+                sharedDir.mkdirs()
+            }
         }
         List<Task> startTasks = []
         List<NodeInfo> nodes = []

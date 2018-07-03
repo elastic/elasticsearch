@@ -375,7 +375,11 @@ class VagrantTestPlugin implements Plugin<Project> {
                 project.gradle.removeListener(packagingReproListener)
             }
             if (project.extensions.esvagrant.boxes.contains(box)) {
-                packagingTest.dependsOn(packaging)
+                // these tests are temporarily disabled for suse boxes while we debug an issue
+                // https://github.com/elastic/elasticsearch/issues/30295
+                if (box.equals("opensuse-42") == false && box.equals("sles-12") == false) {
+                    packagingTest.dependsOn(packaging)
+                }
             }
 
             Task platform = project.tasks.create("vagrant${boxTask}#platformTest", VagrantCommandTask) {

@@ -52,7 +52,6 @@ public class PutLicenseResponse extends AcknowledgedResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        readAcknowledged(in);
         status = LicensesStatus.fromId(in.readVInt());
         acknowledgeHeader = in.readOptionalString();
         int size = in.readVInt();
@@ -72,7 +71,6 @@ public class PutLicenseResponse extends AcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeAcknowledged(out);
         out.writeVInt(status.id());
         out.writeOptionalString(acknowledgeHeader);
         out.writeVInt(acknowledgeMessages.size());

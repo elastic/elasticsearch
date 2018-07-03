@@ -97,6 +97,7 @@ public abstract class BatchedDocumentsIterator<T>  {
         searchRequest.source(new SearchSourceBuilder()
                 .size(BATCH_SIZE)
                 .query(getQuery())
+                .fetchSource(shouldFetchSource())
                 .sort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)));
 
         SearchResponse searchResponse = client.search(searchRequest).actionGet();
@@ -121,6 +122,14 @@ public abstract class BatchedDocumentsIterator<T>  {
             client.prepareClearScroll().setScrollIds(Collections.singletonList(scrollId)).get();
         }
         return results;
+    }
+
+    /**
+     * Should fetch source? Defaults to {@code true}
+     * @return whether the source should be fetched
+     */
+    protected boolean shouldFetchSource() {
+        return true;
     }
 
     /**

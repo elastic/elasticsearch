@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -28,19 +29,19 @@ public class CliFormatter implements Writeable {
 
     /**
      * Create a new {@linkplain CliFormatter} for formatting responses similar
-     * to the provided {@link SqlQueryResponse}.
+     * to the provided columns and rows.
      */
-    public CliFormatter(SqlQueryResponse response) {
+    public CliFormatter(List<ColumnInfo> columns, List<List<Object>> rows) {
         // Figure out the column widths:
         // 1. Start with the widths of the column names
-        width = new int[response.columns().size()];
+        width = new int[columns.size()];
         for (int i = 0; i < width.length; i++) {
             // TODO read the width from the data type?
-            width[i] = Math.max(MIN_COLUMN_WIDTH, response.columns().get(i).name().length());
+            width[i] = Math.max(MIN_COLUMN_WIDTH, columns.get(i).name().length());
         }
 
         // 2. Expand columns to fit the largest value
-        for (List<Object> row : response.rows()) {
+        for (List<Object> row : rows) {
             for (int i = 0; i < width.length; i++) {
                 // TODO are we sure toString is correct here? What about dates that come back as longs.
                 // Tracked by https://github.com/elastic/x-pack-elasticsearch/issues/3081
@@ -62,15 +63,15 @@ public class CliFormatter implements Writeable {
      * Format the provided {@linkplain SqlQueryResponse} for the CLI
      * including the header lines.
      */
-    public String formatWithHeader(SqlQueryResponse response) {
+    public String formatWithHeader(List<ColumnInfo> columns, List<List<Object>> rows) {
         // The header lines
-        StringBuilder sb = new StringBuilder(estimateSize(response.rows().size() + 2));
+        StringBuilder sb = new StringBuilder(estimateSize(rows.size() + 2));
         for (int i = 0; i < width.length; i++) {
             if (i > 0) {
                 sb.append('|');
             }
 
-            String name = response.columns().get(i).name();
+            String name = columns.get(i).name();
             // left padding
             int leftPadding = (width[i] - name.length()) / 2;
             for (int j = 0; j < leftPadding; j++) {
@@ -98,19 +99,19 @@ public class CliFormatter implements Writeable {
         /* Now format the results. Sadly, this means that column
          * widths are entirely determined by the first batch of
          * results. */
-        return formatWithoutHeader(sb, response);
+        return formatWithoutHeader(sb, rows);
     }
 
     /**
      * Format the provided {@linkplain SqlQueryResponse} for the CLI
      * without the header lines.
      */
-    public String formatWithoutHeader(SqlQueryResponse response) {
-        return formatWithoutHeader(new StringBuilder(estimateSize(response.rows().size())), response);
+    public String formatWithoutHeader(List<List<Object>> rows) {
+        return formatWithoutHeader(new StringBuilder(estimateSize(rows.size())), rows);
     }
 
-    private String formatWithoutHeader(StringBuilder sb, SqlQueryResponse response) {
-        for (List<Object> row : response.rows()) {
+    private String formatWithoutHeader(StringBuilder sb, List<List<Object>> rows) {
+        for (List<Object> row : rows) {
             for (int i = 0; i < width.length; i++) {
                 if (i > 0) {
                     sb.append('|');
@@ -138,7 +139,7 @@ public class CliFormatter implements Writeable {
     }
 
     /**
-     * Pick a good estimate of the buffer size needed to contain the rows. 
+     * Pick a good estimate of the buffer size needed to contain the rows.
      */
     int estimateSize(int rows) {
         /* Each column has either a '|' or a '\n' after it

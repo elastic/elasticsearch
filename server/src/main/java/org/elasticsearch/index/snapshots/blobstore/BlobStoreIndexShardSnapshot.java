@@ -356,25 +356,28 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
 
     private final long time;
 
-    private final int numberOfFiles;
+    private final int incrementalFileCount;
 
-    private final long totalSize;
+    private final long incrementalSize;
 
     private final List<FileInfo> indexFiles;
 
     /**
      * Constructs new shard snapshot metadata from snapshot metadata
      *
-     * @param snapshot      snapshot id
-     * @param indexVersion  index version
-     * @param indexFiles    list of files in the shard
-     * @param startTime     snapshot start time
-     * @param time          snapshot running time
-     * @param numberOfFiles number of files that where snapshotted
-     * @param totalSize     total size of all files snapshotted
+     * @param snapshot              snapshot id
+     * @param indexVersion          index version
+     * @param indexFiles            list of files in the shard
+     * @param startTime             snapshot start time
+     * @param time                  snapshot running time
+     * @param incrementalFileCount  incremental of files that were snapshotted
+     * @param incrementalSize       incremental size of snapshot
      */
-    public BlobStoreIndexShardSnapshot(String snapshot, long indexVersion, List<FileInfo> indexFiles, long startTime, long time,
-                                       int numberOfFiles, long totalSize) {
+    public BlobStoreIndexShardSnapshot(String snapshot, long indexVersion, List<FileInfo> indexFiles,
+                                       long startTime, long time,
+                                       int incrementalFileCount,
+                                       long incrementalSize
+    ) {
         assert snapshot != null;
         assert indexVersion >= 0;
         this.snapshot = snapshot;
@@ -382,8 +385,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         this.indexFiles = Collections.unmodifiableList(new ArrayList<>(indexFiles));
         this.startTime = startTime;
         this.time = time;
-        this.numberOfFiles = numberOfFiles;
-        this.totalSize = totalSize;
+        this.incrementalFileCount = incrementalFileCount;
+        this.incrementalSize = incrementalSize;
     }
 
     /**
@@ -395,8 +398,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         this.indexFiles = Collections.emptyList();
         this.startTime = 0;
         this.time = 0;
-        this.numberOfFiles = 0;
-        this.totalSize = 0;
+        this.incrementalFileCount = 0;
+        this.incrementalSize = 0;
     }
 
     /**
@@ -441,34 +444,51 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     }
 
     /**
-     * Returns number of files that where snapshotted
+     * Returns incremental of files that were snapshotted
      */
-    public int numberOfFiles() {
-        return numberOfFiles;
+    public int incrementalFileCount() {
+        return incrementalFileCount;
+    }
+
+    /**
+     * Returns total number of files that are referenced by this snapshot
+     */
+    public int totalFileCount() {
+        return indexFiles.size();
+    }
+
+    /**
+     * Returns incremental of files size that were snapshotted
+     */
+    public long incrementalSize() {
+        return incrementalSize;
     }
 
     /**
      * Returns total size of all files that where snapshotted
      */
     public long totalSize() {
-        return totalSize;
+        return indexFiles.stream().mapToLong(fi -> fi.metadata().length()).sum();
     }
 
     private static final String NAME = "name";
     private static final String INDEX_VERSION = "index_version";
     private static final String START_TIME = "start_time";
     private static final String TIME = "time";
-    private static final String NUMBER_OF_FILES = "number_of_files";
-    private static final String TOTAL_SIZE = "total_size";
     private static final String FILES = "files";
+    // for the sake of BWC keep the actual property names as in 6.x
+    // + there is a constraint in #fromXContent() that leads to ElasticsearchParseException("unknown parameter [incremental_file_count]");
+    private static final String INCREMENTAL_FILE_COUNT = "number_of_files";
+    private static final String INCREMENTAL_SIZE = "total_size";
 
-    private static final ParseField PARSE_NAME = new ParseField("name");
-    private static final ParseField PARSE_INDEX_VERSION = new ParseField("index_version", "index-version");
-    private static final ParseField PARSE_START_TIME = new ParseField("start_time");
-    private static final ParseField PARSE_TIME = new ParseField("time");
-    private static final ParseField PARSE_NUMBER_OF_FILES = new ParseField("number_of_files");
-    private static final ParseField PARSE_TOTAL_SIZE = new ParseField("total_size");
-    private static final ParseField PARSE_FILES = new ParseField("files");
+
+    private static final ParseField PARSE_NAME = new ParseField(NAME);
+    private static final ParseField PARSE_INDEX_VERSION = new ParseField(INDEX_VERSION, "index-version");
+    private static final ParseField PARSE_START_TIME = new ParseField(START_TIME);
+    private static final ParseField PARSE_TIME = new ParseField(TIME);
+    private static final ParseField PARSE_INCREMENTAL_FILE_COUNT = new ParseField(INCREMENTAL_FILE_COUNT);
+    private static final ParseField PARSE_INCREMENTAL_SIZE = new ParseField(INCREMENTAL_SIZE);
+    private static final ParseField PARSE_FILES = new ParseField(FILES);
 
     /**
      * Serializes shard snapshot metadata info into JSON
@@ -482,8 +502,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         builder.field(INDEX_VERSION, indexVersion);
         builder.field(START_TIME, startTime);
         builder.field(TIME, time);
-        builder.field(NUMBER_OF_FILES, numberOfFiles);
-        builder.field(TOTAL_SIZE, totalSize);
+        builder.field(INCREMENTAL_FILE_COUNT, incrementalFileCount);
+        builder.field(INCREMENTAL_SIZE, incrementalSize);
         builder.startArray(FILES);
         for (FileInfo fileInfo : indexFiles) {
             FileInfo.toXContent(fileInfo, builder, params);
@@ -503,8 +523,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         long indexVersion = -1;
         long startTime = 0;
         long time = 0;
-        int numberOfFiles = 0;
-        long totalSize = 0;
+        int incrementalFileCount = 0;
+        long incrementalSize = 0;
 
         List<FileInfo> indexFiles = new ArrayList<>();
         if (parser.currentToken() == null) { // fresh parser? move to the first token
@@ -526,10 +546,10 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                             startTime = parser.longValue();
                         } else if (PARSE_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
                             time = parser.longValue();
-                        } else if (PARSE_NUMBER_OF_FILES.match(currentFieldName, parser.getDeprecationHandler())) {
-                            numberOfFiles = parser.intValue();
-                        } else if (PARSE_TOTAL_SIZE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            totalSize = parser.longValue();
+                        } else if (PARSE_INCREMENTAL_FILE_COUNT.match(currentFieldName, parser.getDeprecationHandler())) {
+                            incrementalFileCount = parser.intValue();
+                        } else if (PARSE_INCREMENTAL_SIZE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            incrementalSize = parser.longValue();
                         } else {
                             throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
                         }
@@ -549,7 +569,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 }
             }
         }
+
         return new BlobStoreIndexShardSnapshot(snapshot, indexVersion, Collections.unmodifiableList(indexFiles),
-                                               startTime, time, numberOfFiles, totalSize);
+                                               startTime, time, incrementalFileCount, incrementalSize);
     }
 }

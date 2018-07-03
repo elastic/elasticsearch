@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -13,6 +14,8 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+
+import java.util.Map;
 
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
@@ -24,8 +27,8 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
 
     private final NativeUsersStore userStore;
 
-    public NativeRealm(RealmConfig config, NativeUsersStore usersStore) {
-        super(NativeRealmSettings.TYPE, config);
+    public NativeRealm(RealmConfig config, NativeUsersStore usersStore, ThreadPool threadPool) {
+        super(NativeRealmSettings.TYPE, config, threadPool);
         this.userStore = usersStore;
     }
 
@@ -43,6 +46,16 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
         if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)) {
             clearCache();
         }
+    }
+
+    @Override
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        super.usageStats(ActionListener.wrap(stats ->
+            userStore.getUserCount(ActionListener.wrap(size -> {
+                stats.put("size", size);
+                listener.onResponse(stats);
+            }, listener::onFailure))
+        , listener::onFailure));
     }
 
     // method is used for testing to verify cache expiration since expireAll is final

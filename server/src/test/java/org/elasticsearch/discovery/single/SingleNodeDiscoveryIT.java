@@ -84,7 +84,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                     internalCluster().getInstance(TransportService.class);
             // try to ping the single node directly
             final UnicastHostsProvider provider =
-                    () -> Collections.singletonList(nodeTransport.getLocalNode());
+                hostsResolver -> Collections.singletonList(nodeTransport.getLocalNode().getAddress());
             final CountDownLatch latch = new CountDownLatch(1);
             final DiscoveryNodes nodes = DiscoveryNodes.builder()
                     .add(nodeTransport.getLocalNode())
@@ -150,7 +150,6 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                         internalCluster().getClusterName(),
                         configurationSource,
                         0,
-                        false,
                         "other",
                         Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
                         Function.identity())) {

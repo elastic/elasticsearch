@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -38,9 +37,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AuditTrailTests extends SecurityIntegTestCase {
 
@@ -164,7 +163,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
                 .request();
         request.indicesOptions().ignoreUnavailable();
 
-        final PlainActionFuture<Collection<Map<String, Object>>> listener = new PlainActionFuture();
+        final PlainActionFuture<Collection<Map<String, Object>>> listener = new PlainActionFuture<>();
         ScrollHelper.fetchAllByEntity(client, request, listener, SearchHit::getSourceAsMap);
 
         return listener.get();

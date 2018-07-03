@@ -5,28 +5,23 @@
  */
 package org.elasticsearch.xpack.core.ssl.cert;
 
-import org.bouncycastle.asn1.x509.GeneralName;
-import org.bouncycastle.asn1.x509.GeneralNames;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
-import javax.security.auth.x500.X500Principal;
 
 import java.io.IOException;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class CertificateInfoTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        final X500Principal principal = new X500Principal("CN=foo");
-        final X509Certificate certificate = CertUtils.generateSignedCertificate(principal, new GeneralNames(new GeneralName[0]),
-                getKeyPair(), null, null, 90);
+        final X509Certificate certificate = CertParsingUtils.
+                readX509Certificates(Collections.singletonList(getDataPath
+                        ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt")))[0];
         final CertificateInfo cert1 = new CertificateInfo("/path/to/cert.jks", "jks", "key", true, certificate);
         final CertificateInfo cert2 = serializeAndDeserialize(cert1);
         final CertificateInfo cert3 = serializeAndDeserialize(cert2);
@@ -40,11 +35,4 @@ public class CertificateInfoTests extends ESTestCase {
         cert1.writeTo(output);
         return new CertificateInfo(output.bytes().streamInput());
     }
-
-    private KeyPair getKeyPair() throws NoSuchAlgorithmException {
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(2048);
-        return keyPairGenerator.generateKeyPair();
-    }
-
 }

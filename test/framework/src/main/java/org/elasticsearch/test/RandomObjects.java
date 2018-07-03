@@ -187,9 +187,9 @@ public final class RandomObjects {
      * Randomly adds fields, objects, or arrays to the provided builder. The maximum depth is 5.
      */
     private static void addFields(Random random, XContentBuilder builder, int minNumFields, int currentDepth) throws IOException {
-        int numFields = randomIntBetween(random, minNumFields, 10);
+        int numFields = randomIntBetween(random, minNumFields, 5);
         for (int i = 0; i < numFields; i++) {
-            if (currentDepth < 5 && random.nextBoolean()) {
+            if (currentDepth < 5 && random.nextInt(100) >= 70) {
                 if (random.nextBoolean()) {
                     builder.startObject(RandomStrings.randomAsciiOfLengthBetween(random, 6, 10));
                     addFields(random, builder, minNumFields, currentDepth + 1);

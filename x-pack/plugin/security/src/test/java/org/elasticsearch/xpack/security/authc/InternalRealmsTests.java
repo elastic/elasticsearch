@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -31,18 +30,15 @@ import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
-import static org.mockito.Mockito.when;
 
 public class InternalRealmsTests extends ESTestCase {
 
     public void testNativeRealmRegistersIndexHealthChangeListener() throws Exception {
-        SecurityLifecycleService lifecycleService = mock(SecurityLifecycleService.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(lifecycleService.securityIndex()).thenReturn(securityIndex);
         Map<String, Realm.Factory> factories = InternalRealms.getFactories(mock(ThreadPool.class), mock(ResourceWatcherService.class),
-                mock(SSLService.class), mock(NativeUsersStore.class), mock(NativeRoleMappingStore.class), lifecycleService);
+                mock(SSLService.class), mock(NativeUsersStore.class), mock(NativeRoleMappingStore.class), securityIndex);
         assertThat(factories, hasEntry(is(NativeRealmSettings.TYPE), any(Realm.Factory.class)));
-        verifyZeroInteractions(lifecycleService);
+        verifyZeroInteractions(securityIndex);
 
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         factories.get(NativeRealmSettings.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings,

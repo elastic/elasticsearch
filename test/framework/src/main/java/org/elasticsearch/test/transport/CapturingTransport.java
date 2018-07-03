@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -94,9 +95,17 @@ public class CapturingTransport implements Transport {
      * @return the captured requests
      */
     public CapturedRequest[] getCapturedRequestsAndClear() {
-        CapturedRequest[] capturedRequests = capturedRequests();
-        clear();
-        return capturedRequests;
+        List<CapturedRequest> requests = new ArrayList<>(capturedRequests.size());
+        capturedRequests.drainTo(requests);
+        return requests.toArray(new CapturedRequest[0]);
+    }
+
+    private Map<String, List<CapturedRequest>> groupRequestsByTargetNode(Collection<CapturedRequest> requests) {
+        Map<String, List<CapturedRequest>> result = new HashMap<>();
+        for (CapturedRequest request : requests) {
+            result.computeIfAbsent(request.node.getId(), node -> new ArrayList<>()).add(request);
+        }
+        return result;
     }
 
     /**
@@ -104,16 +113,7 @@ public class CapturingTransport implements Transport {
      * Doesn't clear the captured request list. See {@link #clear()}
      */
     public Map<String, List<CapturedRequest>> capturedRequestsByTargetNode() {
-        Map<String, List<CapturedRequest>> map = new HashMap<>();
-        for (CapturedRequest request : capturedRequests) {
-            List<CapturedRequest> nodeList = map.get(request.node.getId());
-            if (nodeList == null) {
-                nodeList = new ArrayList<>();
-                map.put(request.node.getId(), nodeList);
-            }
-            nodeList.add(request);
-        }
-        return map;
+        return groupRequestsByTargetNode(capturedRequests);
     }
 
     /**
@@ -125,9 +125,9 @@ public class CapturingTransport implements Transport {
      * @return the captured requests grouped by target node
      */
     public Map<String, List<CapturedRequest>> getCapturedRequestsByTargetNodeAndClear() {
-        Map<String, List<CapturedRequest>> map = capturedRequestsByTargetNode();
-        clear();
-        return map;
+        List<CapturedRequest> requests = new ArrayList<>(capturedRequests.size());
+        capturedRequests.drainTo(requests);
+        return groupRequestsByTargetNode(requests);
     }
 
     /** clears captured requests */

@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.Equals;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
-import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Arrays;
@@ -28,7 +28,7 @@ public class ParameterTests extends ESTestCase {
     public void testSingleParameter() {
         Expression expression = new SqlParser().createExpression("a = \n?",
                 Collections.singletonList(
-                        new SqlTypedParamValue("foo", DataType.KEYWORD)
+                        new SqlTypedParamValue(DataType.KEYWORD, "foo")
                 ));
         logger.info(expression);
         assertThat(expression, instanceOf(Equals.class));
@@ -42,10 +42,10 @@ public class ParameterTests extends ESTestCase {
 
     public void testMultipleParameters() {
         Expression expression = new SqlParser().createExpression("(? + ? * ?) - ?", Arrays.asList(
-                new SqlTypedParamValue(1L, DataType.LONG),
-                new SqlTypedParamValue(2L, DataType.LONG),
-                new SqlTypedParamValue(3L, DataType.LONG),
-                new SqlTypedParamValue(4L, DataType.LONG)
+                new SqlTypedParamValue(DataType.LONG, 1L),
+                new SqlTypedParamValue(DataType.LONG, 2L),
+                new SqlTypedParamValue(DataType.LONG, 3L),
+                new SqlTypedParamValue(DataType.LONG, 4L)
                 ));
         assertThat(expression, instanceOf(Sub.class));
         Sub sub = (Sub) expression;
@@ -62,9 +62,9 @@ public class ParameterTests extends ESTestCase {
     public void testNotEnoughParameters() {
         ParsingException ex = expectThrows(ParsingException.class,
                 () -> new SqlParser().createExpression("(? + ? * ?) - ?", Arrays.asList(
-                        new SqlTypedParamValue(1L, DataType.LONG),
-                        new SqlTypedParamValue(2L, DataType.LONG),
-                        new SqlTypedParamValue(3L, DataType.LONG)
+                        new SqlTypedParamValue(DataType.LONG, 1L),
+                        new SqlTypedParamValue(DataType.LONG, 2L),
+                        new SqlTypedParamValue(DataType.LONG, 3L)
                 )));
         assertThat(ex.getMessage(), containsString("Not enough actual parameters"));
     }

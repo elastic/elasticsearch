@@ -38,8 +38,11 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -48,6 +51,8 @@ import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.mustache.SearchTemplateRequest;
+import org.elasticsearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
@@ -69,10 +74,12 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -312,14 +319,14 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         MatrixStats matrixStats = searchResponse.getAggregations().get("agg1");
         assertEquals(5, matrixStats.getFieldCount("num"));
         assertEquals(56d, matrixStats.getMean("num"), 0d);
-        assertEquals(1830d, matrixStats.getVariance("num"), 0d);
-        assertEquals(0.09340198804973046, matrixStats.getSkewness("num"), 0d);
+        assertEquals(1830.0000000000002, matrixStats.getVariance("num"), 0d);
+        assertEquals(0.09340198804973039, matrixStats.getSkewness("num"), 0d);
         assertEquals(1.2741646510794589, matrixStats.getKurtosis("num"), 0d);
         assertEquals(5, matrixStats.getFieldCount("num2"));
         assertEquals(29d, matrixStats.getMean("num2"), 0d);
         assertEquals(330d, matrixStats.getVariance("num2"), 0d);
         assertEquals(-0.13568039346585542, matrixStats.getSkewness("num2"), 1.0e-16);
-        assertEquals(1.3517561983471074, matrixStats.getKurtosis("num2"), 0d);
+        assertEquals(1.3517561983471071, matrixStats.getKurtosis("num2"), 0d);
         assertEquals(-767.5, matrixStats.getCovariance("num", "num2"), 0d);
         assertEquals(-0.9876336291667923, matrixStats.getCorrelation("num", "num2"), 0d);
     }
@@ -538,9 +545,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
             clearScrollRequest.addScrollId(searchResponse.getScrollId());
             ClearScrollResponse clearScrollResponse = execute(clearScrollRequest,
-                    // Not using a method reference to work around https://bugs.eclipse.org/bugs/show_bug.cgi?id=517951
-                    (request, headers) -> highLevelClient().clearScroll(request, headers),
-                    (request, listener, headers) -> highLevelClient().clearScrollAsync(request, listener, headers));
+                    highLevelClient()::clearScroll, highLevelClient()::clearScrollAsync);
             assertThat(clearScrollResponse.getNumFreed(), greaterThan(0));
             assertTrue(clearScrollResponse.isSucceeded());
 
@@ -731,6 +736,103 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertThat(multiSearchResponse.getResponses()[1].isFailure(), Matchers.is(true));
         assertThat(multiSearchResponse.getResponses()[1].getFailure().getMessage(), containsString("search_phase_execution_exception"));
         assertThat(multiSearchResponse.getResponses()[1].getResponse(), nullValue());
+    }
+
+    public void testSearchTemplate() throws IOException {
+        SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest();
+        searchTemplateRequest.setRequest(new SearchRequest("index"));
+
+        searchTemplateRequest.setScriptType(ScriptType.INLINE);
+        searchTemplateRequest.setScript(
+            "{" +
+            "  \"query\": {" +
+            "    \"match\": {" +
+            "      \"num\": {{number}}" +
+            "    }" +
+            "  }" +
+            "}");
+
+        Map<String, Object> scriptParams = new HashMap<>();
+        scriptParams.put("number", 10);
+        searchTemplateRequest.setScriptParams(scriptParams);
+
+        searchTemplateRequest.setExplain(true);
+        searchTemplateRequest.setProfile(true);
+
+        SearchTemplateResponse searchTemplateResponse = execute(searchTemplateRequest,
+            highLevelClient()::searchTemplate,
+            highLevelClient()::searchTemplateAsync);
+
+        assertNull(searchTemplateResponse.getSource());
+
+        SearchResponse searchResponse = searchTemplateResponse.getResponse();
+        assertNotNull(searchResponse);
+
+        assertEquals(1, searchResponse.getHits().totalHits);
+        assertEquals(1, searchResponse.getHits().getHits().length);
+        assertThat(searchResponse.getHits().getMaxScore(), greaterThan(0f));
+
+        SearchHit hit = searchResponse.getHits().getHits()[0];
+        assertNotNull(hit.getExplanation());
+
+        assertFalse(searchResponse.getProfileResults().isEmpty());
+    }
+
+    public void testNonExistentSearchTemplate() {
+        SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest();
+        searchTemplateRequest.setRequest(new SearchRequest("index"));
+
+        searchTemplateRequest.setScriptType(ScriptType.STORED);
+        searchTemplateRequest.setScript("non-existent");
+        searchTemplateRequest.setScriptParams(Collections.emptyMap());
+
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(searchTemplateRequest,
+                highLevelClient()::searchTemplate,
+                highLevelClient()::searchTemplateAsync));
+
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+    public void testRenderSearchTemplate() throws IOException {
+        SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest();
+
+        searchTemplateRequest.setScriptType(ScriptType.INLINE);
+        searchTemplateRequest.setScript(
+            "{" +
+            "  \"query\": {" +
+            "    \"match\": {" +
+            "      \"num\": {{number}}" +
+            "    }" +
+            "  }" +
+            "}");
+
+        Map<String, Object> scriptParams = new HashMap<>();
+        scriptParams.put("number", 10);
+        searchTemplateRequest.setScriptParams(scriptParams);
+
+        // Setting simulate true causes the template to only be rendered.
+        searchTemplateRequest.setSimulate(true);
+
+        SearchTemplateResponse searchTemplateResponse = execute(searchTemplateRequest,
+            highLevelClient()::searchTemplate,
+            highLevelClient()::searchTemplateAsync);
+        assertNull(searchTemplateResponse.getResponse());
+
+        BytesReference expectedSource = BytesReference.bytes(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("query")
+                        .startObject("match")
+                            .field("num", 10)
+                        .endObject()
+                    .endObject()
+                .endObject());
+
+        BytesReference actualSource = searchTemplateResponse.getSource();
+        assertNotNull(actualSource);
+
+        assertToXContentEquivalent(expectedSource, actualSource, XContentType.JSON);
     }
 
     public void testFieldCaps() throws IOException {

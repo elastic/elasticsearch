@@ -71,6 +71,14 @@ setup() {
     [ "$status" -eq 1 ]
 }
 
+@test "[RPM] temporarily remove java and ensure the install fails" {
+    move_java
+    run rpm -i elasticsearch-oss-$(cat version).rpm
+    output=$status
+    unmove_java
+    [ "$output" -eq 1 ]
+}
+
 @test "[RPM] install package" {
     rpm -i elasticsearch-oss-$(cat version).rpm
 }

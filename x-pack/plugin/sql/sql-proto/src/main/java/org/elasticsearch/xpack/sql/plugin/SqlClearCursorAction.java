@@ -6,22 +6,14 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
-public class SqlClearCursorAction
-        extends Action<SqlClearCursorRequest, SqlClearCursorResponse, SqlClearCursorRequestBuilder> {
+public class SqlClearCursorAction extends Action<SqlClearCursorResponse> {
 
     public static final SqlClearCursorAction INSTANCE = new SqlClearCursorAction();
     public static final String NAME = "indices:data/read/sql/close_cursor";
-    public static final String REST_ENDPOINT = "/_xpack/sql/close";
 
     private SqlClearCursorAction() {
         super(NAME);
-    }
-
-    @Override
-    public SqlClearCursorRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new SqlClearCursorRequestBuilder(client, this);
     }
 
     @Override

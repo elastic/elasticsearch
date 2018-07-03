@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -41,13 +40,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 

@@ -6,7 +6,6 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.client.Response;
-import org.elasticsearch.license.LicenseService;
 
 import java.util.Map;
 

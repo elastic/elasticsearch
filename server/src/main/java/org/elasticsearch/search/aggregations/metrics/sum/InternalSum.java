@@ -95,7 +95,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.VALUE.getPreferredName(), sum);
         if (format != DocValueFormat.RAW) {
-            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(sum));
+            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(sum).toString());
         }
         return builder;
     }

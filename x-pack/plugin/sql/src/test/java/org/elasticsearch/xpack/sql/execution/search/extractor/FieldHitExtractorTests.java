@@ -14,6 +14,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
+import org.elasticsearch.xpack.sql.type.DataType;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,7 +34,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     public static FieldHitExtractor randomFieldHitExtractor() {
         String hitName = randomAlphaOfLength(5);
         String name = randomAlphaOfLength(5) + "." + hitName;
-        return new FieldHitExtractor(name, randomBoolean(), hitName);
+        return new FieldHitExtractor(name, null, randomBoolean(), hitName);
     }
 
     @Override
@@ -46,7 +49,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
     @Override
     protected FieldHitExtractor mutateInstance(FieldHitExtractor instance) throws IOException {
-        return new FieldHitExtractor(instance.fieldName() + "mutated", true, instance.hitName());
+        return new FieldHitExtractor(instance.fieldName() + "mutated", null, true, instance.hitName());
     }
 
     @AwaitsFix(bugUrl = "implement after we're sure of the InnerHitExtractor's implementation")
@@ -60,7 +63,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         String child = randomAlphaOfLength(5);
         String fieldName = grandparent + "." + parent + "." + child;
 
-        FieldHitExtractor extractor = new FieldHitExtractor(fieldName, true);
+        FieldHitExtractor extractor = new FieldHitExtractor(fieldName, null, true);
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
@@ -84,7 +87,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         String child = randomAlphaOfLength(5);
         String fieldName = grandparent + "." + parent + "." + child;
 
-        FieldHitExtractor extractor = new FieldHitExtractor(fieldName, false);
+        FieldHitExtractor extractor = new FieldHitExtractor(fieldName, null, false);
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
@@ -123,7 +126,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
     public void testGetDocValue() {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor extractor = new FieldHitExtractor(fieldName, true);
+        FieldHitExtractor extractor = new FieldHitExtractor(fieldName, null, true);
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
@@ -139,9 +142,19 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         }
     }
 
+    public void testGetDate() {
+        long millis = 1526467911780L;
+        List<Object> documentFieldValues = Collections.singletonList(Long.toString(millis));
+        SearchHit hit = new SearchHit(1);
+        DocumentField field = new DocumentField("my_date_field", documentFieldValues);
+        hit.fields(singletonMap("my_date_field", field));
+        FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DataType.DATE, true);
+        assertEquals(new DateTime(millis, DateTimeZone.UTC), extractor.extract(hit));
+    }
+
     public void testGetSource() throws IOException {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor extractor = new FieldHitExtractor(fieldName, false);
+        FieldHitExtractor extractor = new FieldHitExtractor(fieldName, null, false);
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
@@ -164,12 +177,12 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testToString() {
-        assertEquals("hit.field@hit", new FieldHitExtractor("hit.field", true, "hit").toString());
+        assertEquals("hit.field@hit", new FieldHitExtractor("hit.field", null, true, "hit").toString());
     }
 
     public void testMultiValuedDocValue() {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, true);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, null, true);
         SearchHit hit = new SearchHit(1);
         DocumentField field = new DocumentField(fieldName, asList("a", "b"));
         hit.fields(singletonMap(fieldName, field));
@@ -179,7 +192,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
     public void testMultiValuedSourceValue() throws IOException {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, false);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, null, false);
         SearchHit hit = new SearchHit(1);
         XContentBuilder source = JsonXContent.contentBuilder();
         source.startObject(); {
@@ -194,7 +207,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
     public void testSingleValueArrayInSource() throws IOException {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, false);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, null, false);
         SearchHit hit = new SearchHit(1);
         XContentBuilder source = JsonXContent.contentBuilder();
         Object value = randomValue();
@@ -208,14 +221,14 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testExtractSourcePath() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b.c", false);
+        FieldHitExtractor fe = new FieldHitExtractor("a.b.c", null, false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b", singletonMap("c", value)));
         assertThat(fe.extractFromSource(map), is(value));
     }
 
     public void testExtractSourceIncorrectPath() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b.c.d", false);
+        FieldHitExtractor fe = new FieldHitExtractor("a.b.c.d", null, false);
         Object value = randomNonNullValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b", singletonMap("c", value)));
         SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
@@ -223,7 +236,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testMultiValuedSource() {
-        FieldHitExtractor fe = new FieldHitExtractor("a", false);
+        FieldHitExtractor fe = new FieldHitExtractor("a", null, false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", asList(value, value));
         SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));

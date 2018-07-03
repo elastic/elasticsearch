@@ -171,13 +171,12 @@ public class IndexUpgradeTasksIT extends ESIntegTestCase {
         ensureYellow("test");
 
 
-        IndexUpgradeInfoAction.Response infoResponse = client().prepareExecute(IndexUpgradeInfoAction.INSTANCE).setIndices("test").get();
+        IndexUpgradeInfoAction.Response infoResponse = new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("test").get();
         assertThat(infoResponse.getActions().keySet(), contains("test"));
         assertThat(infoResponse.getActions().get("test"), equalTo(UpgradeActionRequired.UPGRADE));
 
 
-        ActionFuture<BulkByScrollResponse> upgradeResponse =
-                client().prepareExecute(IndexUpgradeAction.INSTANCE).setIndex("test").execute();
+        ActionFuture<BulkByScrollResponse> upgradeResponse = new IndexUpgradeAction.RequestBuilder(client()).setIndex("test").execute();
 
 
         assertThat(mockUpgradePlugin.upgradeCalledLatch.await(10, TimeUnit.SECONDS), equalTo(true));

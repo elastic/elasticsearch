@@ -60,6 +60,16 @@ public class Quantiles implements ToXContentObject, Writeable {
         return jobId + "-" + TYPE;
     }
 
+    /**
+     * Given the id of a quantiles document it extracts the job id
+     * @param docId the quantiles document id
+     * @return the job id or {@code null} if the id is not valid
+     */
+    public static final String extractJobId(String docId) {
+        int suffixIndex = docId.lastIndexOf("_" + TYPE);
+        return suffixIndex <= 0 ? null : docId.substring(0, suffixIndex);
+    }
+
     private final String jobId;
     private final Date timestamp;
     private final String quantileState;

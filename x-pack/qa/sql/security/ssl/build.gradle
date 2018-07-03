@@ -74,6 +74,7 @@ task createClientKeyStore(type: LoggedExec) {
 // Export the node's certificate
 File nodeCertificate = new File(keystoreDir, 'test-node.cert')
 task exportNodeCertificate(type: LoggedExec) {
+  dependsOn createNodeKeyStore
   doFirst {
     if (nodeCertificate.parentFile.exists() == false) {
       nodeCertificate.parentFile.mkdirs()
@@ -92,7 +93,7 @@ task exportNodeCertificate(type: LoggedExec) {
 
 // Import the node certificate in the client's keystore
 task importNodeCertificateInClientKeyStore(type: LoggedExec) {
-  dependsOn exportNodeCertificate
+  dependsOn createClientKeyStore, exportNodeCertificate
   executable = new File(project.runtimeJavaHome, 'bin/keytool')
   args '-import',
           '-alias', 'test-node',
@@ -105,6 +106,7 @@ task importNodeCertificateInClientKeyStore(type: LoggedExec) {
 // Export the client's certificate
 File clientCertificate = new File(keystoreDir, 'test-client.cert')
 task exportClientCertificate(type: LoggedExec) {
+  dependsOn createClientKeyStore
   doFirst {
     if (clientCertificate.parentFile.exists() == false) {
       clientCertificate.parentFile.mkdirs()
@@ -123,7 +125,7 @@ task exportClientCertificate(type: LoggedExec) {
 
 // Import the client certificate in the node's keystore
 task importClientCertificateInNodeKeyStore(type: LoggedExec) {
-  dependsOn exportClientCertificate
+  dependsOn createNodeKeyStore, exportClientCertificate
   executable = new File(project.runtimeJavaHome, 'bin/keytool')
   args '-import',
           '-alias', 'test-client',
@@ -139,10 +141,7 @@ forbiddenPatterns {
 
 // Add keystores to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(
-        createNodeKeyStore, createClientKeyStore,
-        importNodeCertificateInClientKeyStore, importClientCertificateInNodeKeyStore
-)
+processTestResources.dependsOn(importNodeCertificateInClientKeyStore, importClientCertificateInNodeKeyStore)
 
 integTestCluster.dependsOn(importClientCertificateInNodeKeyStore)
 

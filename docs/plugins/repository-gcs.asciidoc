@@ -84,11 +84,7 @@ A service account file looks like this:
   "private_key_id": "...",
   "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
   "client_email": "service-account-for-your-repository@your-project-id.iam.gserviceaccount.com",
-  "client_id": "...",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://accounts.google.com/o/oauth2/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "..."
+  "client_id": "..."
 }
 ----
 // NOTCONSOLE
@@ -177,6 +173,12 @@ are marked as `Secure`.
     Name used by the client when it uses the Google Cloud Storage service. Setting
     a custom name can be useful to authenticate your cluster when requests
     statistics are logged in the Google Cloud Platform. Default to `repository-gcs`
+
+`project_id`::
+
+    The Google Cloud project id. This will be automatically infered from the credentials file but
+    can be specified explicitly. For example, it can be used to switch between projects when the
+    same credentials are usable for both the production and the development projects.
 
 [[repository-gcs-repository]]
 ==== Repository Settings

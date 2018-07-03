@@ -51,7 +51,7 @@ public class TestAmazonS3 extends AmazonS3Wrapper {
     private double writeFailureRate = 0.0;
     private double readFailureRate = 0.0;
 
-    private String randomPrefix;
+    private final String randomPrefix;
 
     ConcurrentMap<String, AtomicLong> accessCounts = new ConcurrentHashMap<>();
 
@@ -76,18 +76,18 @@ public class TestAmazonS3 extends AmazonS3Wrapper {
     @Override
     public PutObjectResult putObject(String bucketName, String key, InputStream input, ObjectMetadata metadata) throws AmazonClientException, AmazonServiceException {
         if (shouldFail(bucketName, key, writeFailureRate)) {
-            long length = metadata.getContentLength();
-            long partToRead = (long) (length * randomDouble());
-            byte[] buffer = new byte[1024];
+            final long length = metadata.getContentLength();
+            final long partToRead = (long) (length * randomDouble());
+            final byte[] buffer = new byte[1024];
             for (long cur = 0; cur < partToRead; cur += buffer.length) {
                 try {
-                    input.read(buffer, 0, (int) (partToRead - cur > buffer.length ? buffer.length : partToRead - cur));
-                } catch (IOException ex) {
+                    input.read(buffer, 0, (int) ((partToRead - cur) > buffer.length ? buffer.length : partToRead - cur));
+                } catch (final IOException ex) {
                     throw new ElasticsearchException("cannot read input stream", ex);
                 }
             }
             logger.info("--> random write failure on putObject method: throwing an exception for [bucket={}, key={}]", bucketName, key);
-            AmazonS3Exception ex = new AmazonS3Exception("Random S3 exception");
+            final AmazonS3Exception ex = new AmazonS3Exception("Random S3 exception");
             ex.setStatusCode(400);
             ex.setErrorCode("RequestTimeout");
             throw ex;
@@ -99,18 +99,18 @@ public class TestAmazonS3 extends AmazonS3Wrapper {
     @Override
     public UploadPartResult uploadPart(UploadPartRequest request) throws AmazonClientException, AmazonServiceException {
         if (shouldFail(request.getBucketName(), request.getKey(), writeFailureRate)) {
-            long length = request.getPartSize();
-            long partToRead = (long) (length * randomDouble());
-            byte[] buffer = new byte[1024];
+            final long length = request.getPartSize();
+            final long partToRead = (long) (length * randomDouble());
+            final byte[] buffer = new byte[1024];
             for (long cur = 0; cur < partToRead; cur += buffer.length) {
                 try (InputStream input = request.getInputStream()){
-                    input.read(buffer, 0, (int) (partToRead - cur > buffer.length ? buffer.length : partToRead - cur));
-                } catch (IOException ex) {
+                    input.read(buffer, 0, (int) ((partToRead - cur) > buffer.length ? buffer.length : partToRead - cur));
+                } catch (final IOException ex) {
                     throw new ElasticsearchException("cannot read input stream", ex);
                 }
             }
             logger.info("--> random write failure on uploadPart method: throwing an exception for [bucket={}, key={}]", request.getBucketName(), request.getKey());
-            AmazonS3Exception ex = new AmazonS3Exception("Random S3 write exception");
+            final AmazonS3Exception ex = new AmazonS3Exception("Random S3 write exception");
             ex.setStatusCode(400);
             ex.setErrorCode("RequestTimeout");
             throw ex;
@@ -123,7 +123,7 @@ public class TestAmazonS3 extends AmazonS3Wrapper {
     public S3Object getObject(String bucketName, String key) throws AmazonClientException, AmazonServiceException {
         if (shouldFail(bucketName, key, readFailureRate)) {
             logger.info("--> random read failure on getObject method: throwing an exception for [bucket={}, key={}]", bucketName, key);
-            AmazonS3Exception ex = new AmazonS3Exception("Random S3 read exception");
+            final AmazonS3Exception ex = new AmazonS3Exception("Random S3 read exception");
             ex.setStatusCode(404);
             throw ex;
         } else {
@@ -135,7 +135,7 @@ public class TestAmazonS3 extends AmazonS3Wrapper {
         if (probability > 0.0) {
             String path = randomPrefix + "-" + bucketName + "+" + key;
             path += "/" + incrementAndGet(path);
-            return Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability;
+            return Math.abs(hashCode(path)) < (Integer.MAX_VALUE * probability);
         } else {
             return false;
         }
@@ -143,14 +143,14 @@ public class TestAmazonS3 extends AmazonS3Wrapper {
 
     private int hashCode(String path) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("MD5");
-            byte[] bytes = digest.digest(path.getBytes("UTF-8"));
+            final MessageDigest digest = MessageDigest.getInstance("MD5");
+            final byte[] bytes = digest.digest(path.getBytes("UTF-8"));
             int i = 0;
             return ((bytes[i++] & 0xFF) << 24) | ((bytes[i++] & 0xFF) << 16)
                     | ((bytes[i++] & 0xFF) << 8) | (bytes[i++] & 0xFF);
-        } catch (UnsupportedEncodingException ex) {
+        } catch (final UnsupportedEncodingException ex) {
             throw new ElasticsearchException("cannot calculate hashcode", ex);
-        } catch (NoSuchAlgorithmException ex) {
+        } catch (final NoSuchAlgorithmException ex) {
             throw new ElasticsearchException("cannot calculate hashcode", ex);
         }
     }

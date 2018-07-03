@@ -46,7 +46,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
-import static org.mockito.Mockito.verify;
 
 /** Unit tests for {@link TcpTransport} */
 public class TcpTransportTests extends ESTestCase {
@@ -195,6 +194,10 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
+                protected void stopInternal() {
+                }
+
+                @Override
                 public NodeChannels getConnection(DiscoveryNode node) {
                     int numConnections = MockTcpTransport.LIGHT_PROFILE.getNumConnections();
                     ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);
@@ -227,6 +230,7 @@ public class TcpTransportTests extends ESTestCase {
                     .streamInput(streamIn);
                 }
             threadPool.getThreadContext().readHeaders(streamIn);
+            assertThat(streamIn.readStringArray(), equalTo(new String[0])); // features
             assertEquals("foobar", streamIn.readString());
             Req readReq = new Req("");
             readReq.readFrom(streamIn);
@@ -237,7 +241,7 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
-    private static final class FakeChannel implements TcpChannel {
+    private static final class FakeChannel implements TcpChannel, TcpServerChannel {
 
         private final AtomicReference<BytesReference> messageCaptor;
 

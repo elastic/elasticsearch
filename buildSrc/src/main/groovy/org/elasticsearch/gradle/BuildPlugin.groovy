@@ -744,6 +744,7 @@ class BuildPlugin implements Plugin<Project> {
             additionalTest.testClassesDir = test.testClassesDir
             additionalTest.configure(commonTestConfig(project))
             additionalTest.configure(config)
+            additionalTest.dependsOn(project.tasks.testClasses)
             test.dependsOn(additionalTest)
         });
         return test
@@ -761,6 +762,10 @@ class BuildPlugin implements Plugin<Project> {
 
     private static configureDependenciesInfo(Project project) {
         Task deps = project.tasks.create("dependenciesInfo", DependenciesInfoTask.class)
-        deps.dependencies = project.configurations.compile.allDependencies
+        deps.runtimeConfiguration = project.configurations.runtime
+        deps.compileOnlyConfiguration = project.configurations.compileOnly
+        project.afterEvaluate {
+            deps.mappings = project.dependencyLicenses.mappings
+        }
     }
 }

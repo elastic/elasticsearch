@@ -177,7 +177,7 @@ And grouping by column expression (typically used along-side an alias):
 include-tagged::{sql-specs}/docs.csv-spec[groupByExpression]
 ----
 
-When a `GROUP BY` clause is used in a `SELECT`, _all_ output expressions must be either aggregate functions or expressions used for grouping or derivates of (otherwise there would be more than one possible value to return for each ungrouped column).
+When a `GROUP BY` clause is used in a `SELECT`, _all_ output expressions must be either aggregate functions or expressions used for grouping or derivatives of (otherwise there would be more than one possible value to return for each ungrouped column).
 
 To wit:
 
@@ -331,8 +331,8 @@ include-tagged::{sql-specs}/docs.csv-spec[orderByScoreWithMatch]
 ----
 
 NOTE:
-Trying to return `score` from a non full-text queries will return the same value for all results, as
-all are equilley relevant.
+Trying to return `score` from a non full-text query will return the same value for all results, as
+all are equally relevant.
 
 [[sql-syntax-limit]]
 [float]

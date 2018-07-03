@@ -56,31 +56,28 @@ public class Cleanup {
         final Shell sh = new Shell();
 
         // kill elasticsearch processes
-        if (Platforms.WINDOWS) {
+        Platforms.onLinux(() -> {
+            sh.bashIgnoreExitCode("pkill -u elasticsearch");
+            sh.bashIgnoreExitCode("ps aux | grep -i 'org.elasticsearch.bootstrap.Elasticsearch' | awk {'print $2'} | xargs kill -9");
+        });
 
+        Platforms.onWindows(() -> {
             // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
             sh.powershellIgnoreExitCode(
                 "Get-WmiObject Win32_Process | " +
                 "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | " +
                 "ForEach-Object { $_.Terminate() }"
             );
+        });
 
-        } else {
-
-            sh.bashIgnoreExitCode("pkill -u elasticsearch");
-            sh.bashIgnoreExitCode("ps aux | grep -i 'org.elasticsearch.bootstrap.Elasticsearch' | awk {'print $2'} | xargs kill -9");
-
-        }
-
-        if (Platforms.LINUX) {
-            purgePackagesLinux();
-        }
+        Platforms.onLinux(Cleanup::purgePackagesLinux);
 
         // remove elasticsearch users
-        if (Platforms.LINUX) {
+        Platforms.onLinux(() -> {
             sh.bashIgnoreExitCode("userdel elasticsearch");
             sh.bashIgnoreExitCode("groupdel elasticsearch");
-        }
+        });
+        // when we run es as a role user on windows, add the equivalent here
 
         // delete files that may still exist
         lsGlob(getTempDir(), "elasticsearch*").forEach(FileUtils::rm);

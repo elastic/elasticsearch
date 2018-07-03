@@ -65,4 +65,16 @@ public class Platforms {
         }
         return new Shell().bashIgnoreExitCode("which service").isSuccess();
     }
+
+    public static void onWindows(Runnable action) {
+        if (WINDOWS) {
+            action.run();
+        }
+    }
+
+    public static void onLinux(Runnable action) {
+        if (LINUX) {
+            action.run();
+        }
+    }
 }

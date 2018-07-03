@@ -75,22 +75,21 @@ public class Archives {
 
         if (distribution.packaging == Distribution.Packaging.TAR) {
 
-            if (Platforms.LINUX) {
-                sh.bash("tar -C " + baseInstallPath + " -xzpf " + distributionFile);
-            } else {
+            Platforms.onLinux(() -> sh.bash("tar -C " + baseInstallPath + " -xzpf " + distributionFile));
+
+            if (Platforms.WINDOWS) {
                 throw new RuntimeException("Distribution " + distribution + " is not supported on windows");
             }
 
         } else if (distribution.packaging == Distribution.Packaging.ZIP) {
 
-            if (Platforms.LINUX) {
-                sh.bash("unzip " + distributionFile + " -d " + baseInstallPath);
-            } else {
+            Platforms.onLinux(() -> sh.bash("unzip " + distributionFile + " -d " + baseInstallPath));
+
+            Platforms.onWindows(() ->
                 sh.powershell(
                     "Add-Type -AssemblyName 'System.IO.Compression.Filesystem'; " +
                     "[IO.Compression.ZipFile]::ExtractToDirectory('" + distributionFile + "', '" + baseInstallPath + "')"
-                );
-            }
+            ));
 
         } else {
             throw new RuntimeException("Distribution " + distribution + " is not a known archive type");
@@ -105,11 +104,8 @@ public class Archives {
         assertThat("only the intended installation exists", installations, hasSize(1));
         assertThat("only the intended installation exists", installations.get(0), is(fullInstallPath));
 
-        if (Platforms.LINUX) {
-            setupArchiveUsersLinux(fullInstallPath);
-        } else {
-            setupArchiveUsersWindows(fullInstallPath);
-        }
+        Platforms.onLinux(() -> setupArchiveUsersLinux(fullInstallPath));
+        Platforms.onWindows(() -> setupArchiveUsersWindows(fullInstallPath));
 
         return new Installation(fullInstallPath);
     }
@@ -267,8 +263,7 @@ public class Archives {
     public static void runElasticsearch(Installation installation, Shell sh) throws IOException {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
-        if (Platforms.LINUX) {
-
+        Platforms.onLinux(() -> {
             // If jayatana is installed then we try to use it. Elasticsearch should ignore it even when we try.
             // If it doesn't ignore it then Elasticsearch will fail to start because of security errors.
             // This line is attempting to emulate the on login behavior of /usr/share/upstart/sessions/jayatana.conf
@@ -277,8 +272,9 @@ public class Archives {
             }
             sh.bash("sudo -E -u " + ARCHIVE_OWNER + " " +
                 installation.bin("elasticsearch") + " -d -p " + installation.home.resolve("elasticsearch.pid"));
-        } else {
+        });
 
+        Platforms.onWindows(() -> {
             // this starts the server in the background. the -d flag is unsupported on windows
             // these tests run as Administrator. we don't want to run the server as Administrator, so we provide the current user's
             // username and password to the process which has the effect of starting it not as Administrator.
@@ -300,7 +296,7 @@ public class Archives {
                 "$process.Start() | Out-Null; " +
                 "$process.Id;"
             );
-        }
+        });
 
         ServerUtils.waitForElasticsearch();
 
@@ -308,11 +304,8 @@ public class Archives {
         String pid = slurp(pidFile).trim();
         assertThat(pid, not(isEmptyOrNullString()));
 
-        if (Platforms.LINUX) {
-            sh.bash("ps " + pid);
-        } else {
-            sh.powershell("Get-Process -Id " + pid);
-        }
+        Platforms.onLinux(() -> sh.bash("ps " + pid));
+        Platforms.onWindows(() -> sh.powershell("Get-Process -Id " + pid));
     }
 
     public static void stopElasticsearch(Installation installation) {
@@ -322,11 +315,8 @@ public class Archives {
         assertThat(pid, not(isEmptyOrNullString()));
 
         final Shell sh = new Shell();
-        if (Platforms.LINUX) {
-            sh.bash("kill -SIGTERM " + pid);
-        } else {
-            sh.powershell("Get-Process -Id " + pid + " | Stop-Process -Force");
-        }
+        Platforms.onLinux(() -> sh.bash("kill -SIGTERM " + pid));
+        Platforms.onWindows(() -> sh.powershell("Get-Process -Id " + pid + " | Stop-Process -Force"));
     }
 
 }

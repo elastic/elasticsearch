@@ -96,6 +96,7 @@ public abstract class ArchiveTestCase {
     public void test20PluginsListWithNoPlugins() {
         assumeThat(installation, is(notNullValue()));
 
+        // todo here
         final Shell sh = new Shell();
         final Result r = Platforms.WINDOWS
             ? sh.powershell(installation.bin("elasticsearch-plugin.bat") + " list")
@@ -109,7 +110,8 @@ public abstract class ArchiveTestCase {
         assumeThat(installation, is(notNullValue()));
 
         final Shell sh = new Shell();
-        if (Platforms.WINDOWS) {
+
+        Platforms.onWindows(() -> {
             // on windows, removing java from PATH and removing JAVA_HOME is less involved than changing the permissions of the java
             // executable. we also don't check permissions in the windows scripts anyway
             final String originalPath = sh.powershell("$Env:PATH").stdout.trim();
@@ -131,8 +133,9 @@ public abstract class ArchiveTestCase {
 
             assertThat(runResult.exitCode, is(1));
             assertThat(runResult.stderr, containsString("could not find java; set JAVA_HOME or ensure java is in PATH"));
+        });
 
-        } else {
+        Platforms.onLinux(() -> {
             final String javaPath = sh.bash("which java").stdout.trim();
             sh.bash("chmod -x '" + javaPath + "'");
             final Result runResult = sh.bashIgnoreExitCode(installation.bin("elasticsearch").toString());
@@ -140,7 +143,7 @@ public abstract class ArchiveTestCase {
 
             assertThat(runResult.exitCode, is(1));
             assertThat(runResult.stdout, containsString("could not find java; set JAVA_HOME or ensure java is in PATH"));
-        }
+        });
     }
 
     @Test
@@ -148,24 +151,24 @@ public abstract class ArchiveTestCase {
         assumeThat(installation, is(notNullValue()));
 
         final Shell sh = new Shell();
-        if (Platforms.WINDOWS) {
-            // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
-            // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
-            // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
-            // when we run these commands as a role user we won't have to do this
-            sh.powershell(
+
+        Platforms.onLinux(() -> sh.bash("sudo -u " + ARCHIVE_OWNER + " " + installation.bin("elasticsearch-keystore") + " create"));
+
+        // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
+        // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
+        // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
+        // when we run these commands as a role user we won't have to do this
+        Platforms.onWindows(() -> sh.powershell(
                 installation.bin("elasticsearch-keystore.bat") + " create; " +
                 "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
                 "$acl = Get-Acl '" + installation.config("elasticsearch.keystore") + "'; " +
                 "$acl.SetOwner($account); " +
                 "Set-Acl '" + installation.config("elasticsearch.keystore") + "' $acl"
-            );
-        } else {
-            sh.bash("sudo -u " + ARCHIVE_OWNER + " " + installation.bin("elasticsearch-keystore") + " create");
-        }
+        ));
 
         assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
 
+        // todo here
         final Result r = Platforms.WINDOWS
             ? sh.powershell(installation.bin("elasticsearch-keystore.bat") + " list")
             : sh.bash("sudo -u " + ARCHIVE_OWNER + " " + installation.bin("elasticsearch-keystore") + " list");
@@ -197,13 +200,16 @@ public abstract class ArchiveTestCase {
         assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
 
         final Shell sh = new Shell();
-        final Result result;
-        if (Platforms.WINDOWS) {
-            result = sh.powershell(installation.bin("elasticsearch-keystore.bat") + " list");
-        } else {
-            result = sh.bash("sudo -u " + ARCHIVE_OWNER + " " + installation.bin("elasticsearch-keystore") + " list");
-        }
-        assertThat(result.stdout, containsString("keystore.seed"));
+
+        Platforms.onLinux(() -> {
+            final Result result = sh.bash("sudo -u " + ARCHIVE_OWNER + " " + installation.bin("elasticsearch-keystore") + " list");
+            assertThat(result.stdout, containsString("keystore.seed"));
+        });
+
+        Platforms.onWindows(() -> {
+            final Result result = sh.powershell(installation.bin("elasticsearch-keystore.bat") + " list");
+            assertThat(result.stdout, containsString("keystore.seed"));
+        });
     }
 
     @Test
@@ -227,20 +233,17 @@ public abstract class ArchiveTestCase {
             append(tempConf.resolve("jvm.options"), jvmOptions);
 
             final Shell sh = new Shell();
-            if (Platforms.WINDOWS) {
-                sh.powershell(
-                    "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-                    "$tempConf = Get-ChildItem '" + tempConf + "' -Recurse; " +
-                    "$tempConf += Get-Item '" + tempConf + "'; " +
-                    "$tempConf | ForEach-Object { " +
-                        "$acl = Get-Acl $_.FullName; " +
-                        "$acl.SetOwner($account); " +
-                        "Set-Acl $_.FullName $acl " +
-                    "}"
-                );
-            } else {
-                sh.bash("chown -R elasticsearch:elasticsearch " + tempConf);
-            }
+            Platforms.onLinux(() -> sh.bash("chown -R elasticsearch:elasticsearch " + tempConf));
+            Platforms.onWindows(() -> sh.powershell(
+                "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
+                "$tempConf = Get-ChildItem '" + tempConf + "' -Recurse; " +
+                "$tempConf += Get-Item '" + tempConf + "'; " +
+                "$tempConf | ForEach-Object { " +
+                    "$acl = Get-Acl $_.FullName; " +
+                    "$acl.SetOwner($account); " +
+                    "Set-Acl $_.FullName $acl " +
+                "}"
+            ));
 
             final Shell serverShell = new Shell();
             serverShell.getEnv().put("ES_PATH_CONF", tempConf.toString());
@@ -277,20 +280,17 @@ public abstract class ArchiveTestCase {
             append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
 
             final Shell sh = new Shell();
-            if (Platforms.WINDOWS) {
-                sh.powershell(
-                    "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-                    "$tempConf = Get-ChildItem '" + temp + "' -Recurse; " +
-                    "$tempConf += Get-Item '" + temp + "'; " +
-                    "$tempConf | ForEach-Object { " +
-                        "$acl = Get-Acl $_.FullName; " +
-                        "$acl.SetOwner($account); " +
-                        "Set-Acl $_.FullName $acl " +
-                    "}"
-                );
-            } else {
-                sh.bash("chown -R elasticsearch:elasticsearch " + temp);
-            }
+            Platforms.onLinux(() -> sh.bash("chown -R elasticsearch:elasticsearch " + temp));
+            Platforms.onWindows(() -> sh.powershell(
+                "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
+                "$tempConf = Get-ChildItem '" + temp + "' -Recurse; " +
+                "$tempConf += Get-Item '" + temp + "'; " +
+                "$tempConf | ForEach-Object { " +
+                    "$acl = Get-Acl $_.FullName; " +
+                    "$acl.SetOwner($account); " +
+                    "Set-Acl $_.FullName $acl " +
+                "}"
+            ));
 
             final Shell serverShell = new Shell(temp);
             serverShell.getEnv().put("ES_PATH_CONF", "config");

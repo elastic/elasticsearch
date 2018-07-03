@@ -45,7 +45,7 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
         clusterSettings.addAffixUpdateConsumer(SETTING_SERVICE_API_KEY, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SECURE_SERVICE_API_KEY, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_DEFAULTS, (s, o) -> {}, (s, o) -> {});
-        loadSettings(settings);
+        reload(settings);
     }
 
     @Override

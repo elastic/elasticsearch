@@ -115,9 +115,9 @@ public class WatcherPluginTests extends ESTestCase {
         }
 
         @Override
-        public synchronized void loadSettings(Settings settings) {
+        public synchronized void reload(Settings settings) {
             calledCreateAccount = true;
-            super.loadSettings(settings);
+            super.reload(settings);
         }
     }
 

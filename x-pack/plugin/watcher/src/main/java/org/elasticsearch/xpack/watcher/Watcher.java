@@ -649,7 +649,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     @Override
     public void reload(Settings settings) throws Exception {
         for (NotificationService service : getReloadableServices()) {
-            service.loadSettings(settings);
+            service.reload(settings);
         }
     }
 }

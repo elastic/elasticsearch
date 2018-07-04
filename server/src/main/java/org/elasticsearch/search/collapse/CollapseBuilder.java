@@ -51,8 +51,11 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     public static final ParseField MAX_CONCURRENT_GROUP_REQUESTS_FIELD = new ParseField("max_concurrent_group_searches");
+    public static final ParseField COLLAPSE_FIELD = new ParseField("collapse");
     private static final ObjectParser<CollapseBuilder, Void> PARSER =
         new ObjectParser<>("collapse", CollapseBuilder::new);
+    private static final ObjectParser<CollapseBuilder, Void> INNER_COLLAPSE_PARSER =
+        new ObjectParser<>("inner collapse", CollapseBuilder::new);
 
     static {
         PARSER.declareString(CollapseBuilder::setField, FIELD_FIELD);
@@ -70,15 +73,25 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
                         throw new ParsingException(parser.getTokenLocation(), "Invalid token in inner_hits array");
                     }
                 }
-
                 builder.setInnerHits(innerHitBuilders);
             }
         }, INNER_HITS_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
+
+        INNER_COLLAPSE_PARSER.declareString(CollapseBuilder::setField, FIELD_FIELD);
+        PARSER.declareField((parser, builder, context) -> {
+            XContentParser.Token currentToken = parser.currentToken();
+            if (currentToken == XContentParser.Token.START_OBJECT) {
+                builder.setInnerCollapse(INNER_COLLAPSE_PARSER.apply(parser, null));
+            } else  {
+                throw new ParsingException(parser.getTokenLocation(), "Invalid token in the inner collapse");
+            }
+        }, COLLAPSE_FIELD, ObjectParser.ValueType.OBJECT);
     }
 
     private String field;
     private List<InnerHitBuilder> innerHits = Collections.emptyList();
     private int maxConcurrentGroupRequests = 0;
+    private CollapseBuilder innerCollapseBuilder = null;
 
     private CollapseBuilder() {}
 
@@ -104,6 +117,9 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
                 this.innerHits = Collections.emptyList();
             }
         }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
+        }
     }
 
     @Override
@@ -119,6 +135,9 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
                 innerHits.get(0).writeToCollapseBWC(out);
             }
        }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalWriteable(innerCollapseBuilder);
+        }
     }
 
     public static CollapseBuilder fromXContent(XContentParser parser) {
@@ -144,6 +163,11 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         return this;
     }
 
+    public CollapseBuilder setInnerCollapse(CollapseBuilder innerCollapseBuilder) {
+        this.innerCollapseBuilder = innerCollapseBuilder;
+        return this;
+    }
+
     public CollapseBuilder setMaxConcurrentGroupRequests(int num) {
         if (num < 1) {
             throw new IllegalArgumentException("maxConcurrentGroupRequests` must be positive");
@@ -164,6 +188,10 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
      */
     public List<InnerHitBuilder> getInnerHits() {
         return this.innerHits;
+    }
+
+    public CollapseBuilder getInnerCollapseBuilder() {
+        return innerCollapseBuilder;
     }
 
     /**
@@ -197,6 +225,9 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
                 builder.endArray();
             }
         }
+        if (innerCollapseBuilder != null) {
+            builder.field(COLLAPSE_FIELD.getPreferredName(), innerCollapseBuilder);
+        }
     }
 
     @Override
@@ -208,12 +239,13 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
 
         if (maxConcurrentGroupRequests != that.maxConcurrentGroupRequests) return false;
         if (!field.equals(that.field)) return false;
-        return Objects.equals(innerHits, that.innerHits);
+        if (Objects.equals(innerHits, that.innerHits) == false) return false;
+        return Objects.equals(innerCollapseBuilder, that.innerCollapseBuilder);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(field, innerHits);
+        int result = Objects.hash(field, innerHits, innerCollapseBuilder);
         result = 31 * result + maxConcurrentGroupRequests;
         return result;
     }

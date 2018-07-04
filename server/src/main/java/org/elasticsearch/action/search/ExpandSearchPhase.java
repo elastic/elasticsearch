@@ -69,6 +69,7 @@ final class ExpandSearchPhase extends SearchPhase {
         if (isCollapseRequest() && searchResponse.hits().getHits().length > 0) {
             SearchRequest searchRequest = context.getRequest();
             CollapseBuilder collapseBuilder = searchRequest.source().collapse();
+            CollapseBuilder innerCollapseBuilder = collapseBuilder.getInnerCollapseBuilder();
             final List<InnerHitBuilder> innerHitBuilders = collapseBuilder.getInnerHits();
             MultiSearchRequest multiRequest = new MultiSearchRequest();
             if (collapseBuilder.getMaxConcurrentGroupRequests() > 0) {
@@ -87,7 +88,7 @@ final class ExpandSearchPhase extends SearchPhase {
                     groupQuery.must(origQuery);
                 }
                 for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
-                    SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder)
+                    SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder, innerCollapseBuilder)
                         .query(groupQuery)
                         .postFilter(searchRequest.source().postFilter());
                     SearchRequest groupRequest = buildExpandSearchRequest(searchRequest, sourceBuilder);
@@ -135,7 +136,7 @@ final class ExpandSearchPhase extends SearchPhase {
         return groupRequest;
     }
 
-    private SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options) {
+    private SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {
         SearchSourceBuilder groupSource = new SearchSourceBuilder();
         groupSource.from(options.getFrom());
         groupSource.size(options.getSize());
@@ -167,6 +168,9 @@ final class ExpandSearchPhase extends SearchPhase {
         groupSource.explain(options.isExplain());
         groupSource.trackScores(options.isTrackScores());
         groupSource.version(options.isVersion());
+        if (innerCollapseBuilder != null) {
+            groupSource.collapse(innerCollapseBuilder);
+        }
         return groupSource;
     }
 }

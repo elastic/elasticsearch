@@ -14,6 +14,7 @@ import org.joda.time.DateTime;
 import org.joda.time.ReadableDateTime;
 
 import java.sql.JDBCType;
+import java.sql.Timestamp;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -41,8 +42,8 @@ public class TypeConverterTests extends ESTestCase {
 
     public void testTimestampAsNative() throws Exception {
         DateTime now = DateTime.now();
-        assertThat(convertAsNative(now, JDBCType.TIMESTAMP), instanceOf(Long.class));
-        assertEquals(now.getMillis(), convertAsNative(now, JDBCType.TIMESTAMP));
+        assertThat(convertAsNative(now, JDBCType.TIMESTAMP), instanceOf(Timestamp.class));
+        assertEquals(now.getMillis(), ((Timestamp) convertAsNative(now, JDBCType.TIMESTAMP)).getTime());
     }
 
     private Object convertAsNative(Object value, JDBCType type) throws Exception {

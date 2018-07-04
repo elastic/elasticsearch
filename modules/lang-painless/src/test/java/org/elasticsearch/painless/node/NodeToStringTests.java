@@ -284,12 +284,12 @@ public class NodeToStringTests extends ESTestCase {
     }
 
     public void testENewArray() {
-        assertToString("(SSource (SReturn (ENewArray int dims (Args (ENumeric 10)))))", "return new int[10]");
-        assertToString("(SSource (SReturn (ENewArray int dims (Args (ENumeric 10) (ENumeric 4) (ENumeric 5)))))",
+        assertToString("(SSource (SReturn (ENewArray int[] dims (Args (ENumeric 10)))))", "return new int[10]");
+        assertToString("(SSource (SReturn (ENewArray int[][][] dims (Args (ENumeric 10) (ENumeric 4) (ENumeric 5)))))",
                 "return new int[10][4][5]");
-        assertToString("(SSource (SReturn (ENewArray int init (Args (ENumeric 1) (ENumeric 2) (ENumeric 3)))))",
+        assertToString("(SSource (SReturn (ENewArray int[] init (Args (ENumeric 1) (ENumeric 2) (ENumeric 3)))))",
                 "return new int[] {1, 2, 3}");
-        assertToString("(SSource (SReturn (ENewArray def init (Args (ENumeric 1) (ENumeric 2) (EString 'bird')))))",
+        assertToString("(SSource (SReturn (ENewArray def[] init (Args (ENumeric 1) (ENumeric 2) (EString 'bird')))))",
                 "return new def[] {1, 2, 'bird'}");
     }
 
@@ -372,7 +372,7 @@ public class NodeToStringTests extends ESTestCase {
         assertToString("(SSource (SReturn (PField nullSafe (EVariable params) a)))", "return params?.a");
         assertToString(
                   "(SSource\n"
-                + "  (SDeclBlock (SDeclaration int[] a (ENewArray int dims (Args (ENumeric 10)))))\n"
+                + "  (SDeclBlock (SDeclaration int[] a (ENewArray int[] dims (Args (ENumeric 10)))))\n"
                 + "  (SReturn (PField (EVariable a) length)))",
                   "int[] a = new int[10];\n"
                 + "return a.length");
@@ -403,7 +403,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubCallInvoke() {
         Location l = new Location(getTestName(), 0);
-        Struct c = definition.ClassToType(Integer.class).struct;
+        Struct c = definition.getPainlessStructFromJavaClass(Integer.class);
         Method m = c.methods.get(new MethodKey("toString", 0));
         PSubCallInvoke node = new PSubCallInvoke(l, m, null, emptyList());
         node.prefix = new EVariable(l, "a");
@@ -458,7 +458,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubField() {
         Location l = new Location(getTestName(), 0);
-        Struct s = definition.getType(Boolean.class.getSimpleName()).struct;
+        Struct s = definition.getPainlessStructFromJavaClass(Boolean.class);
         Field f = s.staticMembers.get("TRUE");
         PSubField node = new PSubField(l, f);
         node.prefix = new EStatic(l, "Boolean");
@@ -468,7 +468,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubListShortcut() {
         Location l = new Location(getTestName(), 0);
-        Struct s = definition.getType(List.class.getSimpleName()).struct;
+        Struct s = definition.getPainlessStructFromJavaClass(List.class);
         PSubListShortcut node = new PSubListShortcut(l, s, new EConstant(l, 1));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubListShortcut (EVariable a) (EConstant Integer 1))", node.toString());
@@ -476,7 +476,7 @@ public class NodeToStringTests extends ESTestCase {
                 new PSubNullSafeCallInvoke(l, node).toString());
 
         l = new Location(getTestName(), 0);
-        s = definition.getType(List.class.getSimpleName()).struct;
+        s = definition.getPainlessStructFromJavaClass(List.class);
         node = new PSubListShortcut(l, s, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubListShortcut (EVariable a) (EBinary (EConstant Integer 1) + (EConstant Integer 4)))", node.toString());
@@ -484,7 +484,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubMapShortcut() {
         Location l = new Location(getTestName(), 0);
-        Struct s = definition.getType(Map.class.getSimpleName()).struct;
+        Struct s = definition.getPainlessStructFromJavaClass(Map.class);
         PSubMapShortcut node = new PSubMapShortcut(l, s, new EConstant(l, "cat"));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubMapShortcut (EVariable a) (EConstant String 'cat'))", node.toString());
@@ -492,7 +492,7 @@ public class NodeToStringTests extends ESTestCase {
                 new PSubNullSafeCallInvoke(l, node).toString());
 
         l = new Location(getTestName(), 1);
-        s = definition.getType(Map.class.getSimpleName()).struct;
+        s = definition.getPainlessStructFromJavaClass(Map.class);
         node = new PSubMapShortcut(l, s, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubMapShortcut (EVariable a) (EBinary (EConstant Integer 1) + (EConstant Integer 4)))", node.toString());
@@ -500,7 +500,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubShortcut() {
         Location l = new Location(getTestName(), 0);
-        Struct s = definition.getType(FeatureTest.class.getName()).struct;
+        Struct s = definition.getPainlessStructFromJavaClass(FeatureTest.class);
         Method getter = s.methods.get(new MethodKey("getX", 0));
         Method setter = s.methods.get(new MethodKey("setX", 1));
         PSubShortcut node = new PSubShortcut(l, "x", FeatureTest.class.getName(), getter, setter);

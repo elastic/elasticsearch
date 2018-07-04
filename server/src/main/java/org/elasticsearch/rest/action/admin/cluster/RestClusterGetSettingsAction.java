@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Requests;
@@ -65,6 +66,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
                 .nodes(false);
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
+        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
@@ -85,23 +87,13 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     private XContentBuilder renderResponse(ClusterState state, boolean renderDefaults, XContentBuilder builder, ToXContent.Params params)
             throws IOException {
-        builder.startObject();
-
-        builder.startObject("persistent");
-        state.metaData().persistentSettings().toXContent(builder, params);
-        builder.endObject();
-
-        builder.startObject("transient");
-        state.metaData().transientSettings().toXContent(builder, params);
-        builder.endObject();
-
-        if (renderDefaults) {
-            builder.startObject("defaults");
-            settingsFilter.filter(clusterSettings.diff(state.metaData().settings(), this.settings)).toXContent(builder, params);
-            builder.endObject();
-        }
-
-        builder.endObject();
-        return builder;
+        return
+            new ClusterGetSettingsResponse(
+                state.metaData().persistentSettings(),
+                state.metaData().transientSettings(),
+                renderDefaults ?
+                    settingsFilter.filter(clusterSettings.diff(state.metaData().settings(), this.settings)) :
+                    Settings.EMPTY
+            ).toXContent(builder, params);
     }
 }

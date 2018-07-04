@@ -120,7 +120,7 @@ public final class ELambda extends AExpression implements ILambda {
             }
         } else {
             // we know the method statically, infer return type and any unknown/def types
-            interfaceMethod = locals.getDefinition().ClassToType(expected).struct.functionalMethod;
+            interfaceMethod = locals.getDefinition().getPainlessStructFromJavaClass(expected).functionalMethod;
             if (interfaceMethod == null) {
                 throw createError(new IllegalArgumentException("Cannot pass lambda to [" + Definition.ClassToName(expected) +
                                                                "], not a functional interface"));

@@ -83,7 +83,7 @@ public abstract class TransportWriteAction<
         return location;
     }
 
-    protected static Location locationToSync(Location current, Location next) {
+    public static Location locationToSync(Location current, Location next) {
         /* here we are moving forward in the translog with each operation. Under the hood this might
          * cross translog files which is ok since from the user perspective the translog is like a
          * tape where only the highest location needs to be fsynced in order to sync all previous
@@ -99,16 +99,6 @@ public abstract class TransportWriteAction<
     protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
         return new WriteActionReplicasProxy(primaryTerm);
     }
-
-    /**
-     * Called on the primary with a reference to the primary {@linkplain IndexShard} to modify.
-     *
-     * @return the result of the operation on primary, including current translog location and operation response and failure
-     * async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
-     */
-    @Override
-    protected abstract WritePrimaryResult<ReplicaRequest, Response> shardOperationOnPrimary(
-            Request request, IndexShard primary) throws Exception;
 
     /**
      * Called once per replica with a reference to the replica {@linkplain IndexShard} to modify.

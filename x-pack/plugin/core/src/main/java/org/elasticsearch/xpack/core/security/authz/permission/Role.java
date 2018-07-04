@@ -9,15 +9,14 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,16 +33,13 @@ public final class Role {
     private final ClusterPermission cluster;
     private final IndicesPermission indices;
     private final ApplicationPermission application;
-    private final ClusterPrivilegePolicy privilegePolicy;
     private final RunAsPermission runAs;
 
-    Role(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application,
-         ClusterPrivilegePolicy privilegePolicy, RunAsPermission runAs) {
+    Role(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application, RunAsPermission runAs) {
         this.names = names;
         this.cluster = Objects.requireNonNull(cluster);
         this.indices = Objects.requireNonNull(indices);
         this.application = Objects.requireNonNull(application);
-        this.privilegePolicy = Objects.requireNonNull(privilegePolicy);
         this.runAs = Objects.requireNonNull(runAs);
     }
 
@@ -61,10 +57,6 @@ public final class Role {
 
     public ApplicationPermission application() {
         return application;
-    }
-
-    public ClusterPrivilegePolicy policy() {
-        return privilegePolicy;
     }
 
     public RunAsPermission runAs() {
@@ -108,12 +100,11 @@ public final class Role {
     public static class Builder {
 
         private final String[] names;
-        private ClusterPermission cluster = ClusterPermission.NONE;
+        private ClusterPermission cluster = ClusterPermission.SimpleClusterPermission.NONE;
         private RunAsPermission runAs = RunAsPermission.NONE;
         private List<IndicesPermission.Group> groups = new ArrayList<>();
         private FieldPermissionsCache fieldPermissionsCache = null;
         private List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
-        private List<ClusterPrivilegePolicy> privilegePolicies = new ArrayList<>();
 
         private Builder(String[] names, FieldPermissionsCache fieldPermissionsCache) {
             this.names = names;
@@ -123,11 +114,9 @@ public final class Role {
         private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache) {
             this.names = new String[]{rd.getName()};
             this.fieldPermissionsCache = fieldPermissionsCache;
-            if (rd.getClusterPrivileges().length == 0) {
-                cluster = ClusterPermission.NONE;
-            } else {
-                this.cluster(ClusterPrivilege.get(Sets.newHashSet(rd.getClusterPrivileges())));
-            }
+
+            cluster(Sets.newHashSet(rd.getClusterPrivileges()), Collections.singleton(rd.getPrivilegePolicy()));
+
             groups.addAll(convertFromIndicesPrivileges(rd.getIndicesPrivileges(), fieldPermissionsCache));
 
             final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = rd.getApplicationPrivileges();
@@ -135,7 +124,6 @@ public final class Role {
                 applicationPrivs.add(convertApplicationPrivilege(rd.getName(), i, applicationPrivileges[i]));
             }
 
-            this.privilegePolicies = CollectionUtils.asArrayList(rd.getPrivilegePolicy());
 
             String[] rdRunAs = rd.getRunAs();
             if (rdRunAs != null && rdRunAs.length > 0) {
@@ -143,8 +131,32 @@ public final class Role {
             }
         }
 
+        public Builder cluster(Set<String> privilegeNames, Iterable<ClusterPrivilegePolicy> policies) {
+            List<ClusterPermission> clusterPermissions = new ArrayList<>();
+            if (privilegeNames.isEmpty() == false) {
+                clusterPermissions.add(new ClusterPermission.SimpleClusterPermission(ClusterPrivilege.get(privilegeNames)));
+            }
+            for (ClusterPrivilegePolicy policy : policies) {
+                for (ClusterPrivilegePolicy.Category category : ClusterPrivilegePolicy.Category.values()) {
+                    policy.get(category).forEach(cp -> clusterPermissions.add(new ClusterPermission.ConditionalClusterPermission(cp)));
+                }
+            }
+            if (clusterPermissions.isEmpty()) {
+                this.cluster = ClusterPermission.SimpleClusterPermission.NONE;
+            } else if (clusterPermissions.size() == 1) {
+                this.cluster = clusterPermissions.get(0);
+            } else {
+                this.cluster = new ClusterPermission.CompositeClusterPermission(clusterPermissions);
+            }
+            return this;
+        }
+
+        /**
+         * @deprecated Use {@link #cluster(Set, Iterable)}
+         */
+        @Deprecated
         public Builder cluster(ClusterPrivilege privilege) {
-            cluster = new ClusterPermission(privilege);
+            cluster = new ClusterPermission.SimpleClusterPermission(privilege);
             return this;
         }
 
@@ -168,18 +180,12 @@ public final class Role {
             return this;
         }
 
-        public Builder addPrivilegePolicy(ClusterPrivilegePolicy policy) {
-            privilegePolicies.add(policy);
-            return this;
-        }
-
         public Role build() {
             IndicesPermission indices = groups.isEmpty() ? IndicesPermission.NONE :
                 new IndicesPermission(groups.toArray(new IndicesPermission.Group[groups.size()]));
             final ApplicationPermission applicationPermission
                 = applicationPrivs.isEmpty() ? ApplicationPermission.NONE : new ApplicationPermission(applicationPrivs);
-            ClusterPrivilegePolicy privilegePolicy = ClusterPrivilegePolicy.merge(privilegePolicies);
-            return new Role(names, cluster, indices, applicationPermission, privilegePolicy, runAs);
+            return new Role(names, cluster, indices, applicationPermission, runAs);
         }
 
         static List<IndicesPermission.Group> convertFromIndicesPrivileges(RoleDescriptor.IndicesPrivileges[] indicesPrivileges,

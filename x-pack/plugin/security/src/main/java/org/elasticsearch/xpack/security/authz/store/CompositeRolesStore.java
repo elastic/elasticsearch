@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -302,16 +302,17 @@ public class CompositeRolesStore extends AbstractComponent {
         }
 
         final Set<String> clusterPrivs = clusterPrivileges.isEmpty() ? null : clusterPrivileges;
+        final Set<ClusterPrivilegePolicy> policies = new HashSet<>();
+        roleDescriptors.forEach(rd -> policies.add(rd.getPrivilegePolicy()));
         final Privilege runAsPrivilege = runAs.isEmpty() ? Privilege.NONE : new Privilege(runAs, runAs.toArray(Strings.EMPTY_ARRAY));
         final Role.Builder builder = Role.builder(roleNames.toArray(new String[roleNames.size()]), fieldPermissionsCache)
-                .cluster(ClusterPrivilege.get(clusterPrivs))
+                .cluster(clusterPrivs, policies)
                 .runAs(runAsPrivilege);
         indicesPrivilegesMap.entrySet().forEach((entry) -> {
             MergeableIndicesPrivilege privilege = entry.getValue();
             builder.add(fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition), privilege.query,
                     IndexPrivilege.get(privilege.privileges), privilege.indices.toArray(Strings.EMPTY_ARRAY));
         });
-        roleDescriptors.forEach(rd -> builder.addPrivilegePolicy(rd.getPrivilegePolicy()));
 
         if (applicationPrivilegesMap.isEmpty()) {
             listener.onResponse(builder.build());

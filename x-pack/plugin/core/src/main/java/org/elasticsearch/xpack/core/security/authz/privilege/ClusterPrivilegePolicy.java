@@ -150,23 +150,8 @@ public class ClusterPrivilegePolicy implements ToXContentObject, Writeable {
         return Collections.unmodifiableCollection(privileges.getOrDefault(category, Collections.emptyList()));
     }
 
-    public static ClusterPrivilegePolicy merge(List<ClusterPrivilegePolicy> privilegePolicies) {
-        Builder merged = builder();
-        privilegePolicies.stream()
-            .flatMap(p -> p.privileges.values().stream())
-            .flatMap(List::stream)
-            .forEach(merged::add);
-        return merged.build();
-    }
-
     public static Builder builder() {
         return new Builder();
-    }
-
-    public boolean check(String action, TransportRequest request) {
-        return this.privileges.values().stream()
-            .flatMap(List::stream)
-            .anyMatch(priv -> priv.getPrivilege().predicate().test(action) && priv.getRequestPredicate().test(request));
     }
 
     public interface ConditionalPrivilege extends NamedWriteable, ToXContentFragment {

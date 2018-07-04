@@ -26,7 +26,10 @@ import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.TestUtils.UpdatableLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -57,9 +60,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.iterableWithSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
@@ -424,9 +425,22 @@ public class CompositeRolesStoreTests extends ESTestCase {
         CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(role1, role2), cache, privilegeStore, future);
         Role role = future.actionGet();
 
-        assertThat(role.cluster().check(ClusterStateAction.NAME), equalTo(true));
-        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME), equalTo(true));
-        assertThat(role.cluster().check(PutUserAction.NAME), equalTo(false));
+        final TransportRequest request = mock(TransportRequest.class);
+
+        assertThat(role.cluster().check(ClusterStateAction.NAME, request), equalTo(true));
+        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, request), equalTo(true));
+        assertThat(role.cluster().check(PutUserAction.NAME, request), equalTo(false));
+
+        for(String app : Arrays.asList("app1", "app2a", "app2b")) {
+            final GetPrivilegesRequest getApp = new GetPrivilegesRequest();
+            getApp.application(app);
+            assertThat(role.cluster().check(GetPrivilegesAction.NAME, getApp), equalTo(true));
+        }
+        for(String app : Arrays.asList("app2c", "app3")) {
+            final GetPrivilegesRequest getApp = new GetPrivilegesRequest();
+            getApp.application(app);
+            assertThat(role.cluster().check(GetPrivilegesAction.NAME, getApp), equalTo(false));
+        }
 
         final Predicate<String> allowedRead = role.indices().allowedIndicesMatcher(GetAction.NAME);
         assertThat(allowedRead.test("abc-123"), equalTo(true));
@@ -452,10 +466,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
         role.application().grants(new ApplicationPrivilege("app1", "app1-read", "read"), "settings/hostname");
         role.application().grants(new ApplicationPrivilege("app2a", "app2a-all", "all"), "user/joe");
         role.application().grants(new ApplicationPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
-
-        assertThat(role.policy().isEmpty(), equalTo(false));
-        assertThat(role.policy().get(ClusterPrivilegePolicy.Category.APPLICATION), iterableWithSize(2));
-        assertThat(role.policy().get(ClusterPrivilegePolicy.Category.APPLICATION), containsInAnyOrder(manage1, manage2));
     }
 
     public void testCustomRolesProviderFailures() throws Exception {

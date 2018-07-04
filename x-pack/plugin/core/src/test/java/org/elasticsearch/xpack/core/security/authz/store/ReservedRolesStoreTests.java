@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
@@ -111,6 +112,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 /**
  * Unit tests for the {@link ReservedRolesStore}
@@ -141,21 +143,23 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testIngestAdminRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("ingest_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role ingestAdminRole = Role.builder(roleDescriptor, null).build();
-        assertThat(ingestAdminRole.cluster().check(PutIndexTemplateAction.NAME), is(true));
-        assertThat(ingestAdminRole.cluster().check(GetIndexTemplatesAction.NAME), is(true));
-        assertThat(ingestAdminRole.cluster().check(DeleteIndexTemplateAction.NAME), is(true));
-        assertThat(ingestAdminRole.cluster().check(PutPipelineAction.NAME), is(true));
-        assertThat(ingestAdminRole.cluster().check(GetPipelineAction.NAME), is(true));
-        assertThat(ingestAdminRole.cluster().check(DeletePipelineAction.NAME), is(true));
+        assertThat(ingestAdminRole.cluster().check(PutIndexTemplateAction.NAME, request), is(true));
+        assertThat(ingestAdminRole.cluster().check(GetIndexTemplatesAction.NAME, request), is(true));
+        assertThat(ingestAdminRole.cluster().check(DeleteIndexTemplateAction.NAME, request), is(true));
+        assertThat(ingestAdminRole.cluster().check(PutPipelineAction.NAME, request), is(true));
+        assertThat(ingestAdminRole.cluster().check(GetPipelineAction.NAME, request), is(true));
+        assertThat(ingestAdminRole.cluster().check(DeletePipelineAction.NAME, request), is(true));
 
-        assertThat(ingestAdminRole.cluster().check(ClusterRerouteAction.NAME), is(false));
-        assertThat(ingestAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
-        assertThat(ingestAdminRole.cluster().check(MonitoringBulkAction.NAME), is(false));
+        assertThat(ingestAdminRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(ingestAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(ingestAdminRole.cluster().check(MonitoringBulkAction.NAME, request), is(false));
 
         assertThat(ingestAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
         assertThat(ingestAdminRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
@@ -165,31 +169,33 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testKibanaSystemRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_system");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role kibanaRole = Role.builder(roleDescriptor, null).build();
-        assertThat(kibanaRole.cluster().check(ClusterHealthAction.NAME), is(true));
-        assertThat(kibanaRole.cluster().check(ClusterStateAction.NAME), is(true));
-        assertThat(kibanaRole.cluster().check(ClusterStatsAction.NAME), is(true));
-        assertThat(kibanaRole.cluster().check(PutIndexTemplateAction.NAME), is(true));
-        assertThat(kibanaRole.cluster().check(GetIndexTemplatesAction.NAME), is(true));
-        assertThat(kibanaRole.cluster().check(ClusterRerouteAction.NAME), is(false));
-        assertThat(kibanaRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
-        assertThat(kibanaRole.cluster().check(MonitoringBulkAction.NAME), is(true));
+        assertThat(kibanaRole.cluster().check(ClusterHealthAction.NAME, request), is(true));
+        assertThat(kibanaRole.cluster().check(ClusterStateAction.NAME, request), is(true));
+        assertThat(kibanaRole.cluster().check(ClusterStatsAction.NAME, request), is(true));
+        assertThat(kibanaRole.cluster().check(PutIndexTemplateAction.NAME, request), is(true));
+        assertThat(kibanaRole.cluster().check(GetIndexTemplatesAction.NAME, request), is(true));
+        assertThat(kibanaRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(kibanaRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(kibanaRole.cluster().check(MonitoringBulkAction.NAME, request), is(true));
 
         // SAML
-        assertThat(kibanaRole.cluster().check(SamlPrepareAuthenticationAction.NAME), is(true));
-        assertThat(kibanaRole.cluster().check(SamlAuthenticateAction.NAME), is(true));
-        assertThat(kibanaRole.cluster().check(InvalidateTokenAction.NAME), is(true));
-        assertThat(kibanaRole.cluster().check(CreateTokenAction.NAME), is(false));
+        assertThat(kibanaRole.cluster().check(SamlPrepareAuthenticationAction.NAME, request), is(true));
+        assertThat(kibanaRole.cluster().check(SamlAuthenticateAction.NAME, request), is(true));
+        assertThat(kibanaRole.cluster().check(InvalidateTokenAction.NAME, request), is(true));
+        assertThat(kibanaRole.cluster().check(CreateTokenAction.NAME, request), is(false));
 
         // Security
-        assertThat(kibanaRole.cluster().check(DeletePrivilegesAction.NAME), is(false));
-        assertThat(kibanaRole.cluster().check(GetPrivilegesAction.NAME), is(true));
-        assertThat(kibanaRole.cluster().check(PutPrivilegesAction.NAME), is(true));
-        
+        assertThat(kibanaRole.cluster().check(DeletePrivilegesAction.NAME, request), is(false));
+        assertThat(kibanaRole.cluster().check(GetPrivilegesAction.NAME, request), is(true));
+        assertThat(kibanaRole.cluster().check(PutPrivilegesAction.NAME, request), is(true));
+
         // Everything else
         assertThat(kibanaRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
@@ -231,18 +237,20 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testKibanaUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role kibanaUserRole = Role.builder(roleDescriptor, null).build();
-        assertThat(kibanaUserRole.cluster().check(ClusterHealthAction.NAME), is(false));
-        assertThat(kibanaUserRole.cluster().check(ClusterStateAction.NAME), is(false));
-        assertThat(kibanaUserRole.cluster().check(ClusterStatsAction.NAME), is(false));
-        assertThat(kibanaUserRole.cluster().check(PutIndexTemplateAction.NAME), is(false));
-        assertThat(kibanaUserRole.cluster().check(ClusterRerouteAction.NAME), is(false));
-        assertThat(kibanaUserRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
-        assertThat(kibanaUserRole.cluster().check(MonitoringBulkAction.NAME), is(false));
+        assertThat(kibanaUserRole.cluster().check(ClusterHealthAction.NAME, request), is(false));
+        assertThat(kibanaUserRole.cluster().check(ClusterStateAction.NAME, request), is(false));
+        assertThat(kibanaUserRole.cluster().check(ClusterStatsAction.NAME, request), is(false));
+        assertThat(kibanaUserRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
+        assertThat(kibanaUserRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(kibanaUserRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(kibanaUserRole.cluster().check(MonitoringBulkAction.NAME, request), is(false));
 
         assertThat(kibanaUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
@@ -267,19 +275,21 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testMonitoringUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("monitoring_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role monitoringUserRole = Role.builder(roleDescriptor, null).build();
-        assertThat(monitoringUserRole.cluster().check(MainAction.NAME), is(true));
-        assertThat(monitoringUserRole.cluster().check(ClusterHealthAction.NAME), is(false));
-        assertThat(monitoringUserRole.cluster().check(ClusterStateAction.NAME), is(false));
-        assertThat(monitoringUserRole.cluster().check(ClusterStatsAction.NAME), is(false));
-        assertThat(monitoringUserRole.cluster().check(PutIndexTemplateAction.NAME), is(false));
-        assertThat(monitoringUserRole.cluster().check(ClusterRerouteAction.NAME), is(false));
-        assertThat(monitoringUserRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
-        assertThat(monitoringUserRole.cluster().check(MonitoringBulkAction.NAME), is(false));
+        assertThat(monitoringUserRole.cluster().check(MainAction.NAME, request), is(true));
+        assertThat(monitoringUserRole.cluster().check(ClusterHealthAction.NAME, request), is(false));
+        assertThat(monitoringUserRole.cluster().check(ClusterStateAction.NAME, request), is(false));
+        assertThat(monitoringUserRole.cluster().check(ClusterStatsAction.NAME, request), is(false));
+        assertThat(monitoringUserRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
+        assertThat(monitoringUserRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(monitoringUserRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(monitoringUserRole.cluster().check(MonitoringBulkAction.NAME, request), is(false));
 
         assertThat(monitoringUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
@@ -306,27 +316,29 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testRemoteMonitoringAgentRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("remote_monitoring_agent");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role remoteMonitoringAgentRole = Role.builder(roleDescriptor, null).build();
-        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterHealthAction.NAME), is(true));
-        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterStateAction.NAME), is(true));
-        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterStatsAction.NAME), is(true));
-        assertThat(remoteMonitoringAgentRole.cluster().check(PutIndexTemplateAction.NAME), is(true));
-        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterRerouteAction.NAME), is(false));
-        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
-        assertThat(remoteMonitoringAgentRole.cluster().check(MonitoringBulkAction.NAME), is(false));
-        assertThat(remoteMonitoringAgentRole.cluster().check(GetWatchAction.NAME), is(true));
-        assertThat(remoteMonitoringAgentRole.cluster().check(PutWatchAction.NAME), is(true));
-        assertThat(remoteMonitoringAgentRole.cluster().check(DeleteWatchAction.NAME), is(true));
-        assertThat(remoteMonitoringAgentRole.cluster().check(ExecuteWatchAction.NAME), is(false));
-        assertThat(remoteMonitoringAgentRole.cluster().check(AckWatchAction.NAME), is(false));
-        assertThat(remoteMonitoringAgentRole.cluster().check(ActivateWatchAction.NAME), is(false));
-        assertThat(remoteMonitoringAgentRole.cluster().check(WatcherServiceAction.NAME), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterHealthAction.NAME, request), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterStateAction.NAME, request), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterStatsAction.NAME, request), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(PutIndexTemplateAction.NAME, request), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(MonitoringBulkAction.NAME, request), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(GetWatchAction.NAME, request), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(PutWatchAction.NAME, request), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(DeleteWatchAction.NAME, request), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ExecuteWatchAction.NAME, request), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(AckWatchAction.NAME, request), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(ActivateWatchAction.NAME, request), is(false));
+        assertThat(remoteMonitoringAgentRole.cluster().check(WatcherServiceAction.NAME, request), is(false));
         // we get this from the cluster:monitor privilege
-        assertThat(remoteMonitoringAgentRole.cluster().check(WatcherStatsAction.NAME), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(WatcherStatsAction.NAME, request), is(true));
 
         assertThat(remoteMonitoringAgentRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
@@ -350,18 +362,20 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testReportingUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("reporting_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role reportingUserRole = Role.builder(roleDescriptor, null).build();
-        assertThat(reportingUserRole.cluster().check(ClusterHealthAction.NAME), is(false));
-        assertThat(reportingUserRole.cluster().check(ClusterStateAction.NAME), is(false));
-        assertThat(reportingUserRole.cluster().check(ClusterStatsAction.NAME), is(false));
-        assertThat(reportingUserRole.cluster().check(PutIndexTemplateAction.NAME), is(false));
-        assertThat(reportingUserRole.cluster().check(ClusterRerouteAction.NAME), is(false));
-        assertThat(reportingUserRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
-        assertThat(reportingUserRole.cluster().check(MonitoringBulkAction.NAME), is(false));
+        assertThat(reportingUserRole.cluster().check(ClusterHealthAction.NAME, request), is(false));
+        assertThat(reportingUserRole.cluster().check(ClusterStateAction.NAME, request), is(false));
+        assertThat(reportingUserRole.cluster().check(ClusterStatsAction.NAME, request), is(false));
+        assertThat(reportingUserRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
+        assertThat(reportingUserRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(reportingUserRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(reportingUserRole.cluster().check(MonitoringBulkAction.NAME, request), is(false));
 
         assertThat(reportingUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
@@ -386,18 +400,20 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testKibanaDashboardOnlyUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_dashboard_only_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role dashboardsOnlyUserRole = Role.builder(roleDescriptor, null).build();
-        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterHealthAction.NAME), is(false));
-        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterStateAction.NAME), is(false));
-        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterStatsAction.NAME), is(false));
-        assertThat(dashboardsOnlyUserRole.cluster().check(PutIndexTemplateAction.NAME), is(false));
-        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterRerouteAction.NAME), is(false));
-        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
-        assertThat(dashboardsOnlyUserRole.cluster().check(MonitoringBulkAction.NAME), is(false));
+        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterHealthAction.NAME, request), is(false));
+        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterStateAction.NAME, request), is(false));
+        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterStatsAction.NAME, request), is(false));
+        assertThat(dashboardsOnlyUserRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
+        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(dashboardsOnlyUserRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(dashboardsOnlyUserRole.cluster().check(MonitoringBulkAction.NAME, request), is(false));
 
         assertThat(dashboardsOnlyUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
@@ -416,17 +432,19 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testSuperuserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("superuser");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role superuserRole = Role.builder(roleDescriptor, null).build();
-        assertThat(superuserRole.cluster().check(ClusterHealthAction.NAME), is(true));
-        assertThat(superuserRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(true));
-        assertThat(superuserRole.cluster().check(PutUserAction.NAME), is(true));
-        assertThat(superuserRole.cluster().check(PutRoleAction.NAME), is(true));
-        assertThat(superuserRole.cluster().check(PutIndexTemplateAction.NAME), is(true));
-        assertThat(superuserRole.cluster().check("internal:admin/foo"), is(false));
+        assertThat(superuserRole.cluster().check(ClusterHealthAction.NAME, request), is(true));
+        assertThat(superuserRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(true));
+        assertThat(superuserRole.cluster().check(PutUserAction.NAME, request), is(true));
+        assertThat(superuserRole.cluster().check(PutRoleAction.NAME, request), is(true));
+        assertThat(superuserRole.cluster().check(PutIndexTemplateAction.NAME, request), is(true));
+        assertThat(superuserRole.cluster().check("internal:admin/foo", request), is(false));
 
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
         final MetaData metaData = new MetaData.Builder()
@@ -465,18 +483,20 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testLogstashSystemRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("logstash_system");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role logstashSystemRole = Role.builder(roleDescriptor, null).build();
-        assertThat(logstashSystemRole.cluster().check(ClusterHealthAction.NAME), is(true));
-        assertThat(logstashSystemRole.cluster().check(ClusterStateAction.NAME), is(true));
-        assertThat(logstashSystemRole.cluster().check(ClusterStatsAction.NAME), is(true));
-        assertThat(logstashSystemRole.cluster().check(PutIndexTemplateAction.NAME), is(false));
-        assertThat(logstashSystemRole.cluster().check(ClusterRerouteAction.NAME), is(false));
-        assertThat(logstashSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
-        assertThat(logstashSystemRole.cluster().check(MonitoringBulkAction.NAME), is(true));
+        assertThat(logstashSystemRole.cluster().check(ClusterHealthAction.NAME, request), is(true));
+        assertThat(logstashSystemRole.cluster().check(ClusterStateAction.NAME, request), is(true));
+        assertThat(logstashSystemRole.cluster().check(ClusterStatsAction.NAME, request), is(true));
+        assertThat(logstashSystemRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
+        assertThat(logstashSystemRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(logstashSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(logstashSystemRole.cluster().check(MonitoringBulkAction.NAME, request), is(true));
 
         assertThat(logstashSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
@@ -487,18 +507,20 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testBeatsSystemRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor(BeatsSystemUser.ROLE_NAME);
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role logstashSystemRole = Role.builder(roleDescriptor, null).build();
-        assertThat(logstashSystemRole.cluster().check(ClusterHealthAction.NAME), is(true));
-        assertThat(logstashSystemRole.cluster().check(ClusterStateAction.NAME), is(true));
-        assertThat(logstashSystemRole.cluster().check(ClusterStatsAction.NAME), is(true));
-        assertThat(logstashSystemRole.cluster().check(PutIndexTemplateAction.NAME), is(false));
-        assertThat(logstashSystemRole.cluster().check(ClusterRerouteAction.NAME), is(false));
-        assertThat(logstashSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
-        assertThat(logstashSystemRole.cluster().check(MonitoringBulkAction.NAME), is(true));
+        assertThat(logstashSystemRole.cluster().check(ClusterHealthAction.NAME, request), is(true));
+        assertThat(logstashSystemRole.cluster().check(ClusterStateAction.NAME, request), is(true));
+        assertThat(logstashSystemRole.cluster().check(ClusterStatsAction.NAME, request), is(true));
+        assertThat(logstashSystemRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
+        assertThat(logstashSystemRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(logstashSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(logstashSystemRole.cluster().check(MonitoringBulkAction.NAME, request), is(true));
 
         assertThat(logstashSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
@@ -509,46 +531,48 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testMachineLearningAdminRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("machine_learning_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role role = Role.builder(roleDescriptor, null).build();
-        assertThat(role.cluster().check(CloseJobAction.NAME), is(true));
-        assertThat(role.cluster().check(DeleteDatafeedAction.NAME), is(true));
-        assertThat(role.cluster().check(DeleteExpiredDataAction.NAME), is(true));
-        assertThat(role.cluster().check(DeleteFilterAction.NAME), is(true));
-        assertThat(role.cluster().check(DeleteJobAction.NAME), is(true));
-        assertThat(role.cluster().check(DeleteModelSnapshotAction.NAME), is(true));
-        assertThat(role.cluster().check(FinalizeJobExecutionAction.NAME), is(false)); // internal use only
-        assertThat(role.cluster().check(FlushJobAction.NAME), is(true));
-        assertThat(role.cluster().check(GetBucketsAction.NAME), is(true));
-        assertThat(role.cluster().check(GetCategoriesAction.NAME), is(true));
-        assertThat(role.cluster().check(GetDatafeedsAction.NAME), is(true));
-        assertThat(role.cluster().check(GetDatafeedsStatsAction.NAME), is(true));
-        assertThat(role.cluster().check(GetFiltersAction.NAME), is(true));
-        assertThat(role.cluster().check(GetInfluencersAction.NAME), is(true));
-        assertThat(role.cluster().check(GetJobsAction.NAME), is(true));
-        assertThat(role.cluster().check(GetJobsStatsAction.NAME), is(true));
-        assertThat(role.cluster().check(GetModelSnapshotsAction.NAME), is(true));
-        assertThat(role.cluster().check(GetRecordsAction.NAME), is(true));
-        assertThat(role.cluster().check(IsolateDatafeedAction.NAME), is(false)); // internal use only
-        assertThat(role.cluster().check(KillProcessAction.NAME), is(false)); // internal use only
-        assertThat(role.cluster().check(OpenJobAction.NAME), is(true));
-        assertThat(role.cluster().check(PostDataAction.NAME), is(true));
-        assertThat(role.cluster().check(PreviewDatafeedAction.NAME), is(true));
-        assertThat(role.cluster().check(PutDatafeedAction.NAME), is(true));
-        assertThat(role.cluster().check(PutFilterAction.NAME), is(true));
-        assertThat(role.cluster().check(PutJobAction.NAME), is(true));
-        assertThat(role.cluster().check(RevertModelSnapshotAction.NAME), is(true));
-        assertThat(role.cluster().check(StartDatafeedAction.NAME), is(true));
-        assertThat(role.cluster().check(StopDatafeedAction.NAME), is(true));
-        assertThat(role.cluster().check(UpdateDatafeedAction.NAME), is(true));
-        assertThat(role.cluster().check(UpdateJobAction.NAME), is(true));
-        assertThat(role.cluster().check(UpdateModelSnapshotAction.NAME), is(true));
-        assertThat(role.cluster().check(UpdateProcessAction.NAME), is(false)); // internal use only
-        assertThat(role.cluster().check(ValidateDetectorAction.NAME), is(true));
-        assertThat(role.cluster().check(ValidateJobConfigAction.NAME), is(true));
+        assertThat(role.cluster().check(CloseJobAction.NAME, request), is(true));
+        assertThat(role.cluster().check(DeleteDatafeedAction.NAME, request), is(true));
+        assertThat(role.cluster().check(DeleteExpiredDataAction.NAME, request), is(true));
+        assertThat(role.cluster().check(DeleteFilterAction.NAME, request), is(true));
+        assertThat(role.cluster().check(DeleteJobAction.NAME, request), is(true));
+        assertThat(role.cluster().check(DeleteModelSnapshotAction.NAME, request), is(true));
+        assertThat(role.cluster().check(FinalizeJobExecutionAction.NAME, request), is(false)); // internal use only
+        assertThat(role.cluster().check(FlushJobAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetBucketsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetCategoriesAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetDatafeedsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetDatafeedsStatsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetFiltersAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetInfluencersAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetJobsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetJobsStatsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetModelSnapshotsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetRecordsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(IsolateDatafeedAction.NAME, request), is(false)); // internal use only
+        assertThat(role.cluster().check(KillProcessAction.NAME, request), is(false)); // internal use only
+        assertThat(role.cluster().check(OpenJobAction.NAME, request), is(true));
+        assertThat(role.cluster().check(PostDataAction.NAME, request), is(true));
+        assertThat(role.cluster().check(PreviewDatafeedAction.NAME, request), is(true));
+        assertThat(role.cluster().check(PutDatafeedAction.NAME, request), is(true));
+        assertThat(role.cluster().check(PutFilterAction.NAME, request), is(true));
+        assertThat(role.cluster().check(PutJobAction.NAME, request), is(true));
+        assertThat(role.cluster().check(RevertModelSnapshotAction.NAME, request), is(true));
+        assertThat(role.cluster().check(StartDatafeedAction.NAME, request), is(true));
+        assertThat(role.cluster().check(StopDatafeedAction.NAME, request), is(true));
+        assertThat(role.cluster().check(UpdateDatafeedAction.NAME, request), is(true));
+        assertThat(role.cluster().check(UpdateJobAction.NAME, request), is(true));
+        assertThat(role.cluster().check(UpdateModelSnapshotAction.NAME, request), is(true));
+        assertThat(role.cluster().check(UpdateProcessAction.NAME, request), is(false)); // internal use only
+        assertThat(role.cluster().check(ValidateDetectorAction.NAME, request), is(true));
+        assertThat(role.cluster().check(ValidateJobConfigAction.NAME, request), is(true));
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
         assertNoAccessAllowed(role, "foo");
@@ -559,46 +583,48 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testMachineLearningUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("machine_learning_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role role = Role.builder(roleDescriptor, null).build();
-        assertThat(role.cluster().check(CloseJobAction.NAME), is(false));
-        assertThat(role.cluster().check(DeleteDatafeedAction.NAME), is(false));
-        assertThat(role.cluster().check(DeleteExpiredDataAction.NAME), is(false));
-        assertThat(role.cluster().check(DeleteFilterAction.NAME), is(false));
-        assertThat(role.cluster().check(DeleteJobAction.NAME), is(false));
-        assertThat(role.cluster().check(DeleteModelSnapshotAction.NAME), is(false));
-        assertThat(role.cluster().check(FinalizeJobExecutionAction.NAME), is(false));
-        assertThat(role.cluster().check(FlushJobAction.NAME), is(false));
-        assertThat(role.cluster().check(GetBucketsAction.NAME), is(true));
-        assertThat(role.cluster().check(GetCategoriesAction.NAME), is(true));
-        assertThat(role.cluster().check(GetDatafeedsAction.NAME), is(true));
-        assertThat(role.cluster().check(GetDatafeedsStatsAction.NAME), is(true));
-        assertThat(role.cluster().check(GetFiltersAction.NAME), is(false));
-        assertThat(role.cluster().check(GetInfluencersAction.NAME), is(true));
-        assertThat(role.cluster().check(GetJobsAction.NAME), is(true));
-        assertThat(role.cluster().check(GetJobsStatsAction.NAME), is(true));
-        assertThat(role.cluster().check(GetModelSnapshotsAction.NAME), is(true));
-        assertThat(role.cluster().check(GetRecordsAction.NAME), is(true));
-        assertThat(role.cluster().check(IsolateDatafeedAction.NAME), is(false));
-        assertThat(role.cluster().check(KillProcessAction.NAME), is(false));
-        assertThat(role.cluster().check(OpenJobAction.NAME), is(false));
-        assertThat(role.cluster().check(PostDataAction.NAME), is(false));
-        assertThat(role.cluster().check(PreviewDatafeedAction.NAME), is(false));
-        assertThat(role.cluster().check(PutDatafeedAction.NAME), is(false));
-        assertThat(role.cluster().check(PutFilterAction.NAME), is(false));
-        assertThat(role.cluster().check(PutJobAction.NAME), is(false));
-        assertThat(role.cluster().check(RevertModelSnapshotAction.NAME), is(false));
-        assertThat(role.cluster().check(StartDatafeedAction.NAME), is(false));
-        assertThat(role.cluster().check(StopDatafeedAction.NAME), is(false));
-        assertThat(role.cluster().check(UpdateDatafeedAction.NAME), is(false));
-        assertThat(role.cluster().check(UpdateJobAction.NAME), is(false));
-        assertThat(role.cluster().check(UpdateModelSnapshotAction.NAME), is(false));
-        assertThat(role.cluster().check(UpdateProcessAction.NAME), is(false));
-        assertThat(role.cluster().check(ValidateDetectorAction.NAME), is(false));
-        assertThat(role.cluster().check(ValidateJobConfigAction.NAME), is(false));
+        assertThat(role.cluster().check(CloseJobAction.NAME, request), is(false));
+        assertThat(role.cluster().check(DeleteDatafeedAction.NAME, request), is(false));
+        assertThat(role.cluster().check(DeleteExpiredDataAction.NAME, request), is(false));
+        assertThat(role.cluster().check(DeleteFilterAction.NAME, request), is(false));
+        assertThat(role.cluster().check(DeleteJobAction.NAME, request), is(false));
+        assertThat(role.cluster().check(DeleteModelSnapshotAction.NAME, request), is(false));
+        assertThat(role.cluster().check(FinalizeJobExecutionAction.NAME, request), is(false));
+        assertThat(role.cluster().check(FlushJobAction.NAME, request), is(false));
+        assertThat(role.cluster().check(GetBucketsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetCategoriesAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetDatafeedsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetDatafeedsStatsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetFiltersAction.NAME, request), is(false));
+        assertThat(role.cluster().check(GetInfluencersAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetJobsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetJobsStatsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetModelSnapshotsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetRecordsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(IsolateDatafeedAction.NAME, request), is(false));
+        assertThat(role.cluster().check(KillProcessAction.NAME, request), is(false));
+        assertThat(role.cluster().check(OpenJobAction.NAME, request), is(false));
+        assertThat(role.cluster().check(PostDataAction.NAME, request), is(false));
+        assertThat(role.cluster().check(PreviewDatafeedAction.NAME, request), is(false));
+        assertThat(role.cluster().check(PutDatafeedAction.NAME, request), is(false));
+        assertThat(role.cluster().check(PutFilterAction.NAME, request), is(false));
+        assertThat(role.cluster().check(PutJobAction.NAME, request), is(false));
+        assertThat(role.cluster().check(RevertModelSnapshotAction.NAME, request), is(false));
+        assertThat(role.cluster().check(StartDatafeedAction.NAME, request), is(false));
+        assertThat(role.cluster().check(StopDatafeedAction.NAME, request), is(false));
+        assertThat(role.cluster().check(UpdateDatafeedAction.NAME, request), is(false));
+        assertThat(role.cluster().check(UpdateJobAction.NAME, request), is(false));
+        assertThat(role.cluster().check(UpdateModelSnapshotAction.NAME, request), is(false));
+        assertThat(role.cluster().check(UpdateProcessAction.NAME, request), is(false));
+        assertThat(role.cluster().check(ValidateDetectorAction.NAME, request), is(false));
+        assertThat(role.cluster().check(ValidateJobConfigAction.NAME, request), is(false));
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
         assertNoAccessAllowed(role, "foo");
@@ -609,19 +635,21 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testWatcherAdminRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("watcher_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role role = Role.builder(roleDescriptor, null).build();
-        assertThat(role.cluster().check(PutWatchAction.NAME), is(true));
-        assertThat(role.cluster().check(GetWatchAction.NAME), is(true));
-        assertThat(role.cluster().check(DeleteWatchAction.NAME), is(true));
-        assertThat(role.cluster().check(ExecuteWatchAction.NAME), is(true));
-        assertThat(role.cluster().check(AckWatchAction.NAME), is(true));
-        assertThat(role.cluster().check(ActivateWatchAction.NAME), is(true));
-        assertThat(role.cluster().check(WatcherServiceAction.NAME), is(true));
-        assertThat(role.cluster().check(WatcherStatsAction.NAME), is(true));
+        assertThat(role.cluster().check(PutWatchAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetWatchAction.NAME, request), is(true));
+        assertThat(role.cluster().check(DeleteWatchAction.NAME, request), is(true));
+        assertThat(role.cluster().check(ExecuteWatchAction.NAME, request), is(true));
+        assertThat(role.cluster().check(AckWatchAction.NAME, request), is(true));
+        assertThat(role.cluster().check(ActivateWatchAction.NAME, request), is(true));
+        assertThat(role.cluster().check(WatcherServiceAction.NAME, request), is(true));
+        assertThat(role.cluster().check(WatcherStatsAction.NAME, request), is(true));
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
@@ -634,19 +662,21 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testWatcherUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("watcher_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role role = Role.builder(roleDescriptor, null).build();
-        assertThat(role.cluster().check(PutWatchAction.NAME), is(false));
-        assertThat(role.cluster().check(GetWatchAction.NAME), is(true));
-        assertThat(role.cluster().check(DeleteWatchAction.NAME), is(false));
-        assertThat(role.cluster().check(ExecuteWatchAction.NAME), is(false));
-        assertThat(role.cluster().check(AckWatchAction.NAME), is(false));
-        assertThat(role.cluster().check(ActivateWatchAction.NAME), is(false));
-        assertThat(role.cluster().check(WatcherServiceAction.NAME), is(false));
-        assertThat(role.cluster().check(WatcherStatsAction.NAME), is(true));
+        assertThat(role.cluster().check(PutWatchAction.NAME, request), is(false));
+        assertThat(role.cluster().check(GetWatchAction.NAME, request), is(true));
+        assertThat(role.cluster().check(DeleteWatchAction.NAME, request), is(false));
+        assertThat(role.cluster().check(ExecuteWatchAction.NAME, request), is(false));
+        assertThat(role.cluster().check(AckWatchAction.NAME, request), is(false));
+        assertThat(role.cluster().check(ActivateWatchAction.NAME, request), is(false));
+        assertThat(role.cluster().check(WatcherServiceAction.NAME, request), is(false));
+        assertThat(role.cluster().check(WatcherStatsAction.NAME, request), is(true));
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
@@ -684,15 +714,17 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testLogstashAdminRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("logstash_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role logstashAdminRole = Role.builder(roleDescriptor, null).build();
-        assertThat(logstashAdminRole.cluster().check(ClusterHealthAction.NAME), is(false));
-        assertThat(logstashAdminRole.cluster().check(PutIndexTemplateAction.NAME), is(false));
-        assertThat(logstashAdminRole.cluster().check(ClusterRerouteAction.NAME), is(false));
-        assertThat(logstashAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
+        assertThat(logstashAdminRole.cluster().check(ClusterHealthAction.NAME, request), is(false));
+        assertThat(logstashAdminRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
+        assertThat(logstashAdminRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(logstashAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
 
         assertThat(logstashAdminRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 

@@ -10,6 +10,8 @@ dependencies {
 
   // JDBC testing dependencies
   compile project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
+
+  compile project(path: xpackModule('sql:sql-action'))
   compile "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
 
   // CLI testing dependencies
@@ -76,6 +78,7 @@ thirdPartyAudit.excludes = [
 subprojects {
   apply plugin: 'elasticsearch.standalone-rest-test'
   dependencies {
+    
     /* Since we're a standalone rest test we actually get transitive
      * dependencies but we don't really want them because they cause
      * all kinds of trouble with the jar hell checks. So we suppress

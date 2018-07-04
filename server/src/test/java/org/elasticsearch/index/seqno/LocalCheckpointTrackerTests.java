@@ -77,12 +77,20 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
 
     public void testSimpleReplica() {
         assertThat(tracker.getCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+        assertThat(tracker.isProcessed(randomNonNegativeLong()), equalTo(false));
         tracker.markSeqNoAsCompleted(0L);
         assertThat(tracker.getCheckpoint(), equalTo(0L));
+        assertThat(tracker.isProcessed(0L), equalTo(true));
+        assertThat(tracker.isProcessed(between(1, Integer.MAX_VALUE)), equalTo(false));
         tracker.markSeqNoAsCompleted(2L);
         assertThat(tracker.getCheckpoint(), equalTo(0L));
+        assertThat(tracker.isProcessed(1L), equalTo(false));
+        assertThat(tracker.isProcessed(2L), equalTo(true));
+        assertThat(tracker.isProcessed(between(3, Integer.MAX_VALUE)), equalTo(false));
         tracker.markSeqNoAsCompleted(1L);
         assertThat(tracker.getCheckpoint(), equalTo(2L));
+        assertThat(tracker.isProcessed(between(0, 2)), equalTo(true));
+        assertThat(tracker.isProcessed(between(3, Integer.MAX_VALUE)), equalTo(false));
     }
 
     public void testLazyInitialization() {
@@ -199,9 +207,14 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         }
         assertThat(tracker.getMaxSeqNo(), equalTo(maxOps - 1L));
         assertThat(tracker.getCheckpoint(), equalTo(unFinishedSeq - 1L));
+        assertThat(tracker.isProcessed(randomValueOtherThan((int) unFinishedSeq, () -> randomFrom(seqNos))), equalTo(true));
+        assertThat(tracker.isProcessed(unFinishedSeq), equalTo(false));
+        assertThat(tracker.isProcessed(between(maxOps, Integer.MAX_VALUE)), equalTo(false));
         tracker.markSeqNoAsCompleted(unFinishedSeq);
         assertThat(tracker.getCheckpoint(), equalTo(maxOps - 1L));
         assertThat(tracker.processedSeqNo.size(), isOneOf(0, 1));
+        assertThat(tracker.isProcessed(randomFrom(seqNos)), equalTo(true));
+        assertThat(tracker.isProcessed(between(maxOps, Integer.MAX_VALUE)), equalTo(false));
         if (tracker.processedSeqNo.size() == 1) {
             assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.checkpoint / BIT_SET_SIZE));
         }

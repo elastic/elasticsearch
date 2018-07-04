@@ -139,6 +139,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -4944,6 +4945,44 @@ public class InternalEngineTests extends EngineTestCase {
         trimUnsafeCommits(engine.config());
         try (InternalEngine recoveringEngine = new InternalEngine(engine.config())) {
             assertThat(recoveringEngine.getMinRetainedSeqNo(), equalTo(lastMinRetainedSeqNo));
+        }
+    }
+
+    public void testDoNotIndexDuplicateStaleDocsToLucene() throws Exception {
+        int numOps = scaledRandomIntBetween(10, 200);
+        List<Engine.Operation> ops = new ArrayList<>();
+        Map<String, Long> versions = new HashMap<>();
+        for (int seqNo = 0; seqNo < numOps; seqNo++) {
+            String id = Integer.toString(randomIntBetween(1, 5));
+            long version = versions.compute(id, (k, v) -> (v == null ? 1 : v) + between(1, 10));
+            int copies = between(1, 3);
+            if (randomBoolean()) {
+                for (int i = 0; i < copies; i++) {
+                    ops.add(replicaIndexForDoc(createParsedDoc(id, null), version, seqNo, randomBoolean()));
+                }
+            } else if (frequently()) {
+                for (int i = 0; i < copies; i++) {
+                    ops.add(replicaDeleteForDoc(id, version, seqNo, randomNonNegativeLong()));
+                }
+            } else {
+                for (int i = 0; i < copies; i++) {
+                    ops.add(new Engine.NoOp(seqNo, primaryTerm.get(), REPLICA, randomNonNegativeLong(), "test-" + seqNo));
+                }
+            }
+        }
+        Settings settings = Settings.builder().put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+        IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(
+                 config(IndexSettingsModule.newIndexSettings(indexMetaData), store, createTempDir(), newMergePolicy(), null))) {
+            Randomness.shuffle(ops);
+            concurrentlyApplyOps(ops, engine);
+            engine.refresh("test", Engine.SearcherScope.INTERNAL);
+            try (Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                assertThat(searcher.reader().maxDoc(), equalTo(numOps));
+            }
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
         }
     }
 

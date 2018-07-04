@@ -104,6 +104,21 @@ public class LocalCheckpointTracker {
     }
 
     /**
+     * Checks if the given sequence number has been processed (and tracked) in this tracker.
+     */
+    public synchronized boolean isProcessed(long seqNo) {
+        if (seqNo <= checkpoint) {
+            return true;
+        }
+        if (seqNo >= nextSeqNo) {
+            return false;
+        }
+        final long bitSetKey = getBitSetKey(seqNo);
+        final CountedBitSet bitSet = processedSeqNo.get(bitSetKey);
+        return bitSet != null && bitSet.get(seqNoToBitSetOffset(seqNo));
+    }
+
+    /**
      * Resets the checkpoint to the specified value.
      *
      * @param checkpoint the local checkpoint to reset this tracker to

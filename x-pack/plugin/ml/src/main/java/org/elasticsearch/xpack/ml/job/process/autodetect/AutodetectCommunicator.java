@@ -12,6 +12,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -176,7 +177,7 @@ public class AutodetectCommunicator implements Closeable {
                 // In this case the original exception is spurious and highly misleading
                 throw ExceptionsHelper.conflictStatusException("Close job interrupted by kill request");
             } else {
-                throw new ElasticsearchException(e);
+                throw FutureUtils.rethrowExecutionException(e);
             }
         } finally {
             destroyCategorizationAnalyzer();

@@ -60,9 +60,8 @@ public class JiraService extends NotificationService<JiraAccount> {
     private final HttpClient httpClient;
 
     public JiraService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
-        super(settings, "jira");
+        super(settings, "jira", clusterSettings, JiraService.getSettings());
         this.httpClient = httpClient;
-        clusterSettings.addSettingsUpdateConsumer(this::setAccountSetting, getSettings());
         // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_ALLOW_HTTP, (s, o) -> {}, (s, o) -> {});

@@ -64,3 +64,9 @@ The following previously deprecated url parameter have been removed:
 * `filter_cache` - use `query` instead
 * `request_cache` - use `request` instead
 * `field_data` - use `fielddata` instead
+
+==== `network.breaker.inflight_requests.overhead` increased to 2
+
+Previously the in flight requests circuit breaker considered only the raw byte representation.
+By bumping the value of `network.breaker.inflight_requests.overhead` from 1 to 2, this circuit
+breaker considers now also the memory overhead of representing the request as a structured object.

@@ -20,9 +20,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.services.s3.AbstractAmazonS3;
-
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -30,6 +28,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
@@ -51,16 +50,11 @@ public class S3RepositoryTests extends ESTestCase {
         }
     }
 
-    private static class DummyS3Service extends AbstractLifecycleComponent implements AwsS3Service {
+    private static class DummyS3Service extends S3Service {
         DummyS3Service() {
             super(Settings.EMPTY);
         }
-        @Override
-        protected void doStart() {}
-        @Override
-        protected void doStop() {}
-        @Override
-        protected void doClose() {}
+
         @Override
         public AmazonS3Reference client(String clientName) {
             return new AmazonS3Reference(new DummyS3Client());

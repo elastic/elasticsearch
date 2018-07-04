@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -17,6 +19,7 @@ import java.util.TreeSet;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
 
@@ -30,7 +33,12 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
     }
 
     public static MlFilter createRandom() {
-        return createRandom(randomAlphaOfLengthBetween(1, 20));
+        return createRandom(randomValidFilterId());
+    }
+
+    public static String randomValidFilterId() {
+        CodepointSetGenerator generator =  new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray());
+        return generator.ofCodePointsLength(random(), 10, 10);
     }
 
     public static MlFilter createRandom(String filterId) {
@@ -58,13 +66,13 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
     }
 
     public void testNullId() {
-        NullPointerException ex = expectThrows(NullPointerException.class, () -> MlFilter.builder(null).build());
-        assertEquals(MlFilter.ID.getPreferredName() + " must not be null", ex.getMessage());
+        Exception ex = expectThrows(IllegalArgumentException.class, () -> MlFilter.builder(null).build());
+        assertEquals("[filter_id] must not be null.", ex.getMessage());
     }
 
     public void testNullItems() {
         NullPointerException ex = expectThrows(NullPointerException.class,
-                () -> MlFilter.builder(randomAlphaOfLength(20)).setItems((SortedSet<String>) null).build());
+                () -> MlFilter.builder(randomValidFilterId()).setItems((SortedSet<String>) null).build());
         assertEquals(MlFilter.ITEMS.getPreferredName() + " must not be null", ex.getMessage());
     }
 
@@ -87,6 +95,11 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             MlFilter.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    public void testInvalidId() {
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> MlFilter.builder("Invalid id").build());
+        assertThat(e.getMessage(), startsWith("Invalid filter_id; 'Invalid id' can contain lowercase"));
     }
 
     public void testItemsAreSorted() {

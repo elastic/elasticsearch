@@ -71,10 +71,10 @@ public final class PCallInvoke extends AExpression {
             throw createError(new IllegalArgumentException("Illegal call [" + name + "] on array type."));
         }
 
-        Struct struct = locals.getDefinition().ClassToType(prefix.actual).struct;
+        Struct struct = locals.getDefinition().getPainlessStructFromJavaClass(prefix.actual);
 
         if (prefix.actual.isPrimitive()) {
-            struct = locals.getDefinition().ClassToType(Definition.getBoxedType(prefix.actual)).struct;
+            struct = locals.getDefinition().getPainlessStructFromJavaClass(Definition.getBoxedType(prefix.actual));
         }
 
         MethodKey methodKey = new MethodKey(name, arguments.size());

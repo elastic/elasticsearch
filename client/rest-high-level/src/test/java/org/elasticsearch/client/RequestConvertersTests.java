@@ -47,6 +47,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -2237,6 +2238,22 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getEndpoint(), equalTo("/_template/" + names.stream().map(encodes::get).collect(Collectors.joining(","))));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testAnalyzeRequest() throws Exception {
+        AnalyzeRequest indexAnalyzeRequest = new AnalyzeRequest()
+            .text("Here is some text")
+            .index("test_index")
+            .analyzer("test_analyzer");
+
+        Request request = RequestConverters.analyze(indexAnalyzeRequest);
+        assertThat(request.getEndpoint(), equalTo("/test_index/_analyze"));
+        assertToXContentBody(indexAnalyzeRequest, request.getEntity());
+
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest()
+            .text("more text")
+            .analyzer("test_analyzer");
+        assertThat(RequestConverters.analyze(analyzeRequest).getEndpoint(), equalTo("/_analyze"));
     }
 
     public void testGetScriptRequest() {

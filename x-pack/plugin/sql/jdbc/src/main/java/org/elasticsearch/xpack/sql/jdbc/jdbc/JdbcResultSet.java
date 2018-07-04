@@ -344,7 +344,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             throw new SQLException("type is null");
         }
 
-        return getObject(columnIndex, type);
+        return convert(columnIndex, type);
     }
 
     private <T> T convert(int columnIndex, Class<T> type) throws SQLException {

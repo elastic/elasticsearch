@@ -17,21 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.s3;
+package org.elasticsearch.ingest.common;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-
-public class AmazonS3RepositoryClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
-
-    public AmazonS3RepositoryClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
-        super(testCandidate);
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+public class BytesProcessorFactoryTests extends AbstractStringProcessorFactoryTestCase {
+    @Override
+    protected AbstractStringProcessor.Factory newFactory() {
+        return new BytesProcessor.Factory();
     }
 }

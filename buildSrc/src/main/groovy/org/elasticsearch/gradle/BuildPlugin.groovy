@@ -471,26 +471,30 @@ class BuildPlugin implements Plugin<Project> {
 
     /**Configuration generation of maven poms. */
     public static void configurePomGeneration(Project project) {
+        // Only works with  `enableFeaturePreview('STABLE_PUBLISHING')`
+        // https://github.com/gradle/gradle/issues/5696#issuecomment-396965185
+        project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
+            // The GenerateMavenPom task is aggressive about setting the destination, instead of fighting it,
+            // just make a copy.
+            doLast {
+                project.copy {
+                    from generatePOMTask.destination
+                    into "${project.buildDir}/distributions"
+                    rename { "${project.archivesBaseName}-${project.version}.pom" }
+                }
+            }
+            // build poms with assemble (if the assemble task exists)
+            Task assemble = project.tasks.findByName('assemble')
+            if (assemble) {
+                assemble.dependsOn(generatePOMTask)
+            }
+        }
         project.plugins.withType(MavenPublishPlugin.class).whenPluginAdded {
             project.publishing {
                 publications {
                     all { MavenPublication publication -> // we only deal with maven
                         // add exclusions to the pom directly, for each of the transitive deps of this project's deps
                         publication.pom.withXml(fixupDependencies(project))
-                    }
-                }
-            }
-
-            // Work around Gradle 4.8 issue until we `enableFeaturePreview('STABLE_PUBLISHING')`
-            // https://github.com/gradle/gradle/issues/5696#issuecomment-396965185
-            project.getGradle().getTaskGraph().whenReady {
-                project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom t ->
-                    // place the pom next to the jar it is for
-                    t.destination = new File(project.buildDir, "distributions/${project.archivesBaseName}-${project.version}.pom")
-                    // build poms with assemble (if the assemble task exists)
-                    Task assemble = project.tasks.findByName('assemble')
-                    if (assemble) {
-                        assemble.dependsOn(t)
                     }
                 }
             }

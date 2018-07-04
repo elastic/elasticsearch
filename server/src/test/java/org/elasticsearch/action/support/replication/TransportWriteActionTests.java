@@ -135,7 +135,7 @@ public class TransportWriteActionTests extends ESTestCase {
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
         TestAction testAction = new TestAction();
         TransportWriteAction.WritePrimaryResult<TestRequest, TestResponse> result =
-                testAction.shardOperationOnPrimary(request, indexShard);
+                testAction.shardWriteOperationOnPrimary(request, indexShard);
         CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
         result.respond(listener);
         assertNotNull(listener.response);
@@ -163,7 +163,7 @@ public class TransportWriteActionTests extends ESTestCase {
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         TestAction testAction = new TestAction();
         TransportWriteAction.WritePrimaryResult<TestRequest, TestResponse> result =
-                testAction.shardOperationOnPrimary(request, indexShard);
+                testAction.shardWriteOperationOnPrimary(request, indexShard);
         CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
         result.respond(listener);
         assertNotNull(listener.response);
@@ -193,7 +193,7 @@ public class TransportWriteActionTests extends ESTestCase {
 
         TestAction testAction = new TestAction();
         TransportWriteAction.WritePrimaryResult<TestRequest, TestResponse> result =
-                testAction.shardOperationOnPrimary(request, indexShard);
+                testAction.shardWriteOperationOnPrimary(request, indexShard);
         CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
         result.respond(listener);
         assertNull(listener.response); // Haven't reallresponded yet
@@ -235,7 +235,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         TestAction testAction = new TestAction(true, true);
         TransportWriteAction.WritePrimaryResult<TestRequest, TestResponse> writePrimaryResult =
-                testAction.shardOperationOnPrimary(request, indexShard);
+                testAction.shardWriteOperationOnPrimary(request, indexShard);
         CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
         writePrimaryResult.respond(listener);
         assertNull(listener.response);
@@ -382,7 +382,7 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         @Override
-        protected WritePrimaryResult<TestRequest, TestResponse> shardOperationOnPrimary(
+        protected WritePrimaryResult<TestRequest, TestResponse> shardWriteOperationOnPrimary(
                 TestRequest request, IndexShard primary) throws Exception {
             final WritePrimaryResult<TestRequest, TestResponse> primaryResult;
             if (withDocumentFailureOnPrimary) {

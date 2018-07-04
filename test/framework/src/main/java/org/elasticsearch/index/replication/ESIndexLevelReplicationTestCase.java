@@ -29,6 +29,7 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
+import org.elasticsearch.action.bulk.MappingUpdatePerformer;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -480,8 +481,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
 
             @Override
-            public PrimaryResult perform(Request request) throws Exception {
-                return performOnPrimary(replicationGroup.primary, request);
+            public void perform(Request request, ActionListener<PrimaryResult> callback) {
+                try {
+                    callback.onResponse(performOnPrimary(replicationGroup.primary, request));
+                } catch (Exception e) {
+                    callback.onFailure(e);
+                }
             }
 
             @Override
@@ -616,7 +621,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result;
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             MappingUpdatePerformer noopMappingUpdater = (update, shardId, type) -> { };
-            result = TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater, observer, callback);
+            PlainActionFuture<TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>> listener =
+                new PlainActionFuture<>();
+
+            TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater,
+                null, null, Runnable::run, listener);
+            result = listener.get();
         }
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
         return result;

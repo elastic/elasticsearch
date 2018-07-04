@@ -598,7 +598,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         };
         TestAction.PrimaryShardReference primary = action.new PrimaryShardReference(shard, releasable);
         final Request request = new Request();
-        Request replicaRequest = (Request) primary.perform(request).replicaRequest;
+        PlainActionFuture<TransportReplicationAction.PrimaryResult<Request, TestResponse>> callback = new PlainActionFuture<>();
+        primary.perform(request, callback);
+        Request replicaRequest = callback.get().replicaRequest();
 
         final ElasticsearchException exception = new ElasticsearchException("testing");
         primary.failShard("test", exception);

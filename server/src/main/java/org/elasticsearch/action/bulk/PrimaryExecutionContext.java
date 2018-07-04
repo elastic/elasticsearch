@@ -44,17 +44,16 @@ class PrimaryExecutionContext {
         while (startIndex < length && isAborted(request.items()[startIndex].getPrimaryResponse())) {
             startIndex++;
         }
-        return startIndex < length ? startIndex : -1;
+        return startIndex;
     }
 
-    public boolean advance() {
+    public void advance() {
         assert currentItemState == ItemProcessingState.FINALIZED :
             "moving to next but current item wasn't completed (state: " + currentItemState + ")";
         currentItemState = ItemProcessingState.INITIAL;
         currentIndex =  findNextNonAborted(currentIndex + 1);
         retryCounter = 0;
         requestToExecute = null;
-        return currentIndex < request.items().length;
     }
 
     public DocWriteRequest<?> getCurrent() {
@@ -210,6 +209,7 @@ class PrimaryExecutionContext {
             request.items()[currentIndex] = new BulkItemRequest(request.items()[currentIndex].id(), requestToExecute);
         }
         getCurrentItem().setPrimaryResponse(translatedResponse);
+        currentItemState = ItemProcessingState.FINALIZED;
     }
 
     public BulkShardResponse buildShardResponse() {

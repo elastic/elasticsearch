@@ -68,6 +68,35 @@ public abstract class TransportWriteAction<
                 indexNameExpressionResolver, request, replicaRequest, executor, true);
     }
 
+    @Override
+    protected final void asyncShardOperationOnPrimary(Request shardRequest, IndexShard primary,
+                                                      ActionListener<PrimaryResult<ReplicaRequest, Response>> callback) {
+        asyncShardWriteOperationOnPrimary(shardRequest, primary, ActionListener.wrap(callback::onResponse, callback::onFailure));
+    }
+
+    @Override
+    protected final PrimaryResult<ReplicaRequest, Response> shardOperationOnPrimary(Request shardRequest, IndexShard primary){
+        throw new UnsupportedOperationException();
+    }
+
+    protected void asyncShardWriteOperationOnPrimary(Request shardRequest, IndexShard primary,
+                                                     ActionListener<WritePrimaryResult<ReplicaRequest, Response>> callback) {
+        try {
+            WritePrimaryResult result = shardWriteOperationOnPrimary(shardRequest, primary);
+            assert result.replicaRequest() == null || result.finalFailure == null : "a replica request [" + result.replicaRequest()
+                + "] with a primary failure [" + result.finalFailure + "]";
+            callback.onResponse(result);
+        } catch (Exception e) {
+            callback.onFailure(e);
+        }
+
+    }
+
+    protected WritePrimaryResult<ReplicaRequest, Response> shardWriteOperationOnPrimary(Request shardRequest, IndexShard primary) throws Exception {
+        throw new UnsupportedOperationException("please over either asyncShardWriteOperationOnPrimary or shardWriteOperationOnPrimary");
+    }
+
+
     /** Syncs operation result to the translog or throws a shard not available failure */
     protected static Location syncOperationResultOrThrow(final Engine.Result operationResult,
                                                          final Location currentLocation) throws Exception {

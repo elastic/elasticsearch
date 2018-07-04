@@ -102,7 +102,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> shardOperationOnPrimary(
+    protected WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> shardWriteOperationOnPrimary(
         ResyncReplicationRequest request, IndexShard primary) throws Exception {
         final ResyncReplicationRequest replicaRequest = performOnPrimary(request, primary);
         return new WritePrimaryResult<>(replicaRequest, new ResyncReplicationResponse(), null, null, primary, logger);

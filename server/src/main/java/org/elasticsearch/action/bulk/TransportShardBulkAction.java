@@ -115,9 +115,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    public void asyncShardOperationOnPrimary(
-        BulkShardRequest request, IndexShard primary,
-        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> callback) {
+    protected void asyncShardWriteOperationOnPrimary(BulkShardRequest request, IndexShard primary,
+                                                     ActionListener<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> callback) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
             new ConcreteMappingUpdatePerformer(), observer, clusterService.localNode(),
@@ -141,7 +140,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater, ClusterStateObserver observer, DiscoveryNode localNode,
         Consumer<Runnable> threadedRunner,
-        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> callback) {
+        ActionListener<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> callback) {
         PrimaryExecutionContext context = new PrimaryExecutionContext(request, primary);
         context.advance();
         performOnPrimary(context, updateHelper, nowInMillisSupplier, mappingUpdater, observer, localNode, threadedRunner,

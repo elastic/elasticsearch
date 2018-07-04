@@ -191,21 +191,21 @@ The `forecasts_stats` object shows statistics about forecasts. It has the follow
   (long) The number of forecasts currently available for this model.
 
 `forecasted_jobs`::
-  (long) Number of jobs that have at least one forecast.
+  (long) The number of jobs that have at least one forecast.
 
 `memory_bytes`::
-  (object) Statistics about the memory usage: min, max, avg and total.
+  (object) Statistics about the memory usage: minimum, maximum, average and total.
 
 `records`::
-  (object) Statistics about the number of forecast records: min, max, avg and total.
+  (object) Statistics about the number of forecast records: minimum, maximum, average and total.
 
 `processing_time_ms`::
-  (object) Statistics about the forecast runtime in milliseconds: min, max, avg and total.
+  (object) Statistics about the forecast runtime in milliseconds: minimum, maximum, average and total.
 
 `status`::
   (object) Counts per forecast status, for example: {"finished" : 2}. 
 
-NOTE: `memory_bytes`, `records`, `processing_time_ms`, `status` require at least 1 forecast, otherwise
+NOTE: `memory_bytes`, `records`, `processing_time_ms` and `status` require at least 1 forecast, otherwise
 these fields are ommitted.
 
 [float]

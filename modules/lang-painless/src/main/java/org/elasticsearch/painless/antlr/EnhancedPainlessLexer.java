@@ -74,8 +74,8 @@ final class EnhancedPainlessLexer extends PainlessLexer {
     }
 
     @Override
-    protected boolean isSimpleType(String name) {
-        return definition.isSimpleType(name);
+    protected boolean isType(String name) {
+        return definition.isSimplePainlessType(name);
     }
 
     @Override

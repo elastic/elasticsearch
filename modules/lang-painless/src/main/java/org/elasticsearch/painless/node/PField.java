@@ -67,7 +67,7 @@ public final class PField extends AStoreable {
         } else if (prefix.actual == def.class) {
             sub = new PSubDefField(location, value);
         } else {
-            Struct struct = locals.getDefinition().ClassToType(prefix.actual).struct;
+            Struct struct = locals.getDefinition().getPainlessStructFromJavaClass(prefix.actual);
             Field field = prefix instanceof EStatic ? struct.staticMembers.get(value) : struct.members.get(value);
 
             if (field != null) {

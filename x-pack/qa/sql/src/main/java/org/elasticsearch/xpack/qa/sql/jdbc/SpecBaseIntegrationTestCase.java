@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -28,6 +30,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Properties;
 
 /**
  * Tests that compare the Elasticsearch JDBC client to some other JDBC client
@@ -50,9 +53,17 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     @Before
     public void setupTestDataIfNeeded() throws Exception {
-        if (client().performRequest(new Request("HEAD", "/test_emp")).getStatusLine().getStatusCode() == 404) {
-            DataLoader.loadDatasetIntoEs(client());
+        if (client().performRequest(new Request("HEAD", "/" + indexName())).getStatusLine().getStatusCode() == 404) {
+            loadDataset(client());
         }
+    }
+
+    protected String indexName() {
+        return "test_emp";
+    }
+
+    protected void loadDataset(RestClient client) throws Exception {
+        DataLoader.loadEmpDatasetIntoEs(client);
     }
 
     @Override
@@ -93,6 +104,14 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
         Statement statement = con.createStatement();
         statement.setFetchSize(between(1, 500));
         return statement.executeQuery(query);
+    }
+
+    // TODO: use UTC for now until deciding on a strategy for handling date extraction
+    @Override
+    protected Properties connectionProperties() {
+        Properties connectionProperties = new Properties();
+        connectionProperties.setProperty(JdbcConfiguration.TIME_ZONE, "UTC");
+        return connectionProperties;
     }
 
     protected boolean logEsResultSet() {

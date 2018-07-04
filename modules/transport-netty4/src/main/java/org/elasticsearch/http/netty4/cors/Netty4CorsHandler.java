@@ -83,7 +83,7 @@ public class Netty4CorsHandler extends ChannelDuplexHandler {
         assert msg instanceof Netty4HttpResponse : "Invalid message type: " + msg.getClass();
         Netty4HttpResponse response = (Netty4HttpResponse) msg;
         setCorsResponseHeaders(response.getRequest().nettyRequest(), response, config);
-        ctx.write(response, promise);;
+        ctx.write(response, promise);
     }
 
     public static void setCorsResponseHeaders(HttpRequest request, HttpResponse resp, Netty4CorsConfig config) {

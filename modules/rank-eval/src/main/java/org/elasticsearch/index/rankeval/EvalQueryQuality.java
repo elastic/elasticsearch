@@ -33,7 +33,7 @@ import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;;
+import java.util.Objects;
 
 /**
  * Result of the evaluation metric calculation on one particular query alone.

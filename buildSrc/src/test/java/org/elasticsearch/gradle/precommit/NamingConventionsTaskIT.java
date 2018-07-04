@@ -4,7 +4,6 @@ import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.TaskOutcome;
-import org.junit.Ignore;
 
 import java.util.Arrays;
 
@@ -22,7 +21,6 @@ public class NamingConventionsTaskIT extends GradleIntegrationTestCase {
         assertTrue(output, output.contains("build plugin can be applied"));
     }
 
-    @Ignore("AwaitsFix : https://github.com/elastic/elasticsearch/issues/31665")
     public void testNameCheckFailsAsItShould() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("namingConventionsSelfTest"))
@@ -48,7 +46,6 @@ public class NamingConventionsTaskIT extends GradleIntegrationTestCase {
         }
     }
 
-    @Ignore("AwaitsFix : https://github.com/elastic/elasticsearch/issues/31665")
     public void testNameCheckFailsAsItShouldWithMain() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("namingConventionsSelfTest"))

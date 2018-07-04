@@ -40,11 +40,15 @@ Those that must be stored in the keystore are marked as `Secure`.
 
 `access_key`::
 
-    An s3 access key. The `secret_key` setting must also be specified. (Secure)
+    An ec2 access key. The `secret_key` setting must also be specified. (Secure)
 
 `secret_key`::
 
-    An s3 secret key. The `access_key` setting must also be specified. (Secure)
+    An ec2 secret key. The `access_key` setting must also be specified. (Secure)
+
+`session_token`::
+    An ec2 session token. The `access_key` and `secret_key` settings must also
+    be specified. (Secure)
 
 `endpoint`::
 

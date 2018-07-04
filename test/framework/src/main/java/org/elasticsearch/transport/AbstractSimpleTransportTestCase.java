@@ -1538,7 +1538,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(2);
         final AtomicReference<TransportAddress> addressA = new AtomicReference<>();
         final AtomicReference<TransportAddress> addressB = new AtomicReference<>();
-        serviceB.registerRequestHandler("internal:action1", TestRequest::new, ThreadPool.Names.SAME, new TransportRequestHandler<TestRequest>() {
+        serviceB.registerRequestHandler("internal:action1", TestRequest::new, ThreadPool.Names.SAME,
+            new TransportRequestHandler<TestRequest>() {
             @Override
             public void messageReceived(TestRequest request, TransportChannel channel) throws Exception {
                 addressA.set(request.remoteAddress());

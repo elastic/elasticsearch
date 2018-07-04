@@ -68,4 +68,23 @@ public class Installation {
     public Path config(String configFileName) {
         return config.resolve(configFileName);
     }
+
+    public Executables executables() {
+        return new Executables();
+    }
+
+    public class Executables {
+
+        public final Path elasticsearch = platformExecutable("elasticsearch");
+        public final Path elasticsearchPlugin = platformExecutable("elasticsearch-plugin");
+        public final Path elasticsearchKeystore = platformExecutable("elasticsearch-keystore");
+        public final Path elasticsearchTranslog = platformExecutable("elasticsearch-translog");
+
+        private Path platformExecutable(String name) {
+            final String platformExecutableName = Platforms.WINDOWS
+                ? name + ".bat"
+                : name;
+            return bin(platformExecutableName);
+        }
+    }
 }

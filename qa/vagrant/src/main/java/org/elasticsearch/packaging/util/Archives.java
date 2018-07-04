@@ -75,7 +75,7 @@ public class Archives {
 
         if (distribution.packaging == Distribution.Packaging.TAR) {
 
-            Platforms.onLinux(() -> sh.bash("tar -C " + baseInstallPath + " -xzpf " + distributionFile));
+            Platforms.onLinux(() -> sh.run("tar -C " + baseInstallPath + " -xzpf " + distributionFile));
 
             if (Platforms.WINDOWS) {
                 throw new RuntimeException("Distribution " + distribution + " is not supported on windows");
@@ -83,12 +83,11 @@ public class Archives {
 
         } else if (distribution.packaging == Distribution.Packaging.ZIP) {
 
-            Platforms.onLinux(() -> sh.bash("unzip " + distributionFile + " -d " + baseInstallPath));
+            Platforms.onLinux(() -> sh.run("unzip " + distributionFile + " -d " + baseInstallPath));
 
-            Platforms.onWindows(() ->
-                sh.powershell(
-                    "Add-Type -AssemblyName 'System.IO.Compression.Filesystem'; " +
-                    "[IO.Compression.ZipFile]::ExtractToDirectory('" + distributionFile + "', '" + baseInstallPath + "')"
+            Platforms.onWindows(() -> sh.run(
+                "Add-Type -AssemblyName 'System.IO.Compression.Filesystem'; " +
+                "[IO.Compression.ZipFile]::ExtractToDirectory('" + distributionFile + "', '" + baseInstallPath + "')"
             ));
 
         } else {
@@ -113,17 +112,17 @@ public class Archives {
     private static void setupArchiveUsersLinux(Path installPath) {
         final Shell sh = new Shell();
 
-        if (sh.bashIgnoreExitCode("getent group elasticsearch").isSuccess() == false) {
+        if (sh.runIgnoreExitCode("getent group elasticsearch").isSuccess() == false) {
             if (isDPKG()) {
-                sh.bash("addgroup --system elasticsearch");
+                sh.run("addgroup --system elasticsearch");
             } else {
-                sh.bash("groupadd -r elasticsearch");
+                sh.run("groupadd -r elasticsearch");
             }
         }
 
-        if (sh.bashIgnoreExitCode("id elasticsearch").isSuccess() == false) {
+        if (sh.runIgnoreExitCode("id elasticsearch").isSuccess() == false) {
             if (isDPKG()) {
-                sh.bash("adduser " +
+                sh.run("adduser " +
                     "--quiet " +
                     "--system " +
                     "--no-create-home " +
@@ -132,7 +131,7 @@ public class Archives {
                     "--shell /bin/false " +
                     "elasticsearch");
             } else {
-                sh.bash("useradd " +
+                sh.run("useradd " +
                     "--system " +
                     "-M " +
                     "--gid elasticsearch " +
@@ -141,14 +140,14 @@ public class Archives {
                     "elasticsearch");
             }
         }
-        sh.bash("chown -R elasticsearch:elasticsearch " + installPath);
+        sh.run("chown -R elasticsearch:elasticsearch " + installPath);
     }
 
     private static void setupArchiveUsersWindows(Path installPath) {
         // we want the installation to be owned as the vagrant user rather than the Administrators group
 
         final Shell sh = new Shell();
-        sh.powershell(
+        sh.run(
             "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
             "$install = Get-ChildItem -Path '" + installPath + "' -Recurse; " +
             "$install += Get-Item -Path '" + installPath + "'; " +
@@ -263,6 +262,8 @@ public class Archives {
     public static void runElasticsearch(Installation installation, Shell sh) throws IOException {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
+        final Installation.Executables bin = installation.executables();
+
         Platforms.onLinux(() -> {
             // If jayatana is installed then we try to use it. Elasticsearch should ignore it even when we try.
             // If it doesn't ignore it then Elasticsearch will fail to start because of security errors.
@@ -270,18 +271,18 @@ public class Archives {
             if (Files.exists(Paths.get("/usr/share/java/jayatanaag.jar"))) {
                 sh.getEnv().put("JAVA_TOOL_OPTIONS", "-javaagent:/usr/share/java/jayatanaag.jar");
             }
-            sh.bash("sudo -E -u " + ARCHIVE_OWNER + " " +
-                installation.bin("elasticsearch") + " -d -p " + installation.home.resolve("elasticsearch.pid"));
+            sh.run("sudo -E -u " + ARCHIVE_OWNER + " " +
+                bin.elasticsearch + " -d -p " + installation.home.resolve("elasticsearch.pid"));
         });
 
         Platforms.onWindows(() -> {
             // this starts the server in the background. the -d flag is unsupported on windows
             // these tests run as Administrator. we don't want to run the server as Administrator, so we provide the current user's
             // username and password to the process which has the effect of starting it not as Administrator.
-            sh.powershell(
+            sh.run(
                 "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; " +
                 "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; " +
-                "$processInfo.FileName = '" + installation.bin("elasticsearch.bat") + "'; " +
+                "$processInfo.FileName = '" + bin.elasticsearch + "'; " +
                 "$processInfo.Arguments = '-p " + installation.home.resolve("elasticsearch.pid") + "'; " +
                 "$processInfo.Username = 'vagrant'; " +
                 "$processInfo.Password = $password; " +
@@ -304,8 +305,8 @@ public class Archives {
         String pid = slurp(pidFile).trim();
         assertThat(pid, not(isEmptyOrNullString()));
 
-        Platforms.onLinux(() -> sh.bash("ps " + pid));
-        Platforms.onWindows(() -> sh.powershell("Get-Process -Id " + pid));
+        Platforms.onLinux(() -> sh.run("ps " + pid));
+        Platforms.onWindows(() -> sh.run("Get-Process -Id " + pid));
     }
 
     public static void stopElasticsearch(Installation installation) {
@@ -315,8 +316,8 @@ public class Archives {
         assertThat(pid, not(isEmptyOrNullString()));
 
         final Shell sh = new Shell();
-        Platforms.onLinux(() -> sh.bash("kill -SIGTERM " + pid));
-        Platforms.onWindows(() -> sh.powershell("Get-Process -Id " + pid + " | Stop-Process -Force"));
+        Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid));
+        Platforms.onWindows(() -> sh.run("Get-Process -Id " + pid + " | Stop-Process -Force"));
     }
 
 }

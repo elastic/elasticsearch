@@ -96,11 +96,9 @@ public abstract class ArchiveTestCase {
     public void test20PluginsListWithNoPlugins() {
         assumeThat(installation, is(notNullValue()));
 
-        // todo here
+        final Installation.Executables bin = installation.executables();
         final Shell sh = new Shell();
-        final Result r = Platforms.WINDOWS
-            ? sh.powershell(installation.bin("elasticsearch-plugin.bat") + " list")
-            : sh.bash(installation.bin("elasticsearch-plugin") + " list");
+        final Result r = sh.run(bin.elasticsearchPlugin + " list");
 
         assertThat(r.stdout, isEmptyString());
     }
@@ -109,26 +107,25 @@ public abstract class ArchiveTestCase {
     public void test30AbortWhenJavaMissing() {
         assumeThat(installation, is(notNullValue()));
 
+        final Installation.Executables bin = installation.executables();
         final Shell sh = new Shell();
 
         Platforms.onWindows(() -> {
             // on windows, removing java from PATH and removing JAVA_HOME is less involved than changing the permissions of the java
             // executable. we also don't check permissions in the windows scripts anyway
-            final String originalPath = sh.powershell("$Env:PATH").stdout.trim();
+            final String originalPath = sh.run("$Env:PATH").stdout.trim();
             final String newPath = Arrays.stream(originalPath.split(";"))
                 .filter(path -> path.contains("Java") == false)
                 .collect(joining(";"));
-
-            final String javaHome = sh.powershell("$Env:JAVA_HOME").stdout.trim();
 
             // note the lack of a $ when clearing the JAVA_HOME env variable - with a $ it deletes the java home directory
             // https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/providers/environment-provider?view=powershell-6
             //
             // this won't persist to another session so we don't have to reset anything
-            final Result runResult = sh.powershellIgnoreExitCode(
+            final Result runResult = sh.runIgnoreExitCode(
                 "$Env:PATH = '" + newPath + "'; " +
                 "Remove-Item Env:JAVA_HOME; " +
-                installation.bin("elasticsearch.bat")
+                bin.elasticsearch
             );
 
             assertThat(runResult.exitCode, is(1));
@@ -136,10 +133,10 @@ public abstract class ArchiveTestCase {
         });
 
         Platforms.onLinux(() -> {
-            final String javaPath = sh.bash("which java").stdout.trim();
-            sh.bash("chmod -x '" + javaPath + "'");
-            final Result runResult = sh.bashIgnoreExitCode(installation.bin("elasticsearch").toString());
-            sh.bash("chmod +x '" + javaPath + "'");
+            final String javaPath = sh.run("which java").stdout.trim();
+            sh.run("chmod -x '" + javaPath + "'");
+            final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString());
+            sh.run("chmod +x '" + javaPath + "'");
 
             assertThat(runResult.exitCode, is(1));
             assertThat(runResult.stdout, containsString("could not find java; set JAVA_HOME or ensure java is in PATH"));
@@ -150,16 +147,17 @@ public abstract class ArchiveTestCase {
     public void test40CreateKeystoreManually() {
         assumeThat(installation, is(notNullValue()));
 
+        final Installation.Executables bin = installation.executables();
         final Shell sh = new Shell();
 
-        Platforms.onLinux(() -> sh.bash("sudo -u " + ARCHIVE_OWNER + " " + installation.bin("elasticsearch-keystore") + " create"));
+        Platforms.onLinux(() -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create"));
 
         // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
         // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
         // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
         // when we run these commands as a role user we won't have to do this
-        Platforms.onWindows(() -> sh.powershell(
-                installation.bin("elasticsearch-keystore.bat") + " create; " +
+        Platforms.onWindows(() -> sh.run(
+                bin.elasticsearchKeystore + " create; " +
                 "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
                 "$acl = Get-Acl '" + installation.config("elasticsearch.keystore") + "'; " +
                 "$acl.SetOwner($account); " +
@@ -168,11 +166,15 @@ public abstract class ArchiveTestCase {
 
         assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
 
-        // todo here
-        final Result r = Platforms.WINDOWS
-            ? sh.powershell(installation.bin("elasticsearch-keystore.bat") + " list")
-            : sh.bash("sudo -u " + ARCHIVE_OWNER + " " + installation.bin("elasticsearch-keystore") + " list");
-        assertThat(r.stdout, containsString("keystore.seed"));
+        Platforms.onLinux(() -> {
+            final Result r = sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " list");
+            assertThat(r.stdout, containsString("keystore.seed"));
+        });
+
+        Platforms.onWindows(() -> {
+            final Result r = sh.run(bin.elasticsearchKeystore + " list");
+            assertThat(r.stdout, containsString("keystore.seed"));
+        });
 
         // cleanup for next test
         rm(installation.config("elasticsearch.keystore"));
@@ -199,15 +201,16 @@ public abstract class ArchiveTestCase {
 
         assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
 
+        final Installation.Executables bin = installation.executables();
         final Shell sh = new Shell();
 
         Platforms.onLinux(() -> {
-            final Result result = sh.bash("sudo -u " + ARCHIVE_OWNER + " " + installation.bin("elasticsearch-keystore") + " list");
+            final Result result = sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " list");
             assertThat(result.stdout, containsString("keystore.seed"));
         });
 
         Platforms.onWindows(() -> {
-            final Result result = sh.powershell(installation.bin("elasticsearch-keystore.bat") + " list");
+            final Result result = sh.run(bin.elasticsearchKeystore + " list");
             assertThat(result.stdout, containsString("keystore.seed"));
         });
     }
@@ -233,8 +236,8 @@ public abstract class ArchiveTestCase {
             append(tempConf.resolve("jvm.options"), jvmOptions);
 
             final Shell sh = new Shell();
-            Platforms.onLinux(() -> sh.bash("chown -R elasticsearch:elasticsearch " + tempConf));
-            Platforms.onWindows(() -> sh.powershell(
+            Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempConf));
+            Platforms.onWindows(() -> sh.run(
                 "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
                 "$tempConf = Get-ChildItem '" + tempConf + "' -Recurse; " +
                 "$tempConf += Get-Item '" + tempConf + "'; " +
@@ -280,8 +283,8 @@ public abstract class ArchiveTestCase {
             append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
 
             final Shell sh = new Shell();
-            Platforms.onLinux(() -> sh.bash("chown -R elasticsearch:elasticsearch " + temp));
-            Platforms.onWindows(() -> sh.powershell(
+            Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + temp));
+            Platforms.onWindows(() -> sh.run(
                 "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
                 "$tempConf = Get-ChildItem '" + temp + "' -Recurse; " +
                 "$tempConf += Get-Item '" + temp + "'; " +

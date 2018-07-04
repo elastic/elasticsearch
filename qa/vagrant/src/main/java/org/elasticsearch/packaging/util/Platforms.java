@@ -28,42 +28,42 @@ public class Platforms {
         if (WINDOWS) {
             return false;
         }
-        return new Shell().bashIgnoreExitCode("which dpkg").isSuccess();
+        return new Shell().runIgnoreExitCode("which dpkg").isSuccess();
     }
 
     public static boolean isAptGet() {
         if (WINDOWS) {
             return false;
         }
-        return new Shell().bashIgnoreExitCode("which apt-get").isSuccess();
+        return new Shell().runIgnoreExitCode("which apt-get").isSuccess();
     }
 
     public static boolean isRPM() {
         if (WINDOWS) {
             return false;
         }
-        return new Shell().bashIgnoreExitCode("which rpm").isSuccess();
+        return new Shell().runIgnoreExitCode("which rpm").isSuccess();
     }
 
     public static boolean isYUM() {
         if (WINDOWS) {
             return false;
         }
-        return new Shell().bashIgnoreExitCode("which yum").isSuccess();
+        return new Shell().runIgnoreExitCode("which yum").isSuccess();
     }
 
     public static boolean isSystemd() {
         if (WINDOWS) {
             return false;
         }
-        return new Shell().bashIgnoreExitCode("which systemctl").isSuccess();
+        return new Shell().runIgnoreExitCode("which systemctl").isSuccess();
     }
 
     public static boolean isSysVInit() {
         if (WINDOWS) {
             return false;
         }
-        return new Shell().bashIgnoreExitCode("which service").isSuccess();
+        return new Shell().runIgnoreExitCode("which service").isSuccess();
     }
 
     public static void onWindows(Runnable action) {

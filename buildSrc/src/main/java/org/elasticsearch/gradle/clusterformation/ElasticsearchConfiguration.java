@@ -21,8 +21,6 @@ package org.elasticsearch.gradle.clusterformation;
 import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.Version;
 
-import java.util.concurrent.Future;
-
 public interface ElasticsearchConfiguration {
     String getName();
 
@@ -40,7 +38,7 @@ public interface ElasticsearchConfiguration {
 
     void claim();
 
-    Future<?> start();
+    void start();
 
     void unClaimAndStop();
 
@@ -52,4 +50,6 @@ public interface ElasticsearchConfiguration {
             throw new ClusterFormationException("Missing version for cluster `" + getName() + "`");
         }
     }
+
+    void forceStop();
 }

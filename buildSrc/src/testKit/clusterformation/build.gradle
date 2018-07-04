@@ -46,3 +46,15 @@ task skipped2 {
     enabled = false
     clusterFormation.use elasticSearchClusters.myTestCluster
 }
+
+task itAlwaysFails {
+    doLast {
+        throw new GradleException("Task 1 failed!")
+    }
+    clusterFormation.use elasticSearchClusters.myTestCluster
+}
+
+task dependsOnFailed {
+    dependsOn itAlwaysFails
+    clusterFormation.use elasticSearchClusters.myTestCluster
+}

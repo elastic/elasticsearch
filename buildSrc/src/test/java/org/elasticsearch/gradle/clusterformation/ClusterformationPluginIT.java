@@ -158,4 +158,36 @@ public class ClusterformationPluginIT extends GradleIntegrationTestCase {
         assertOutputOnlyOnce(output, "Task :syncClusterFormationArtifacts");
     }
 
+    public void testUseClusterByFailingOne() {
+        BuildResult result = GradleRunner.create()
+            .withProjectDir(getProjectDir("clusterformation"))
+            .withArguments("itAlwaysFails", "-s")
+            .withPluginClasspath()
+            .buildAndFail();
+
+        assertEquals(TaskOutcome.FAILED, result.task(":itAlwaysFails").getOutcome());
+        assertOutputContains(
+            result.getOutput(),
+            "Starting cluster: myTestCluster",
+            "Forcefully stopping myTestCluster, number of claims is 1",
+            "Execution failed for task ':itAlwaysFails'."
+        );
+    }
+
+    public void testUseClusterByFailingDependency() {
+        BuildResult result = GradleRunner.create()
+            .withProjectDir(getProjectDir("clusterformation"))
+            .withArguments("dependsOnFailed", "-s")
+            .withPluginClasspath()
+            .buildAndFail();
+
+        assertEquals(TaskOutcome.FAILED, result.task(":itAlwaysFails").getOutcome());
+        assertNull(result.task(":dependsOnFailed"));
+        assertOutputContains(
+            result.getOutput(),
+            "Starting cluster: myTestCluster",
+            "Forcefully stopping myTestCluster, number of claims is 2"
+        );
+    }
+
 }

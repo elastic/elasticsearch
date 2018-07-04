@@ -28,7 +28,20 @@ public class ClusterFormationTaskExecutionListener implements TaskExecutionListe
     public void afterExecute(Task task, TaskState state) {
         // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been and caused the
         // cluster to start.
-        ClusterformationPlugin.getTaskExtension(task).getClaimedClusters().forEach(ElasticsearchConfiguration::unClaimAndStop);
+        if (state.getFailure() != null) {
+            // If the task fails, and other tasks use this cluster, the other task might never be executed at all, so we
+            // will never get to un-claim and terminate it.
+            // The downside is that with multi project builds if that other  task is in a different project and executing
+            // right now, we will terminate the cluster underneath it.
+            // this listener could maintain a task to cluster mapping, but that's overkill for now.
+            ClusterformationPlugin.getTaskExtension(task).getClaimedClusters().forEach(
+                ElasticsearchConfiguration::forceStop
+            );
+        } else {
+            ClusterformationPlugin.getTaskExtension(task).getClaimedClusters().forEach(
+                ElasticsearchConfiguration::unClaimAndStop
+            );
+        }
     }
 
     @Override

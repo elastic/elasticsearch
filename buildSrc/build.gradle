@@ -39,8 +39,10 @@ if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion)) {
     throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
 }
 
-if (JavaVersion.current() < JavaVersion.VERSION_1_8) {
-  throw new GradleException('Java 1.8 is required to build elasticsearch gradle tools')
+// TODO this will not work in CI as of this writing
+// take advantage of the new Process API in 9
+if (JavaVersion.current() < JavaVersion.VERSION_1_9) {
+  throw new GradleException('Java 1.9 is required to build elasticsearch gradle tools')
 }
 
 if (project == rootProject) {

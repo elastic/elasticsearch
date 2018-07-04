@@ -25,22 +25,11 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
 import java.io.File;
-import java.util.Arrays;
 import java.util.Objects;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.concurrent.TimeUnit.MINUTES;
-
 public class ElasticsearchNode implements ElasticsearchConfiguration {
-
-    private static final ExecutorService threadPool = Executors.newCachedThreadPool();
-    private static final String PIDFILE_NAME = "node.pid";
 
     private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
 
@@ -49,19 +38,16 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
     private final AtomicInteger noOfClaims = new AtomicInteger();
     private final File sharedArtifactsDir;
     private final File workDir;
-    private final File pidFile;
-
+    private final AtomicBoolean started = new AtomicBoolean(false);
 
     private Distribution distribution;
     private Version version;
-    private volatile Future<?> runner = null;
 
     public ElasticsearchNode(String name, GradleServicesAdapter services, File sharedArtifactsDir, File workDirBase) {
         this.name = name;
         this.services = services;
         this.sharedArtifactsDir = sharedArtifactsDir;
         this.workDir = new File(workDirBase, name);
-        this.pidFile = new File(workDir, "node.pid");
     }
 
     @Override
@@ -102,10 +88,9 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
      * @return future of thread running in the background
      */
     @Override
-    public synchronized Future<?> start() {
-        if (runner != null) {
+    public void start() {
+        if (started.getAndSet(true)) {
             logger.lifecycle("Already started cluster: {}", name);
-            return runner;
         } else {
             logger.lifecycle("Starting cluster: {}", name);
         }
@@ -114,7 +99,7 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
             throw new ClusterFormationException("Can not start node, missing artifact: " + artifact);
         }
 
-        runner = threadPool.submit(() -> {
+
             services.sync(copySpec -> {
                 if (getDistribution().getExtension() == "zip") {
                     copySpec.from(services.zipTree(artifact));
@@ -125,8 +110,6 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
             });
             // For some reason the pid file is not created in the node dir, but one level up
             exec(getDistroPath("bin/elasticsearch"));
-        });
-        return runner;
     }
 
     public String getDistroPath(String pathTo) {
@@ -137,44 +120,31 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
      * Stops a running cluster if it's not claimed. Does nothing otherwise.
      */
     @Override
-    public synchronized void unClaimAndStop() {
+    public void unClaimAndStop() {
         int decrementedClaims = noOfClaims.decrementAndGet();
         if (decrementedClaims > 0) {
             logger.lifecycle("Not stopping {}, since cluster still has {} claim(s)", name, decrementedClaims);
             return;
         }
-        if (runner == null) {
+        if (started.getAndSet(false) == false) {
             logger.lifecycle("Asked to unClaimAndStop, but cluster was not running: {}", name);
             return;
         }
         logger.lifecycle("Stopping {}, number of claims is {}", name, decrementedClaims);
-
-        runner.cancel(true);
-        try {
-            runner.get(1, MINUTES);
-        } catch (ExecutionException e) {
-            throw new ClusterFormationException("Exception while starting node `" + getName() + "`.", e);
-        } catch (TimeoutException e) {
-            throw new ClusterFormationException("Timed out while waiting for node to stop `" + getName() + "`.", e);
-        } catch (CancellationException e) {
-            logger.info("Cancelled runner so it would stop!", e);
-        } catch (InterruptedException e) {
-            logger.warn("Interrupted while waiting for runner", e);
-            Thread.currentThread().interrupt();
-        }
     }
+
+    @Override
+    public void forceStop() {
+        logger.lifecycle("Forcefully stopping {}, number of claims is {}", name, noOfClaims.get());
+    }
+
 
     public void exec(String executable, String... args) {
         logger.lifecycle("Running {} args: {} in `{}`", executable, args, workDir);
-        services.exec(spec -> {
-            spec.setExecutable(executable);
-            spec.setArgs(Arrays.asList(args));
-            spec.setWorkingDir(workDir);
-        }).assertNormalExitValue();
     }
 
-    private synchronized void checkNotRunning() {
-        if (runner != null) {
+    private void checkNotRunning() {
+        if (started.get() == true) {
             throw new IllegalStateException("Configuration can not be altered while running ");
         }
     }

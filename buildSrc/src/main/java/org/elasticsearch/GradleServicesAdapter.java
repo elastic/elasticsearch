@@ -23,9 +23,6 @@ import org.gradle.api.Project;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.WorkResult;
-import org.gradle.process.ExecResult;
-import org.gradle.process.ExecSpec;
-import org.gradle.process.JavaExecSpec;
 
 import java.io.File;
 
@@ -43,7 +40,7 @@ public class GradleServicesAdapter {
 
     private final Project project;
 
-    public GradleServicesAdapter(Project project) {
+    private GradleServicesAdapter(Project project) {
         this.project = project;
     }
 
@@ -51,16 +48,8 @@ public class GradleServicesAdapter {
         return new GradleServicesAdapter(project);
     }
 
-    public WorkResult copy(Action<? super CopySpec> action) {
-        return project.copy(action);
-    }
-
     public WorkResult sync(Action<? super CopySpec> action) {
         return project.sync(action);
-    }
-
-    public ExecResult javaexec(Action<? super JavaExecSpec> action) {
-        return project.javaexec(action);
     }
 
     public FileTree zipTree(File zipPath) {
@@ -71,7 +60,4 @@ public class GradleServicesAdapter {
         return project.delete(path);
     }
 
-    public ExecResult exec(Action<? super ExecSpec> action) {
-        return project.exec(action);
-    }
 }

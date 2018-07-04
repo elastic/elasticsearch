@@ -1263,7 +1263,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::get-index-request-includeDefaults
 
         // tag::get-index-execute
-        GetIndexResponse getIndexResponse = client.indices().getIndex(request, RequestOptions.DEFAULT);
+        GetIndexResponse getIndexResponse = client.indices().get(request, RequestOptions.DEFAULT);
         // end::get-index-execute
 
         // tag::get-index-response
@@ -1307,7 +1307,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::get-index-execute-async
-        client.indices().getIndexAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        client.indices().getAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::get-index-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));

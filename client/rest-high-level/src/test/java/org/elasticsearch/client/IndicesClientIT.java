@@ -342,7 +342,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         GetIndexRequest getIndexRequest = new GetIndexRequest()
             .indices(indexName).includeDefaults(false);
         GetIndexResponse getIndexResponse =
-            execute(getIndexRequest, highLevelClient().indices()::getIndex, highLevelClient().indices()::getIndexAsync);
+            execute(getIndexRequest, highLevelClient().indices()::get, highLevelClient().indices()::getAsync);
 
         // default settings should be null
         assertNull(getIndexResponse.getSetting(indexName, "index.refresh_interval"));
@@ -372,7 +372,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         GetIndexRequest getIndexRequest = new GetIndexRequest()
             .indices(indexName).includeDefaults(true);
         GetIndexResponse getIndexResponse =
-            execute(getIndexRequest, highLevelClient().indices()::getIndex, highLevelClient().indices()::getIndexAsync);
+            execute(getIndexRequest, highLevelClient().indices()::get, highLevelClient().indices()::getAsync);
 
         assertNotNull(getIndexResponse.getSetting(indexName, "index.refresh_interval"));
         assertEquals(IndexSettings.DEFAULT_REFRESH_INTERVAL,
@@ -394,7 +394,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         GetIndexRequest getIndexRequest = new GetIndexRequest().indices(nonExistentIndex);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-            () -> execute(getIndexRequest, highLevelClient().indices()::getIndex, highLevelClient().indices()::getIndexAsync));
+            () -> execute(getIndexRequest, highLevelClient().indices()::get, highLevelClient().indices()::getAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
 

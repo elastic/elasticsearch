@@ -34,7 +34,8 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
-import org.elasticsearch.xpack.ml.utils.StatsAccumulator;
+import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
+import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -194,10 +195,12 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         private void addJobsUsage(GetJobsStatsAction.Response response) {
             StatsAccumulator allJobsDetectorsStats = new StatsAccumulator();
             StatsAccumulator allJobsModelSizeStats = new StatsAccumulator();
+            ForecastStats allJobsForecastStats = new ForecastStats();
 
             Map<JobState, Counter> jobCountByState = new HashMap<>();
             Map<JobState, StatsAccumulator> detectorStatsByState = new HashMap<>();
             Map<JobState, StatsAccumulator> modelSizeStatsByState = new HashMap<>();
+            Map<JobState, ForecastStats> forecastStatsByState = new HashMap<>();
 
             Map<String, Job> jobs = mlMetadata.getJobs();
             List<GetJobsStatsAction.Response.JobStats> jobsStats = response.getResponse().results();
@@ -208,6 +211,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                 double modelSize = modelSizeStats == null ? 0.0
                         : jobStats.getModelSizeStats().getModelBytes();
 
+                allJobsForecastStats.merge(jobStats.getForecastStats());
                 allJobsDetectorsStats.add(detectorsCount);
                 allJobsModelSizeStats.add(modelSize);
 
@@ -217,24 +221,28 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                         js -> new StatsAccumulator()).add(detectorsCount);
                 modelSizeStatsByState.computeIfAbsent(jobState,
                         js -> new StatsAccumulator()).add(modelSize);
+                forecastStatsByState.merge(jobState, jobStats.getForecastStats(), (f1, f2) -> f1.merge(f2));
             }
 
             jobsUsage.put(MachineLearningFeatureSetUsage.ALL, createJobUsageEntry(jobs.size(), allJobsDetectorsStats,
-                    allJobsModelSizeStats));
+                    allJobsModelSizeStats, allJobsForecastStats));
             for (JobState jobState : jobCountByState.keySet()) {
                 jobsUsage.put(jobState.name().toLowerCase(Locale.ROOT), createJobUsageEntry(
                         jobCountByState.get(jobState).get(),
                         detectorStatsByState.get(jobState),
-                        modelSizeStatsByState.get(jobState)));
+                        modelSizeStatsByState.get(jobState),
+                        forecastStatsByState.get(jobState)));
             }
         }
 
         private Map<String, Object> createJobUsageEntry(long count, StatsAccumulator detectorStats,
-                                                        StatsAccumulator modelSizeStats) {
+                                                        StatsAccumulator modelSizeStats,
+                                                        ForecastStats forecastStats) {
             Map<String, Object> usage = new HashMap<>();
             usage.put(MachineLearningFeatureSetUsage.COUNT, count);
             usage.put(MachineLearningFeatureSetUsage.DETECTORS, detectorStats.asMap());
             usage.put(MachineLearningFeatureSetUsage.MODEL_SIZE, modelSizeStats.asMap());
+            usage.put(MachineLearningFeatureSetUsage.FORECASTS, forecastStats.asMap());
             return usage;
         }
 

@@ -986,19 +986,20 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitNewstandardarray(NewstandardarrayContext ctx) {
-        String type = ctx.TYPE().getText();
+        StringBuilder type = new StringBuilder(ctx.TYPE().getText());
         List<AExpression> expressions = new ArrayList<>();
 
         for (ExpressionContext expression : ctx.expression()) {
+            type.append("[]");
             expressions.add((AExpression)visit(expression));
         }
 
-        return buildPostfixChain(new ENewArray(location(ctx), type, expressions, false), ctx.postdot(), ctx.postfix());
+        return buildPostfixChain(new ENewArray(location(ctx), type.toString(), expressions, false), ctx.postdot(), ctx.postfix());
     }
 
     @Override
     public ANode visitNewinitializedarray(NewinitializedarrayContext ctx) {
-        String type = ctx.TYPE().getText();
+        String type = ctx.TYPE().getText() + "[]";
         List<AExpression> expressions = new ArrayList<>();
 
         for (ExpressionContext expression : ctx.expression()) {

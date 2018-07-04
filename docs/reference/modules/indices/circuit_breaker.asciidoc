@@ -60,7 +60,9 @@ request) from exceeding a certain amount of memory.
 
 The in flight requests circuit breaker allows Elasticsearch to limit the memory usage of all
 currently active incoming requests on transport or HTTP level from exceeding a certain amount of
-memory on a node. The memory usage is based on the content length of the request itself.
+memory on a node. The memory usage is based on the content length of the request itself. This
+circuit breaker also considers that memory is not only needed for representing the raw request but
+also as a structured object which is reflected by default overhead.
 
 `network.breaker.inflight_requests.limit`::
 
@@ -70,7 +72,7 @@ memory on a node. The memory usage is based on the content length of the request
 `network.breaker.inflight_requests.overhead`::
 
     A constant that all in flight requests estimations are multiplied with to determine a
-    final estimation. Defaults to 1
+    final estimation. Defaults to 2.
 
 [[accounting-circuit-breaker]]
 [float]

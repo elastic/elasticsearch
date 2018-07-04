@@ -30,7 +30,6 @@ import org.elasticsearch.ingest.Processor;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IllformedLocaleException;

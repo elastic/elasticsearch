@@ -166,7 +166,7 @@ public class DateFormatters {
         .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
         .toFormatter(Locale.ROOT);
 
-    private static final DateTimeFormatter DATE_TIME_NO_MILLIS = new DateTimeFormatterBuilder()
+    private static final DateTimeFormatter DATE_TIME_PREFIX = new DateTimeFormatterBuilder()
         .append(DATE)
         .appendLiteral('T')
         .append(HOUR_MINUTE)
@@ -174,9 +174,53 @@ public class DateFormatters {
         .appendLiteral(':')
         .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
         .optionalEnd()
-        .append(OPTIONAL_TIME_ZONE_FORMATTER)
-        .toFormatter(Locale.ROOT)
-        .withZone(ZoneOffset.UTC);
+        .toFormatter(Locale.ROOT);
+
+    // only the formatter, nothing optional here
+    private static final DateTimeFormatter DATE_TIME_NO_MILLIS_FORMATTER = new DateTimeFormatterBuilder()
+        .append(DATE)
+        .appendLiteral('T')
+        .append(HOUR_MINUTE)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendZoneId()
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter DATE_TIME_NO_MILLIS_1 = new DateTimeFormatterBuilder()
+        .append(DATE_TIME_PREFIX)
+        .append(TIME_ZONE_FORMATTER_WITH_COLON)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter DATE_TIME_NO_MILLIS_2 = new DateTimeFormatterBuilder()
+        .append(DATE_TIME_PREFIX)
+        .append(TIME_ZONE_FORMATTER_WITHOUT_COLON)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter DATE_TIME_NO_MILLIS_3 = new DateTimeFormatterBuilder()
+        .append(DATE_TIME_PREFIX)
+        .append(TIME_ZONE_FORMATTER_ZONE_ID)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter DATE_TIME_NO_MILLIS_4 = new DateTimeFormatterBuilder()
+        .append(DATE_TIME_PREFIX)
+        .optionalStart()
+        .append(TIME_ZONE_FORMATTER_WITH_COLON)
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter DATE_TIME_NO_MILLIS_5 = new DateTimeFormatterBuilder()
+        .append(DATE_TIME_PREFIX)
+        .optionalStart()
+        .append(TIME_ZONE_FORMATTER_WITHOUT_COLON)
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter DATE_TIME_NO_MILLIS_6 = new DateTimeFormatterBuilder()
+        .append(DATE_TIME_PREFIX)
+        .optionalStart()
+        .append(TIME_ZONE_FORMATTER_ZONE_ID)
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter DATE_TIME = new DateTimeFormatterBuilder()
         .append(DATE)
@@ -188,8 +232,7 @@ public class DateFormatters {
         .appendFraction(MILLI_OF_SECOND, 1, 3, true)
         .optionalEnd()
         .append(OPTIONAL_TIME_ZONE_FORMATTER)
-        .toFormatter(Locale.ROOT)
-        .withZone(ZoneOffset.UTC);
+        .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter DATE_OPTIONAL_TIME = new DateTimeFormatterBuilder()
         .append(DATE)
@@ -204,8 +247,7 @@ public class DateFormatters {
         .optionalEnd()
         .append(OPTIONAL_TIME_ZONE_FORMATTER)
         .optionalEnd()
-        .toFormatter(Locale.ROOT)
-        .withZone(ZoneOffset.UTC);
+        .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter HOUR_MINUTE_SECOND = new DateTimeFormatterBuilder()
         .append(HOUR_MINUTE)
@@ -457,8 +499,7 @@ public class DateFormatters {
         .optionalEnd()
         .append(OPTIONAL_TIME_ZONE_FORMATTER)
         .optionalEnd()
-        .toFormatter(Locale.ROOT)
-        .withZone(ZoneOffset.UTC);
+        .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter STRICT_ORDINAL_DATE_TIME_NO_MILLIS = new DateTimeFormatterBuilder()
         .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
@@ -474,8 +515,7 @@ public class DateFormatters {
         .appendLiteral('T')
         .append(STRICT_HOUR_MINUTE_SECOND)
         .append(OPTIONAL_TIME_ZONE_FORMATTER)
-        .toFormatter(Locale.ROOT)
-        .withZone(ZoneOffset.UTC);
+        .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter STRICT_HOUR_MINUTE_SECOND_MILLIS = new DateTimeFormatterBuilder()
         .append(STRICT_HOUR_MINUTE_SECOND)
@@ -623,7 +663,8 @@ public class DateFormatters {
         } else if ("dateTime".equals(input) || "date_time".equals(input)) {
             return new DateFormatter(DATE_TIME);
         } else if ("dateTimeNoMillis".equals(input) || "date_time_no_millis".equals(input)) {
-            return new DateFormatter(DATE_TIME_NO_MILLIS);
+            return new DateFormatter(STRICT_DATE_TIME_NO_MILLIS, DATE_TIME_NO_MILLIS_1, DATE_TIME_NO_MILLIS_2, DATE_TIME_NO_MILLIS_3,
+                DATE_TIME_NO_MILLIS_4, DATE_TIME_NO_MILLIS_5, DATE_TIME_NO_MILLIS_6);
         } else if ("hour".equals(input)) {
             return new DateFormatter(HOUR);
         } else if ("hourMinute".equals(input) || "hour_minute".equals(input)) {
@@ -641,7 +682,6 @@ public class DateFormatters {
         } else if ("ordinalDateTimeNoMillis".equals(input) || "ordinal_date_time_no_millis".equals(input)) {
             return new DateFormatter(ORDINAL_DATE_TIME_NO_MILLIS);
         } else if ("time".equals(input)) {
-//            return new DateFormatter(TIME_PREFIX, TIME_ZONE_ID, TIME_ZONE_WITH_COLON, TIME_ZONE_WITHOUT_COLON);
             return new DateFormatter(TIME_ZONE_ID, TIME_ZONE_WITH_COLON, TIME_ZONE_WITHOUT_COLON);
         } else if ("timeNoMillis".equals(input) || "time_no_millis".equals(input)) {
             return new DateFormatter(TIME_NO_MILLIS);
@@ -846,7 +886,11 @@ public class DateFormatters {
         }
 
         if (accessor.isSupported(ChronoField.OFFSET_SECONDS)) {
-            result = result.withZoneSameLocal(ZoneOffset.ofTotalSeconds(accessor.get(ChronoField.OFFSET_SECONDS)));
+            if (result.getZone().equals(ZoneOffset.UTC)) {
+                result = result.withZoneSameLocal(ZoneOffset.ofTotalSeconds(accessor.get(ChronoField.OFFSET_SECONDS)));
+            } else {
+                result = result.withZoneSameInstant(ZoneOffset.ofTotalSeconds(accessor.get(ChronoField.OFFSET_SECONDS)));
+            }
         }
 
         // millis

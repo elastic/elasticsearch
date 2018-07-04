@@ -21,7 +21,6 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;

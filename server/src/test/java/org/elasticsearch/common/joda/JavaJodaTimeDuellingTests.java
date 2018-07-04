@@ -73,18 +73,10 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         f3.parse("-0800");
     }
 
-//    public void testFoo() {
-////        DateTimeFormatter formatter = DateFormatters.forPattern("date_time_no_millis");
-////        formatter.parse("2001-01-01T00:00:00-0800");
-//
-//        DateFormatter formatter = DateFormatters.forPattern("time");
-//        formatter.parse("10:15:3.1");
-//    }
-
     public void testTimeZoneFormatting() {
         assertSameDate("2001-01-01T00:00:00Z", "date_time_no_millis");
         // the following fail under java 8 but work under java 10, needs investigation
-//        assertSameDate("2001-01-01T00:00:00-0800", "date_time_no_millis");
+        assertSameDate("2001-01-01T00:00:00-0800", "date_time_no_millis");
 //        assertSameDate("2001-01-01T00:00:00+1030", "date_time_no_millis");
 //        assertSameDate("2001-01-01T00:00:00-08", "date_time_no_millis");
 //        assertSameDate("2001-01-01T00:00:00+10:30", "date_time_no_millis");
@@ -412,7 +404,9 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         TemporalAccessor javaTimeAccessor = javaTimeFormatter.parse(input);
         ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(javaTimeAccessor);
 
-        String msg = String.format(Locale.ROOT, "Input [%s] Format [%s] Joda [%s], Java [%s]", input, format, jodaDateTime, zonedDateTime);
+        String msg = String.format(Locale.ROOT, "Input [%s] Format [%s] Joda [%s], Java [%s]", input, format, jodaDateTime,
+            DateTimeFormatter.ISO_INSTANT.format(zonedDateTime.toInstant()));
+
         assertThat(msg, jodaDateTime.getMillis(), is(zonedDateTime.toInstant().toEpochMilli()));
     }
 

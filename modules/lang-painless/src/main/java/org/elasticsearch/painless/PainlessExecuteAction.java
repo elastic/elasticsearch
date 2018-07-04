@@ -54,7 +54,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -121,11 +120,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Script.parse(p), SCRIPT_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CONTEXT_FIELD);
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-                ContextSetup context = ContextSetup.PARSER.parse(p, c);
-                context.xContentType = p.contentType().xContent().type();
-                return context;
-            }, CONTEXT_SETUP_FIELD);
+            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ContextSetup::parse, CONTEXT_SETUP_FIELD);
         }
 
         static final Map<String, ScriptContext<?>> SUPPORTED_CONTEXTS;
@@ -151,26 +146,39 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             private static final ParseField INDEX_FIELD = new ParseField("index");
             private static final ParseField DOCUMENT_FIELD = new ParseField("document");
             private static final ParseField QUERY_FIELD = new ParseField("query");
-            private static final ObjectParser<ContextSetup, Void> PARSER =
-                new ObjectParser<>("execute_script_context", ContextSetup::new);
+            private static final ConstructingObjectParser<ContextSetup, Void> PARSER =
+                new ConstructingObjectParser<>("execute_script_context",
+                    args -> new ContextSetup((String) args[0], (BytesReference) args[1], (QueryBuilder) args[2]));
 
             static {
-                PARSER.declareString(ContextSetup::setIndex, INDEX_FIELD);
-                PARSER.declareObject(ContextSetup::setDocument, (p, c) -> {
+                PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_FIELD);
+                PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
                     try (XContentBuilder b = XContentBuilder.builder(p.contentType().xContent())) {
                         b.copyCurrentStructure(p);
                         return BytesReference.bytes(b);
                     }
                 }, DOCUMENT_FIELD);
-                PARSER.declareObject(ContextSetup::setQuery, (p, c) ->
+                PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
                     AbstractQueryBuilder.parseInnerQueryBuilder(p), QUERY_FIELD);
             }
 
-            private String index;
-            private BytesReference document;
-            private QueryBuilder query;
+            private final String index;
+            private final BytesReference document;
+            private final QueryBuilder query;
 
             private XContentType xContentType;
+
+            static ContextSetup parse(XContentParser parser, Void context) throws IOException {
+                ContextSetup contextSetup = PARSER.parse(parser, null);
+                contextSetup.setXContentType(parser.contentType());
+                return contextSetup;
+            }
+
+            ContextSetup(String index, BytesReference document, QueryBuilder query) {
+                this.index = index;
+                this.document = document;
+                this.query = query;
+            }
 
             ContextSetup(StreamInput in) throws IOException {
                 index = in.readOptionalString();
@@ -182,19 +190,24 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
                 query = in.readOptionalNamedWriteable(QueryBuilder.class);
             }
 
-            ContextSetup() {
+            public String getIndex() {
+                return index;
             }
 
-            void setIndex(String index) {
-                this.index = index;
+            public BytesReference getDocument() {
+                return document;
             }
 
-            void setDocument(BytesReference document) {
-                this.document = document;
+            public QueryBuilder getQuery() {
+                return query;
             }
 
-            void setQuery(QueryBuilder query) {
-                this.query = query;
+            public XContentType getXContentType() {
+                return xContentType;
+            }
+
+            public void setXContentType(XContentType xContentType) {
+                this.xContentType = xContentType;
             }
 
             @Override
@@ -256,12 +269,10 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
         private Script script;
         private ScriptContext<?> context = PainlessTestScript.CONTEXT;
-        private ContextSetup contextSetup = new ContextSetup();
+        private ContextSetup contextSetup;
 
         static Request parse(XContentParser parser) throws IOException {
-            Request request = PARSER.parse(parser, null);
-            request.setXContentType(parser.contentType());
-            return request;
+            return PARSER.parse(parser, null);
         }
 
         Request(Script script, String scriptContextName, ContextSetup setup) {
@@ -282,37 +293,12 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             return script;
         }
 
-        public String getIndex() {
-            return contextSetup.index;
+        public ScriptContext<?> getContext() {
+            return context;
         }
 
-        public void setIndex(String index) {
-            this.contextSetup.index = index;
-            index(contextSetup.index);
-        }
-
-        public BytesReference getDocument() {
-            return contextSetup.document;
-        }
-
-        public void setDocument(BytesReference document) {
-            this.contextSetup.document = document;
-        }
-
-        public XContentType getXContentType() {
-            return contextSetup.xContentType;
-        }
-
-        public void setXContentType(XContentType xContentType) {
-            this.contextSetup.xContentType = xContentType;
-        }
-
-        public QueryBuilder getQuery() {
-            return contextSetup.query;
-        }
-
-        public void setQuery(QueryBuilder query) {
-            this.contextSetup.query = query;
+        public ContextSetup getContextSetup() {
+            return contextSetup;
         }
 
         @Override
@@ -504,7 +490,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
         @Override
         protected boolean resolveIndex(Request request) {
-            return request.getIndex() != null;
+            return request.contextSetup != null && request.contextSetup.getIndex() != null;
         }
 
         @Override
@@ -518,7 +504,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         @Override
         protected Response shardOperation(Request request, ShardId shardId) throws IOException {
             IndexService indexService;
-            if (request.getIndex() != null) {
+            if (request.contextSetup != null && request.contextSetup.getIndex() != null) {
                 ClusterState clusterState = clusterService.state();
                 IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
                 String indexExpression = request.contextSetup.index;

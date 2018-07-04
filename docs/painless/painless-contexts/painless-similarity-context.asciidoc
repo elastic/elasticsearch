@@ -1,0 +1,53 @@
+[[painless-similarity-context]]
+=== Similarity context
+
+Use a Painless script to create a
+{es_version}/index-modules-similarity.html[similarity] equation for scoring
+documents in a query.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in at query-time.
+
+`query.boost` (`float`, read-only)::
+        The boost value if provided by the query.  If this is not provided the
+        value is `1.0f`.
+
+`field.docCount` (`long`, read-only)::
+        The number of documents that have a value for the current field.
+
+`field.sumDocFreq` (`long`, read-only)::
+        The sum of all terms that exist for the current field.  If this is not
+        available the value is `-1`.
+
+`field.sumTotalTermFreq` (`long`, read-only)::
+        The sum of occurrences in the index for all the terms that exist in the
+        current field.  If this is not available the value is `-1`.
+
+`term.docFreq` (`long`, read-only)::
+        The number of documents that contain the current term in the index.
+
+`term.totalTermFreq` (`long`, read-only)::
+        The total occurrences of the current term in the index.
+
+`doc.length` (`long`, read-only)::
+        The number of tokens the current document has in the current field.
+
+`doc.freq` (`long`, read-only)::
+        The number of occurrences of the current term in the current
+        document for the current field.
+
+*Return*
+
+`double`::
+        The similarity score for the current document.
+
+*API*
+
+The standard <<painless-api-reference, Painless API>> is available.

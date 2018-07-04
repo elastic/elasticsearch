@@ -72,7 +72,7 @@ public class DelegatedAuthorizationSupport {
                 return realm;
             }
         }
-        throw new IllegalStateException("configured authorizing realm [" + name + "] does not exist");
+        throw new IllegalStateException("configured authorizing realm [" + name + "] does not exist (or is not enabled)");
     }
 
 }

@@ -61,10 +61,8 @@ public final class InternalRealms {
      * The list of all realm types, which are those that have extensive interaction
      * with third party sources
      */
-    private static final Set<String> TYPES_DEPEND_ON_THIRD_PARTY_SOURCES = new HashSet<>();
-    static {
-        Collections.addAll(TYPES_DEPEND_ON_THIRD_PARTY_SOURCES, SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE);
-    }
+    private static final Set<String> TYPES_DEPEND_ON_THIRD_PARTY_SOURCES =
+            Sets.newHashSet(SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE);
 
     /**
      * The list of all standard realm types, which are those provided by x-pack and do not have extensive

@@ -100,7 +100,7 @@ public class KerberosTicketValidator {
             if (pve.getCause() instanceof GSSException) {
                 actionListener.onFailure((GSSException) pve.getCause());
             }
-            actionListener.onFailure(ExceptionsHelper.convertToRuntime(pve.getException()));
+            actionListener.onFailure(pve.getException());
         } finally {
             privilegedLogoutNoThrow(loginContext);
             privilegedDisposeNoThrow(gssContext);

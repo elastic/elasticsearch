@@ -64,16 +64,14 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
 
         final String base64EncodedToken = authorizationHeader.substring(NEGOTIATE_AUTH_HEADER_PREFIX.length()).trim();
         if (Strings.isEmpty(base64EncodedToken)) {
-            throw unauthorized("invalid negotiate authentication header value, expected base64 encoded token but value is empty", null,
-                    null);
+            throw unauthorized("invalid negotiate authentication header value, expected base64 encoded token but value is empty", null);
         }
 
         byte[] decodedKerberosTicket = null;
         try {
             decodedKerberosTicket = Base64.getDecoder().decode(base64EncodedToken);
         } catch (IllegalArgumentException iae) {
-            throw unauthorized("invalid negotiate authentication header value, could not decode base64 token {}", iae, null,
-                    base64EncodedToken);
+            throw unauthorized("invalid negotiate authentication header value, could not decode base64 token {}", iae, base64EncodedToken);
         }
 
         return new KerberosAuthenticationToken(decodedKerberosTicket);
@@ -114,28 +112,39 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
     /**
      * Creates {@link ElasticsearchSecurityException} with
      * {@link RestStatus#UNAUTHORIZED} and cause. This also populates
-     * 'WWW-Authenticate' header with 'Negotiate' scheme.
-     * <p>
-     * If outToken is provided then that is appended to 'Negotiate ' and is used as
-     * header value for header 'WWW-Authenticate' sent to the peer in the form
-     * 'Negotiate oYH1MIHyoAMK...'. This is required by client for GSS negotiation
-     * to continue further.
+     * 'WWW-Authenticate' header with value as 'Negotiate' scheme.
      *
      * @param message the detail message
      * @param cause nested exception
-     * @param outToken if non {@code null} and not empty then this will be the value
-     *            sent to the peer.
      * @param args the arguments for the message
      * @return instance of {@link ElasticsearchSecurityException}
      */
-    static ElasticsearchSecurityException unauthorized(final String message, final Throwable cause, final String outToken,
-            final Object... args) {
+    static ElasticsearchSecurityException unauthorized(final String message, final Throwable cause, final Object... args) {
         ElasticsearchSecurityException ese = new ElasticsearchSecurityException(message, RestStatus.UNAUTHORIZED, cause, args);
-        String headerValue = NEGOTIATE_SCHEME_NAME;
+        ese.addHeader(WWW_AUTHENTICATE, NEGOTIATE_SCHEME_NAME);
+        return ese;
+    }
+
+    /**
+     * Sets 'WWW-Authenticate' header if outToken is not null on passed instance of
+     * {@link ElasticsearchSecurityException} and returns the instance. <br>
+     * If outToken is provided and is not {@code null} or empty, then that is
+     * appended to 'Negotiate ' and is used as header value for header
+     * 'WWW-Authenticate' sent to the peer in the form 'Negotiate oYH1MIHyoAMK...'.
+     * This is required by client for GSS negotiation to continue further.
+     *
+     * @param ese instance of {@link ElasticsearchSecurityException} with status
+     *            {@link RestStatus#UNAUTHORIZED}
+     * @param outToken if non {@code null} and not empty then this will be the value
+     *            sent to the peer.
+     * @return instance of {@link ElasticsearchSecurityException} with
+     *         'WWW-Authenticate' header populated.
+     */
+    static ElasticsearchSecurityException unauthorizedWithOutputToken(final ElasticsearchSecurityException ese, final String outToken) {
+        assert ese.status() == RestStatus.UNAUTHORIZED;
         if (Strings.hasText(outToken)) {
-            headerValue = NEGOTIATE_AUTH_HEADER_PREFIX + outToken;
+            ese.addHeader(WWW_AUTHENTICATE, NEGOTIATE_AUTH_HEADER_PREFIX + outToken);
         }
-        ese.addHeader(WWW_AUTHENTICATE, headerValue);
         return ese;
     }
 }

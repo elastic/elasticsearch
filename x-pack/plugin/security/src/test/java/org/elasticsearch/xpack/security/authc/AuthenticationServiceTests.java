@@ -624,7 +624,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         final AuthenticationToken token = mock(AuthenticationToken.class);
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        final boolean throwElasticsearchSecurityException = randomBoolean();
+        final boolean terminateWithNoException = rarely();
+        final boolean throwElasticsearchSecurityException = (terminateWithNoException == false) && randomBoolean();
         final boolean withAuthenticateHeader = throwElasticsearchSecurityException && randomBoolean();
         Exception throwE = new Exception("general authentication error");
         final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
@@ -632,25 +633,28 @@ public class AuthenticationServiceTests extends ESTestCase {
         if (throwElasticsearchSecurityException) {
             throwE = new ElasticsearchSecurityException("authentication error", RestStatus.UNAUTHORIZED);
             if (withAuthenticateHeader) {
-                ((ElasticsearchSecurityException) throwE).addHeader("WWW-Authenticate",
-                        selectedScheme);
+                ((ElasticsearchSecurityException) throwE).addHeader("WWW-Authenticate", selectedScheme);
             }
         }
-        mockAuthenticate(secondRealm, token, throwE, true);
+        mockAuthenticate(secondRealm, token, (terminateWithNoException) ? null : throwE, true);
 
         ElasticsearchSecurityException e =
                 expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, null));
-
-        if (throwElasticsearchSecurityException) {
-            assertThat(e.getMessage(), is("authentication error"));
-            if (withAuthenticateHeader) {
-                assertThat(e.getHeader("WWW-Authenticate"), contains(selectedScheme));
+        if (terminateWithNoException) {
+            assertThat(e.getMessage(), is("terminate authc process"));
+            assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
+        } else {
+            if (throwElasticsearchSecurityException) {
+                assertThat(e.getMessage(), is("authentication error"));
+                if (withAuthenticateHeader) {
+                    assertThat(e.getHeader("WWW-Authenticate"), contains(selectedScheme));
+                } else {
+                    assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
+                }
             } else {
+                assertThat(e.getMessage(), is("error attempting to authenticate request"));
                 assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
             }
-        } else {
-            assertThat(e.getMessage(), is("error attempting to authenticate request"));
-            assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
         }
         verify(auditTrail).authenticationFailed(secondRealm.name(), token, "_action", message);
         verify(auditTrail).authenticationFailed(token, "_action", message);

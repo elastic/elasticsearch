@@ -6,11 +6,11 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthentica
 import static org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken.NEGOTIATE_SCHEME_NAME;
 import static org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken.WWW_AUTHENTICATE;
 import static org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken.unauthorized;
+import static org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken.unauthorizedWithOutputToken;
 
 /**
  * This class provides support for Kerberos authentication using spnego
@@ -59,6 +60,8 @@ public final class KerberosRealm extends Realm implements CachingRealm {
     private final NativeRoleMappingStore userRoleMapper;
     private final KerberosTicketValidator kerberosTicketValidator;
     private final ThreadPool threadPool;
+    private final Path keytabPath;
+    private final boolean enableKerberosDebug;
 
     public KerberosRealm(final RealmConfig config, final NativeRoleMappingStore nativeRoleMappingStore, final ThreadPool threadPool) {
         this(config, nativeRoleMappingStore, new KerberosTicketValidator(), threadPool, null);
@@ -83,6 +86,8 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         }
         this.kerberosTicketValidator = kerberosTicketValidator;
         this.threadPool = threadPool;
+        this.keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
+        this.enableKerberosDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
     }
 
     @Override
@@ -116,54 +121,48 @@ public final class KerberosRealm extends Realm implements CachingRealm {
 
     @Override
     public void authenticate(final AuthenticationToken token, final ActionListener<AuthenticationResult> listener) {
-        if (token instanceof KerberosAuthenticationToken) {
-            final KerberosAuthenticationToken kerbAuthnToken = (KerberosAuthenticationToken) token;
-            final Path keytabPath =
-                    config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
-            final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
-
-            kerberosTicketValidator.validateTicket((byte[]) kerbAuthnToken.credentials(), keytabPath, krbDebug,
-                    ActionListener.wrap((userPrincipalNameOutToken) -> {
-                        if (userPrincipalNameOutToken.v1() != null) {
-                            buildUser(userPrincipalNameOutToken, listener);
-                        } else {
-                            /**
-                             * Ongoing context establishment, terminate with UNAUTHORIZED and outToken
-                             */
-                            String errorMessage = "failed to authenticate user, gss context negotiation not complete";
-                            listener.onResponse(AuthenticationResult.terminate(errorMessage,
-                                    unauthorized(errorMessage, null, userPrincipalNameOutToken.v2())));
-                        }
-                    }, (e) -> {
-                        handleException(e, listener);
-                    }));
-        } else {
-            listener.onResponse(AuthenticationResult.notHandled());
-        }
+        assert token instanceof KerberosAuthenticationToken;
+        final KerberosAuthenticationToken kerbAuthnToken = (KerberosAuthenticationToken) token;
+        kerberosTicketValidator.validateTicket((byte[]) kerbAuthnToken.credentials(), keytabPath, enableKerberosDebug,
+                ActionListener.wrap(userPrincipalNameOutToken -> {
+                    if (userPrincipalNameOutToken.v1() != null) {
+                        buildUser(userPrincipalNameOutToken.v1(), userPrincipalNameOutToken.v2(), listener);
+                    } else {
+                        /**
+                         * This is when security context could not be established may be due to ongoing
+                         * negotiation and requires token to be sent back to peer for continuing
+                         * further. We are terminating the authentication process as this is spengo
+                         * negotiation and no other realm can handle this. We can have only one Kerberos
+                         * realm in the system so terminating with RestStatus Unauthorized (401) and
+                         * with 'WWW-Authenticate' header populated with value with token in the form
+                         * 'Negotiate oYH1MIHyoAMK...'
+                         */
+                        String errorMessage = "failed to authenticate user, gss context negotiation not complete";
+                        ElasticsearchSecurityException ese = unauthorized(errorMessage, null);
+                        ese = unauthorizedWithOutputToken(ese, userPrincipalNameOutToken.v2());
+                        listener.onResponse(AuthenticationResult.terminate(errorMessage, ese));
+                    }
+                }, e -> handleException(e, listener)));
     }
 
     private void handleException(Exception e, final ActionListener<AuthenticationResult> listener) {
         if (e instanceof LoginException) {
-            logger.error("failed to authenticate user, service login failure", e);
             listener.onResponse(AuthenticationResult.terminate("failed to authenticate user, service login failure",
-                    unauthorized(e.getLocalizedMessage(), e, null, (Object[]) null)));
+                    unauthorized(e.getLocalizedMessage(), e)));
         } else if (e instanceof GSSException) {
-            logger.error("failed to authenticate user, gss context negotiation failure", e);
             listener.onResponse(AuthenticationResult.terminate("failed to authenticate user, gss context negotiation failure",
-                    unauthorized(e.getLocalizedMessage(), e, null, (Object[]) null)));
+                    unauthorized(e.getLocalizedMessage(), e)));
         } else {
             listener.onFailure(e);
         }
     }
 
-    private void buildUser(final Tuple<String, String> userPrincipalNameOutToken, final ActionListener<AuthenticationResult> listener) {
+    private void buildUser(final String username, final String outToken, final ActionListener<AuthenticationResult> listener) {
         // if outToken is present then it needs to be communicated with peer, add it to
         // response header in thread context.
-        if (Strings.hasText(userPrincipalNameOutToken.v2())) {
-            threadPool.getThreadContext().addResponseHeader(WWW_AUTHENTICATE,
-                    NEGOTIATE_AUTH_HEADER_PREFIX + userPrincipalNameOutToken.v2());
+        if (Strings.hasText(outToken)) {
+            threadPool.getThreadContext().addResponseHeader(WWW_AUTHENTICATE, NEGOTIATE_AUTH_HEADER_PREFIX + outToken);
         }
-        final String username = userPrincipalNameOutToken.v1();
         final User user = (userPrincipalNameToUserCache != null) ? userPrincipalNameToUserCache.get(username) : null;
         if (user != null) {
             listener.onResponse(AuthenticationResult.success(user));

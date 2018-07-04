@@ -194,6 +194,10 @@ if (project != rootProject) {
   }
   check.dependsOn(integTest)
 
+  // TODO needs to be updated in CI, needs update in NamingConventions
+  targetCompatibility = "1.9"
+  sourceCompatibility = "1.9"
+
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false
 

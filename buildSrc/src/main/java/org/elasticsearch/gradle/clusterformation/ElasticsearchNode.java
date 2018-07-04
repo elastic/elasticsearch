@@ -25,12 +25,20 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+
+import static org.gradle.internal.os.OperatingSystem.*;
 
 public class ElasticsearchNode implements ElasticsearchConfiguration {
 
+    public static final int ES_DESTROY_TIMEOUT = 20;
+    public static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
 
     private final String name;
@@ -42,6 +50,7 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
 
     private Distribution distribution;
     private Version version;
+    private Process esProcess;
 
     public ElasticsearchNode(String name, GradleServicesAdapter services, File sharedArtifactsDir, File workDirBase) {
         this.name = name;
@@ -91,6 +100,7 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
     public void start() {
         if (started.getAndSet(true)) {
             logger.lifecycle("Already started cluster: {}", name);
+            return;
         } else {
             logger.lifecycle("Starting cluster: {}", name);
         }
@@ -99,20 +109,31 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
             throw new ClusterFormationException("Can not start node, missing artifact: " + artifact);
         }
 
+        services.sync(copySpec -> {
+            if (getDistribution().getExtension() == "zip") {
+                copySpec.from(services.zipTree(artifact));
+            } else {
+                throw new ClusterFormationException("Only ZIP distributions are supported for now");
+            }
+            copySpec.into(workDir);
+        });
 
-            services.sync(copySpec -> {
-                if (getDistribution().getExtension() == "zip") {
-                    copySpec.from(services.zipTree(artifact));
-                } else {
-                    throw new ClusterFormationException("Only ZIP distributions are supported for now");
-                }
-                copySpec.into(workDir);
-            });
-            // For some reason the pid file is not created in the node dir, but one level up
-            exec(getDistroPath("bin/elasticsearch"));
+        logger.info("Running `{}` in `{}`", getDistroPath("bin/elasticsearch"), workDir);
+        if (current().isWindows()) {
+            // TODO
+            logger.lifecycle("Windows is not supported at this time");
+        } else {
+            try {
+                esProcess = new ProcessBuilder(getDistroPath("bin/elasticsearch"))
+                    .directory(workDir)
+                    .start();
+            } catch (IOException e) {
+                throw new ClusterFormationException("Failed to start ES process", e);
+            }
+        }
     }
 
-    public String getDistroPath(String pathTo) {
+    private String getDistroPath(String pathTo) {
         return getDistribution().getFileName() + "-" + getVersion() + "/" + pathTo;
     }
 
@@ -131,16 +152,56 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
             return;
         }
         logger.lifecycle("Stopping {}, number of claims is {}", name, decrementedClaims);
+        doStop();
     }
 
     @Override
     public void forceStop() {
         logger.lifecycle("Forcefully stopping {}, number of claims is {}", name, noOfClaims.get());
+        doStop();
     }
 
+    private void doStop() {
+        if (current().isWindows()) {
+            return;
+        }
+        logProcessInfo("Self:", esProcess.info());
+        esProcess.children().forEach( child -> {
+            logProcessInfo("Cluster Child:", child.info());
+        });
 
-    public void exec(String executable, String... args) {
-        logger.lifecycle("Running {} args: {} in `{}`", executable, args, workDir);
+        if (esProcess.isAlive() == false) {
+            throw new ClusterFormationException("Cluster `" + name + "` wasn't alive when we tried to destroy it");
+        }
+        esProcess.destroy();
+        waitForESProcess();
+        if(esProcess.isAlive()) {
+            logger.info("Cluster `{}` did not terminate after {} {}, stopping it forcefully",
+                name, ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT
+            );
+            esProcess.destroyForcibly();
+        }
+        waitForESProcess();
+        if (esProcess.isAlive()) {
+            throw new ClusterFormationException("Was not able to terminate cluster: " + name);
+        }
+    }
+
+    private void logProcessInfo(String prefix, ProcessHandle.Info info) {
+        logger.lifecycle(prefix + " commandLine:`{}` command:`{}` args:`{}`",
+            info.commandLine().orElse("-"), info.command().orElse("-"),
+            Arrays.stream(info.arguments().orElse(new String[] {}))
+                .map(each -> "'"+each+"'")
+                .collect(Collectors.joining(", "))
+        );
+    }
+
+    private void waitForESProcess() {
+        try {
+            esProcess.waitFor(ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void checkNotRunning() {

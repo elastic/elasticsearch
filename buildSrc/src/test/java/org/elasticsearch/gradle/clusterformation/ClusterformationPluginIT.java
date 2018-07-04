@@ -142,7 +142,7 @@ public class ClusterformationPluginIT extends GradleIntegrationTestCase {
     public void testMultiProject() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("clusterformation_multiproject"))
-            .withArguments("user1", "user2", "-s")
+            .withArguments("user1", "user2", "-s", "--parallel")
             .withPluginClasspath()
             .build();
 

@@ -51,21 +51,21 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
 
     public void testDefaults() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        Request request = new Request(new Script("100.0 / 1000.0"), (String) null);
+        Request request = new Request(new Script("100.0 / 1000.0"), null, null);
         Response response = innerShardOperation(request, scriptService, null);
         assertThat(response.getResult(), equalTo("0.1"));
 
         Map<String, Object> params = new HashMap<>();
         params.put("count", 100.0D);
         params.put("total", 1000.0D);
-        request = new Request(new Script(ScriptType.INLINE, "painless", "params.count / params.total", params), (String) null);
+        request = new Request(new Script(ScriptType.INLINE, "painless", "params.count / params.total", params), null, null);
         response = innerShardOperation(request, scriptService, null);
         assertThat(response.getResult(), equalTo("0.1"));
 
         Exception e = expectThrows(ScriptException.class,
             () -> {
             Request r = new Request(new Script(ScriptType.INLINE,
-                "painless", "params.count / params.total + doc['constant']", params), (String) null);
+                "painless", "params.count / params.total + doc['constant']", params), null, null);
             innerShardOperation(r, scriptService, null);
         });
         assertThat(e.getCause().getMessage(), equalTo("Variable [doc] is not defined."));
@@ -75,7 +75,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "field", "type=long");
 
-        Request request = new Request(new Script("doc['field'].value >= 3"), "filter");
+        Request request = new Request(new Script("doc['field'].value >= 3"), "filter", new Request.ContextSetup());
         request.setIndex("index");
         request.setDocument(new BytesArray("{\"field\": 3}"));
         request.setXContentType(XContentType.JSON);
@@ -84,7 +84,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
 
 
         request = new Request(new Script(ScriptType.INLINE, "painless", "doc['field'].value >= params.max",
-            singletonMap("max", 3)), "filter");
+            singletonMap("max", 3)), "filter", new Request.ContextSetup());
         request.setIndex("index");
         request.setDocument(new BytesArray("{\"field\": 3}"));
         request.setXContentType(XContentType.JSON);
@@ -101,7 +101,8 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
 
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
-            "Math.round((_score + (doc['rank'].value / params.max_rank)) * 100.0) / 100.0", singletonMap("max_rank", 5.0)), "score");
+            "Math.round((_score + (doc['rank'].value / params.max_rank)) * 100.0) / 100.0", singletonMap("max_rank", 5.0)), "score",
+            new Request.ContextSetup());
         request.setIndex("index");
         request.setDocument(new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"));
         request.setXContentType(XContentType.JSON);

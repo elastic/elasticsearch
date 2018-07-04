@@ -48,7 +48,8 @@ public class PainlessExecuteRequestTests extends AbstractStreamableXContentTestC
     protected PainlessExecuteAction.Request createTestInstance() {
         Script script = new Script(randomAlphaOfLength(10));
         ScriptContext<?> context = randomBoolean() ? randomFrom(PainlessExecuteAction.Request.SUPPORTED_CONTEXTS.values()) : null;
-        PainlessExecuteAction.Request request = new PainlessExecuteAction.Request(script, context != null ? context.name : null);
+        PainlessExecuteAction.Request request = new PainlessExecuteAction.Request(script, context != null ? context.name : null,
+            new PainlessExecuteAction.Request.ContextSetup());
         if (randomBoolean()) {
             request.setIndex(randomAlphaOfLength(4));
         }
@@ -81,7 +82,7 @@ public class PainlessExecuteRequestTests extends AbstractStreamableXContentTestC
 
     public void testValidate() {
         Script script = new Script(ScriptType.STORED, null, randomAlphaOfLength(10), Collections.emptyMap());
-        PainlessExecuteAction.Request request = new PainlessExecuteAction.Request(script, (String) null);
+        PainlessExecuteAction.Request request = new PainlessExecuteAction.Request(script, null, null);
         Exception e = request.validate();
         assertNotNull(e);
         assertEquals("Validation Failed: 1: only inline scripts are supported;", e.getMessage());

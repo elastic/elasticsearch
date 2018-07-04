@@ -31,14 +31,12 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -90,7 +88,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -117,23 +114,18 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
         private static final ParseField SCRIPT_FIELD = new ParseField("script");
         private static final ParseField CONTEXT_FIELD = new ParseField("context");
+        private static final ParseField CONTEXT_SETUP_FIELD = new ParseField("context_setup");
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
-            "painless_execute_request", args -> new Request((Script) args[0], (ExecuteScriptContext) args[1]));
+            "painless_execute_request", args -> new Request((Script) args[0], (String) args[1], (ContextSetup) args[2]));
 
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Script.parse(p), SCRIPT_FIELD);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CONTEXT_FIELD);
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-                XContentParser.Token token = p.nextToken();
-                assert token == XContentParser.Token.FIELD_NAME;
-                String contextType = p.currentName();
-                ScriptContext<?> scriptContext = fromScriptContextName(contextType.toLowerCase(Locale.ROOT));
-                ExecuteScriptContext context = ExecuteScriptContext.PARSER.parse(p, c);
-                context.scriptContext = scriptContext;
+                ContextSetup context = ContextSetup.PARSER.parse(p, c);
                 context.xContentType = p.contentType().xContent().type();
-                token = p.nextToken();
-                assert token == XContentParser.Token.END_OBJECT;
                 return context;
-            }, CONTEXT_FIELD);
+            }, CONTEXT_SETUP_FIELD);
         }
 
         static final Map<String, ScriptContext<?>> SUPPORTED_CONTEXTS;
@@ -154,35 +146,33 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             return scriptContext;
         }
 
-        static class ExecuteScriptContext implements Writeable, ToXContentObject {
+        static class ContextSetup implements Writeable, ToXContentObject {
 
             private static final ParseField INDEX_FIELD = new ParseField("index");
             private static final ParseField DOCUMENT_FIELD = new ParseField("document");
             private static final ParseField QUERY_FIELD = new ParseField("query");
-            private static final ObjectParser<ExecuteScriptContext, Void> PARSER =
-                new ObjectParser<>("execute_script_context", ExecuteScriptContext::new);
+            private static final ObjectParser<ContextSetup, Void> PARSER =
+                new ObjectParser<>("execute_script_context", ContextSetup::new);
 
             static {
-                PARSER.declareString(ExecuteScriptContext::setIndex, INDEX_FIELD);
-                PARSER.declareObject(ExecuteScriptContext::setDocument, (p, c) -> {
+                PARSER.declareString(ContextSetup::setIndex, INDEX_FIELD);
+                PARSER.declareObject(ContextSetup::setDocument, (p, c) -> {
                     try (XContentBuilder b = XContentBuilder.builder(p.contentType().xContent())) {
                         b.copyCurrentStructure(p);
                         return BytesReference.bytes(b);
                     }
                 }, DOCUMENT_FIELD);
-                PARSER.declareObject(ExecuteScriptContext::setQuery, (p, c) ->
+                PARSER.declareObject(ContextSetup::setQuery, (p, c) ->
                     AbstractQueryBuilder.parseInnerQueryBuilder(p), QUERY_FIELD);
             }
 
-            private ScriptContext<?> scriptContext = PainlessTestScript.CONTEXT;
             private String index;
             private BytesReference document;
             private QueryBuilder query;
 
             private XContentType xContentType;
 
-            ExecuteScriptContext(StreamInput in) throws IOException {
-                scriptContext = fromScriptContextName(in.readString());
+            ContextSetup(StreamInput in) throws IOException {
                 index = in.readOptionalString();
                 document = in.readOptionalBytesReference();
                 String xContentType = in.readOptionalString();
@@ -192,7 +182,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
                 query = in.readOptionalNamedWriteable(QueryBuilder.class);
             }
 
-            ExecuteScriptContext() {
+            ContextSetup() {
             }
 
             void setIndex(String index) {
@@ -211,21 +201,19 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             public boolean equals(Object o) {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
-                ExecuteScriptContext that = (ExecuteScriptContext) o;
-                return Objects.equals(scriptContext, that.scriptContext) &&
-                    Objects.equals(index, that.index) &&
+                ContextSetup that = (ContextSetup) o;
+                return Objects.equals(index, that.index) &&
                     Objects.equals(document, that.document) &&
                     Objects.equals(query, that.query);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(scriptContext, index, document, query);
+                return Objects.hash(index, document, query);
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(scriptContext.name);
                 out.writeOptionalString(index);
                 out.writeOptionalBytesReference(document);
                 out.writeOptionalString(xContentType != null ? xContentType.mediaType(): null);
@@ -234,8 +222,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
             @Override
             public String toString() {
-                return "ExecuteScriptContext{" +
-                    "scriptContext=" + scriptContext.name +
+                return "ContextSetup{" +
                     ", index='" + index + '\'' +
                     ", document=" + document +
                     ", query=" + query +
@@ -247,23 +234,19 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
                 {
-                    builder.startObject(scriptContext.name);
-                    {
-                        if (index != null) {
-                            builder.field(INDEX_FIELD.getPreferredName(), index);
-                        }
-                        if (document != null) {
-                            builder.field(DOCUMENT_FIELD.getPreferredName());
-                            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                                LoggingDeprecationHandler.INSTANCE, document, xContentType)) {
-                                builder.generator().copyCurrentStructure(parser);
-                            }
-                        }
-                        if (query != null) {
-                            builder.field(QUERY_FIELD.getPreferredName(), query);
+                    if (index != null) {
+                        builder.field(INDEX_FIELD.getPreferredName(), index);
+                    }
+                    if (document != null) {
+                        builder.field(DOCUMENT_FIELD.getPreferredName());
+                        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                            LoggingDeprecationHandler.INSTANCE, document, xContentType)) {
+                            builder.generator().copyCurrentStructure(parser);
                         }
                     }
-                    builder.endObject();
+                    if (query != null) {
+                        builder.field(QUERY_FIELD.getPreferredName(), query);
+                    }
                 }
                 builder.endObject();
                 return builder;
@@ -272,7 +255,8 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         }
 
         private Script script;
-        private ExecuteScriptContext executeScriptContext = new ExecuteScriptContext();
+        private ScriptContext<?> context = PainlessTestScript.CONTEXT;
+        private ContextSetup contextSetup = new ContextSetup();
 
         static Request parse(XContentParser parser) throws IOException {
             Request request = PARSER.parse(parser, null);
@@ -280,19 +264,14 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             return request;
         }
 
-        Request(Script script, ExecuteScriptContext context) {
-            this.script = Objects.requireNonNull(script);
-            if (context != null) {
-                this.executeScriptContext = context;
-                index(executeScriptContext.index);
-            }
-        }
-
-        Request(Script script, String scriptContextName) {
+        Request(Script script, String scriptContextName, ContextSetup setup) {
             this.script = Objects.requireNonNull(script);
             if (scriptContextName != null) {
-                this.executeScriptContext = new ExecuteScriptContext();
-                this.executeScriptContext.scriptContext = fromScriptContextName(scriptContextName);
+                this.context = fromScriptContextName(scriptContextName);
+            }
+            if (setup != null) {
+                this.contextSetup = setup;
+                index(contextSetup.index);
             }
         }
 
@@ -304,36 +283,36 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         }
 
         public String getIndex() {
-            return executeScriptContext.index;
+            return contextSetup.index;
         }
 
         public void setIndex(String index) {
-            this.executeScriptContext.index = index;
-            index(executeScriptContext.index);
+            this.contextSetup.index = index;
+            index(contextSetup.index);
         }
 
         public BytesReference getDocument() {
-            return executeScriptContext.document;
+            return contextSetup.document;
         }
 
         public void setDocument(BytesReference document) {
-            this.executeScriptContext.document = document;
+            this.contextSetup.document = document;
         }
 
         public XContentType getXContentType() {
-            return executeScriptContext.xContentType;
+            return contextSetup.xContentType;
         }
 
         public void setXContentType(XContentType xContentType) {
-            this.executeScriptContext.xContentType = xContentType;
+            this.contextSetup.xContentType = xContentType;
         }
 
         public QueryBuilder getQuery() {
-            return executeScriptContext.query;
+            return contextSetup.query;
         }
 
         public void setQuery(QueryBuilder query) {
-            this.executeScriptContext.query = query;
+            this.contextSetup.query = query;
         }
 
         @Override
@@ -342,11 +321,11 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             if (script.getType() != ScriptType.INLINE) {
                 validationException = addValidationError("only inline scripts are supported", validationException);
             }
-            if (needDocumentAndIndex(executeScriptContext.scriptContext)) {
-                if (executeScriptContext.index == null) {
+            if (needDocumentAndIndex(context)) {
+                if (contextSetup.index == null) {
                     validationException = addValidationError("index is a required parameter for current context", validationException);
                 }
-                if (executeScriptContext.document == null) {
+                if (contextSetup.document == null) {
                     validationException = addValidationError("document is a required parameter for current context", validationException);
                 }
             }
@@ -361,7 +340,8 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
                 byte scriptContextId = in.readByte();
                 assert scriptContextId == 0;
             } else {
-                executeScriptContext = new ExecuteScriptContext(in);
+                context = fromScriptContextName(in.readString());
+                contextSetup = in.readOptionalWriteable(ContextSetup::new);
             }
         }
 
@@ -372,7 +352,8 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             if (out.getVersion().onOrBefore(Version.V_6_4_0)) {
                 out.writeByte((byte) 0);
             } else {
-                executeScriptContext.writeTo(out);
+                out.writeString(context.name);
+                out.writeOptionalWriteable(contextSetup);
             }
         }
 
@@ -380,7 +361,10 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(SCRIPT_FIELD.getPreferredName(), script);
-            builder.field(CONTEXT_FIELD.getPreferredName(), executeScriptContext);
+            builder.field(CONTEXT_FIELD.getPreferredName(), context.name);
+            if (contextSetup != null) {
+                builder.field(CONTEXT_SETUP_FIELD.getPreferredName(), contextSetup);
+            }
             return builder;
         }
 
@@ -390,19 +374,21 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return Objects.equals(script, request.script) &&
-                Objects.equals(executeScriptContext, request.executeScriptContext);
+                Objects.equals(context, request.context) &&
+                Objects.equals(contextSetup, request.contextSetup);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(script, executeScriptContext);
+            return Objects.hash(script, context, contextSetup);
         }
 
         @Override
         public String toString() {
             return "Request{" +
                 "script=" + script +
-                ", executeScriptContext=" + executeScriptContext +
+                "context=" + context +
+                ", contextSetup=" + contextSetup +
                 '}';
         }
 
@@ -410,13 +396,6 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             return scriptContext == FilterScript.CONTEXT || scriptContext == ScoreScript.CONTEXT;
         }
 
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
-        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -542,7 +521,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             if (request.getIndex() != null) {
                 ClusterState clusterState = clusterService.state();
                 IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
-                String indexExpression = request.executeScriptContext.index;
+                String indexExpression = request.contextSetup.index;
                 Index[] concreteIndices =
                     indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions, indexExpression);
                 if (concreteIndices.length != 1) {
@@ -557,7 +536,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         }
 
         static Response innerShardOperation(Request request, ScriptService scriptService, IndexService indexService) throws IOException {
-            final ScriptContext<?> scriptContext = request.executeScriptContext.scriptContext;
+            final ScriptContext<?> scriptContext = request.context;
             if (scriptContext == PainlessTestScript.CONTEXT) {
                 PainlessTestScript.Factory factory = scriptService.compile(request.script, PainlessTestScript.CONTEXT);
                 PainlessTestScript painlessTestScript = factory.newInstance(request.script.getParams());
@@ -581,8 +560,8 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
                     ScoreScript scoreScript = leafFactory.newInstance(leafReaderContext);
                     scoreScript.setDocument(0);
 
-                    if (request.executeScriptContext.query != null) {
-                        Query luceneQuery = request.executeScriptContext.query.rewrite(context).toQuery(context);
+                    if (request.contextSetup.query != null) {
+                        Query luceneQuery = request.contextSetup.query.rewrite(context).toQuery(context);
                         IndexSearcher indexSearcher = new IndexSearcher(leafReaderContext.reader());
                         luceneQuery = indexSearcher.rewrite(luceneQuery);
                         Weight weight = indexSearcher.createWeight(luceneQuery, true, 1f);
@@ -611,8 +590,8 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
                 try (IndexWriter indexWriter = new IndexWriter(ramDirectory, new IndexWriterConfig(defaultAnalyzer))) {
                     String index = indexService.index().getName();
                     String type = indexService.mapperService().documentMapper().type();
-                    BytesReference document = request.executeScriptContext.document;
-                    XContentType xContentType = request.executeScriptContext.xContentType;
+                    BytesReference document = request.contextSetup.document;
+                    XContentType xContentType = request.contextSetup.xContentType;
                     SourceToParse sourceToParse = SourceToParse.source(index, type, "_id", document, xContentType);
                     ParsedDocument parsedDocument = indexService.mapperService().documentMapper().parse(sourceToParse);
                     indexWriter.addDocuments(parsedDocument.docs());

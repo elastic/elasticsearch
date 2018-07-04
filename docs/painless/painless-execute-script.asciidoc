@@ -12,6 +12,7 @@ The Painless execute API allows an arbitrary script to be executed and a result 
 | Name              | Required  | Default                | Description
 | `script`          | yes       | -                      | The script to execute
 | `context`         | no        | `painless_test`        | The context the script should be executed in.
+| `context_setup`   | no        | -                      | Additional parameters to the context.
 |======
 
 ==== Contexts
@@ -61,7 +62,7 @@ For testing purposes a document must be provided that will be indexed temporaril
 is accessible to the script being tested. Because of this the _source, stored fields and doc values
 are available in the script being tested.
 
-The following parameters are required inside a filter context:
+The following parameters may be specified in `context_setup` for a filter context:
 
 document:: Contains the document that will be temporarily indexed in-memory and is accessible from the script.
 index:: The name of an index containing a mapping that is compatable with the document being indexed.
@@ -91,12 +92,11 @@ POST /_scripts/painless/_execute
       "max_length": 4
     }
   },
-  "context": {
-    "filter": {
-      "index": "my-index",
-      "document": {
-        "field": "four"
-      }
+  "context": "filter",
+  "context_setup": {
+    "index": "my-index",
+    "document": {
+      "field": "four"
     }
   }
 }
@@ -119,7 +119,7 @@ Response:
 The `score` context executes scripts as if they were executed inside a `script_score` function in
 `function_score` query.
 
-Available parameters inside a score context:
+The following parameters may be specified in `context_setup` for a score context:
 
 document:: Contains the document that will be temporarily indexed in-memory and is accessible from the script.
 index:: The name of an index containing a mapping that is compatable with the document being indexed.
@@ -154,12 +154,11 @@ POST /_scripts/painless/_execute
       "max_rank": 5.0
     }
   },
-  "context": {
-    "score": {
-      "index": "my-index",
-      "document": {
-        "rank": 4
-      }
+  "context": "score",
+  "context_setup": {
+    "index": "my-index",
+    "document": {
+      "rank": 4
     }
   }
 }

@@ -185,7 +185,7 @@ public final class Def {
         Definition.MethodKey key = new Definition.MethodKey(name, arity);
         // check whitelist for matching method
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            Struct struct = definition.RuntimeClassToStruct(clazz);
+            Struct struct = definition.getPainlessStructFromJavaClass(clazz);
 
             if (struct != null) {
                 Method method = struct.methods.get(key);
@@ -195,7 +195,7 @@ public final class Def {
             }
 
             for (Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.RuntimeClassToStruct(iface);
+                struct = definition.getPainlessStructFromJavaClass(iface);
 
                 if (struct != null) {
                     Method method = struct.methods.get(key);
@@ -279,7 +279,7 @@ public final class Def {
                      captures[capture] = callSiteType.parameterType(i + 1 + capture);
                  }
                  MethodHandle filter;
-                 Definition.Type interfaceType = definition.ClassToType(method.arguments.get(i - 1 - replaced));
+                 Class<?> interfaceType = method.arguments.get(i - 1 - replaced);
                  if (signature.charAt(0) == 'S') {
                      // the implementation is strongly typed, now that we know the interface type,
                      // we have everything.
@@ -293,14 +293,14 @@ public final class Def {
                      // the interface type is now known, but we need to get the implementation.
                      // this is dynamically based on the receiver type (and cached separately, underneath
                      // this cache). It won't blow up since we never nest here (just references)
-                     MethodType nestedType = MethodType.methodType(interfaceType.clazz, captures);
+                     MethodType nestedType = MethodType.methodType(interfaceType, captures);
                      CallSite nested = DefBootstrap.bootstrap(definition,
                                                               lookup,
                                                               call,
                                                               nestedType,
                                                               0,
                                                               DefBootstrap.REFERENCE,
-                                                              interfaceType.name);
+                                                              Definition.ClassToName(interfaceType));
                      filter = nested.dynamicInvoker();
                  } else {
                      throw new AssertionError();
@@ -324,8 +324,8 @@ public final class Def {
       */
     static MethodHandle lookupReference(Definition definition, Lookup lookup, String interfaceClass,
             Class<?> receiverClass, String name) throws Throwable {
-         Definition.Type interfaceType = definition.getType(interfaceClass);
-         Method interfaceMethod = interfaceType.struct.functionalMethod;
+         Class<?> interfaceType = definition.getJavaClassFromPainlessType(interfaceClass);
+         Method interfaceMethod = definition.getPainlessStructFromJavaClass(interfaceType).functionalMethod;
          if (interfaceMethod == null) {
              throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
          }
@@ -337,15 +337,15 @@ public final class Def {
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
     private static MethodHandle lookupReferenceInternal(Definition definition, Lookup lookup,
-            Definition.Type clazz, String type, String call, Class<?>... captures)
+            Class<?> clazz, String type, String call, Class<?>... captures)
             throws Throwable {
          final FunctionRef ref;
          if ("this".equals(type)) {
              // user written method
-             Method interfaceMethod = clazz.struct.functionalMethod;
+             Method interfaceMethod = definition.getPainlessStructFromJavaClass(clazz).functionalMethod;
              if (interfaceMethod == null) {
                  throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                    "to [" + clazz.name + "], not a functional interface");
+                                                    "to [" + Definition.ClassToName(clazz) + "], not a functional interface");
              }
              int arity = interfaceMethod.arguments.size() + captures.length;
              final MethodHandle handle;
@@ -359,14 +359,14 @@ public final class Def {
                  // because the arity does not match the expected interface type.
                  if (call.contains("$")) {
                      throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name +
-                                                        "] in [" + clazz.clazz + "]");
+                                                        "] in [" + clazz + "]");
                  }
                  throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
              }
-             ref = new FunctionRef(clazz.clazz, interfaceMethod, call, handle.type(), captures.length);
+             ref = new FunctionRef(clazz, interfaceMethod, call, handle.type(), captures.length);
          } else {
              // whitelist lookup
-             ref = new FunctionRef(definition, clazz.clazz, type, call, captures.length);
+             ref = new FunctionRef(definition, clazz, type, call, captures.length);
          }
          final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
              lookup,
@@ -379,7 +379,7 @@ public final class Def {
              ref.delegateMethodType,
              ref.isDelegateInterface ? 1 : 0
          );
-         return callSite.dynamicInvoker().asType(MethodType.methodType(clazz.clazz, captures));
+         return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, captures));
      }
 
      /** gets the field name used to lookup up the MethodHandle for a function. */
@@ -416,7 +416,7 @@ public final class Def {
     static MethodHandle lookupGetter(Definition definition, Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            Struct struct = definition.RuntimeClassToStruct(clazz);
+            Struct struct = definition.getPainlessStructFromJavaClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.getters.get(name);
@@ -426,7 +426,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.RuntimeClassToStruct(iface);
+                struct = definition.getPainlessStructFromJavaClass(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.getters.get(name);
@@ -487,7 +487,7 @@ public final class Def {
     static MethodHandle lookupSetter(Definition definition, Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            Struct struct = definition.RuntimeClassToStruct(clazz);
+            Struct struct = definition.getPainlessStructFromJavaClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.setters.get(name);
@@ -497,7 +497,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.RuntimeClassToStruct(iface);
+                struct = definition.getPainlessStructFromJavaClass(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.setters.get(name);

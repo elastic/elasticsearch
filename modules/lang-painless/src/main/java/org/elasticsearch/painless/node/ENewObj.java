@@ -58,12 +58,12 @@ public final class ENewObj extends AExpression {
     @Override
     void analyze(Locals locals) {
         try {
-            actual = Definition.TypeToClass(locals.getDefinition().getType(this.type));
+            actual = locals.getDefinition().getJavaClassFromPainlessType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        Struct struct = locals.getDefinition().ClassToType(actual).struct;
+        Struct struct = locals.getDefinition().getPainlessStructFromJavaClass(actual);
         constructor = struct.constructors.get(new Definition.MethodKey("<init>", arguments.size()));
 
         if (constructor != null) {

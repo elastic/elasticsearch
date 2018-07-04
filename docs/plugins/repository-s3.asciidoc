@@ -73,6 +73,10 @@ are marked as `Secure`.
 
     An s3 secret key. The `access_key` setting must also be specified. (Secure)
 
+`session_token`::
+    An s3 session token. The `access_key` and `secret_key` settings must also
+    be specified. (Secure)
+
 `endpoint`::
 
     The s3 service endpoint to connect to. This will be automatically

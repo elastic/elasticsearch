@@ -68,6 +68,8 @@ import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
+import org.elasticsearch.script.mustache.MultiSearchTemplateResponse;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -665,6 +667,32 @@ public class RestHighLevelClient implements Closeable {
         return performRequestAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options, RankEvalResponse::fromXContent,
                 emptySet());
     }
+
+        
+    /**
+     * Executes a request using the Multi Search Template API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-search-template.html">Multi Search Template API
+     * on elastic.co</a>.
+     */
+    public final MultiSearchTemplateResponse multiSearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest,
+            RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
+                options, MultiSearchTemplateResponse::fromXContext, emptySet());        
+    }   
+    
+    /**
+     * Asynchronously executes a request using the Multi Search Template API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-search-template.html">Multi Search Template API
+     * on elastic.co</a>.
+     */
+    public final void multiSearchTemplateAsync(MultiSearchTemplateRequest multiSearchTemplateRequest,
+                                          RequestOptions options,
+                                          ActionListener<MultiSearchTemplateResponse> listener) {
+        performRequestAsyncAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
+            options, MultiSearchTemplateResponse::fromXContext, listener, emptySet());
+    }    
 
     /**
      * Asynchronously executes a request using the Ranking Evaluation API.

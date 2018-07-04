@@ -113,10 +113,10 @@ public class ReplicationOperation<
                         // semantics. We have to make sure that every operation indexed into the primary after recovery start will also be
                         // replicated to the recovery target. If we used an old replication group, we may miss a recovery that has started
                         // since then. we also have to make sure to get the global checkpoint before the replication group, to ensure that
-                        // the global checkpoint is valid for this replication group. If we would sample in the reverse, the global checkpoint
-                        // might be based on a subset of the sampled replication group, and advanced further than what the given replication
-                        // group would allow it to. This would entail that some shards could learn about a global checkpoint that would be
-                        // higher than its local checkpoint.
+                        // the global checkpoint is valid for this replication group. If we would sample in the reverse, the global
+                        // checkpoint might be based on a subset of the sampled replication group, and advanced further than what the given
+                        // replication group would allow it to. This would entail that some shards could learn about a global checkpoint
+                        // that would be higher than its local checkpoint.
                         final long globalCheckpoint = primary.globalCheckpoint();
                         final ReplicationGroup replicationGroup = primary.getReplicationGroup();
                         markUnavailableShardsAsStale(replicaRequest, replicationGroup);

@@ -92,7 +92,8 @@ public abstract class TransportWriteAction<
 
     }
 
-    protected WritePrimaryResult<ReplicaRequest, Response> shardWriteOperationOnPrimary(Request shardRequest, IndexShard primary) throws Exception {
+    protected WritePrimaryResult<ReplicaRequest, Response> shardWriteOperationOnPrimary(Request shardRequest, IndexShard primary)
+        throws Exception {
         throw new UnsupportedOperationException("please over either asyncShardWriteOperationOnPrimary or shardWriteOperationOnPrimary");
     }
 

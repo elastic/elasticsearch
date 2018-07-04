@@ -223,7 +223,8 @@
 //
 //        UpdateHelper updateHelper = null;
 //        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(
-//            bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(), observer, callback);
+//            bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(), observer,
+//              callback);
 //
 //        // since at least 1 item passed, the tran log location should exist,
 //        assertThat(result.location, notNullValue());

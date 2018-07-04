@@ -1,3 +1,22 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.DocWriteRequest;
@@ -148,11 +167,11 @@ class PrimaryExecutionContext {
         currentItemState = ItemProcessingState.OPERATION_COMPLETED;
         final DocWriteRequest docWriteRequest = getCurrentItem().request();
         finalize(new BulkItemResponse(getCurrentItem().id(), docWriteRequest.opType(),
-                // Make sure to use request.index() here, if you
-                // use docWriteRequest.index() it will use the
-                // concrete index instead of an alias if used!
-                new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(),
-                    new MapperException("timed out while waiting for a dynamic mapping update"))));
+            // Make sure to use request.index() here, if you
+            // use docWriteRequest.index() it will use the
+            // concrete index instead of an alias if used!
+            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(),
+                new MapperException("timed out while waiting for a dynamic mapping update"))));
 
     }
 

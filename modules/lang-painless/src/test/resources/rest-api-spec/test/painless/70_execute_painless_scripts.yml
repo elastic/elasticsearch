@@ -35,7 +35,7 @@ setup:
             params:
               var1: 10
               var2: 100
-          execute_context:
+          context:
             painless_test: {}
   - match: { result: "-90" }
 
@@ -48,7 +48,7 @@ setup:
             source: "doc['field'].value.length() <= params.max_length"
             params:
               max_length: 4
-          execute_context:
+          context:
             filter:
               document:
                 field: "four"
@@ -64,7 +64,7 @@ setup:
             source: "doc['rank'].value / params.max_rank"
             params:
               max_rank: 5.0
-          execute_context:
+          context:
             score:
               document:
                 rank: 4

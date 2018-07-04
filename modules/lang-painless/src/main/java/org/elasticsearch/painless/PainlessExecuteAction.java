@@ -84,7 +84,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -117,7 +116,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
     public static class Request extends SingleShardRequest<Request> implements ToXContent {
 
         private static final ParseField SCRIPT_FIELD = new ParseField("script");
-        private static final ParseField EXECUTE_CONTEXT_FIELD = new ParseField("execute_context");
+        private static final ParseField CONTEXT_FIELD = new ParseField("context");
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "painless_execute_request", args -> new Request((Script) args[0], (ExecuteScriptContext) args[1]));
 
@@ -134,7 +133,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
                 token = p.nextToken();
                 assert token == XContentParser.Token.END_OBJECT;
                 return context;
-            }, EXECUTE_CONTEXT_FIELD);
+            }, CONTEXT_FIELD);
         }
 
         static final Map<String, ScriptContext<?>> SUPPORTED_CONTEXTS;
@@ -381,7 +380,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(SCRIPT_FIELD.getPreferredName(), script);
-            builder.field(EXECUTE_CONTEXT_FIELD.getPreferredName(), executeScriptContext);
+            builder.field(CONTEXT_FIELD.getPreferredName(), executeScriptContext);
             return builder;
         }
 
@@ -408,13 +407,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         }
 
         static boolean needDocumentAndIndex(ScriptContext<?> scriptContext) {
-            if (scriptContext == FilterScript.CONTEXT) {
-                return true;
-            } else if (scriptContext == ScoreScript.CONTEXT) {
-                return true;
-            } else {
-                return false;
-            }
+            return scriptContext == FilterScript.CONTEXT || scriptContext == ScoreScript.CONTEXT;
         }
 
     }

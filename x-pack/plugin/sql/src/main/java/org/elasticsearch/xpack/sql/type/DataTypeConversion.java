@@ -154,7 +154,7 @@ public abstract class DataTypeConversion {
             return Conversion.INTEGER_TO_LONG;
         }
         if (from == BOOLEAN) {
-            return Conversion.BOOL_TO_INT; // We emit an int here which is ok because of Java's casting rules
+            return Conversion.BOOL_TO_LONG;
         }
         if (from.isString()) {
             return Conversion.STRING_TO_LONG;

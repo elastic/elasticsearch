@@ -29,4 +29,20 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(Integer.MAX_VALUE, l.value());
         assertEquals(DataType.INTEGER, l.dataType());
     }
+
+    public void testLiteralIntegerWithShortValue() throws Exception {
+        Expression lt = parser.createExpression(String.valueOf(Short.MAX_VALUE));
+        assertEquals(Literal.class, lt.getClass());
+        Literal l = (Literal) lt;
+        assertEquals(Integer.valueOf(Short.MAX_VALUE), l.value());
+        assertEquals(DataType.INTEGER, l.dataType());
+    }
+
+    public void testLiteralIntegerWithByteValue() throws Exception {
+        Expression lt = parser.createExpression(String.valueOf(Byte.MAX_VALUE));
+        assertEquals(Literal.class, lt.getClass());
+        Literal l = (Literal) lt;
+        assertEquals(Integer.valueOf(Byte.MAX_VALUE), l.value());
+        assertEquals(DataType.INTEGER, l.dataType());
+    }
 }

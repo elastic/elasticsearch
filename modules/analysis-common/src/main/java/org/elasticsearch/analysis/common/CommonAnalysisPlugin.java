@@ -222,6 +222,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("classic", ClassicFilterFactory::new);
         filters.put("czech_stem", CzechStemTokenFilterFactory::new);
         filters.put("common_grams", requriesAnalysisSettings(CommonGramsTokenFilterFactory::new));
+        filters.put("condition",
+            requriesAnalysisSettings((i, e, n, s) -> new ScriptedConditionTokenFilterFactory(i, n, s, scriptService.get())));
         filters.put("decimal_digit", DecimalDigitFilterFactory::new);
         filters.put("delimited_payload_filter", LegacyDelimitedPayloadTokenFilterFactory::new);
         filters.put("delimited_payload", DelimitedPayloadTokenFilterFactory::new);

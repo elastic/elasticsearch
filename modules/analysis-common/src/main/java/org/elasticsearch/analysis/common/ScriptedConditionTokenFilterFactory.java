@@ -16,6 +16,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,6 +36,9 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
 
         Settings scriptSettings = settings.getAsSettings("script");
         Script script = Script.parse(scriptSettings);
+        if (script.getType() != ScriptType.INLINE) {
+            throw new IllegalArgumentException("Cannot use stored scripts in tokenfilter [" + name + "]");
+        }
         this.factory = scriptService.compile(script, CONTEXT);
 
         this.filterNames = settings.getAsList("filters");
@@ -88,5 +92,5 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
     }
 
     public static final String[] PARAMETERS = new String[] {"term", "posInc", "startOffset", "endOffset", "posLen", "type"};
-    public static final ScriptContext<ConditionFactory> CONTEXT = new ScriptContext<>("similarity", ConditionFactory.class);
+    public static final ScriptContext<ConditionFactory> CONTEXT = new ScriptContext<>("condition", ConditionFactory.class);
 }

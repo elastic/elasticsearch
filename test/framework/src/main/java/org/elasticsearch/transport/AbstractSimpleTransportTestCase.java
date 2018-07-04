@@ -1357,7 +1357,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Version1Request version1Request = new Version1Request();
         version1Request.value1 = 1;
         version1Request.value2 = 2;
-        Version1Response version1Response = serviceB.submitRequest(nodeB, "internal:version", version1Request,
+        Version1Response version1Response = serviceB.submitRequest(nodeB, "internal:/version", version1Request,
             new TransportResponseHandler<Version1Response>() {
                 @Override
                 public Version1Response newInstance() {
@@ -1398,7 +1398,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         Version0Request version0Request = new Version0Request();
         version0Request.value1 = 1;
-        Version0Response version0Response = serviceA.submitRequest(nodeA, "internal:version", version0Request,
+        Version0Response version0Response = serviceA.submitRequest(nodeA, "internal:/version", version0Request,
             new TransportResponseHandler<Version0Response>() {
                 @Override
                 public Version0Response newInstance() {
@@ -1873,7 +1873,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 throw new AssertionError("boom");
             });
         expectThrows(IllegalArgumentException.class, () ->
-            serviceB.registerRequestHandler("action1", TestRequest::new, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+            serviceB.registerRequestHandler("internal:action1", TestRequest::new, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names
+                    .GENERIC),
                 (request, message) -> {
                     throw new AssertionError("boom");
                 })
@@ -2462,7 +2463,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             int addressLen = serviceB.boundAddress().publishAddress().address().getAddress().getAddress().length;
             // if we are bound to a IPv6 address the response address is serialized with the exception so it will be different depending
             // on the stack. The emphemeral port will always be in the same range
-            assertEquals(185 + addressLen, stats.getRxSize().getBytes());
+            assertEquals(203 + addressLen, stats.getRxSize().getBytes());
             assertEquals(100, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();

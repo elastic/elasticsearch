@@ -5,21 +5,21 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.operator.OperatorException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 import org.junit.Assert;
 import org.junit.Before;
-
 import javax.net.ssl.X509ExtendedTrustManager;
-import javax.security.auth.x500.X500Principal;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.GeneralSecurityException;
-import java.security.KeyPair;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -33,15 +33,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ssl.CertUtils.generateSignedCertificate;
-
 public class RestrictedTrustManagerTests extends ESTestCase {
-
-    /**
-     * Use a small keysize for performance, since the keys are only used in this test, but a large enough keysize
-     * to get past the SSL algorithm checker
-     */
-    private static final int KEYSIZE = 1024;
 
     private X509ExtendedTrustManager baseTrustManager;
     private Map<String, X509Certificate[]> certificates;
@@ -49,28 +41,51 @@ public class RestrictedTrustManagerTests extends ESTestCase {
     private int numberOfNodes;
 
     @Before
-    public void generateCertificates() throws GeneralSecurityException, IOException, OperatorException {
-        KeyPair caPair = CertUtils.generateKeyPair(KEYSIZE);
-        X500Principal ca = new X500Principal("cn=CertAuth");
-        X509Certificate caCert = CertUtils.generateCACertificate(ca, caPair, 30);
-        baseTrustManager = CertUtils.trustManager(new Certificate[] { caCert });
+    public void readCertificates() throws GeneralSecurityException, IOException {
 
+        Certificate[] caCert
+                = CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
+                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt")));
+        baseTrustManager = CertParsingUtils.trustManager(caCert);
         certificates = new HashMap<>();
+        Files.walkFileTree(getDataPath
+                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/self-signed"), new SimpleFileVisitor<Path>() {
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                try {
+                    String fileName = file.getFileName().toString();
+                    if (fileName.endsWith(".crt")) {
+                        certificates.put(fileName.replace(".crt", "/self"), CertParsingUtils
+                                .readX509Certificates(Collections.singletonList(file)));
+                    }
+                    return FileVisitResult.CONTINUE;
+                } catch (CertificateException e) {
+                    throw new IOException("Failed to read X.509 Certificate from: " + file.toAbsolutePath().toString());
+                }
+            }
+        });
+
+        Files.walkFileTree(getDataPath
+                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca-signed"), new SimpleFileVisitor<Path>() {
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                try {
+                    String fileName = file.getFileName().toString();
+                    if (fileName.endsWith(".crt")) {
+                        certificates.put(fileName.replace(".crt", "/ca"), CertParsingUtils
+                                .readX509Certificates(Collections.singletonList(file)));
+                    }
+                    return FileVisitResult.CONTINUE;
+                } catch (CertificateException e) {
+                    throw new IOException("Failed to read X.509 Certificate from: " + file.toAbsolutePath().toString());
+                }
+            }
+        });
+
         numberOfClusters = scaledRandomIntBetween(2, 8);
         numberOfNodes = scaledRandomIntBetween(2, 8);
-        for (int cluster = 1; cluster <= numberOfClusters; cluster++) {
-            for (int node = 1; node <= numberOfNodes; node++) {
-                KeyPair nodePair = CertUtils.generateKeyPair(KEYSIZE);
-                final String cn = "n" + node + ".c" + cluster;
-                final X500Principal principal = new X500Principal("cn=" + cn);
-                final String san = "node" + node + ".cluster" + cluster + ".elasticsearch";
-                final GeneralNames altNames = new GeneralNames(CertUtils.createCommonName(san));
-                final X509Certificate signed = generateSignedCertificate(principal, altNames, nodePair, caCert, caPair.getPrivate(), 30);
-                final X509Certificate self = generateSignedCertificate(principal, altNames, nodePair, null, null, 30);
-                certificates.put(cn + "/ca", new X509Certificate[] { signed });
-                certificates.put(cn + "/self", new X509Certificate[] { self });
-            }
-        }
     }
 
     public void testTrustsExplicitCertificateName() throws Exception {

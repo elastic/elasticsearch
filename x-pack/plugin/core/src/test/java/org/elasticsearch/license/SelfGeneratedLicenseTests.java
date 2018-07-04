@@ -34,7 +34,7 @@ public class SelfGeneratedLicenseTests extends ESTestCase {
                 .type(randomBoolean() ? "trial" : "basic")
                 .issueDate(issueDate)
                 .expiryDate(issueDate + TimeValue.timeValueHours(2).getMillis());
-        License trialLicense = SelfGeneratedLicense.create(specBuilder);
+        License trialLicense = SelfGeneratedLicense.create(specBuilder, License.VERSION_CURRENT);
         assertThat(SelfGeneratedLicense.verify(trialLicense), equalTo(true));
     }
 
@@ -47,7 +47,7 @@ public class SelfGeneratedLicenseTests extends ESTestCase {
                 .maxNodes(5)
                 .issueDate(issueDate)
                 .expiryDate(issueDate + TimeValue.timeValueHours(2).getMillis());
-        License trialLicense = SelfGeneratedLicense.create(specBuilder);
+        License trialLicense = SelfGeneratedLicense.create(specBuilder, License.VERSION_CURRENT);
         final String originalSignature = trialLicense.signature();
         License tamperedLicense = License.builder().fromLicenseSpec(trialLicense, originalSignature)
                 .expiryDate(System.currentTimeMillis() + TimeValue.timeValueHours(5).getMillis())
@@ -70,7 +70,8 @@ public class SelfGeneratedLicenseTests extends ESTestCase {
                 .issueDate(issueDate)
                 .expiryDate(issueDate + TimeValue.timeValueHours(2).getMillis());
         License pre20TrialLicense = specBuilder.build();
-        License license = SelfGeneratedLicense.create(License.builder().fromPre20LicenseSpec(pre20TrialLicense).type("trial"));
+        License license = SelfGeneratedLicense.create(License.builder().fromPre20LicenseSpec(pre20TrialLicense).type("trial"),
+            License.VERSION_CURRENT);
         assertThat(SelfGeneratedLicense.verify(license), equalTo(true));
     }
 

@@ -12,7 +12,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Request builder for setting a user as enabled or disabled
  */
-public class SetEnabledRequestBuilder extends ActionRequestBuilder<SetEnabledRequest, SetEnabledResponse, SetEnabledRequestBuilder>
+public class SetEnabledRequestBuilder extends ActionRequestBuilder<SetEnabledRequest, SetEnabledResponse>
         implements WriteRequestBuilder<SetEnabledRequestBuilder> {
 
     public SetEnabledRequestBuilder(ElasticsearchClient client) {

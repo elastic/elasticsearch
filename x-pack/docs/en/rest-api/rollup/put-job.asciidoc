@@ -5,6 +5,8 @@
 <titleabbrev>Create Job</titleabbrev>
 ++++
 
+experimental[]
+
 This API enables you to create a rollup job.  The job will be created in a `STOPPED` state, and must be
 started with the <<rollup-start-job,Start Job API>>.
 

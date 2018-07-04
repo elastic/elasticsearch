@@ -29,12 +29,7 @@ indexing by setting `xpack.security.audit.outputs` in `elasticsearch.yml`:
 xpack.security.audit.outputs: [ index, logfile ]
 ----------------------------
 
-The `index` output type should be used in conjunction with the `logfile`
-output type Because it is possible for the `index` output type to lose
-messages if the target index is unavailable, the `access.log` should be
-used as the official record of events.
-
-NOTE: Audit events are batched for indexing so there is a lag before
-events appear in the index. You can control how frequently batches of
-events are pushed to the index by setting
-`xpack.security.audit.index.flush_interval` in `elasticsearch.yml`.
+TIP: If you choose to enable the `index` output type, we strongly recommend that 
+you still use the `logfile` output as the official record of events. If the 
+target index is unavailable (for example, during a rolling upgrade), the `index` 
+output can lose messages.

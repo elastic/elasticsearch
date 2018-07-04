@@ -11,8 +11,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Request builder used to populate a {@link SamlLogoutRequest}
  */
-public final class SamlLogoutRequestBuilder extends ActionRequestBuilder<SamlLogoutRequest,
-        SamlLogoutResponse, SamlLogoutRequestBuilder> {
+public final class SamlLogoutRequestBuilder extends ActionRequestBuilder<SamlLogoutRequest, SamlLogoutResponse> {
 
     public SamlLogoutRequestBuilder(ElasticsearchClient client) {
         super(client, SamlLogoutAction.INSTANCE, new SamlLogoutRequest());

@@ -1,23 +1,23 @@
 [[security-files]]
 === Security Files
 
-The {security} uses the following files:
+{security} uses the following files:
 
-* `CONFIG_DIR/roles.yml` defines the roles in use on the cluster
+* `ES_PATH_CONF/roles.yml` defines the roles in use on the cluster
   (read more <<roles-management-file, here>>).
 
-* `CONFIG_DIR/elasticsearch-users` defines the users and their hashed passwords for
+* `ES_PATH_CONF/elasticsearch-users` defines the users and their hashed passwords for
   the <<file-realm,`file` realm>>.
 
-* `CONFIG_DIR/elasticsearch-users_roles` defines the user roles assignment for the
+* `ES_PATH_CONF/elasticsearch-users_roles` defines the user roles assignment for the
   the <<file-realm, `file` realm>>.
 
-* `CONFIG_DIR/role_mapping.yml` defines the role assignments for a
+* `ES_PATH_CONF/role_mapping.yml` defines the role assignments for a
   Distinguished Name (DN) to a role. This allows for LDAP and Active Directory
   groups and users and PKI users to be mapped to roles (read more
   <<mapping-roles, here>>).
 
-* `CONFIG_DIR/log4j2.properties` contains audit information (read more
+* `ES_PATH_CONF/log4j2.properties` contains audit information (read more
   <<logging-file, here>>).
 
 [[security-files-location]]

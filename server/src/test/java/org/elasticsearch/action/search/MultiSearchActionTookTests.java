@@ -22,7 +22,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -32,6 +32,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -53,7 +54,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongSupplier;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -107,7 +107,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
 
         TransportMultiSearchAction action = createTransportMultiSearchAction(controlledClock, expected);
 
-        action.doExecute(multiSearchRequest, new ActionListener<MultiSearchResponse>() {
+        action.doExecute(mock(Task.class), multiSearchRequest, new ActionListener<MultiSearchResponse>() {
             @Override
             public void onResponse(MultiSearchResponse multiSearchResponse) {
                 if (controlledClock) {
@@ -149,10 +149,9 @@ public class MultiSearchActionTookTests extends ESTestCase {
         final ExecutorService commonExecutor = threadPool.executor(threadPoolNames.get(0));
         final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
 
-        TransportAction<SearchRequest, SearchResponse> searchAction = new TransportAction<SearchRequest, SearchResponse>(Settings.EMPTY,
-                "action", threadPool, actionFilters, resolver, taskManager) {
+        NodeClient client = new NodeClient(settings, threadPool) {
             @Override
-            protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
+            public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
                 requests.add(request);
                 commonExecutor.execute(() -> {
                     counter.decrementAndGet();
@@ -162,8 +161,8 @@ public class MultiSearchActionTookTests extends ESTestCase {
         };
 
         if (controlledClock) {
-            return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, resolver,
-                    availableProcessors, expected::get) {
+            return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, availableProcessors,
+                                                  expected::get, client) {
                 @Override
                 void executeSearch(final Queue<SearchRequestSlot> requests, final AtomicArray<MultiSearchResponse.Item> responses,
                         final AtomicInteger responseCounter, final ActionListener<MultiSearchResponse> listener, long startTimeInNanos) {
@@ -172,9 +171,8 @@ public class MultiSearchActionTookTests extends ESTestCase {
                 }
             };
         } else {
-            return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, resolver,
-                    availableProcessors, System::nanoTime) {
-
+            return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService,
+                                                  availableProcessors, System::nanoTime, client) {
                 @Override
                 void executeSearch(final Queue<SearchRequestSlot> requests, final AtomicArray<MultiSearchResponse.Item> responses,
                         final AtomicInteger responseCounter, final ActionListener<MultiSearchResponse> listener, long startTimeInNanos) {

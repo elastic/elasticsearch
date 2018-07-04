@@ -11,3 +11,9 @@ the getter methods for date objects were deprecated. These methods have
 now been removed. Instead, use `.value` on `date` fields, or explicitly
 parse `long` fields into a date object using
 `Instance.ofEpochMillis(doc["myfield"].value)`.
+
+==== Script errors will return as `400` error codes
+
+Malformed scripts, either in search templates, ingest pipelines or search 
+requests, return `400 - Bad request` while they would previously return
+`500 - Internal Server Error`. This also applies for stored scripts.

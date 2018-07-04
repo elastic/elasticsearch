@@ -446,7 +446,7 @@
       indices.refresh: {}
 
   - do:
-      catch: request
+      catch: bad_request
       reindex:
         refresh: true
         body:

@@ -10,7 +10,9 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.sql.Date;
 import java.sql.JDBCType;
+import java.sql.SQLDataException;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.LocalDate;
@@ -18,10 +20,17 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.OffsetTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.GregorianCalendar;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static java.util.Calendar.DAY_OF_MONTH;
@@ -48,6 +57,22 @@ final class TypeConverter {
     }
 
     private static final long DAY_IN_MILLIS = 60 * 60 * 24;
+    private static final Map<Class<?>, JDBCType> javaToJDBC;
+    
+    static {
+        Map<Class<?>, JDBCType> aMap = Arrays.stream(DataType.values())
+                .filter(dataType -> dataType.javaClass() != null
+                        && dataType != DataType.HALF_FLOAT
+                        && dataType != DataType.SCALED_FLOAT
+                        && dataType != DataType.TEXT)
+                .collect(Collectors.toMap(dataType -> dataType.javaClass(), dataType -> dataType.jdbcType));
+        // apart from the mappings in {@code DataType} three more Java classes can be mapped to a {@code JDBCType.TIMESTAMP}
+        // according to B-4 table from the jdbc4.2 spec
+        aMap.put(Calendar.class, JDBCType.TIMESTAMP);
+        aMap.put(java.util.Date.class, JDBCType.TIMESTAMP);
+        aMap.put(LocalDateTime.class, JDBCType.TIMESTAMP);
+        javaToJDBC = Collections.unmodifiableMap(aMap);
+    }
 
     /**
      * Converts millisecond after epoc to date
@@ -94,6 +119,20 @@ final class TypeConverter {
             c.setTimeInMillis(initial);
         }
     }
+    
+    static long convertFromCalendarToUTC(long value, Calendar cal) {
+        if (cal == null) {
+            return value;
+        }
+        Calendar c = (Calendar) cal.clone();
+        c.setTimeInMillis(value);
+
+        ZonedDateTime convertedDateTime = ZonedDateTime
+                .ofInstant(c.toInstant(), c.getTimeZone().toZoneId())
+                .withZoneSameLocal(ZoneOffset.UTC);
+
+        return convertedDateTime.toInstant().toEpochMilli();
+    }
 
     /**
      * Converts object val from columnType to type
@@ -103,6 +142,15 @@ final class TypeConverter {
         if (type == null) {
             return (T) convert(val, columnType);
         }
+        
+        if (type.isInstance(val)) {
+            try {
+                return type.cast(val);
+            } catch (ClassCastException cce) {
+                throw new SQLDataException("Unable to convert " + val.getClass().getName() + " to " + columnType, cce);
+            }
+        }
+        
         if (type == String.class) {
             return (T) asString(convert(val, columnType));
         }
@@ -174,10 +222,10 @@ final class TypeConverter {
             // Convert unsupported exception to JdbcSQLException
             throw new JdbcSQLException(ex, ex.getMessage());
         }
-        if (dataType.javaName == null) {
+        if (dataType.javaClass() == null) {
             throw new JdbcSQLException("Unsupported JDBC type [" + jdbcType + "]");
         }
-        return dataType.javaName;
+        return dataType.javaClass().getName();
     }
 
     /**
@@ -206,7 +254,7 @@ final class TypeConverter {
             case REAL:
                 return floatValue(v);  // Float might be represented as string for infinity and NaN values
             case TIMESTAMP:
-                return ((Number) v).longValue();
+                return new Timestamp(((Number) v).longValue());
             default:
                 throw new SQLException("Unexpected column type [" + columnType.getName() + "]");
 
@@ -227,6 +275,18 @@ final class TypeConverter {
             throw new JdbcSQLException(ex, ex.getMessage());
         }
         return dataType.isSigned();
+    }
+    
+    
+    static JDBCType fromJavaToJDBC(Class<?> clazz) throws SQLException {
+        for (Entry<Class<?>, JDBCType> e : javaToJDBC.entrySet()) {
+            // java.util.Calendar from {@code javaToJDBC} is an abstract class and this method can be used with concrete classes as well
+            if (e.getKey().isAssignableFrom(clazz)) {
+                return e.getValue();
+            }
+        }
+        
+        throw new SQLFeatureNotSupportedException("Objects of type " + clazz.getName() + " are not supported");
     }
 
     private static Double doubleValue(Object v) {
@@ -275,7 +335,7 @@ final class TypeConverter {
             case REAL:
             case FLOAT:
             case DOUBLE:
-                return Boolean.valueOf(Integer.signum(((Number) val).intValue()) == 0);
+                return Boolean.valueOf(Integer.signum(((Number) val).intValue()) != 0);
             default:
                 throw new SQLException("Conversion from type [" + columnType + "] to [Boolean] not supported");
 
@@ -368,7 +428,7 @@ final class TypeConverter {
             case SMALLINT:
             case INTEGER:
             case BIGINT:
-                return Float.valueOf((float) ((Number) val).longValue());
+                return Float.valueOf(((Number) val).longValue());
             case REAL:
             case FLOAT:
             case DOUBLE:
@@ -387,7 +447,7 @@ final class TypeConverter {
             case SMALLINT:
             case INTEGER:
             case BIGINT:
-                return Double.valueOf((double) ((Number) val).longValue());
+                return Double.valueOf(((Number) val).longValue());
             case REAL:
             case FLOAT:
             case DOUBLE:
@@ -454,28 +514,28 @@ final class TypeConverter {
 
     private static byte safeToByte(long x) throws SQLException {
         if (x > Byte.MAX_VALUE || x < Byte.MIN_VALUE) {
-            throw new SQLException(format(Locale.ROOT, "Numeric %d out of range", Long.toString(x)));
+            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Long.toString(x)));
         }
         return (byte) x;
     }
 
     private static short safeToShort(long x) throws SQLException {
         if (x > Short.MAX_VALUE || x < Short.MIN_VALUE) {
-            throw new SQLException(format(Locale.ROOT, "Numeric %d out of range", Long.toString(x)));
+            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Long.toString(x)));
         }
         return (short) x;
     }
 
     private static int safeToInt(long x) throws SQLException {
         if (x > Integer.MAX_VALUE || x < Integer.MIN_VALUE) {
-            throw new SQLException(format(Locale.ROOT, "Numeric %d out of range", Long.toString(x)));
+            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Long.toString(x)));
         }
         return (int) x;
     }
 
     private static long safeToLong(double x) throws SQLException {
         if (x > Long.MAX_VALUE || x < Long.MIN_VALUE) {
-            throw new SQLException(format(Locale.ROOT, "Numeric %d out of range", Double.toString(x)));
+            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Double.toString(x)));
         }
         return Math.round(x);
     }

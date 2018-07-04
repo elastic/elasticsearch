@@ -6,12 +6,13 @@
 package org.elasticsearch.xpack.core.ml.integration;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -19,26 +20,26 @@ public class MlRestTestStateCleaner {
 
     private final Logger logger;
     private final RestClient adminClient;
-    private final ESRestTestCase testCase;
 
-    public MlRestTestStateCleaner(Logger logger, RestClient adminClient, ESRestTestCase testCase) {
+    public MlRestTestStateCleaner(Logger logger, RestClient adminClient) {
         this.logger = logger;
         this.adminClient = adminClient;
-        this.testCase = testCase;
     }
 
     public void clearMlMetadata() throws IOException {
         deleteAllDatafeeds();
         deleteAllJobs();
-        // indices will be deleted by the ESIntegTestCase class
+        // indices will be deleted by the ESRestTestCase class
     }
 
     @SuppressWarnings("unchecked")
     private void deleteAllDatafeeds() throws IOException {
-        Map<String, Object> clusterStateAsMap = testCase.entityAsMap(adminClient.performRequest("GET", "/_cluster/state",
-                Collections.singletonMap("filter_path", "metadata.ml.datafeeds")));
-        List<Map<String, Object>> datafeeds =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.datafeeds", clusterStateAsMap);
+        final Request datafeedsRequest = new Request("GET", "/_xpack/ml/datafeeds");
+        datafeedsRequest.addParameter("filter_path", "datafeeds");
+        final Response datafeedsResponse = adminClient.performRequest(datafeedsRequest);
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> datafeeds =
+                (List<Map<String, Object>>) XContentMapValues.extractValue("datafeeds", ESRestTestCase.entityAsMap(datafeedsResponse));
         if (datafeeds == null) {
             return;
         }
@@ -75,11 +76,12 @@ public class MlRestTestStateCleaner {
     }
 
     private void deleteAllJobs() throws IOException {
-        Map<String, Object> clusterStateAsMap = testCase.entityAsMap(adminClient.performRequest("GET", "/_cluster/state",
-                Collections.singletonMap("filter_path", "metadata.ml.jobs")));
+        final Request jobsRequest = new Request("GET", "/_xpack/ml/anomaly_detectors");
+        jobsRequest.addParameter("filter_path", "jobs");
+        final Response response = adminClient.performRequest(jobsRequest);
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> jobConfigs =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.jobs", clusterStateAsMap);
+        final List<Map<String, Object>> jobConfigs =
+                (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", ESRestTestCase.entityAsMap(response));
         if (jobConfigs == null) {
             return;
         }

@@ -7,7 +7,6 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.rest.action.RestBuilderListener;
 
 public class LicensingClient {
 

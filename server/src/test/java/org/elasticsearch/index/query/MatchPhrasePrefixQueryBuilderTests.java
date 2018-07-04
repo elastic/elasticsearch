@@ -61,7 +61,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
 
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(fieldName, value);
 
-        if (randomBoolean()) {
+        if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
             matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
         }
 
@@ -116,6 +116,13 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
 
         QueryShardException e = expectThrows(QueryShardException.class, () -> matchQuery.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("analyzer [bogusAnalyzer] not found"));
+    }
+
+    public void testPhraseOnFieldWithNoTerms() {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(DATE_FIELD_NAME, "three term phrase");
+        matchQuery.analyzer("whitespace");
+        expectThrows(IllegalArgumentException.class, () -> matchQuery.doToQuery(createShardContext()));
     }
 
     public void testPhrasePrefixMatchQuery() throws IOException {

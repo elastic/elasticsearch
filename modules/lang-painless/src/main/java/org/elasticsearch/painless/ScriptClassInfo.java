@@ -23,9 +23,7 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableList;
@@ -181,22 +179,18 @@ public class ScriptClassInfo {
 
     private static Class<?> definitionTypeForClass(Definition definition, Class<?> type,
             Function<Class<?>, String> unknownErrorMessageSource) {
-        int dimensions = 0;
+        type = Definition.ObjectClassTodefClass(type);
         Class<?> componentType = type;
+
         while (componentType.isArray()) {
-            dimensions++;
             componentType = componentType.getComponentType();
         }
-        Definition.Struct struct;
-        if (componentType == Object.class) {
-            struct = definition.getType("def").struct;
-        } else {
-            if (definition.RuntimeClassToStruct(componentType) == null) {
-                throw new IllegalArgumentException(unknownErrorMessageSource.apply(componentType));
-            }
-            struct = definition.RuntimeClassToStruct(componentType);
+
+        if (definition.getPainlessStructFromJavaClass(componentType) == null) {
+            throw new IllegalArgumentException(unknownErrorMessageSource.apply(componentType));
         }
-        return Definition.TypeToClass(definition.getType(struct, dimensions));
+
+        return type;
     }
 
     private static String[] readArgumentNamesConstant(Class<?> iface) {

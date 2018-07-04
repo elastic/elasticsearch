@@ -65,9 +65,8 @@ public class HipChatService extends NotificationService<HipChatAccount> {
     private HipChatServer defaultServer;
 
     public HipChatService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
-        super(settings, "hipchat");
+        super(settings, "hipchat", clusterSettings, HipChatService.getSettings());
         this.httpClient = httpClient;
-        clusterSettings.addSettingsUpdateConsumer(this::setAccountSetting, getSettings());
         // ensure logging of setting changes
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_HOST, (s) -> {});

@@ -83,7 +83,6 @@ import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAl
 import static org.elasticsearch.cluster.service.MasterServiceTests.discoveryState;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.zen.ZenDiscovery.shouldIgnoreOrRejectNewClusterState;
-import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -318,7 +317,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             }
         };
         ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-            masterService, clusterApplier, clusterSettings, Collections::emptyList, ESAllocationTestCase.createAllocationService(),
+            masterService, clusterApplier, clusterSettings, hostsResolver -> Collections.emptyList(), ESAllocationTestCase.createAllocationService(),
             Collections.emptyList());
         zenDiscovery.start();
         return zenDiscovery;
@@ -369,7 +368,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build());
             if (incompatible) {
                 IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-                    request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), null));
+                    request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), null, null));
                 assertEquals("index [test] version not supported: "
                     + VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
                     + " minimum compatible index version is: " + Version.CURRENT.minimumIndexCompatibilityVersion(), ex.getMessage());
@@ -401,7 +400,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                     public void sendResponse(Exception exception) throws IOException {
 
                     }
-                });
+                }, null);
                 assertTrue(sendResponse.get());
             }
         }

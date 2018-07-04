@@ -83,7 +83,7 @@ public final class ElasticsearchMergePolicy extends FilterMergePolicy {
 
     @Override
     public MergeSpecification findForcedMerges(SegmentInfos segmentInfos,
-        int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge, IndexWriter writer)
+        int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge, MergeContext mergeContext)
         throws IOException {
 
         if (upgradeInProgress) {
@@ -122,7 +122,7 @@ public final class ElasticsearchMergePolicy extends FilterMergePolicy {
             // has a chance to decide what to do (e.g. collapse the segments to satisfy maxSegmentCount)
         }
 
-        return super.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, writer);
+        return super.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, mergeContext);
     }
 
     /**

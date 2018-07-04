@@ -37,6 +37,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/122")
     public void testTooManyPartitions() throws Exception {
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setPartitionFieldName("user");
@@ -77,11 +78,12 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(modelSizeStats.getModelBytes(), lessThan(35000000L));
-        assertThat(modelSizeStats.getModelBytes(), greaterThan(30000000L));
+        assertThat(modelSizeStats.getModelBytes(), lessThan(31500000L));
+        assertThat(modelSizeStats.getModelBytes(), greaterThan(24000000L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/122")
     public void testTooManyByFields() throws Exception {
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setByFieldName("user");
@@ -122,11 +124,12 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(modelSizeStats.getModelBytes(), lessThan(36000000L));
-        assertThat(modelSizeStats.getModelBytes(), greaterThan(30000000L));
+        assertThat(modelSizeStats.getModelBytes(), lessThan(31500000L));
+        assertThat(modelSizeStats.getModelBytes(), greaterThan(25000000L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/122")
     public void testTooManyByAndOverFields() throws Exception {
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setByFieldName("department");
@@ -171,11 +174,12 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(modelSizeStats.getModelBytes(), lessThan(36000000L));
+        assertThat(modelSizeStats.getModelBytes(), lessThan(31500000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(24000000L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/122")
     public void testManyDistinctOverFields() throws Exception {
         Detector.Builder detector = new Detector.Builder("sum", "value");
         detector.setOverFieldName("user");
@@ -221,9 +225,9 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(modelSizeStats.getModelBytes(), lessThan(90000000L));
-        assertThat(modelSizeStats.getModelBytes(), greaterThan(75000000L));
-        assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.OK));
+        assertThat(modelSizeStats.getModelBytes(), lessThan(116000000L));
+        assertThat(modelSizeStats.getModelBytes(), greaterThan(90000000L));
+        assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
     private static Map<String, Object> createRecord(long timestamp, String user, String department) {

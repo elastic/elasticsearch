@@ -119,7 +119,7 @@ public final class SFunction extends AStatement {
 
     void generateSignature(Definition definition) {
         try {
-            rtnType = Definition.TypeToClass(definition.getType(rtnTypeStr));
+            rtnType = definition.getJavaClassFromPainlessType(rtnTypeStr);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Illegal return type [" + rtnTypeStr + "] for function [" + name + "]."));
         }
@@ -133,7 +133,7 @@ public final class SFunction extends AStatement {
 
         for (int param = 0; param < this.paramTypeStrs.size(); ++param) {
             try {
-                Class<?> paramType = Definition.TypeToClass(definition.getType(this.paramTypeStrs.get(param)));
+                Class<?> paramType = definition.getJavaClassFromPainlessType(this.paramTypeStrs.get(param));
 
                 paramClasses[param] = Definition.defClassToObjectClass(paramType);
                 paramTypes.add(paramType);

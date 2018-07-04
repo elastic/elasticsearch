@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
-import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;

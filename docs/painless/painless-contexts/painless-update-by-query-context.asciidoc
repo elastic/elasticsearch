@@ -1,0 +1,54 @@
+[[painless-update-by-query-context]]
+=== Update by query context
+
+Use a Painless script in an
+{es_version}/docs-update-by-query.html[update by query] operation to add,
+modify, or delete fields within each of a set of documents collected as the
+result of query.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`ctx['_op']` (`String`)::
+        The name of the operation.
+
+{es_version}/mapping-routing-field.html[`ctx['_routing']`] (`String`, read-only)::
+        The value used to select a shard for document storage.
+
+{es_version}/mapping-index-field.html[`ctx['_index']`] (`String`, read-only)::
+        The name of the index.
+
+{es_version}/mapping-type-field.html[`ctx['_type']`] (`String`, read-only)::
+        The type of document within an index.
+
+{es_version}/mapping-id-field.html[`ctx['_id']`] (`int`, read-only)::
+        The unique document id.
+
+`ctx['_version']` (`int`, read-only)::
+        The current version of the document.
+
+{es_version}/mapping-source-field.html[`ctx['_source']`] (`Map`)::
+        Contains extracted JSON in a `Map` and `List` structure for the fields
+        existing in a stored document.
+
+*Side Effects*
+
+`ctx['_op']`::
+        Use the default of `index` to update a document. Set to `none` to
+        specify no operation or `delete` to delete the current document from
+        the index.
+
+{es_version}/mapping-source-field.html[`ctx['_source']`]::
+        Modify the values in the `Map/List` structure to add, modify, or delete
+        the fields of a document.
+
+*Return*
+
+`void`::
+        No expected return value.
+
+*API*
+
+The standard <<painless-api-reference, Painless API>> is available.

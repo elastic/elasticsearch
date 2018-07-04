@@ -66,6 +66,9 @@ public class FunctionRef {
     /** delegate method type method as type */
     public final Type delegateType;
 
+    /** whether a call is made on a delegate interface */
+    public final boolean isDelegateInterface;
+
     /**
      * Creates a new FunctionRef, which will resolve {@code type::call} from the whitelist.
      * @param definition the whitelist against which this script is being compiled
@@ -75,7 +78,7 @@ public class FunctionRef {
      * @param numCaptures number of captured arguments
      */
     public FunctionRef(Definition definition, Class<?> expected, String type, String call, int numCaptures) {
-        this(expected, definition.ClassToType(expected).struct.functionalMethod,
+        this(expected, definition.getPainlessStructFromJavaClass(expected).functionalMethod,
                 lookup(definition, expected, type, call, numCaptures > 0), numCaptures);
     }
 
@@ -97,10 +100,13 @@ public class FunctionRef {
         // the Painless$Script class can be inferred if owner is null
         if (delegateMethod.owner == null) {
             delegateClassName = CLASS_NAME;
+            isDelegateInterface = false;
         } else if (delegateMethod.augmentation != null) {
             delegateClassName = delegateMethod.augmentation.getName();
+            isDelegateInterface = delegateMethod.augmentation.isInterface();
         } else {
             delegateClassName = delegateMethod.owner.clazz.getName();
+            isDelegateInterface = delegateMethod.owner.clazz.isInterface();
         }
 
         if ("<init>".equals(delegateMethod.name)) {
@@ -139,6 +145,7 @@ public class FunctionRef {
         delegateInvokeType = H_INVOKESTATIC;
         this.delegateMethodName = delegateMethodName;
         this.delegateMethodType = delegateMethodType.dropParameterTypes(0, numCaptures);
+        isDelegateInterface = false;
 
         this.interfaceMethod = null;
         delegateMethod = null;
@@ -155,14 +162,14 @@ public class FunctionRef {
                                             String type, String call, boolean receiverCaptured) {
         // check its really a functional interface
         // for e.g. Comparable
-        Method method = definition.ClassToType(expected).struct.functionalMethod;
+        Method method = definition.getPainlessStructFromJavaClass(expected).functionalMethod;
         if (method == null) {
             throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                "to [" + Definition.ClassToName(expected) + "], not a functional interface");
         }
 
         // lookup requested method
-        Definition.Struct struct = definition.getType(type).struct;
+        Definition.Struct struct = definition.getPainlessStructFromJavaClass(definition.getJavaClassFromPainlessType(type));
         final Definition.Method impl;
         // ctor ref
         if ("new".equals(call)) {

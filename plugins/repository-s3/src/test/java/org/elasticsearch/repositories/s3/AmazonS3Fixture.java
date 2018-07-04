@@ -96,8 +96,13 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
             if (handler != null) {
                 final String bucket = request.getParam("bucket");
                 if (bucket != null && permittedBucket.equals(bucket) == false) {
-                    // allow a null bucket to support bucket-free APIs
-                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad bucket", "");
+                    // allow a null bucket to support the multi-object-delete API which
+                    // passes the bucket name in the host header instead of the URL.
+                    if (buckets.containsKey(bucket)) {
+                        return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad bucket", "");
+                    } else {
+                        return newBucketNotFoundError(request.getId(), bucket);
+                    }
                 }
                 return handler.handle(request);
             } else {

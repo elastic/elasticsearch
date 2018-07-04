@@ -10,7 +10,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.xpack.ml.configcreator.BeatsModuleStore.BeatsModule;
+import org.elasticsearch.xpack.ml.configcreator.FilebeatModuleStore.FilebeatModule;
 import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 
 import java.nio.file.Path;
@@ -129,7 +129,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "%s\n";
 
     private final String sample;
-    private final BeatsModuleStore beatsModuleStore;
+    private final FilebeatModuleStore filebeatModuleStore;
     private SortedMap<String, String> mappings;
     private String filebeatToLogstashConfig;
     private String logstashFromFilebeatConfig;
@@ -137,10 +137,10 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
     private String filebeatToIngestPipelineConfig;
     private String ingestPipelineFromFilebeatConfig;
 
-    TextLogFileStructure(Terminal terminal, BeatsModuleStore beatsModuleStore, String sampleFileName, String indexName, String typeName,
-                         String logstashFileTimezone, String sample, String charsetName) {
+    TextLogFileStructure(Terminal terminal, FilebeatModuleStore filebeatModuleStore, String sampleFileName, String indexName,
+                         String typeName, String logstashFileTimezone, String sample, String charsetName) {
         super(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, charsetName);
-        this.beatsModuleStore = beatsModuleStore;
+        this.filebeatModuleStore = filebeatModuleStore;
         this.sample = Objects.requireNonNull(sample);
     }
 
@@ -232,7 +232,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
             interimTimestampField, makeLogstashTimezoneSetting(false));
         logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(multiLineRegex),
             logstashFromFileFilters, indexName);
-        BeatsModule matchingModule = (beatsModuleStore != null) ? beatsModuleStore.findMatchingModule(sampleMessages) : null;
+        FilebeatModule matchingModule = (filebeatModuleStore != null) ? filebeatModuleStore.findMatchingModule(sampleMessages) : null;
         if (matchingModule == null) {
             filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_WITHOUT_MODULE_TEMPLATE,
                 filebeatInputOptions, typeName);

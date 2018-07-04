@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.configcreator;
 
-import org.elasticsearch.xpack.ml.configcreator.BeatsModuleStore.BeatsModule;
+import org.elasticsearch.xpack.ml.configcreator.FilebeatModuleStore.FilebeatModule;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 
-public class BeatsModuleStoreTests extends LogConfigCreatorTestCase {
+public class FilebeatModuleStoreTests extends LogConfigCreatorTestCase {
 
     private static final String APACHE2_ACCESS_LOG_SAMPLE = "123.4.51.181 - - [24/Apr/2010:09:56:26 -0700] " +
         "\"GET http://proxyjudge1.proxyfire.net/fastenv HTTP/1.1\" 404 1466 \"-\" " +
@@ -412,13 +412,13 @@ public class BeatsModuleStoreTests extends LogConfigCreatorTestCase {
     }
 
     public void testParseModule() {
-        List<BeatsModule> beatsModules = new ArrayList<>();
+        List<FilebeatModule> filebeatModules = new ArrayList<>();
 
-        BeatsModuleStore.parseModule(moduleDir.resolve("apache2").resolve("access").resolve("manifest.yml"), beatsModules,
+        FilebeatModuleStore.parseModule(moduleDir.resolve("apache2").resolve("access").resolve("manifest.yml"), filebeatModules,
             "my_dir/access.log");
 
-        assertEquals(1, beatsModules.size());
-        BeatsModule apache2AccessModule = beatsModules.get(0);
+        assertEquals(1, filebeatModules.size());
+        FilebeatModule apache2AccessModule = filebeatModules.get(0);
         assertEquals("apache2", apache2AccessModule.moduleName);
         assertEquals("access", apache2AccessModule.fileType);
         assertEquals("- type: log\n" +
@@ -430,20 +430,20 @@ public class BeatsModuleStoreTests extends LogConfigCreatorTestCase {
 
     public void testPopulateModuleData() throws IOException {
 
-        List<BeatsModule> beatsModules = BeatsModuleStore.populateModuleData(moduleDir, "my_dir/error_log.log");
+        List<FilebeatModule> filebeatModules = FilebeatModuleStore.populateModuleData(moduleDir, "my_dir/error_log.log");
 
-        assertEquals(1, beatsModules.size());
-        Set<String> moduleNames = beatsModules.stream().map(beatsModule -> beatsModule.moduleName).collect(Collectors.toSet());
+        assertEquals(1, filebeatModules.size());
+        Set<String> moduleNames = filebeatModules.stream().map(filebeatModule -> filebeatModule.moduleName).collect(Collectors.toSet());
         assertThat(moduleNames, contains("apache2"));
-        Set<String> fileTypes = beatsModules.stream().map(beatsModule -> beatsModule.fileType).collect(Collectors.toSet());
+        Set<String> fileTypes = filebeatModules.stream().map(filebeatModule -> filebeatModule.fileType).collect(Collectors.toSet());
         assertThat(fileTypes, contains("error"));
     }
 
     public void testFindMatchingModuleGivenRepoAvailable() throws IOException {
 
-        BeatsModuleStore beatsModuleStore = new BeatsModuleStore(TEST_TERMINAL, moduleDir, "logs/www-access.log");
+        FilebeatModuleStore filebeatModuleStore = new FilebeatModuleStore(TEST_TERMINAL, moduleDir, "logs/www-access.log");
 
-        BeatsModule module = beatsModuleStore.findMatchingModule(APACHE2_ACCESS_LOG_SAMPLE);
+        FilebeatModule module = filebeatModuleStore.findMatchingModule(APACHE2_ACCESS_LOG_SAMPLE);
         assertNotNull(module);
         assertEquals("apache2", module.moduleName);
         assertEquals("access", module.fileType);
@@ -452,11 +452,11 @@ public class BeatsModuleStoreTests extends LogConfigCreatorTestCase {
     }
 
     public void testPathMatchesSampleFileNameWithoutPath() {
-        assertTrue(BeatsModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/error.log", "error.log"));
-        assertFalse(BeatsModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/error.log", "err.log"));
-        assertTrue(BeatsModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/error.log", "my-error.log"));
-        assertTrue(BeatsModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/{{something}}.log", "my-error.log"));
-        assertFalse(BeatsModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/{{something}}.log", "my-log"));
-        assertTrue(BeatsModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/{{host}}.{{user}}.log", "mbp.dave.log"));
+        assertTrue(FilebeatModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/error.log", "error.log"));
+        assertFalse(FilebeatModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/error.log", "err.log"));
+        assertTrue(FilebeatModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/error.log", "my-error.log"));
+        assertTrue(FilebeatModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/{{something}}.log", "my-error.log"));
+        assertFalse(FilebeatModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/{{something}}.log", "my-log"));
+        assertTrue(FilebeatModuleStore.pathMatchesSampleFileNameWithoutPath("/foo/bar/{{host}}.{{user}}.log", "mbp.dave.log"));
     }
 }

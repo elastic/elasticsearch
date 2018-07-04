@@ -18,6 +18,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * Used to find the best timestamp format for one of the following situations:
+ * 1. Matching an entire field value
+ * 2. Matching a timestamp found somewhere within a message
+ */
 public final class TimestampFormatFinder {
 
     private static final String PREFACE = "preface";
@@ -123,10 +128,22 @@ public final class TimestampFormatFinder {
     private TimestampFormatFinder() {
     }
 
+    /**
+     * Find the first timestamp format that matches part of the supplied value.
+     * @param text The value that the returned timestamp format must exist within.
+     * @return The timestamp format, or <code>null</code> if none matches.
+     */
     public static TimestampMatch findFirstMatch(String text) {
         return findFirstMatch(text, 0);
     }
 
+    /**
+     * Find the first timestamp format that matches part of the supplied value,
+     * excluding a specified number of candidate formats.
+     * @param text The value that the returned timestamp format must exist within.
+     * @param ignoreCandidates The number of candidate formats to exclude from the search.
+     * @return The timestamp format, or <code>null</code> if none matches.
+     */
     public static TimestampMatch findFirstMatch(String text, int ignoreCandidates) {
         Boolean[] quickRuleoutMatches = new Boolean[QUICK_RULE_OUT_PATTERNS.size()];
         int index = ignoreCandidates;
@@ -155,10 +172,22 @@ public final class TimestampFormatFinder {
         return null;
     }
 
+    /**
+     * Find the best timestamp format for matching an entire field value.
+     * @param text The value that the returned timestamp format must match in its entirety.
+     * @return The timestamp format, or <code>null</code> if none matches.
+     */
     public static TimestampMatch findFirstFullMatch(String text) {
         return findFirstFullMatch(text, 0);
     }
 
+    /**
+     * Find the best timestamp format for matching an entire field value,
+     * excluding a specified number of candidate formats.
+     * @param text The value that the returned timestamp format must match in its entirety.
+     * @param ignoreCandidates The number of candidate formats to exclude from the search.
+     * @return The timestamp format, or <code>null</code> if none matches.
+     */
     public static TimestampMatch findFirstFullMatch(String text, int ignoreCandidates) {
         int index = ignoreCandidates;
         for (CandidateTimestampFormat candidate : ORDERED_CANDIDATE_FORMATS.subList(ignoreCandidates, ORDERED_CANDIDATE_FORMATS.size())) {
@@ -189,6 +218,16 @@ public final class TimestampFormatFinder {
             fractionalSecondsInterpretation.v2());
     }
 
+    /**
+     * Interpret the fractional seconds component of a date to determine two things:
+     * 1. The separator character - one of colon, comma and dot.
+     * 2. Whether the fractional component is smaller than milliseconds.
+     * (Fractional components smaller than milliseconds, for example microseconds or nanoseconds, require
+     * extra processing because Joda cannot parse them.  Digits beyond the third need to be removed prior
+     * to passing the time to Joda for parsing.)
+     * @param date The textual representation of the date for which fractional seconds are to be interpreted.
+     * @return A tuple of (fractional second separator character, is fractional component smaller than milliseconds?).
+     */
     static Tuple<Character, Boolean> interpretFractionalSeconds(String date) {
 
         Matcher matcher = FRACTIONAL_SECOND_INTERPRETER.matcher(date);
@@ -199,15 +238,46 @@ public final class TimestampFormatFinder {
         return new Tuple<>(DEFAULT_FRACTIONAL_SECOND_SEPARATOR, false);
     }
 
+    /**
+     * Represents a timestamp that has matched a field value or been found within a message.
+     */
     public static final class TimestampMatch {
 
-        final int candidateIndex;
-        final String preface;
-        final List<String> dateFormats;
-        final Pattern simplePattern;
-        final String grokPatternName;
-        final String epilogue;
-        final boolean hasFractionalComponentSmallerThanMillisecond;
+        /**
+         * The index of the corresponding entry in the <code>ORDERED_CANDIDATE_FORMATS</code> list.
+         */
+        public final int candidateIndex;
+
+        /**
+         * Text that came before the timestamp in the matched field/message.
+         */
+        public final String preface;
+
+        /**
+         * Time format specifier(s) that will work with Logstash and Ingest pipeline date parsers.
+         */
+        public final List<String> dateFormats;
+
+        /**
+         * A simple regex that will work in many languages to detect whether the timestamp format
+         * exists in a particular line.
+         */
+        public final Pattern simplePattern;
+
+        /**
+         * Name of an out-of-the-box Grok pattern that will match the timestamp.
+         */
+        public final String grokPatternName;
+
+        /**
+         * Text that came after the timestamp in the matched field/message.
+         */
+        public final String epilogue;
+
+        /**
+         * Did the matched timestamp have more than 3 fractional digits for its second component.
+         */
+        public final boolean hasFractionalComponentSmallerThanMillisecond;
 
         TimestampMatch(int candidateIndex, String preface, String dateFormat, String simpleRegex, String grokPatternName, String epilogue) {
             this(candidateIndex, preface, Collections.singletonList(dateFormat), simpleRegex, grokPatternName, epilogue);

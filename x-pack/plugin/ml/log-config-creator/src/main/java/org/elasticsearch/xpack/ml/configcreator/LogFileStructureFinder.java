@@ -29,6 +29,13 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+/**
+ * Runs the high-level steps needed to create ingest configs for the specified log file.  In order:
+ * 1. Determine the most likely character set (UTF-8, UTF-16LE, ISO-8859-2, etc.)
+ * 2. Load a sample of the file, consisting of the first 1000 lines of the file
+ * 3. Determine the most likely file structure - one of ND-JSON, XML, CSV, TSV or semi-structured text
+ * 4. Create an appropriate structure object and delegate writing configs to it
+ */
 public final class LogFileStructureFinder {
 
     private static final int MIN_SAMPLE_LINE_COUNT = 2;
@@ -73,7 +80,7 @@ public final class LogFileStructureFinder {
      */
     private final List<LogFileStructureFactory> orderedStructureFactories;
 
-    public LogFileStructureFinder(Terminal terminal, Path beatsModulePath, String sampleFileName, String indexName, String typeName,
+    public LogFileStructureFinder(Terminal terminal, Path filebeatModulePath, String sampleFileName, String indexName, String typeName,
                                   String logstashFileTimezone)
         throws IOException {
         this.terminal = Objects.requireNonNull(terminal);
@@ -81,15 +88,15 @@ public final class LogFileStructureFinder {
         this.indexName = Objects.requireNonNull(indexName);
         this.typeName = Objects.requireNonNull(typeName);
         this.logstashFileTimezone = logstashFileTimezone;
-        BeatsModuleStore beatsModuleStore =
-            (beatsModulePath != null) ? new BeatsModuleStore(terminal, beatsModulePath, sampleFileName) : null;
+        FilebeatModuleStore filebeatModuleStore =
+            (filebeatModulePath != null) ? new FilebeatModuleStore(terminal, filebeatModulePath, sampleFileName) : null;
         orderedStructureFactories = Arrays.asList(
             new JsonLogFileStructureFactory(terminal),
             new XmlLogFileStructureFactory(terminal),
             // ND-JSON will often also be valid (although utterly weird) CSV, so JSON must come before CSV
             new CsvLogFileStructureFactory(terminal),
             new TsvLogFileStructureFactory(terminal),
-            new TextLogFileStructureFactory(terminal, beatsModuleStore)
+            new TextLogFileStructureFactory(terminal, filebeatModuleStore)
         );
     }
 
@@ -179,7 +186,7 @@ public final class LogFileStructureFinder {
             } else {
                 terminal.println(Verbosity.VERBOSE, "Character encoding [" + name + "] matched the input with [" +
                     charsetMatch.getConfidence() + "%] confidence but was rejected as it is not supported by [" +
-                    (Charset.isSupported(name) ? "filebeat" : "the JVM") + "]");
+                    (Charset.isSupported(name) ? "Filebeat" : "the JVM") + "]");
             }
         }
 

@@ -23,6 +23,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * Entry point for the log-config-creator program.
+ * Determines the most likely location of the Filebeat module directory,
+ * handles argument parsing and validation and kicks off the structure finder.
+ */
 public class LogConfigCreator extends Command {
 
     private static final Path HOME_PATH = parsePath(System.getProperty("user.home"));
@@ -47,13 +52,13 @@ public class LogConfigCreator extends Command {
         }
 
         // If Filebeat isn't installed in the standard Linux or Windows location, check for
-        // a .tar/.zip install in the current user's home directory that contains modules
+        // a .tar/.zip install that contains modules in the current user's home directory
         if (installModulePath == null) {
             try {
                 installModulePath = Files.find(HOME_PATH, 1, (path, attrs) -> path.getFileName().toString().matches("filebeat-.*-.*-.*"))
                     .map(path -> path.resolve("module")).filter(Files::isDirectory).max(Comparator.naturalOrder()).orElse(null);
             } catch (IOException e) {
-                // Ignore it - there just won't be a default for the filebeat installation directory
+                // Ignore it - there just won't be a default for the Filebeat installation directory
             }
         }
 
@@ -71,7 +76,7 @@ public class LogConfigCreator extends Command {
         parser.acceptsAll(Arrays.asList("o", "output"), "output directory (default: .)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("i", "index"), "index for logstash direct from file config (default: test)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("n", "name"), "name for this type of log file (default: xyz)").withRequiredArg();
-        parser.acceptsAll(Arrays.asList("b", "beats-module-dir"),
+        parser.acceptsAll(Arrays.asList("f", "filebeat-module-dir"),
             "path to filebeat module directory (default: $HOME/beats/filebeat/module or from installed filebeat)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("z", "timezone"),
             "timezone for logstash direct from file input (default: logstash server timezone)").withRequiredArg();
@@ -92,17 +97,17 @@ public class LogConfigCreator extends Command {
         String typeName = getSingleOptionValueOrDefault(options, "n", "name", "log file type name", "xyz");
         validateName(typeName, "Log file type name");
 
-        Path beatsModulePath;
-        String beatsModuleDir = getSingleOptionValueOrDefault(options, "b", "beats-module-dir", "filebeat module directory", null);
-        if (beatsModuleDir != null) {
-            beatsModulePath = parsePath(beatsModuleDir).toAbsolutePath().normalize();
-            if (Files.isDirectory(beatsModulePath) == false) {
-                // Lack of a beats repo is only an error if one was explicitly specified
-                throw new UserException(ExitCodes.USAGE, "Beats module directory [" + beatsModulePath + "] does not exist");
+        Path filebeatModulePath;
+        String filebeatModuleDir = getSingleOptionValueOrDefault(options, "f", "filebeat-module-dir", "filebeat module directory", null);
+        if (filebeatModuleDir != null) {
+            filebeatModulePath = parsePath(filebeatModuleDir).toAbsolutePath().normalize();
+            // If a Filebeat module directory is explicitly specified then it must exist
+            if (Files.isDirectory(filebeatModulePath) == false) {
+                throw new UserException(ExitCodes.USAGE, "Filebeat module directory [" + filebeatModulePath + "] does not exist");
             }
         } else {
             // INSTALL_MODULE_PATH will be null if no install was found
-            beatsModulePath = Files.isDirectory(REPO_MODULE_PATH) ? REPO_MODULE_PATH : INSTALL_MODULE_PATH;
+            filebeatModulePath = Files.isDirectory(REPO_MODULE_PATH) ? REPO_MODULE_PATH : INSTALL_MODULE_PATH;
         }
 
         String timezone = getSingleOptionValueOrDefault(options, "z", "timezone", "timezone name", null);
@@ -122,7 +127,7 @@ public class LogConfigCreator extends Command {
         }
 
         try {
-            LogFileStructureFinder structureFinder = new LogFileStructureFinder(terminal, beatsModulePath,
+            LogFileStructureFinder structureFinder = new LogFileStructureFinder(terminal, filebeatModulePath,
                 file.toAbsolutePath().normalize().toString(), indexName, typeName, timezone);
             structureFinder.findLogFileConfigs(Files.newInputStream(file), outputDirectory);
         } catch (IOException e) {

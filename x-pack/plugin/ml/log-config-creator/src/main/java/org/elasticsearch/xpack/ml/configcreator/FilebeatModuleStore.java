@@ -30,49 +30,78 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 import static org.elasticsearch.common.xcontent.yaml.YamlXContent.yamlXContent;
 
-public final class BeatsModuleStore {
+/**
+ * A store of Filebeat modules.
+ */
+public final class FilebeatModuleStore {
 
-    private final List<BeatsModule> beatsModules;
+    private final List<FilebeatModule> filebeatModules;
 
-    public BeatsModuleStore(Terminal terminal, Path modulePath, String sampleFileName) throws IOException {
+    /**
+     * Create an populate the store with modules that match the sample file name.
+     * @param terminal A terminal to be used for informational messages.
+     * @param modulePath Path to a Filebeat module directory.  This may be from either
+     *                   the <code>beats</code> Git repo or from a Filebeat installation.
+     * @param sampleFileName Name of the sample file provided by the user.  Only Filebeat
+     *                       modules that could match the file name (assuming it was in
+     *                       the correct directory) will be kept in the store.
+     */
+    public FilebeatModuleStore(Terminal terminal, Path modulePath, String sampleFileName) throws IOException {
         assert modulePath != null && Files.isDirectory(modulePath);
-        terminal.println(Verbosity.VERBOSE, "Loading filebeat modules from [" + modulePath + "]");
-        beatsModules = Collections.unmodifiableList(populateModuleData(modulePath, sampleFileName));
+        terminal.println(Verbosity.VERBOSE, "Loading Filebeat modules from [" + modulePath + "]");
+        filebeatModules = Collections.unmodifiableList(populateModuleData(modulePath, sampleFileName));
     }
 
-    public BeatsModule findMatchingModule(String message) {
-        return beatsModules.stream().filter(beatsModule -> beatsModule.ingestPipelineMatchesMessage(message)).findFirst().orElse(null);
+    /**
+     * Find a Filebeat module whose ingest pipeline would work on the message provided.
+     * Since the store was originally populated with modules that match the sample file name,
+     * this will also constrain what might be returned.
+     * @param message The message that the returned Filebeat module must work with.
+     * @return A Filebeat module that will work with the message provided, or <code>null</code> if none exists in the store.
+     */
+    public FilebeatModule findMatchingModule(String message) {
+        return filebeatModules.stream()
+            .filter(filebeatModule -> filebeatModule.ingestPipelineMatchesMessage(message)).findFirst().orElse(null);
     }
 
-    public BeatsModule findMatchingModule(Collection<String> messages) {
+    /**
+     * Find a Filebeat module whose ingest pipeline would work on all the messages in the
+     * collection provided.  Since the store was originally populated with modules that
+     * match the sample file name, this will also constrain what might be returned.
+     * @param messages The messages that the returned Filebeat module must work with.
+     * @return A Filebeat module that will work with all of the messages provided, or
+     *         <code>null</code> if none exists in the store.  <code>null</code> is
+     *         also returned if an empty collection of messages is provided.
+     */
+    public FilebeatModule findMatchingModule(Collection<String> messages) {
         if (messages.isEmpty()) {
             return null;
         }
 
-        for (BeatsModule beatsModule : beatsModules) {
-            if (messages.stream().allMatch(beatsModule::ingestPipelineMatchesMessage)) {
-                return beatsModule;
+        for (FilebeatModule filebeatModule : filebeatModules) {
+            if (messages.stream().allMatch(filebeatModule::ingestPipelineMatchesMessage)) {
+                return filebeatModule;
             }
         }
 
         return null;
     }
 
-    static List<BeatsModule> populateModuleData(Path modulePath, String sampleFileName) throws IOException {
+    static List<FilebeatModule> populateModuleData(Path modulePath, String sampleFileName) throws IOException {
 
-        List<BeatsModule> beatsModules = new ArrayList<>();
+        List<FilebeatModule> filebeatModules = new ArrayList<>();
 
         try {
             Files.find(modulePath, 3, (path, attrs) -> path.getFileName().toString().equals("manifest.yml"))
-                .forEach(path -> parseModule(path, beatsModules, sampleFileName));
+                .forEach(path -> parseModule(path, filebeatModules, sampleFileName));
         } catch (UncheckedIOException e) {
             throw e.getCause();
         }
 
-        return beatsModules;
+        return filebeatModules;
     }
 
-    static void parseModule(Path manifestPath, List<BeatsModule> beatsModules, String sampleFileName) {
+    static void parseModule(Path manifestPath, List<FilebeatModule> filebeatModules, String sampleFileName) {
         int lastIndex = manifestPath.getNameCount() - 1;
         String moduleName = manifestPath.getName(lastIndex - 2).toString();
         String fileType = manifestPath.getName(lastIndex - 1).toString();
@@ -86,12 +115,12 @@ public final class BeatsModuleStore {
                     // The "var" section of the manifest will list the paths of files that it expects to work on by default.
                     // We'll only use it if the name of the sample file looks like a file from one of the default paths.
                     if (varsMatchSampleFileName(manifestContent.get("var"), sampleFileName)) {
-                        // The manifest should also list a file containing the "inputs" section of the filebeat config,
+                        // The manifest should also list a file containing the "inputs" section of the Filebeat config,
                         // plus a file containing an ingest pipeline definition.
                         String inputDefinition = parseInputDefinition(manifestPath, manifestContent.get("input"), sampleFileName);
                         String ingestPipeline = parseIngestPipeline(manifestPath, manifestContent.get("ingest_pipeline"));
                         if (inputDefinition.contains("- type: log\n") && ingestPipeline.contains("\"grok\"")) {
-                            beatsModules.add(new BeatsModule(moduleName, fileType, inputDefinition, ingestPipeline));
+                            filebeatModules.add(new FilebeatModule(moduleName, fileType, inputDefinition, ingestPipeline));
                         }
                     }
                 }
@@ -179,7 +208,7 @@ public final class BeatsModuleStore {
      * Given a module manifest, parse the input definition, making adjustments so that it can be
      * incorporated into a complete filebeat config.
      * - "type" is prefixed with a dash to turn it into a list.
-     * - "{{$path}}" in the filebeat config is replaced with the path to the sample file that was provided.
+     * - "{{$path}}" in the Filebeat config is replaced with the path to the sample file that was provided.
      * - Other lines containing variables are removed.
      */
     private static String parseInputDefinition(Path manifestPath, Object inputSection, String sampleFileName) throws IOException {
@@ -227,7 +256,7 @@ public final class BeatsModuleStore {
         return ingestPipeline;
     }
 
-    public static class BeatsModule {
+    public static class FilebeatModule {
 
         public final String moduleName;
         public final String fileType;
@@ -235,7 +264,7 @@ public final class BeatsModuleStore {
         public final String ingestPipeline;
         private final List<Grok> groks;
 
-        BeatsModule(String moduleName, String fileType, String inputDefinition, String ingestPipeline) throws IOException {
+        FilebeatModule(String moduleName, String fileType, String inputDefinition, String ingestPipeline) throws IOException {
             this.moduleName = moduleName;
             this.fileType = fileType;
             this.inputDefinition = inputDefinition;
@@ -298,7 +327,7 @@ public final class BeatsModuleStore {
                 return false;
             }
 
-            BeatsModule that = (BeatsModule) other;
+            FilebeatModule that = (FilebeatModule) other;
             // groks is NOT included as it should be equal if ingestPipeline is equal
             return Objects.equals(this.moduleName, that.moduleName) &&
                 Objects.equals(this.fileType, that.fileType) &&

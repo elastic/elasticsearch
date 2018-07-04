@@ -14,11 +14,11 @@ import java.util.Objects;
 public class TextLogFileStructureFactory implements LogFileStructureFactory {
 
     private final Terminal terminal;
-    private final BeatsModuleStore beatsModuleStore;
+    private final FilebeatModuleStore filebeatModuleStore;
 
-    public TextLogFileStructureFactory(Terminal terminal, BeatsModuleStore beatsModuleStore) throws IOException {
+    public TextLogFileStructureFactory(Terminal terminal, FilebeatModuleStore filebeatModuleStore) throws IOException {
         this.terminal = Objects.requireNonNull(terminal);
-        this.beatsModuleStore = beatsModuleStore;
+        this.filebeatModuleStore = filebeatModuleStore;
     }
 
     /**
@@ -40,7 +40,7 @@ public class TextLogFileStructureFactory implements LogFileStructureFactory {
     @Override
     public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String logstashFileTimezone,
                                              String sample, String charsetName) {
-        return new TextLogFileStructure(terminal, beatsModuleStore, sampleFileName, indexName, typeName, logstashFileTimezone, sample,
+        return new TextLogFileStructure(terminal, filebeatModuleStore, sampleFileName, indexName, typeName, logstashFileTimezone, sample,
             charsetName);
     }
 }

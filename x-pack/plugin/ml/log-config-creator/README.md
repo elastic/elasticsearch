@@ -74,7 +74,7 @@ default location on Windows or Linux, or is directly under your home directory
 then the tool will find it automatically.
 
 Alternatively, you can specify the path to the Filebeat module directory on the
-command line of the tool using the `-b` option.
+command line of the tool using the `-f` option.
 
 Or, if you really don't want do any of these things, the tool will still work,
 but just won't be able to tell you when there's a Filebeat module that would
@@ -199,20 +199,20 @@ Log config creator
 Non-option arguments:
 file to be processed
 
-Option                  Description
-------                  -----------
--b, --beats-module-dir  path to filebeat module directory (default:
-                          $HOME/beats/filebeat/module or from installed
-                          filebeat)
--h, --help              show help
--i, --index             index for logstash direct from file config (default:
-                          test)
--n, --name              name for this type of log file (default: xyz)
--o, --output            output directory (default: .)
--s, --silent            show minimal output
--v, --verbose           show verbose output
--z, --timezone          timezone for logstash direct from file input (default:
-                          logstash server timezone)
+Option                     Description
+------                     -----------
+-f, --filebeat-module-dir  path to filebeat module directory (default:
+                             $HOME/beats/filebeat/module or from installed
+                             filebeat)
+-h, --help                 show help
+-i, --index                index for logstash direct from file config (default:
+                             test)
+-n, --name                 name for this type of log file (default: xyz)
+-o, --output               output directory (default: .)
+-s, --silent               show minimal output
+-v, --verbose              show verbose output
+-z, --timezone             timezone for logstash direct from file input
+                             (default: logstash server timezone)
 ```
 
 The `-z` option is most useful if you've obtained a log file from a different

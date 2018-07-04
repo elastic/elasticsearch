@@ -321,10 +321,6 @@ public final class GrokPatternCreator {
             this(grokPatternName, mappingType, fieldName, "\\b", "\\b");
         }
 
-        ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName, String preBreak) {
-            this(grokPatternName, mappingType, fieldName, preBreak, "\\b");
-        }
-
         /**
          * @param grokPatternName Name of the Grok pattern to try to match - must match one defined in Logstash.
          * @param mappingType     Data type for field in Elasticsearch mappings.

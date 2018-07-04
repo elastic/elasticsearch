@@ -12,7 +12,7 @@ public interface LogFileStructureFactory {
      * to create an appropriate object to represent its ingestion configs.
      * @param sample A sample from the log file to be ingested.
      * @return <code>true</code> if this factory can create an appropriate log
-     * file structure given the sample; otherwise <code>false</code>.
+     *         file structure given the sample; otherwise <code>false</code>.
      */
     boolean canCreateFromSample(String sample);
 

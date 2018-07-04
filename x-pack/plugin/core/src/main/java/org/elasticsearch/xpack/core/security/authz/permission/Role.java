@@ -14,11 +14,12 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -115,7 +116,7 @@ public final class Role {
             this.names = new String[]{rd.getName()};
             this.fieldPermissionsCache = fieldPermissionsCache;
 
-            cluster(Sets.newHashSet(rd.getClusterPrivileges()), Collections.singleton(rd.getPrivilegePolicy()));
+            cluster(Sets.newHashSet(rd.getClusterPrivileges()), Arrays.asList(rd.getConditionalClusterPrivileges()));
 
             groups.addAll(convertFromIndicesPrivileges(rd.getIndicesPrivileges(), fieldPermissionsCache));
 
@@ -131,15 +132,13 @@ public final class Role {
             }
         }
 
-        public Builder cluster(Set<String> privilegeNames, Iterable<ClusterPrivilegePolicy> policies) {
+        public Builder cluster(Set<String> privilegeNames, Iterable<ConditionalClusterPrivilege> conditionalClusterPrivileges) {
             List<ClusterPermission> clusterPermissions = new ArrayList<>();
             if (privilegeNames.isEmpty() == false) {
                 clusterPermissions.add(new ClusterPermission.SimpleClusterPermission(ClusterPrivilege.get(privilegeNames)));
             }
-            for (ClusterPrivilegePolicy policy : policies) {
-                for (ClusterPrivilegePolicy.Category category : ClusterPrivilegePolicy.Category.values()) {
-                    policy.get(category).forEach(cp -> clusterPermissions.add(new ClusterPermission.ConditionalClusterPermission(cp)));
-                }
+            for (ConditionalClusterPrivilege ccp : conditionalClusterPrivileges) {
+                clusterPermissions.add(new ClusterPermission.ConditionalClusterPermission(ccp));
             }
             if (clusterPermissions.isEmpty()) {
                 this.cluster = ClusterPermission.SimpleClusterPermission.NONE;

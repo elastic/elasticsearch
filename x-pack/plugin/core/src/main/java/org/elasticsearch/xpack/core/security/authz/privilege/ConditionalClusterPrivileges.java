@@ -8,12 +8,9 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -21,6 +18,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege.Category;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
@@ -29,42 +27,48 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
-public class ClusterPrivilegePolicy implements ToXContentObject, Writeable {
-    public static final ClusterPrivilegePolicy EMPTY = new ClusterPrivilegePolicy();
+/**
+ * Static utility class for parsing/rendering {@link ConditionalClusterPrivilege} instances
+ */
+public final class ConditionalClusterPrivileges {
 
-    private final Map<Category, List<ConditionalPrivilege>> privileges;
+    public static final ConditionalClusterPrivilege[] EMPTY_ARRAY = new ConditionalClusterPrivilege[0];
 
-    protected ClusterPrivilegePolicy() {
-        this(Collections.emptyMap());
+    private ConditionalClusterPrivileges() {
     }
 
-    private ClusterPrivilegePolicy(Map<Category, List<ConditionalPrivilege>> privileges) {
-        this.privileges = privileges;
+    public static ConditionalClusterPrivilege[] readArray(StreamInput in) throws IOException {
+        return in.readArray(in1 ->
+            in1.readNamedWriteable(ConditionalClusterPrivilege.class), ConditionalClusterPrivilege[]::new);
     }
 
-    public static ClusterPrivilegePolicy createFrom(StreamInput in) throws IOException {
-        final Map<Category, List<ConditionalPrivilege>> map = in.readMapOfLists(
-            Category::read,
-            i -> i.readNamedWriteable(ConditionalPrivilege.class)
-        );
-        return new ClusterPrivilegePolicy(map);
+    public static void writeArray(StreamOutput out, ConditionalClusterPrivilege[] privileges) throws IOException {
+        out.writeArray((out1, value) -> out1.writeNamedWriteable(value), privileges);
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeMapOfLists(this.privileges, StreamOutput::writeEnum, StreamOutput::writeNamedWriteable);
+    public static XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params,
+                                             Collection<ConditionalClusterPrivilege> privileges) throws IOException {
+        builder.startObject();
+        for (Category category : Category.values()) {
+            builder.startObject(category.field.getPreferredName());
+            for (ConditionalClusterPrivilege privilege : privileges) {
+                if (category == privilege.getCategory()) {
+                    privilege.toXContent(builder, params);
+                }
+            }
+            builder.endObject();
+        }
+        return builder.endObject();
     }
 
-    public static ClusterPrivilegePolicy parse(XContentParser parser) throws IOException {
-        Map<Category, List<ConditionalPrivilege>> map = new HashMap<>();
+    public static List<ConditionalClusterPrivilege> parse(XContentParser parser) throws IOException {
+        List<ConditionalClusterPrivilege> privileges = new ArrayList<>();
 
         if (parser.currentToken() == null) {
             parser.nextToken();
@@ -75,19 +79,15 @@ public class ClusterPrivilegePolicy implements ToXContentObject, Writeable {
             expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
 
             expectFieldName(parser, Category.APPLICATION.field);
-            final Category currentCategory = Category.APPLICATION;
-            final List<ConditionalPrivilege> currentPrivilegeList = new ArrayList<>();
-            map.put(currentCategory, currentPrivilegeList);
-
             expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
             expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
 
             expectFieldName(parser, ManageApplicationPrivileges.Fields.MANAGE);
-            currentPrivilegeList.add(ManageApplicationPrivileges.parse(parser));
+            privileges.add(ManageApplicationPrivileges.parse(parser));
             expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
         }
 
-        return new ClusterPrivilegePolicy(map);
+        return privileges;
     }
 
     private static void expectedToken(XContentParser.Token read, XContentParser parser, XContentParser.Token expected) {
@@ -106,68 +106,12 @@ public class ClusterPrivilegePolicy implements ToXContentObject, Writeable {
         }
     }
 
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        for (Category category : privileges.keySet()) {
-            builder.startObject(category.field.getPreferredName());
-            for (ConditionalPrivilege privilege : privileges.get(category)) {
-                privilege.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-        return builder.endObject();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final ClusterPrivilegePolicy that = (ClusterPrivilegePolicy) o;
-        return this.privileges.equals(that.privileges);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(privileges);
-    }
-
-    public boolean isEmpty() {
-        return privileges.isEmpty();
-    }
-
-    @Override
-    public String toString() {
-        return privileges.toString();
-    }
-
-    public Collection<ConditionalPrivilege> get(Category category) {
-        return Collections.unmodifiableCollection(privileges.getOrDefault(category, Collections.emptyList()));
-    }
-
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public interface ConditionalPrivilege extends NamedWriteable, ToXContentFragment {
-        Category getCategory();
-
-        ClusterPrivilege getPrivilege();
-
-        Predicate<TransportRequest> getRequestPredicate();
-    }
-
-    public static class ManageApplicationPrivileges implements ConditionalPrivilege {
+    public static class ManageApplicationPrivileges implements ConditionalClusterPrivilege {
 
         private static final ClusterPrivilege PRIVILEGE = ClusterPrivilege.get(
             Collections.singleton("cluster:admin/xpack/security/privilege/*")
         );
-        public static final String NAME = "manage-application-privileges";
+        public static final String WRITEABLE_NAME = "manage-application-privileges";
 
         private final Set<String> applicationNames;
         private final Predicate<String> applicationPredicate;
@@ -223,7 +167,7 @@ public class ClusterPrivilegePolicy implements ToXContentObject, Writeable {
 
         @Override
         public String getWriteableName() {
-            return NAME;
+            return WRITEABLE_NAME;
         }
 
         @Override
@@ -260,7 +204,7 @@ public class ClusterPrivilegePolicy implements ToXContentObject, Writeable {
 
         @Override
         public String toString() {
-            return "{" + Fields.MANAGE.getPreferredName() + " " + Fields.APPLICATIONS.getPreferredName() + "="
+            return "{" + getCategory() + ":" + Fields.MANAGE.getPreferredName() + ":" + Fields.APPLICATIONS.getPreferredName() + "="
                 + Strings.collectionToDelimitedString(applicationNames, ",") + "}";
         }
 
@@ -284,33 +228,6 @@ public class ClusterPrivilegePolicy implements ToXContentObject, Writeable {
         private interface Fields {
             ParseField MANAGE = new ParseField("manage");
             ParseField APPLICATIONS = new ParseField("applications");
-        }
-    }
-
-    public enum Category {
-        APPLICATION(new ParseField("application"));
-
-        public final ParseField field;
-
-        Category(ParseField field) {
-            this.field = field;
-        }
-
-        private static Category read(StreamInput input) throws IOException {
-            return input.readEnum(Category.class);
-        }
-    }
-
-    public static class Builder {
-        private final Map<Category, List<ConditionalPrivilege>> privileges = new HashMap<>();
-
-        public Builder add(ConditionalPrivilege privilege) {
-            this.privileges.computeIfAbsent(privilege.getCategory(), (k) -> new ArrayList<>()).add(privilege);
-            return this;
-        }
-
-        public ClusterPrivilegePolicy build() {
-            return new ClusterPrivilegePolicy(privileges);
         }
     }
 }

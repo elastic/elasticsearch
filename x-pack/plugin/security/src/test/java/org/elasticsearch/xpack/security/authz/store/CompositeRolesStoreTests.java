@@ -38,9 +38,9 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -383,7 +383,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 .resources("settings/*")
                 .privileges("read")
                 .build()
-        }, ClusterPrivilegePolicy.builder().add(manage1).build(),
+        }, new ConditionalClusterPrivilege[]{ manage1 },
             new String[]{"app-user-1"}, null, null);
 
         final ManageApplicationPrivileges manage2 = new ManageApplicationPrivileges(Sets.newHashSet("app2a", "app2b"));
@@ -403,7 +403,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 .resources("*")
                 .privileges("read")
                 .build()
-        }, ClusterPrivilegePolicy.builder().add(manage2).build(),
+        }, new ConditionalClusterPrivilege[] { manage2 },
             new String[]{"app-user-2"}, null, null);
 
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);

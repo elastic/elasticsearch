@@ -117,7 +117,8 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -291,10 +292,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         request.application("your-app");
         final Authentication authentication = createAuthentication(new User("user1", "role1"));
 
-        final ClusterPrivilegePolicy policy = ClusterPrivilegePolicy.builder()
-            .add(new ClusterPrivilegePolicy.ManageApplicationPrivileges(Sets.newHashSet("my-app", "your-app")))
-            .build();
-        RoleDescriptor role = new RoleDescriptor("role1", null, null, null, policy, null, null ,null);
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[]{
+            new ConditionalClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet("my-app", "your-app"))
+        };
+        RoleDescriptor role = new RoleDescriptor("role1", null, null, null, conditionalClusterPrivileges, null, null ,null);
         roleMap.put("role1", role);
 
         authorize(authentication, DeletePrivilegesAction.NAME, request);
@@ -307,10 +308,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         request.application("your-app");
         final Authentication authentication = createAuthentication(new User("user1", "role1"));
 
-        final ClusterPrivilegePolicy policy = ClusterPrivilegePolicy.builder()
-            .add(new ClusterPrivilegePolicy.ManageApplicationPrivileges(Sets.newHashSet("my-app")))
-            .build();
-        RoleDescriptor role = new RoleDescriptor("role1", null, null, null, policy, null, null ,null);
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[]{
+            new ConditionalClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet("my-app"))
+        };
+        RoleDescriptor role = new RoleDescriptor("role1", null, null, null, conditionalClusterPrivileges, null, null ,null);
         roleMap.put("role1", role);
 
         assertThrowsAuthorizationException(

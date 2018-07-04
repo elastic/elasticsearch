@@ -20,13 +20,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy.Category;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegePolicy.ConditionalPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -38,8 +37,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.iterableWithSize;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
@@ -72,17 +69,19 @@ public class RoleDescriptorTests extends ESTestCase {
                 .build()
         };
 
-        final ClusterPrivilegePolicy privilegePolicy = ClusterPrivilegePolicy.builder()
-            .add(new ClusterPrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))))
-            .build();
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[]{
+            new ConditionalClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
+        };
 
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
-            privilegePolicy, new String[] { "sudo" }, Collections.emptyMap(), Collections.emptyMap());
+            conditionalClusterPrivileges, new String[] { "sudo" }, Collections.emptyMap(), Collections.emptyMap());
 
-        assertThat(descriptor.toString(), is("Role[name=test, cluster=[all,none], indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], " +
-                "privileges=[read], field_security=[grant=[body,title], except=null], query={\"query\": {\"match_all\": {}}}],]" +
+        assertThat(descriptor.toString(), is("Role[name=test, cluster=[all,none]" +
+                ", policy=[{APPLICATION:manage:applications=app01,app02}]" +
+                ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], privileges=[read]" +
+                ", field_security=[grant=[body,title], except=null], query={\"query\": {\"match_all\": {}}}],]" +
                 ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]" +
-                ", security={APPLICATION=[{manage applications=app01,app02}]}, runAs=[sudo], metadata=[{}]]"));
+                ", runAs=[sudo], metadata=[{}]]"));
     }
 
     public void testToXContent() throws Exception {
@@ -101,13 +100,13 @@ public class RoleDescriptorTests extends ESTestCase {
                 .resources("*")
                 .build()
         };
-        final ClusterPrivilegePolicy privilegePolicy = ClusterPrivilegePolicy.builder()
-            .add(new ClusterPrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))))
-            .build();
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = {
+            new ConditionalClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
+        };
 
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
-            privilegePolicy, new String[]{ "sudo" }, metadata, Collections.emptyMap());
+            conditionalClusterPrivileges, new String[]{ "sudo" }, metadata, Collections.emptyMap());
         XContentBuilder builder = descriptor.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
         RoleDescriptor parsed = RoleDescriptor.parse("test", BytesReference.bytes(builder), false, XContentType.JSON);
         assertThat(parsed, equalTo(descriptor));
@@ -182,14 +181,12 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(rd.getApplicationPrivileges()[1].getResources(), arrayContaining("*"));
         assertThat(rd.getApplicationPrivileges()[1].getPrivileges(), arrayContaining("admin"));
         assertThat(rd.getApplicationPrivileges()[1].getApplication(), equalTo("app2"));
-        assertThat(rd.getPrivilegePolicy(), notNullValue());
-        final Collection<ConditionalPrivilege> securityApplication = rd.getPrivilegePolicy().get(Category.APPLICATION);
-        assertThat(securityApplication, iterableWithSize(1));
+        assertThat(rd.getConditionalClusterPrivileges(), Matchers.arrayWithSize(1));
 
-        final ConditionalPrivilege conditionalPrivilege = securityApplication.iterator().next();
-        assertThat(conditionalPrivilege.getCategory(), equalTo(Category.APPLICATION));
-        assertThat(conditionalPrivilege, instanceOf(ClusterPrivilegePolicy.ManageApplicationPrivileges.class));
-        assertThat(((ClusterPrivilegePolicy.ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
+        final ConditionalClusterPrivilege conditionalPrivilege = rd.getConditionalClusterPrivileges()[0];
+        assertThat(conditionalPrivilege.getCategory(), equalTo(ConditionalClusterPrivilege.Category.APPLICATION));
+        assertThat(conditionalPrivilege, instanceOf(ConditionalClusterPrivileges.ManageApplicationPrivileges.class));
+        assertThat(((ConditionalClusterPrivileges.ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
             containsInAnyOrder("kibana", "logstash"));
 
         q = "{\"applications\": [{\"application\": \"myapp\", \"resources\": [\"*\"], \"privileges\": [\"login\" ]}] }";
@@ -226,13 +223,13 @@ public class RoleDescriptorTests extends ESTestCase {
                 .resources("*")
                 .build()
         };
-        final ClusterPrivilegePolicy privilegePolicy = ClusterPrivilegePolicy.builder()
-            .add(new ClusterPrivilegePolicy.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))))
-            .build();
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = {
+            new ConditionalClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
+        };
 
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
         final RoleDescriptor descriptor = new RoleDescriptor("test", new String[]{"all", "none"}, groups, applicationPrivileges,
-            privilegePolicy, new String[] { "sudo" }, metadata, null);
+            conditionalClusterPrivileges, new String[] { "sudo" }, metadata, null);
         RoleDescriptor.writeTo(descriptor, output);
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),

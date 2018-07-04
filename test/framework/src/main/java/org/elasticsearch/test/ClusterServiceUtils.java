@@ -135,7 +135,7 @@ public class ClusterServiceUtils {
             clusterSettings, threadPool, Collections.emptyMap());
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToNodes(DiscoveryNodes discoveryNodes) {
+            public void connectToNodes(DiscoveryNodes discoveryNodes, boolean reconnectToKnownNodes) {
                 // skip
             }
 

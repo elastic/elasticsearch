@@ -462,7 +462,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             }
         }
 
-        nodeConnectionsService.connectToNodes(newClusterState.nodes());
+        nodeConnectionsService.connectToNodes(newClusterState.nodes(), false);
 
         logger.debug("applying cluster state version {}", newClusterState.version());
         try {

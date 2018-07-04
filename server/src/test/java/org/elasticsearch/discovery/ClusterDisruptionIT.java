@@ -47,6 +47,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruption
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.NodeNotConnectedException;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -207,7 +208,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                 assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
                                     client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
                             }
-                        } catch (AssertionError | NoShardAvailableActionException e) {
+                        } catch (AssertionError | NoShardAvailableActionException | NodeNotConnectedException e) {
                             throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);
                         }
                     }

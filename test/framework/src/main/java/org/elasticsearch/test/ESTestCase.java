@@ -677,7 +677,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static <T> T[] randomArray(int maxArraySize, IntFunction<T[]> arrayConstructor, Supplier<T> valueConstructor) {
-        final int size = randomInt(maxArraySize);
+        return randomArray(0, maxArraySize, arrayConstructor, valueConstructor);
+    }
+
+    public static <T> T[] randomArray(int minArraySize, int maxArraySize, IntFunction<T[]> arrayConstructor, Supplier<T> valueConstructor) {
+        final int size = randomIntBetween(minArraySize, maxArraySize);
         final T[] array = arrayConstructor.apply(size);
         for (int i = 0; i < array.length; i++) {
             array[i] = valueConstructor.get();

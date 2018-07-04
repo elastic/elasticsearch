@@ -30,10 +30,12 @@ public class TextLogFileStructureFactory implements LogFileStructureFactory {
             terminal.println(Verbosity.VERBOSE, "Not text because sample contains no newlines");
             return false;
         }
-        if (sample.replace("\n", "").isEmpty()) {
+        if (sample.chars().allMatch(c -> c == '\n')) {
             terminal.println(Verbosity.VERBOSE, "Not text because sample contains only newlines");
             return false;
         }
+
+        terminal.println(Verbosity.VERBOSE, "Deciding sample is text");
         return true;
     }
 

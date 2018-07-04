@@ -33,6 +33,9 @@ public class JsonLogFileStructureFactory implements LogFileStructureFactory {
      */
     @Override
     public boolean canCreateFromSample(String sample) {
+
+        int completeDocCount = 0;
+
         try {
             String[] sampleLines = sample.split("\n");
             for (String sampleLine : sampleLines) {
@@ -43,6 +46,7 @@ public class JsonLogFileStructureFactory implements LogFileStructureFactory {
                         terminal.println(Verbosity.VERBOSE, "Not JSON because an empty object was parsed: [" + sampleLine + "]");
                         return false;
                     }
+                    ++completeDocCount;
                     if (parser.nextToken() != null) {
                         terminal.println(Verbosity.VERBOSE,
                             "Not newline delimited JSON because a line contained more than a single object: [" + sampleLine + "]");
@@ -50,12 +54,19 @@ public class JsonLogFileStructureFactory implements LogFileStructureFactory {
                     }
                 }
             }
-            return true;
         } catch (IOException | IllegalStateException e) {
             terminal.println(Verbosity.VERBOSE, "Not JSON because there was a parsing exception: [" +
                 e.getMessage().replaceAll("\\s?\r?\n\\s?", " ") + "]");
             return false;
         }
+
+        if (completeDocCount == 0) {
+            terminal.println(Verbosity.VERBOSE, "Not JSON because sample didn't contain a complete document");
+            return false;
+        }
+
+        terminal.println(Verbosity.VERBOSE, "Deciding sample is newline delimited JSON");
+        return true;
     }
 
     @Override

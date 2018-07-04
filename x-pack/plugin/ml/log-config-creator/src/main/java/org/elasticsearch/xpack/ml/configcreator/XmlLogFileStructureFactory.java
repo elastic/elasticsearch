@@ -114,6 +114,8 @@ public class XmlLogFileStructureFactory implements LogFileStructureFactory {
             terminal.println(Verbosity.VERBOSE, "Not XML because sample didn't contain a complete document");
             return false;
         }
+
+        terminal.println(Verbosity.VERBOSE, "Deciding sample is XML");
         return true;
     }
 

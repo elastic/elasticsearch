@@ -353,6 +353,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
                     numberOfRows + "]");
                 return false;
             }
+            terminal.println(Verbosity.VERBOSE, "Deciding sample is " + formatName);
             return true;
 
         } catch (IOException e) {

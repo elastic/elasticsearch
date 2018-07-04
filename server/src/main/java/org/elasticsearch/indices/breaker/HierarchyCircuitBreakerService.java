@@ -47,13 +47,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     private static final String CHILD_LOGGER_PREFIX = "org.elasticsearch.indices.breaker.";
 
-    private static final MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+    private static final MemoryMXBean MEMORY_MX_BEAN = ManagementFactory.getMemoryMXBean();
 
     private final ConcurrentMap<String, CircuitBreaker> breakers = new ConcurrentHashMap<>();
 
     public static final Setting<Boolean> USE_REAL_MEMORY_USAGE_SETTING =
-        Setting.boolSetting("indices.breaker.total.userealmemory", settings -> {
-            ByteSizeValue maxHeapSize = new ByteSizeValue(memoryMXBean.getHeapMemoryUsage().getMax());
+        Setting.boolSetting("indices.breaker.total.use_real_memory", settings -> {
+            ByteSizeValue maxHeapSize = new ByteSizeValue(MEMORY_MX_BEAN.getHeapMemoryUsage().getMax());
             return Boolean.toString(maxHeapSize.compareTo(new ByteSizeValue(1, ByteSizeUnit.GB)) < 0);
         }, Property.NodeScope);
 
@@ -243,7 +243,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     //package private to allow overriding it in tests
     long currentMemoryUsage() {
-        return memoryMXBean.getHeapMemoryUsage().getUsed();
+        return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
     }
 
     /**

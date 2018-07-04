@@ -73,7 +73,7 @@ breaker considers now also the memory overhead of representing the request as a 
 
 ==== Parent circuit breaker changes
 
-The parent circuit breaker defines a new setting `indices.breaker.total.userealmemory` which is
+The parent circuit breaker defines a new setting `indices.breaker.total.use_real_memory` which is
 `true` by default if the JVM heap size is smaller than 1GB. This means that the parent circuit
 breaker will trip based on currently used heap memory instead of only considering the reserved
 memory by child circuit breakers. When this setting is `true`, the default parent breaker limit

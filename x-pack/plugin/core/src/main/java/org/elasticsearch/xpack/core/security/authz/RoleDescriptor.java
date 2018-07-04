@@ -36,6 +36,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A holder for a Role that contains user-readable information about the Role
@@ -835,8 +836,9 @@ public class RoleDescriptor implements ToXContentObject {
 
             ApplicationResourcePrivileges that = (ApplicationResourcePrivileges) o;
 
-            return Arrays.equals(this.resources, that.resources)
-                    && Arrays.equals(this.privileges, that.privileges);
+            return Objects.equals(this.application, that.application)
+                && Arrays.equals(this.resources, that.resources)
+                && Arrays.equals(this.privileges, that.privileges);
         }
 
         @Override

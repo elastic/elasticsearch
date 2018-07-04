@@ -67,13 +67,13 @@ public final class EMapInit extends AExpression {
 
         actual = HashMap.class;
 
-        constructor = locals.getDefinition().ClassToType(actual).struct.constructors.get(new MethodKey("<init>", 0));
+        constructor = locals.getDefinition().getPainlessStructFromJavaClass(actual).constructors.get(new MethodKey("<init>", 0));
 
         if (constructor == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        method = locals.getDefinition().ClassToType(actual).struct.methods.get(new MethodKey("put", 2));
+        method = locals.getDefinition().getPainlessStructFromJavaClass(actual).methods.get(new MethodKey("put", 2));
 
         if (method == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));

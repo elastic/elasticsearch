@@ -93,9 +93,6 @@ Aggregations::
 * Adds the ability to specify a format on composite date_histogram source {pull}28310[#28310] (issue: {issue}27923[#27923])
 * Calculate sum in Kahan summation algorithm in aggregations (#27807) {pull}27848[#27848] (issue: {issue}27807[#27807])
 
-Discovery-Plugins::
-* Update ec2 secure settings {pull}29134[#29134]
-
 Geo::
 * Add Z value support to geo_point and geo_shape {pull}25738[#25738] (issue: {issue}22917[#22917])
 
@@ -123,9 +120,6 @@ Scripting::
 
 Search::
 * Search - new flag: allow_partial_search_results {pull}27906[#27906] (issue: {issue}27435[#27435])
-
-Snapshot/Restore::
-* Update s3 secure settings {pull}28517[#28517]
 
 Task Management::
 * Add new setting to disable persistent tasks allocations {pull}29137[#29137]

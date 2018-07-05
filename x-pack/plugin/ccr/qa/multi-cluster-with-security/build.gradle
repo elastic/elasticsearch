@@ -48,6 +48,7 @@ followClusterTestCluster {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.monitoring.enabled', 'false'
+    setting 'xpack.ccr.idle_shard_retry_delay', '10ms'
     extraConfigFile 'roles.yml', 'roles.yml'
     setupCommand 'setupTestAdmin',
             'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"

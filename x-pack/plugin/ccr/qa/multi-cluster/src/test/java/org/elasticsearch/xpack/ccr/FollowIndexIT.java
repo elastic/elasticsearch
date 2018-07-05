@@ -22,7 +22,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,7 +64,7 @@ public class FollowIndexIT extends ESRestTestCase {
             logger.info("Running against follow cluster");
             final String followIndexName = "test_index2";
             createAndFollowIndex("leader_cluster:" + leaderIndexName, followIndexName);
-            assertBusy(() -> verifyDocuments(followIndexName, numDocs), 20, TimeUnit.SECONDS);
+            assertBusy(() -> verifyDocuments(followIndexName, numDocs));
             // unfollow and then follow and then index a few docs in leader index:
             unfollowIndex(followIndexName);
             followIndex("leader_cluster:" + leaderIndexName, followIndexName);
@@ -75,7 +74,7 @@ public class FollowIndexIT extends ESRestTestCase {
                 index(leaderClient, leaderIndexName, Integer.toString(id + 1), "field", id + 1, "filtered_field", "true");
                 index(leaderClient, leaderIndexName, Integer.toString(id + 2), "field", id + 2, "filtered_field", "true");
             }
-            assertBusy(() -> verifyDocuments(followIndexName, numDocs + 3), 20, TimeUnit.SECONDS);
+            assertBusy(() -> verifyDocuments(followIndexName, numDocs + 3));
         }
     }
 

@@ -29,8 +29,7 @@ The query rescorer executes a second query only on the Top-K results
 returned by the <<search-request-query,`query`>> and
 <<search-request-post-filter,`post_filter`>> phases. The
 number of docs which will be examined on each shard can be controlled by
-the `window_size` parameter, which defaults to
-<<search-request-from-size,`from` and `size`>>.
+the `window_size` parameter, which defaults to 10.
 
 By default the scores from the original query and the rescore query are
 combined linearly to produce the final `_score` for each document. The

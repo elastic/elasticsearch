@@ -1,7 +1,57 @@
 [[release-notes-6.3.1]]
 == {es} version 6.3.1
 
-coming[6.3.1]
+Also see <<breaking-changes-6.3>>.
+
+[[bug-6.3.1]]
+[float]
+=== Bug fixes
+
+Authentication::
+* Security: fix joining cluster with production license {pull}31341[#31341] (issue: {issue}31332[#31332])
+* Security: fix token bwc with pre 6.0.0-beta2 {pull}31254[#31254] (issues: {issue}30743[#30743], {issue}31195[#31195])
+* Compliant SAML Response destination check {pull}31175[#31175]
+
+Ingest::
+* Ingest Attachment: Upgrade Tika to 1.18 {pull}31252[#31252]
+
+Java High Level REST Client::
+* Change bulk's retry condition to be based on RestStatus {pull}29329[#29329] (issues: {issue}28885[#28885], {issue}29254[#29254])
+
+Java Low Level REST Client::
+* Avoid setting connection request timeout {pull}30384[#30384] (issue: {issue}24069[#24069])
+
+Machine Learning::
+* Fixes a bug introduced in 6.3.0 which may cause the a node to hang and drop out of the cluster if Machine Learning is enabled and has been actively used. The issue can be redressed in 6.3.0 by disabling Machine Learning on all nodes {pull}31691[#31691] (issue: {issue}31683[#31683])
+
+Network::
+* Ensure we don't use a remote profile if cluster name matches {pull}31331[#31331] (issue: {issue}29321[#29321])
+
+Packaging::
+* Add package pre-install check for java binary {pull}31343[#31343] (issue: {issue}29665[#29665])
+
+Recovery::
+* Fix missing historyUUID in peer recovery when rolling upgrade 5.x to 6.3 {pull}31506[#31506] (issue: {issue}31482[#31482])
+
+Rollup::
+* [Rollup] Metric config parser must use builder so validation runs {pull}31159[#31159]
+
+SQL::
+* JDBC: Fix stackoverflow on getObject and timestamp conversion {pull}31735[#31735] (issue: {issue}31734[#31734])
+* SQL: Preserve scoring in bool queries {pull}30730[#30730] (issue: {issue}29685[#29685])
+
+Scripting::
+* Painless: Fix bug for static method calls on interfaces {pull}31348[#31348]
+
+Search::
+* Fix race in clear scroll {pull}31259[#31259]
+* Cross Cluster Search: preserve remote status code {pull}30976[#30976] (issue: {issue}27461[#27461])
+
+Security::
+* Preserve thread context when connecting to remote cluster {pull}31574[#31574] (issues: {issue}31241[#31241], {issue}31462[#31462])
+
+Watcher::
+* Watcher: Fix put watch action {pull}31524[#31524]
 
 [[release-notes-6.3.0]]
 == {es} version 6.3.0
@@ -397,7 +447,7 @@ License::
 * Do not serialize basic license exp in x-pack info {pull}30848[#30848]
 *  Require acknowledgement to start_trial license {pull}30198[#30198] (issue: {issue}30134[#30134])
 
-Machine Learning:: 
+Machine Learning::
 * By-fields should respect model_plot_config.terms {ml-pull}86[#86] (issue: {issue}30004[#30004])
 * Function description for population lat_long results should be lat_long instead of mean {ml-pull}81[#81] (issue: {ml-issue}80[#80])
 * Fix error causing us to overestimate effective history length {ml-pull}66[#66] (issue: {ml-issue}57[#57])

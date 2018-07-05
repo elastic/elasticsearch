@@ -834,6 +834,22 @@ final class RequestConverters {
         return request;
     }
 
+    static Request getIndex(GetIndexRequest getIndexRequest) {
+        String[] indices = getIndexRequest.indices() == null ? Strings.EMPTY_ARRAY : getIndexRequest.indices();
+
+        String endpoint = endpoint(indices);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params params = new Params(request);
+        params.withIndicesOptions(getIndexRequest.indicesOptions());
+        params.withLocal(getIndexRequest.local());
+        params.withIncludeDefaults(getIndexRequest.includeDefaults());
+        params.withHuman(getIndexRequest.humanReadable());
+        params.withMasterTimeout(getIndexRequest.masterNodeTimeout());
+
+        return request;
+    }
+
     static Request indicesExist(GetIndexRequest getIndexRequest) {
         // this can be called with no indices as argument by transport client, not via REST though
         if (getIndexRequest.indices() == null || getIndexRequest.indices().length == 0) {

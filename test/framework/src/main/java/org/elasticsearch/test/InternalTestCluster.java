@@ -1350,8 +1350,9 @@ public final class InternalTestCluster extends TestCluster {
                 .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old masters
                 .count();
             final int currentMasters = getMasterNodesCount();
-            if (autoManageMinMasterNodes && currentMasters > 1 && newMasters > 0) {
-                // special case for 1 node master - we can't update the min master nodes before we add more nodes.
+            if (autoManageMinMasterNodes && currentMasters > 0 && newMasters > 0 &&
+                getMinMasterNodes(currentMasters + newMasters) <= currentMasters) {
+                // if we're adding too many master-eligible nodes at once, we can't update the min master setting before adding the nodes.
                 updateMinMasterNodes(currentMasters + newMasters);
             }
             List<Future<?>> futures = nodeAndClients.stream().map(node -> executor.submit(node::startNode)).collect(Collectors.toList());
@@ -1366,7 +1367,8 @@ public final class InternalTestCluster extends TestCluster {
             }
             nodeAndClients.forEach(this::publishNode);
 
-            if (autoManageMinMasterNodes && currentMasters == 1 && newMasters > 0) {
+            if (autoManageMinMasterNodes && currentMasters > 0 && newMasters > 0 &&
+                getMinMasterNodes(currentMasters + newMasters) > currentMasters) {
                 // update once masters have joined
                 validateClusterFormed();
                 updateMinMasterNodes(currentMasters + newMasters);

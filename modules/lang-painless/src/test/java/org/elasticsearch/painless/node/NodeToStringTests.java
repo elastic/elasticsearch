@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.FeatureTest;
@@ -458,7 +457,7 @@ public class NodeToStringTests extends ESTestCase {
     public void testPSubField() {
         Location l = new Location(getTestName(), 0);
         Struct s = definition.getPainlessStructFromJavaClass(Boolean.class);
-        Field f = s.staticMembers.get("TRUE");
+        Painless.Field f = s.staticMembers.get("TRUE");
         PSubField node = new PSubField(l, f);
         node.prefix = new EStatic(l, "Boolean");
         assertEquals("(PSubField (EStatic Boolean) TRUE)", node.toString());

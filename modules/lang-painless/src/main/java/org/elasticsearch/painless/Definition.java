@@ -42,34 +42,15 @@ import java.util.regex.Pattern;
 public final class Definition {
 
     private static final Map<String, Painless.Method> methodCache = new HashMap<>();
-    private static final Map<String, Field> fieldCache = new HashMap<>();
+    private static final Map<String, Painless.Field> fieldCache = new HashMap<>();
 
     private static final Pattern TYPE_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
 
     /** Marker class for def type to be used during type analysis. */
+    /** Marker class for def type to be used during type analysis. */
     public static final class def {
         private def() {
 
-        }
-    }
-
-    public static final class Field {
-        public final String name;
-        public final Struct owner;
-        public final Class<?> clazz;
-        public final String javaName;
-        public final int modifiers;
-        private final MethodHandle getter;
-        private final MethodHandle setter;
-
-        private Field(String name, String javaName, Struct owner, Class<?> clazz, int modifiers, MethodHandle getter, MethodHandle setter) {
-            this.name = name;
-            this.javaName = javaName;
-            this.owner = owner;
-            this.clazz = clazz;
-            this.modifiers = modifiers;
-            this.getter = getter;
-            this.setter = setter;
         }
     }
 
@@ -85,8 +66,8 @@ public final class Definition {
         public final Map<Painless.MethodKey, Painless.Method> staticMethods;
         public final Map<Painless.MethodKey, Painless.Method> methods;
 
-        public final Map<String, Field> staticMembers;
-        public final Map<String, Field> members;
+        public final Map<String, Painless.Field> staticMembers;
+        public final Map<String, Painless.Field> members;
 
         public final Map<String, MethodHandle> getters;
         public final Map<String, MethodHandle> setters;
@@ -708,7 +689,8 @@ public final class Definition {
                     "and parameters " + whitelistMethod.painlessParameterTypeNames);
         }
 
-        Painless.MethodKey painlessMethodKey = new Painless.MethodKey(whitelistMethod.javaMethodName, whitelistMethod.painlessParameterTypeNames.size());
+        Painless.MethodKey painlessMethodKey =
+                new Painless.MethodKey(whitelistMethod.javaMethodName, whitelistMethod.painlessParameterTypeNames.size());
 
         if (javaAugmentedClass == null && Modifier.isStatic(javaMethod.getModifiers())) {
             Painless.Method painlessMethod = ownerStruct.staticMethods.get(painlessMethodKey);
@@ -802,12 +784,12 @@ public final class Definition {
                         "with owner struct [" + ownerStruct.name + "] is not final");
             }
 
-            Field painlessField = ownerStruct.staticMembers.get(whitelistField.javaFieldName);
+            Painless.Field painlessField = ownerStruct.staticMembers.get(whitelistField.javaFieldName);
 
             if (painlessField == null) {
                 painlessField = fieldCache.computeIfAbsent(
                         buildFieldCacheKey(ownerStruct.name, whitelistField.javaFieldName, painlessFieldClass.getName()),
-                        key -> new Field(whitelistField.javaFieldName, javaField.getName(),
+                        key -> new Painless.Field(whitelistField.javaFieldName, javaField.getName(),
                                 ownerStruct, painlessFieldClass, javaField.getModifiers(), null, null));
                 ownerStruct.staticMembers.put(whitelistField.javaFieldName, painlessField);
             } else if (painlessField.clazz != painlessFieldClass) {
@@ -831,12 +813,12 @@ public final class Definition {
                     " not found for class [" + ownerStruct.clazz.getName() + "].");
             }
 
-            Field painlessField = ownerStruct.members.get(whitelistField.javaFieldName);
+            Painless.Field painlessField = ownerStruct.members.get(whitelistField.javaFieldName);
 
             if (painlessField == null) {
                 painlessField = fieldCache.computeIfAbsent(
                         buildFieldCacheKey(ownerStruct.name, whitelistField.javaFieldName, painlessFieldClass.getName()),
-                        key -> new Field(whitelistField.javaFieldName, javaField.getName(),
+                        key -> new Painless.Field(whitelistField.javaFieldName, javaField.getName(),
                                 ownerStruct, painlessFieldClass, javaField.getModifiers(), javaMethodHandleGetter, javaMethodHandleSetter));
                 ownerStruct.members.put(whitelistField.javaFieldName, painlessField);
             } else if (painlessField.clazz != painlessFieldClass) {
@@ -920,10 +902,10 @@ public final class Definition {
                 }
             }
 
-            for (Field field : child.members.values()) {
+            for (Painless.Field field : child.members.values()) {
                 if (owner.members.get(field.name) == null) {
                     owner.members.put(field.name,
-                        new Field(field.name, field.javaName, owner, field.clazz, field.modifiers, field.getter, field.setter));
+                        new Painless.Field(field.name, field.javaName, owner, field.clazz, field.modifiers, field.getter, field.setter));
                 }
             }
         }
@@ -968,7 +950,7 @@ public final class Definition {
         }
 
         // add all members
-        for (Map.Entry<String, Field> member : struct.members.entrySet()) {
+        for (Map.Entry<String, Painless.Field> member : struct.members.entrySet()) {
             struct.getters.put(member.getKey(), member.getValue().getter);
             struct.setters.put(member.getKey(), member.getValue().setter);
         }

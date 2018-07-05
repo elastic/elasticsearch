@@ -185,4 +185,23 @@ public class Painless {
         }
     }
 
+    public static final class Field {
+        public final String name;
+        public final Struct owner;
+        public final Class<?> clazz;
+        public final String javaName;
+        public final int modifiers;
+        public final MethodHandle getter;
+        public final MethodHandle setter;
+
+        public Field(String name, String javaName, Struct owner, Class<?> clazz, int modifiers, MethodHandle getter, MethodHandle setter) {
+            this.name = name;
+            this.javaName = javaName;
+            this.owner = owner;
+            this.clazz = clazz;
+            this.modifiers = modifiers;
+            this.getter = getter;
+            this.setter = setter;
+        }
+    }
 }

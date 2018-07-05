@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.def;
@@ -68,7 +67,7 @@ public final class PField extends AStoreable {
             sub = new PSubDefField(location, value);
         } else {
             Struct struct = locals.getDefinition().getPainlessStructFromJavaClass(prefix.actual);
-            Field field = prefix instanceof EStatic ? struct.staticMembers.get(value) : struct.members.get(value);
+            Painless.Field field = prefix instanceof EStatic ? struct.staticMembers.get(value) : struct.members.get(value);
 
             if (field != null) {
                 sub = new PSubField(location, field);

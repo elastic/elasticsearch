@@ -140,6 +140,7 @@ public class UpdateRequestTests extends ESTestCase {
         updateHelper = new UpdateHelper(settings, scriptService);
     }
 
+    @SuppressWarnings("unchecked")
     public void testFromXContent() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type", "1");
         // simple script
@@ -233,7 +234,7 @@ public class UpdateRequestTests extends ESTestCase {
         Map<String, Object> upsertDoc =
             XContentHelper.convertToMap(request.upsertRequest().source(), true, request.upsertRequest().getContentType()).v2();
         assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
-        assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
+        assertThat(((Map<String, Object>) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
         request = new UpdateRequest("test", "type", "1");
         request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject()
@@ -260,7 +261,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(params.get("param1").toString(), equalTo("value1"));
         upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true, request.upsertRequest().getContentType()).v2();
         assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
-        assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
+        assertThat(((Map<String, Object>) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
         // script with doc
         request = new UpdateRequest("test", "type", "1");
@@ -275,7 +276,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .endObject()));
         Map<String, Object> doc = request.doc().sourceAsMap();
         assertThat(doc.get("field1").toString(), equalTo("value1"));
-        assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
+        assertThat(((Map<String, Object>) doc.get("compound")).get("field2").toString(), equalTo("value2"));
     }
 
     public void testUnknownFieldParsing() throws Exception {
@@ -424,7 +425,7 @@ public class UpdateRequestTests extends ESTestCase {
                 ESTestCase::randomNonNegativeLong);
         final Streamable action = result.action();
         assertThat(action, instanceOf(ReplicationRequest.class));
-        final ReplicationRequest request = (ReplicationRequest) action;
+        final ReplicationRequest<?> request = (ReplicationRequest<?>) action;
         assertThat(request.timeout(), equalTo(updateRequest.timeout()));
     }
 

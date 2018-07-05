@@ -234,7 +234,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             long globalCheckpoint = indexShard.getGlobalCheckpoint();
             final long indexMetaDataVersion = clusterService.state().metaData().index(shardId.getIndex()).getVersion();
 
-            final Translog.Operation[] operations = getOperationsBetween(indexShard, globalCheckpoint, request.fromSeqNo,
+            final Translog.Operation[] operations = getOperations(indexShard, globalCheckpoint, request.fromSeqNo,
                 request.maxOperationCount, request.maxOperationSizeInBytes);
             return new Response(indexMetaDataVersion, globalCheckpoint, operations);
         }
@@ -261,8 +261,15 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
     private static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
 
-    static Translog.Operation[] getOperationsBetween(IndexShard indexShard, long globalCheckpoint, long fromSeqNo, int maxOperationCount,
-                                                     long maxOperationSizeInBytes) throws IOException {
+    /**
+     * Returns at most maxOperationCount operations from the specified from sequence number.
+     * This method will never return operations above the specified globalCheckpoint.
+     *
+     * Also if the sum of collected operations' size is above the specified maxOperationSizeInBytes then this method
+     * stops collecting more operations and returns what has been collected so far.
+     */
+    static Translog.Operation[] getOperations(IndexShard indexShard, long globalCheckpoint, long fromSeqNo, int maxOperationCount,
+                                              long maxOperationSizeInBytes) throws IOException {
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }

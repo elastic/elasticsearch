@@ -375,7 +375,8 @@ public class AutodetectProcessManager extends AbstractComponent {
         } else {
             GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request();
             getFilterRequest.setFilterId(updateParams.getFilter().getId());
-            executeAsyncWithOrigin(client, ML_ORIGIN, GetFiltersAction.INSTANCE, getFilterRequest, new ActionListener<GetFiltersAction.Response>() {
+            executeAsyncWithOrigin(client, ML_ORIGIN, GetFiltersAction.INSTANCE, getFilterRequest,
+                    new ActionListener<GetFiltersAction.Response>() {
 
                 @Override
                 public void onResponse(GetFiltersAction.Response response) {

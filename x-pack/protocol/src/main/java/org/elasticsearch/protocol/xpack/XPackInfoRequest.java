@@ -27,6 +27,9 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Locale;
 
+/**
+ * Fetch information about X-Pack from the cluster.
+ */
 public class XPackInfoRequest extends ActionRequest {
 
     public enum Category {

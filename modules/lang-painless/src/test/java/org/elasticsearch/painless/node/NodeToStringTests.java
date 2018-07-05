@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Painless;
-import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.FeatureTest;
 import org.elasticsearch.painless.GenericElasticsearchScript;
@@ -404,14 +403,14 @@ public class NodeToStringTests extends ESTestCase {
     public void testPSubCallInvoke() {
         Location l = new Location(getTestName(), 0);
         Struct c = definition.getPainlessStructFromJavaClass(Integer.class);
-        Painless.Method m = c.methods.get(new MethodKey("toString", 0));
+        Painless.Method m = c.methods.get(new Painless.MethodKey("toString", 0));
         PSubCallInvoke node = new PSubCallInvoke(l, m, null, emptyList());
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubCallInvoke (EVariable a) toString)", node.toString());
         assertEquals("(PSubNullSafeCallInvoke (PSubCallInvoke (EVariable a) toString))", new PSubNullSafeCallInvoke(l, node).toString());
 
         l = new Location(getTestName(), 1);
-        m = c.methods.get(new MethodKey("equals", 1));
+        m = c.methods.get(new Painless.MethodKey("equals", 1));
         node = new PSubCallInvoke(l, m, null, singletonList(new EVariable(l, "b")));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubCallInvoke (EVariable a) equals (Args (EVariable b)))", node.toString());
@@ -501,8 +500,8 @@ public class NodeToStringTests extends ESTestCase {
     public void testPSubShortcut() {
         Location l = new Location(getTestName(), 0);
         Struct s = definition.getPainlessStructFromJavaClass(FeatureTest.class);
-        Painless.Method getter = s.methods.get(new MethodKey("getX", 0));
-        Painless.Method setter = s.methods.get(new MethodKey("setX", 1));
+        Painless.Method getter = s.methods.get(new Painless.MethodKey("getX", 0));
+        Painless.Method setter = s.methods.get(new Painless.MethodKey("setX", 1));
         PSubShortcut node = new PSubShortcut(l, "x", FeatureTest.class.getName(), getter, setter);
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubShortcut (EVariable a) x)", node.toString());

@@ -172,10 +172,10 @@ public class FunctionRef {
         final Painless.Method impl;
         // ctor ref
         if ("new".equals(call)) {
-            impl = struct.constructors.get(new Definition.MethodKey("<init>", method.arguments.size()));
+            impl = struct.constructors.get(new Painless.MethodKey("<init>", method.arguments.size()));
         } else {
             // look for a static impl first
-            Painless.Method staticImpl = struct.staticMethods.get(new Definition.MethodKey(call, method.arguments.size()));
+            Painless.Method staticImpl = struct.staticMethods.get(new Painless.MethodKey(call, method.arguments.size()));
             if (staticImpl == null) {
                 // otherwise a virtual impl
                 final int arity;
@@ -186,7 +186,7 @@ public class FunctionRef {
                     // receiver passed
                     arity = method.arguments.size() - 1;
                 }
-                impl = struct.methods.get(new Definition.MethodKey(call, arity));
+                impl = struct.methods.get(new Painless.MethodKey(call, arity));
             } else {
                 impl = staticImpl;
             }

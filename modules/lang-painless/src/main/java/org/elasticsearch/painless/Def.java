@@ -181,7 +181,7 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
     static Painless.Method lookupMethodInternal(Definition definition, Class<?> receiverClass, String name, int arity) {
-        Definition.MethodKey key = new Definition.MethodKey(name, arity);
+        Painless.MethodKey key = new Painless.MethodKey(name, arity);
         // check whitelist for matching method
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
             Struct struct = definition.getPainlessStructFromJavaClass(clazz);

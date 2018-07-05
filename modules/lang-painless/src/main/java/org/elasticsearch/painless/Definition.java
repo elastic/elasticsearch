@@ -32,7 +32,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Stack;
 import java.util.regex.Pattern;
 
@@ -76,67 +75,15 @@ public final class Definition {
 
     // TODO: instead of hashing on this, we could have a 'next' pointer in Method itself, but it would make code more complex
     // please do *NOT* under any circumstances change this to be the crappy Tuple from elasticsearch!
-    /**
-     * Key for looking up a method.
-     * <p>
-     * Methods are keyed on both name and arity, and can be overloaded once per arity.
-     * This allows signatures such as {@code String.indexOf(String) vs String.indexOf(String, int)}.
-     * <p>
-     * It is less flexible than full signature overloading where types can differ too, but
-     * better than just the name, and overloading types adds complexity to users, too.
-     */
-    public static final class MethodKey {
-        public final String name;
-        public final int arity;
-
-        /**
-         * Create a new lookup key
-         * @param name name of the method
-         * @param arity number of parameters
-         */
-        public MethodKey(String name, int arity) {
-            this.name = Objects.requireNonNull(name);
-            this.arity = arity;
-        }
-
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + arity;
-            result = prime * result + name.hashCode();
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) return true;
-            if (obj == null) return false;
-            if (getClass() != obj.getClass()) return false;
-            MethodKey other = (MethodKey) obj;
-            if (arity != other.arity) return false;
-            if (!name.equals(other.name)) return false;
-            return true;
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder();
-            sb.append(name);
-            sb.append('/');
-            sb.append(arity);
-            return sb.toString();
-        }
-    }
 
     public static final class Struct {
         public final String name;
         public final Class<?> clazz;
         public final org.objectweb.asm.Type type;
 
-        public final Map<MethodKey, Painless.Method> constructors;
-        public final Map<MethodKey, Painless.Method> staticMethods;
-        public final Map<MethodKey, Painless.Method> methods;
+        public final Map<Painless.MethodKey, Painless.Method> constructors;
+        public final Map<Painless.MethodKey, Painless.Method> staticMethods;
+        public final Map<Painless.MethodKey, Painless.Method> methods;
 
         public final Map<String, Field> staticMembers;
         public final Map<String, Field> members;
@@ -657,7 +604,7 @@ public final class Definition {
                     " with constructor parameters " + whitelistConstructor.painlessParameterTypeNames, exception);
         }
 
-        MethodKey painlessMethodKey = new MethodKey("<init>", whitelistConstructor.painlessParameterTypeNames.size());
+        Painless.MethodKey painlessMethodKey = new Painless.MethodKey("<init>", whitelistConstructor.painlessParameterTypeNames.size());
         Painless.Method painlessConstructor = ownerStruct.constructors.get(painlessMethodKey);
 
         if (painlessConstructor == null) {
@@ -761,7 +708,7 @@ public final class Definition {
                     "and parameters " + whitelistMethod.painlessParameterTypeNames);
         }
 
-        MethodKey painlessMethodKey = new MethodKey(whitelistMethod.javaMethodName, whitelistMethod.painlessParameterTypeNames.size());
+        Painless.MethodKey painlessMethodKey = new Painless.MethodKey(whitelistMethod.javaMethodName, whitelistMethod.painlessParameterTypeNames.size());
 
         if (javaAugmentedClass == null && Modifier.isStatic(javaMethod.getModifiers())) {
             Painless.Method painlessMethod = ownerStruct.staticMethods.get(painlessMethodKey);
@@ -919,8 +866,8 @@ public final class Definition {
                     " is not a super type of owner struct [" + owner.name + "] in copy.");
             }
 
-            for (Map.Entry<MethodKey, Painless.Method> kvPair : child.methods.entrySet()) {
-                MethodKey methodKey = kvPair.getKey();
+            for (Map.Entry<Painless.MethodKey, Painless.Method> kvPair : child.methods.entrySet()) {
+                Painless.MethodKey methodKey = kvPair.getKey();
                 Painless.Method method = kvPair.getValue();
                 if (owner.methods.get(methodKey) == null) {
                     // TODO: some of these are no longer valid or outright don't work
@@ -987,7 +934,7 @@ public final class Definition {
      */
     private void addRuntimeClass(final Struct struct) {
         // add all getters/setters
-        for (Map.Entry<MethodKey, Painless.Method> method : struct.methods.entrySet()) {
+        for (Map.Entry<Painless.MethodKey, Painless.Method> method : struct.methods.entrySet()) {
             String name = method.getKey().name;
             Painless.Method m = method.getValue();
 
@@ -1063,7 +1010,7 @@ public final class Definition {
         }
         // inspect the one method found from the reflection API, it should match the whitelist!
         java.lang.reflect.Method oneMethod = methods.get(0);
-        Painless.Method painless = clazz.methods.get(new Definition.MethodKey(oneMethod.getName(), oneMethod.getParameterCount()));
+        Painless.Method painless = clazz.methods.get(new Painless.MethodKey(oneMethod.getName(), oneMethod.getParameterCount()));
         if (painless == null || painless.method.equals(org.objectweb.asm.commons.Method.getMethod(oneMethod)) == false) {
             throw new IllegalArgumentException("Class: " + clazz.name + " is functional but the functional " +
                 "method is not whitelisted!");

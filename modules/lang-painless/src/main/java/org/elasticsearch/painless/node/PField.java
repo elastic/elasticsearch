@@ -74,15 +74,15 @@ public final class PField extends AStoreable {
                 sub = new PSubField(location, field);
             } else {
                 Painless.Method getter = struct.methods.get(
-                    new Definition.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+                    new Painless.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
 
                 if (getter == null) {
                     getter = struct.methods.get(
-                        new Definition.MethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+                        new Painless.MethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
                 }
 
                 Painless.Method setter = struct.methods.get(
-                    new Definition.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
+                    new Painless.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
                 if (getter != null || setter != null) {
                     sub = new PSubShortcut(location, value, Definition.ClassToName(prefix.actual), getter, setter);

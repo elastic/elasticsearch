@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Globals;
@@ -56,8 +55,8 @@ final class PSubListShortcut extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        getter = struct.methods.get(new Definition.MethodKey("get", 1));
-        setter = struct.methods.get(new Definition.MethodKey("set", 2));
+        getter = struct.methods.get(new Painless.MethodKey("get", 1));
+        setter = struct.methods.get(new Painless.MethodKey("set", 2));
 
         if (getter != null && (getter.rtn == void.class || getter.arguments.size() != 1 ||
             getter.arguments.get(0) != int.class)) {

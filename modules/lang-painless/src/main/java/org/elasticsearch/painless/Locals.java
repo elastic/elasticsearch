@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 
 import java.util.Arrays;
@@ -141,7 +140,7 @@ public final class Locals {
     }
 
     /** Looks up a method. Returns null if the method does not exist. */
-    public Painless.Method getMethod(MethodKey key) {
+    public Painless.Method getMethod(Painless.MethodKey key) {
         Painless.Method method = lookupMethod(key);
         if (method != null) {
             return method;
@@ -197,7 +196,7 @@ public final class Locals {
     // variable name -> variable
     private Map<String,Variable> variables;
     // method name+arity -> methods
-    private Map<MethodKey, Painless.Method> methods;
+    private Map<Painless.MethodKey, Painless.Method> methods;
 
     /**
      * Create a new Locals
@@ -235,7 +234,7 @@ public final class Locals {
     }
 
     /** Looks up a method at this scope only. Returns null if the method does not exist. */
-    private Painless.Method lookupMethod(MethodKey key) {
+    private Painless.Method lookupMethod(Painless.MethodKey key) {
         if (methods == null) {
             return null;
         }
@@ -258,7 +257,7 @@ public final class Locals {
         if (methods == null) {
             methods = new HashMap<>();
         }
-        methods.put(new MethodKey(method.name, method.arguments.size()), method);
+        methods.put(new Painless.MethodKey(method.name, method.arguments.size()), method);
         // TODO: check result
     }
 

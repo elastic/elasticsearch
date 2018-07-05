@@ -27,8 +27,62 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public class Painless {
+
+    /**
+     * Key for looking up a method.
+     * <p>
+     * Methods are keyed on both name and arity, and can be overloaded once per arity.
+     * This allows signatures such as {@code String.indexOf(String) vs String.indexOf(String, int)}.
+     * <p>
+     * It is less flexible than full signature overloading where types can differ too, but
+     * better than just the name, and overloading types adds complexity to users, too.
+     */
+    public static final class MethodKey {
+        public final String name;
+        public final int arity;
+
+        /**
+         * Create a new lookup key
+         * @param name name of the method
+         * @param arity number of parameters
+         */
+        public MethodKey(String name, int arity) {
+            this.name = Objects.requireNonNull(name);
+            this.arity = arity;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + arity;
+            result = prime * result + name.hashCode();
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null) return false;
+            if (getClass() != obj.getClass()) return false;
+            MethodKey other = (MethodKey) obj;
+            if (arity != other.arity) return false;
+            if (!name.equals(other.name)) return false;
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(name);
+            sb.append('/');
+            sb.append(arity);
+            return sb.toString();
+        }
+    }
 
     public static class Method {
         public final String name;
@@ -130,4 +184,5 @@ public class Painless {
             }
         }
     }
+
 }

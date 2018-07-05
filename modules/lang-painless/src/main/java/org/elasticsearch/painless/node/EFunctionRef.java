@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Painless;
-import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -71,7 +70,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                            "to [" + Definition.ClassToName(expected) + "], not a functional interface");
                     }
-                    Painless.Method delegateMethod = locals.getMethod(new MethodKey(call, interfaceMethod.arguments.size()));
+                    Painless.Method delegateMethod = locals.getMethod(new Painless.MethodKey(call, interfaceMethod.arguments.size()));
                     if (delegateMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                            "to [" + Definition.ClassToName(expected) + "], function not found");

@@ -256,6 +256,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertEquals(10, numRequests.get());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29242")
     public void testFanOutAndCollect() throws InterruptedException {
         SearchRequest request = new SearchRequest();
         request.allowPartialSearchResults(true);

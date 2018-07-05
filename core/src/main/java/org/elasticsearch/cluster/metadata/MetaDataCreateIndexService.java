@@ -599,7 +599,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         final List<String> nodesToAllocateOn = validateShrinkIndex(currentState, shrinkFromIndex.getName(),
             mappingKeys, shrinkIntoName, indexSettingsBuilder.build());
         final Predicate<String> analysisSimilarityPredicate = (s) -> s.startsWith("index.similarity.")
-            || s.startsWith("index.analysis.");
+            || s.startsWith("index.analysis.") || s.equals("index.mapping.single_type");
         indexSettingsBuilder
             // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
             // once we are allocated.

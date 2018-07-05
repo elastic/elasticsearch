@@ -161,6 +161,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         Version minCompat = versions.get(1);
         Version upgraded = versions.get(2);
         // create one that won't fail
+        boolean singleType = randomBoolean();
         ClusterState clusterState = ClusterState.builder(createClusterState(indexName, randomIntBetween(2, 10), 0,
             Settings.builder()
                 .put("index.blocks.write", true)
@@ -169,6 +170,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 .put("index.version.upgraded", upgraded)
                 .put("index.version.minimum_compatible", minCompat.luceneVersion)
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "keyword")
+                .put("index.mapping.single_type", singleType)
                 .build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
         AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
@@ -188,6 +190,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertEquals("similarity settings must be copied", "BM25", builder.build().get("index.similarity.default.type"));
         assertEquals("analysis settings must be copied",
             "keyword", builder.build().get("index.analysis.analyzer.my_analyzer.tokenizer"));
+        assertEquals("mapping.single_type must be copied",
+            Boolean.toString(singleType), builder.build().get("index.mapping.single_type"));
         assertEquals("node1", builder.build().get("index.routing.allocation.initial_recovery._id"));
         assertEquals("1", builder.build().get("index.allocation.max_retries"));
         assertEquals(version, builder.build().getAsVersion("index.version.created", null));

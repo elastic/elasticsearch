@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.def;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
@@ -130,7 +129,7 @@ public final class MethodWriter extends GeneratorAdapter {
         mark(end);
     }
 
-    public void writeCast(Cast cast) {
+    public void writeCast(Painless.Cast cast) {
         if (cast != null) {
             if (cast.from == char.class && cast.to == String.class) {
                 invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);

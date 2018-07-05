@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.FeatureTest;
 import org.elasticsearch.painless.GenericElasticsearchScript;
@@ -158,12 +157,12 @@ public class NodeToStringTests extends ESTestCase {
     public void testECast() {
         Location l = new Location(getTestName(), 0);
         AExpression child = new EConstant(l, "test");
-        Cast cast = Cast.standard(String.class, Integer.class, true);
+        Painless.Cast cast = Painless.Cast.standard(String.class, Integer.class, true);
         assertEquals("(ECast java.lang.Integer (EConstant String 'test'))", new ECast(l, child, cast).toString());
 
         l = new Location(getTestName(), 1);
         child = new EBinary(l, Operation.ADD, new EConstant(l, "test"), new EConstant(l, 12));
-        cast = Cast.standard(Integer.class, Boolean.class, true);
+        cast = Painless.Cast.standard(Integer.class, Boolean.class, true);
         assertEquals("(ECast java.lang.Boolean (EBinary (EConstant String 'test') + (EConstant Integer 12)))",
             new ECast(l, child, cast).toString());
     }

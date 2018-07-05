@@ -47,56 +47,9 @@ public final class Definition {
     private static final Pattern TYPE_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
 
     /** Marker class for def type to be used during type analysis. */
-    /** Marker class for def type to be used during type analysis. */
     public static final class def {
         private def() {
 
-        }
-    }
-
-    public static class Cast {
-
-        /** Create a standard cast with no boxing/unboxing. */
-        public static Cast standard(Class<?> from, Class<?> to, boolean explicit) {
-            return new Cast(from, to, explicit, null, null, null, null);
-        }
-
-        /** Create a cast where the from type will be unboxed, and then the cast will be performed. */
-        public static Cast unboxFrom(Class<?> from, Class<?> to, boolean explicit, Class<?> unboxFrom) {
-            return new Cast(from, to, explicit, unboxFrom, null, null, null);
-        }
-
-        /** Create a cast where the to type will be unboxed, and then the cast will be performed. */
-        public static Cast unboxTo(Class<?> from, Class<?> to, boolean explicit, Class<?> unboxTo) {
-            return new Cast(from, to, explicit, null, unboxTo, null, null);
-        }
-
-        /** Create a cast where the from type will be boxed, and then the cast will be performed. */
-        public static Cast boxFrom(Class<?> from, Class<?> to, boolean explicit, Class<?> boxFrom) {
-            return new Cast(from, to, explicit, null, null, boxFrom, null);
-        }
-
-        /** Create a cast where the to type will be boxed, and then the cast will be performed. */
-        public static Cast boxTo(Class<?> from, Class<?> to, boolean explicit, Class<?> boxTo) {
-            return new Cast(from, to, explicit, null, null, null, boxTo);
-        }
-
-        public final Class<?> from;
-        public final Class<?> to;
-        public final boolean explicit;
-        public final Class<?> unboxFrom;
-        public final Class<?> unboxTo;
-        public final Class<?> boxFrom;
-        public final Class<?> boxTo;
-
-        private Cast(Class<?> from, Class<?> to, boolean explicit, Class<?> unboxFrom, Class<?> unboxTo, Class<?> boxFrom, Class<?> boxTo) {
-            this.from = from;
-            this.to = to;
-            this.explicit = explicit;
-            this.unboxFrom = unboxFrom;
-            this.unboxTo = unboxTo;
-            this.boxFrom = boxFrom;
-            this.boxTo = boxTo;
         }
     }
 

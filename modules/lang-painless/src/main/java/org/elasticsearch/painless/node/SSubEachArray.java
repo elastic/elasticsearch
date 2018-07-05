@@ -21,12 +21,12 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Painless;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -41,7 +41,7 @@ final class SSubEachArray extends AStatement {
     private AExpression expression;
     private final SBlock block;
 
-    private Cast cast = null;
+    private Painless.Cast cast = null;
     private Variable array = null;
     private Variable index = null;
     private Class<?> indexed = null;

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Cast;
-
 import org.elasticsearch.test.ESTestCase;
 
 public class AnalyzerCasterTests extends ESTestCase {
@@ -35,7 +33,7 @@ public class AnalyzerCasterTests extends ESTestCase {
             return;
         }
 
-        Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, true, false);
+        Painless.Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, true, false);
         assertEquals(actual, cast.from);
         assertEquals(expected, cast.to);
 

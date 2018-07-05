@@ -1137,8 +1137,8 @@ public class JobProvider {
                 .field(ForecastRequestStats.PROCESSED_RECORD_COUNT.getPreferredName()));
         sourceBuilder.aggregation(
                 AggregationBuilders.stats(ForecastStats.Fields.RUNTIME).field(ForecastRequestStats.PROCESSING_TIME_MS.getPreferredName()));
-        Script durationScript = new Script(
-                "doc['forecast_end_timestamp'].value.getMillis() - doc['forecast_start_timestamp'].value.getMillis()");
+        Script durationScript = new Script("doc['" + ForecastRequestStats.END_TIME + "'].value.getMillis() - doc['"
+                + ForecastRequestStats.START_TIME + "'].value.getMillis()");
         sourceBuilder.aggregation(AggregationBuilders.stats(Fields.DURATION).script(durationScript));
         sourceBuilder.aggregation(
                 AggregationBuilders.terms(ForecastStats.Fields.STATUSES).field(ForecastRequestStats.STATUS.getPreferredName()));

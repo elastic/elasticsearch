@@ -35,9 +35,9 @@ public class PutRoleRequestTests extends ESTestCase {
         // Fail
         assertValidationError("privilege names and actions must match the pattern",
             buildRequestWithApplicationPrivilege("app", new String[]{"in valid"}, new String[]{"*"}));
-        assertValidationError("Application names must match the pattern",
+        assertValidationError("An application name prefix must match the pattern",
             buildRequestWithApplicationPrivilege("000", new String[]{"all"}, new String[]{"*"}));
-        assertValidationError("Application names must match the pattern",
+        assertValidationError("An application name prefix must match the pattern",
             buildRequestWithApplicationPrivilege("%*", new String[]{"all"}, new String[]{"*"}));
     }
 

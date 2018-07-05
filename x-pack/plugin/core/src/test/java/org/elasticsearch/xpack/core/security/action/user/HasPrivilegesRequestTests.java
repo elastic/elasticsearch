@@ -76,8 +76,7 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         });
         final ActionRequestValidationException exception = request.validate();
         assertThat(exception, notNullValue());
-        assertThat(exception.validationErrors(), hasItem("Application names must match the pattern ^[a-z][A-Za-z0-9_-]{2,}$" +
-            " (but was '*')"));
+        assertThat(exception.validationErrors(), hasItem("Application names may not contain '*' (found '*')"));
     }
 
     private HasPrivilegesRequest serializeAndDeserialize(HasPrivilegesRequest original, Version version) throws IOException {

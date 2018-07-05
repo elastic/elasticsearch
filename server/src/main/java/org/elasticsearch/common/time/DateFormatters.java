@@ -341,14 +341,34 @@ public class DateFormatters {
         .append(TIME_ZONE_FORMATTER)
         .toFormatter(Locale.ROOT));
 
-    private static final DateTimeFormatter TIME_FORMATTER = new DateTimeFormatterBuilder()
+    private static final DateTimeFormatter TIME_FORMATTER_1 = new DateTimeFormatterBuilder()
         .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
         .appendLiteral(':')
         .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
         .appendLiteral(':')
         .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
         .appendFraction(MILLI_OF_SECOND, 1, 3, true)
-        .append(TIME_ZONE_FORMATTER)
+        .append(TIME_ZONE_FORMATTER_ZONE_ID)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter TIME_FORMATTER_2 = new DateTimeFormatterBuilder()
+        .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendFraction(MILLI_OF_SECOND, 1, 3, true)
+        .append(TIME_ZONE_FORMATTER_WITH_COLON)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter TIME_FORMATTER_3 = new DateTimeFormatterBuilder()
+        .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendFraction(MILLI_OF_SECOND, 1, 3, true)
+        .append(TIME_ZONE_FORMATTER_WITHOUT_COLON)
         .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter TIME_PREFIX = new DateTimeFormatterBuilder()
@@ -375,30 +395,61 @@ public class DateFormatters {
         .append(TIME_ZONE_FORMATTER_WITHOUT_COLON)
         .toFormatter(Locale.ROOT);
 
-    private static final DateFormatter T_TIME = new DateFormatter(new DateTimeFormatterBuilder()
-        .appendLiteral("T")
-        .append(TIME_FORMATTER)
-        .toFormatter(Locale.ROOT));
+    private static final DateFormatter T_TIME = new DateFormatter(
+        new DateTimeFormatterBuilder().appendLiteral("T").append(TIME_FORMATTER_1).toFormatter(Locale.ROOT),
+        new DateTimeFormatterBuilder().appendLiteral("T").append(TIME_FORMATTER_2).toFormatter(Locale.ROOT),
+        new DateTimeFormatterBuilder().appendLiteral("T").append(TIME_FORMATTER_3).toFormatter(Locale.ROOT)
+    );
 
-    private static final DateTimeFormatter TIME_NO_MILLIS_FORMATTER = new DateTimeFormatterBuilder()
+    private static final DateTimeFormatter TIME_NO_MILLIS_FORMATTER_1 = new DateTimeFormatterBuilder()
         .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
         .appendLiteral(':')
         .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
         .appendLiteral(':')
         .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
-        .append(TIME_ZONE_FORMATTER)
+        .append(TIME_ZONE_FORMATTER_ZONE_ID)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter TIME_NO_MILLIS_FORMATTER_2 = new DateTimeFormatterBuilder()
+        .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
+        .append(TIME_ZONE_FORMATTER_WITH_COLON)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter TIME_NO_MILLIS_FORMATTER_3 = new DateTimeFormatterBuilder()
+        .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
+        .append(TIME_ZONE_FORMATTER_WITHOUT_COLON)
         .toFormatter(Locale.ROOT);
 
     private static final DateFormatter TIME = new DateFormatter(TIME_ZONE_ID, TIME_ZONE_WITH_COLON, TIME_ZONE_WITHOUT_COLON);
 
-    private static final DateFormatter TIME_NO_MILLIS = new DateFormatter(TIME_NO_MILLIS_FORMATTER);
+    private static final DateFormatter TIME_NO_MILLIS = new DateFormatter(TIME_NO_MILLIS_FORMATTER_1, TIME_NO_MILLIS_FORMATTER_2,
+        TIME_NO_MILLIS_FORMATTER_3);
 
-    private static final DateTimeFormatter T_TIME_NO_MILLIS_FORMATTER = new DateTimeFormatterBuilder()
+    private static final DateTimeFormatter T_TIME_NO_MILLIS_FORMATTER_1 = new DateTimeFormatterBuilder()
         .appendLiteral("T")
-        .append(TIME_NO_MILLIS_FORMATTER)
+        .append(TIME_NO_MILLIS_FORMATTER_1)
         .toFormatter(Locale.ROOT);
 
-    private static final DateFormatter T_TIME_NO_MILLIS = new DateFormatter(T_TIME_NO_MILLIS_FORMATTER);
+    private static final DateTimeFormatter T_TIME_NO_MILLIS_FORMATTER_2 = new DateTimeFormatterBuilder()
+        .appendLiteral("T")
+        .append(TIME_NO_MILLIS_FORMATTER_2)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateTimeFormatter T_TIME_NO_MILLIS_FORMATTER_3 = new DateTimeFormatterBuilder()
+        .appendLiteral("T")
+        .append(TIME_NO_MILLIS_FORMATTER_3)
+        .toFormatter(Locale.ROOT);
+
+    private static final DateFormatter T_TIME_NO_MILLIS = new DateFormatter(T_TIME_NO_MILLIS_FORMATTER_1, T_TIME_NO_MILLIS_FORMATTER_2,
+        T_TIME_NO_MILLIS_FORMATTER_3);
 
     private static final DateTimeFormatter WEEK_DATE_FORMATTER = new DateTimeFormatterBuilder()
         .appendValue(IsoFields.WEEK_BASED_YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
@@ -410,16 +461,17 @@ public class DateFormatters {
 
     private static final DateFormatter WEEK_DATE = new DateFormatter(WEEK_DATE_FORMATTER);
 
-    private static final DateFormatter WEEK_DATE_TIME_NO_MILLIS = new DateFormatter(new DateTimeFormatterBuilder()
-        .append(WEEK_DATE_FORMATTER)
-        .append(T_TIME_NO_MILLIS_FORMATTER)
-        .toFormatter(Locale.ROOT));
+    private static final DateFormatter WEEK_DATE_TIME_NO_MILLIS = new DateFormatter(
+        new DateTimeFormatterBuilder().append(WEEK_DATE_FORMATTER).append(T_TIME_NO_MILLIS_FORMATTER_1).toFormatter(Locale.ROOT),
+        new DateTimeFormatterBuilder().append(WEEK_DATE_FORMATTER).append(T_TIME_NO_MILLIS_FORMATTER_2).toFormatter(Locale.ROOT),
+        new DateTimeFormatterBuilder().append(WEEK_DATE_FORMATTER).append(T_TIME_NO_MILLIS_FORMATTER_3).toFormatter(Locale.ROOT)
+        );
 
-    private static final DateFormatter WEEK_DATE_TIME = new DateFormatter(new DateTimeFormatterBuilder()
-        .append(WEEK_DATE_FORMATTER)
-        .appendLiteral("T")
-        .append(TIME_FORMATTER)
-        .toFormatter(Locale.ROOT));
+    private static final DateFormatter WEEK_DATE_TIME = new DateFormatter(
+        new DateTimeFormatterBuilder().append(WEEK_DATE_FORMATTER).appendLiteral("T").append(TIME_FORMATTER_1).toFormatter(Locale.ROOT),
+        new DateTimeFormatterBuilder().append(WEEK_DATE_FORMATTER).appendLiteral("T").append(TIME_FORMATTER_2).toFormatter(Locale.ROOT),
+        new DateTimeFormatterBuilder().append(WEEK_DATE_FORMATTER).appendLiteral("T").append(TIME_FORMATTER_3).toFormatter(Locale.ROOT)
+    );
 
     private static final DateFormatter WEEK_YEAR = new DateFormatter(new DateTimeFormatterBuilder()
         .appendValue(WeekFields.ISO.weekBasedYear())

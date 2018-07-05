@@ -32,6 +32,8 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.ValueSource;
+import org.elasticsearch.script.ScriptService;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -47,9 +49,10 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
     private final String indexNameFormat;
     private final DateTimeZone timezone;
     private final List<Function<String, DateTime>> dateFormats;
+    private final ScriptService scriptService;
 
     DateIndexNameProcessor(String tag, String field, List<Function<String, DateTime>> dateFormats, DateTimeZone timezone,
-                           String indexNamePrefix, String dateRounding, String indexNameFormat) {
+                           String indexNamePrefix, String dateRounding, String indexNameFormat, ScriptService scriptService) {
         super(tag);
         this.field = field;
         this.timezone = timezone;
@@ -57,6 +60,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
         this.indexNamePrefix = indexNamePrefix;
         this.dateRounding = dateRounding;
         this.indexNameFormat = indexNameFormat;
+        this.scriptService = scriptService;
     }
 
     @Override
@@ -94,7 +98,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
                     .append('}')
                 .append('>');
         String dynamicIndexName  = builder.toString();
-        ingestDocument.setFieldValue(IngestDocument.MetaData.INDEX.getFieldName(), dynamicIndexName);
+        ingestDocument.setFieldValue(IngestDocument.MetaData.INDEX.getFieldName(), ValueSource.wrap(dynamicIndexName, scriptService));
     }
 
     @Override
@@ -128,6 +132,12 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
+        private final ScriptService scriptService;
+
+        public Factory(ScriptService scriptService) {
+            this.scriptService = scriptService;
+        }
+
         @Override
         public DateIndexNameProcessor create(Map<String, Processor.Factory> registry, String tag,
                                              Map<String, Object> config) throws Exception {
@@ -156,7 +166,8 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
             String indexNamePrefix = ConfigurationUtils.readStringProperty(TYPE, tag, config, "index_name_prefix", "");
             String dateRounding = ConfigurationUtils.readStringProperty(TYPE, tag, config, "date_rounding");
             String indexNameFormat = ConfigurationUtils.readStringProperty(TYPE, tag, config, "index_name_format", "yyyy-MM-dd");
-            return new DateIndexNameProcessor(tag, field, dateFormats, timezone, indexNamePrefix, dateRounding, indexNameFormat);
+            return new DateIndexNameProcessor(tag, field, dateFormats, timezone, indexNamePrefix,
+                dateRounding, indexNameFormat, scriptService);
         }
     }
 

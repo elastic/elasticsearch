@@ -408,6 +408,21 @@ public final class IngestDocument {
 
     /**
      * Sets the provided value to the provided path in the document.
+     * Any non existing path element will be created.
+     * If the last item in the path is a list, the value will replace the existing list as a whole.
+     * Use {@link #appendFieldValue(String, Object)} to append values to lists instead.
+     * @param path The path within the document in dot-notation
+     * @param valueSource The value source that will produce the value or values to append to the existing ones
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
+     * item identified by the provided path.
+     */
+    public void setFieldValue(String path, ValueSource valueSource) {
+        Map<String, Object> model = valueSource == null ? null : createTemplateModel();
+        setFieldValue(path, valueSource == null ? null : valueSource.copyAndResolve(model), false);
+    }
+
+    /**
+     * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created. If the last element is a list,
      * the value will replace the existing list.
      * @param fieldPathTemplate Resolves to the path with dot-notation within the document

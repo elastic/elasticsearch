@@ -190,6 +190,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     sendShardChangesRequest(newFrom, newSize, maxRequiredSeqNo);
                     return;
                 }
+                // If lastOpSeqNo == null then from must be equal to maxRequiredSeqNo otherwise something went wrong and
+                // we are not getting ops while we really should.
+                // There is one exception why can't fail because of this and that is that we may read from a leader shard
+                // copy with a global checkpoint equal to from and no ops are than being returned. If we can detect this
+                // here or make sure that the shard changes api does not do this (add a flag requireOps and let it fail
+                // so that it can read from another shard copy) then we can add a hard check here.
 
                 numConcurrentReads--;
                 if (response.getOperations().length != 0) {

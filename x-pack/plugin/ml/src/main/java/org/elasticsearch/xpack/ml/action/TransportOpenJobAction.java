@@ -230,7 +230,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                         }
                     }
                     // Don't count CLOSED or FAILED jobs, as they don't consume native memory
-                    if (jobState != JobState.CLOSED && jobState != JobState.FAILED) {
+                    if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
                         ++numberOfAssignedJobs;
                         String assignedJobId = ((OpenJobAction.JobParams) assignedTask.getParams()).getJobId();
                         Job assignedJob = mlMetadata.getJobs().get(assignedJobId);

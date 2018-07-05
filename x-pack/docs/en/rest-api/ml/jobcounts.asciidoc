@@ -202,6 +202,9 @@ The `forecasts_stats` object shows statistics about forecasts. It has the follow
 `processing_time_ms`::
   (object) Statistics about the forecast runtime in milliseconds: minimum, maximum, average and total.
 
+`duration_ms`::
+  (object) Statistics about the forecast duration in milliseconds: minimum, maximum, average and total.
+
 `status`::
   (object) Counts per forecast status, for example: {"finished" : 2}. 
 

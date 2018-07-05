@@ -59,6 +59,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -98,6 +99,7 @@ import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.stats.CountAccumulator;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
+import org.elasticsearch.xpack.core.ml.stats.ForecastStats.Fields;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
@@ -1135,6 +1137,9 @@ public class JobProvider {
                 .field(ForecastRequestStats.PROCESSED_RECORD_COUNT.getPreferredName()));
         sourceBuilder.aggregation(
                 AggregationBuilders.stats(ForecastStats.Fields.RUNTIME).field(ForecastRequestStats.PROCESSING_TIME_MS.getPreferredName()));
+        Script durationScript = new Script(
+                "doc['forecast_end_timestamp'].value.getMillis() - doc['forecast_start_timestamp'].value.getMillis()");
+        sourceBuilder.aggregation(AggregationBuilders.stats(Fields.DURATION).script(durationScript));
         sourceBuilder.aggregation(
                 AggregationBuilders.terms(ForecastStats.Fields.STATUSES).field(ForecastRequestStats.STATUS.getPreferredName()));
         sourceBuilder.size(0);
@@ -1156,10 +1161,12 @@ public class JobProvider {
                             .fromStatsAggregation((Stats) aggregationsAsMap.get(ForecastStats.Fields.RECORDS));
                     StatsAccumulator runtimeStats = StatsAccumulator
                             .fromStatsAggregation((Stats) aggregationsAsMap.get(ForecastStats.Fields.RUNTIME));
+                    StatsAccumulator durationStats = StatsAccumulator
+                            .fromStatsAggregation((Stats) aggregationsAsMap.get(ForecastStats.Fields.DURATION));
                     CountAccumulator statusCount = CountAccumulator
                             .fromTermsAggregation((StringTerms) aggregationsAsMap.get(ForecastStats.Fields.STATUSES));
-
-                    ForecastStats forecastStats = new ForecastStats(totalHits, memoryStats, recordStats, runtimeStats, statusCount);
+                    ForecastStats forecastStats = new ForecastStats(totalHits, memoryStats, recordStats, runtimeStats, durationStats,
+                            statusCount);
                     handler.accept(forecastStats);
                 }, errorHandler), client::search);
 

@@ -328,6 +328,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request
                 final Engine.Result result = new Engine.IndexResult(failure, updateRequest.version(), SequenceNumbers.UNASSIGNED_SEQ_NO);
+                context.setRequestToExecute(updateRequest);
                 context.markOperationAsCompleted(result);
                 context.finalize(context.getExecutionResult());
                 return null;

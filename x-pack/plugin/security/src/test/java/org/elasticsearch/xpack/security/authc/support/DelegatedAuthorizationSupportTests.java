@@ -72,7 +72,7 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final IllegalStateException ise = expectThrows(IllegalStateException.class, () ->
             new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings))
         );
-        assertThat(ise.getMessage(), equalTo("configured authorizing realm [no-such-realm] does not exist"));
+        assertThat(ise.getMessage(), equalTo("configured authorizing realm [no-such-realm] does not exist (or is not enabled)"));
     }
 
     public void testMatchInDelegationList() throws Exception {

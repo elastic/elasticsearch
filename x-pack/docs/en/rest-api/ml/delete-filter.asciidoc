@@ -1,0 +1,52 @@
+[role="xpack"]
+[[ml-delete-filter]]
+=== Delete Filter API
+++++
+<titleabbrev>Delete Filter</titleabbrev>
+++++
+
+Deletes a filter.
+
+
+==== Request
+
+`DELETE _xpack/ml/filters/<filter_id>`
+
+
+==== Description
+
+This API deletes a filter. A filter is only allowed to be
+deleted if it is not used by any job.
+
+
+==== Path Parameters
+
+`filter_id` (required)::
+  (string) Identifier for the calendar.
+
+
+==== Authorization
+
+You must have `manage_ml`, or `manage` cluster privileges to use this API.
+For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+
+
+==== Examples
+
+The following example deletes the `safe_domains` filter:
+
+[source,js]
+--------------------------------------------------
+DELETE _xpack/ml/filters/safe_domains
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:ml_filter_safe_domains]
+
+When the filter is deleted, you receive the following results:
+[source,js]
+----
+{
+  "acknowledged": true
+}
+----
+//TESTRESPONSE

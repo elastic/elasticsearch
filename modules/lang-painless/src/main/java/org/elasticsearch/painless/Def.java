@@ -19,8 +19,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Struct;
+import org.elasticsearch.painless.Painless.Struct;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
@@ -181,14 +180,14 @@ public final class Def {
      * @return matching method to invoke. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
-    static Method lookupMethodInternal(Definition definition, Class<?> receiverClass, String name, int arity) {
-        Definition.MethodKey key = new Definition.MethodKey(name, arity);
+    static Painless.Method lookupMethodInternal(Definition definition, Class<?> receiverClass, String name, int arity) {
+        Painless.MethodKey key = new Painless.MethodKey(name, arity);
         // check whitelist for matching method
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
             Struct struct = definition.getPainlessStructFromJavaClass(clazz);
 
             if (struct != null) {
-                Method method = struct.methods.get(key);
+                Painless.Method method = struct.methods.get(key);
                 if (method != null) {
                     return method;
                 }
@@ -198,7 +197,7 @@ public final class Def {
                 struct = definition.getPainlessStructFromJavaClass(iface);
 
                 if (struct != null) {
-                    Method method = struct.methods.get(key);
+                    Painless.Method method = struct.methods.get(key);
                     if (method != null) {
                         return method;
                     }
@@ -259,7 +258,7 @@ public final class Def {
 
          // lookup the method with the proper arity, then we know everything (e.g. interface types of parameters).
          // based on these we can finally link any remaining lambdas that were deferred.
-         Method method = lookupMethodInternal(definition, receiverClass, name, arity);
+         Painless.Method method = lookupMethodInternal(definition, receiverClass, name, arity);
          MethodHandle handle = method.handle;
 
          int replaced = 0;
@@ -325,12 +324,12 @@ public final class Def {
     static MethodHandle lookupReference(Definition definition, Lookup lookup, String interfaceClass,
             Class<?> receiverClass, String name) throws Throwable {
          Class<?> interfaceType = definition.getJavaClassFromPainlessType(interfaceClass);
-         Method interfaceMethod = definition.getPainlessStructFromJavaClass(interfaceType).functionalMethod;
+         Painless.Method interfaceMethod = definition.getPainlessStructFromJavaClass(interfaceType).functionalMethod;
          if (interfaceMethod == null) {
              throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
          }
          int arity = interfaceMethod.arguments.size();
-         Method implMethod = lookupMethodInternal(definition, receiverClass, name, arity);
+         Painless.Method implMethod = lookupMethodInternal(definition, receiverClass, name, arity);
         return lookupReferenceInternal(definition, lookup, interfaceType, implMethod.owner.name,
                 implMethod.name, receiverClass);
      }
@@ -342,7 +341,7 @@ public final class Def {
          final FunctionRef ref;
          if ("this".equals(type)) {
              // user written method
-             Method interfaceMethod = definition.getPainlessStructFromJavaClass(clazz).functionalMethod;
+             Painless.Method interfaceMethod = definition.getPainlessStructFromJavaClass(clazz).functionalMethod;
              if (interfaceMethod == null) {
                  throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                     "to [" + Definition.ClassToName(clazz) + "], not a functional interface");

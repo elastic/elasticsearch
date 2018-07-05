@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Method;
 import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodType;
@@ -55,9 +54,9 @@ public class FunctionRef {
     public final MethodType delegateMethodType;
 
     /** interface method */
-    public final Method interfaceMethod;
+    public final Painless.Method interfaceMethod;
     /** delegate method */
-    public final Method delegateMethod;
+    public final Painless.Method delegateMethod;
 
     /** factory method type descriptor */
     public final String factoryDescriptor;
@@ -89,7 +88,7 @@ public class FunctionRef {
      * @param delegateMethod implementation method
      * @param numCaptures number of captured arguments
      */
-    public FunctionRef(Class<?> expected, Method interfaceMethod, Method delegateMethod, int numCaptures) {
+    public FunctionRef(Class<?> expected, Painless.Method interfaceMethod, Painless.Method delegateMethod, int numCaptures) {
         MethodType delegateMethodType = delegateMethod.getMethodType();
 
         interfaceMethodName = interfaceMethod.name;
@@ -135,7 +134,7 @@ public class FunctionRef {
      * It is for runtime use only.
      */
     public FunctionRef(Class<?> expected,
-                       Method interfaceMethod, String delegateMethodName, MethodType delegateMethodType, int numCaptures) {
+                       Painless.Method interfaceMethod, String delegateMethodName, MethodType delegateMethodType, int numCaptures) {
         interfaceMethodName = interfaceMethod.name;
         factoryMethodType = MethodType.methodType(expected,
             delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
@@ -158,25 +157,25 @@ public class FunctionRef {
     /**
      * Looks up {@code type::call} from the whitelist, and returns a matching method.
      */
-    private static Definition.Method lookup(Definition definition, Class<?> expected,
-                                            String type, String call, boolean receiverCaptured) {
+    private static Painless.Method lookup(Definition definition, Class<?> expected,
+                                 String type, String call, boolean receiverCaptured) {
         // check its really a functional interface
         // for e.g. Comparable
-        Method method = definition.getPainlessStructFromJavaClass(expected).functionalMethod;
+        Painless.Method method = definition.getPainlessStructFromJavaClass(expected).functionalMethod;
         if (method == null) {
             throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                "to [" + Definition.ClassToName(expected) + "], not a functional interface");
         }
 
         // lookup requested method
-        Definition.Struct struct = definition.getPainlessStructFromJavaClass(definition.getJavaClassFromPainlessType(type));
-        final Definition.Method impl;
+        Painless.Struct struct = definition.getPainlessStructFromJavaClass(definition.getJavaClassFromPainlessType(type));
+        final Painless.Method impl;
         // ctor ref
         if ("new".equals(call)) {
-            impl = struct.constructors.get(new Definition.MethodKey("<init>", method.arguments.size()));
+            impl = struct.constructors.get(new Painless.MethodKey("<init>", method.arguments.size()));
         } else {
             // look for a static impl first
-            Definition.Method staticImpl = struct.staticMethods.get(new Definition.MethodKey(call, method.arguments.size()));
+            Painless.Method staticImpl = struct.staticMethods.get(new Painless.MethodKey(call, method.arguments.size()));
             if (staticImpl == null) {
                 // otherwise a virtual impl
                 final int arity;
@@ -187,7 +186,7 @@ public class FunctionRef {
                     // receiver passed
                     arity = method.arguments.size() - 1;
                 }
-                impl = struct.methods.get(new Definition.MethodKey(call, arity));
+                impl = struct.methods.get(new Painless.MethodKey(call, arity));
             } else {
                 impl = staticImpl;
             }

@@ -20,11 +20,11 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Painless;
 
 import java.lang.reflect.Modifier;
 import java.util.Objects;
@@ -35,9 +35,9 @@ import java.util.Set;
  */
 final class PSubField extends AStoreable {
 
-    private final Field field;
+    private final Painless.Field field;
 
-    PSubField(Location location, Field field) {
+    PSubField(Location location, Painless.Field field) {
         super(location);
 
         this.field = Objects.requireNonNull(field);

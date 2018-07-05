@@ -22,9 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
+import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -51,9 +49,9 @@ final class SSubEachIterable extends AStatement {
     private final SBlock block;
     private final Variable variable;
 
-    private Cast cast = null;
+    private Painless.Cast cast = null;
     private Variable iterator = null;
-    private Method method = null;
+    private Painless.Method method = null;
 
     SSubEachIterable(Location location, Variable variable, AExpression expression, SBlock block) {
         super(location);
@@ -77,7 +75,8 @@ final class SSubEachIterable extends AStatement {
         if (expression.actual == def.class) {
             method = null;
         } else {
-            method = locals.getDefinition().getPainlessStructFromJavaClass(expression.actual).methods.get(new MethodKey("iterator", 0));
+            method = locals.getDefinition().getPainlessStructFromJavaClass(expression.actual).methods.get(
+                    new Painless.MethodKey("iterator", 0));
 
             if (method == null) {
                 throw createError(new IllegalArgumentException(

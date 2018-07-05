@@ -20,9 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Field;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Struct;
+import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -67,22 +65,22 @@ public final class PField extends AStoreable {
         } else if (prefix.actual == def.class) {
             sub = new PSubDefField(location, value);
         } else {
-            Struct struct = locals.getDefinition().getPainlessStructFromJavaClass(prefix.actual);
-            Field field = prefix instanceof EStatic ? struct.staticMembers.get(value) : struct.members.get(value);
+            Painless.Struct struct = locals.getDefinition().getPainlessStructFromJavaClass(prefix.actual);
+            Painless.Field field = prefix instanceof EStatic ? struct.staticMembers.get(value) : struct.members.get(value);
 
             if (field != null) {
                 sub = new PSubField(location, field);
             } else {
-                Method getter = struct.methods.get(
-                    new Definition.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+                Painless.Method getter = struct.methods.get(
+                    new Painless.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
 
                 if (getter == null) {
                     getter = struct.methods.get(
-                        new Definition.MethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+                        new Painless.MethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
                 }
 
-                Method setter = struct.methods.get(
-                    new Definition.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
+                Painless.Method setter = struct.methods.get(
+                    new Painless.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
                 if (getter != null || setter != null) {
                     sub = new PSubShortcut(location, value, Definition.ClassToName(prefix.actual), getter, setter);

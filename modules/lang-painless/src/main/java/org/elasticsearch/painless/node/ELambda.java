@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
@@ -103,7 +103,7 @@ public final class ELambda extends AExpression implements ILambda {
     void analyze(Locals locals) {
         Class<?> returnType;
         List<String> actualParamTypeStrs;
-        Method interfaceMethod;
+        Painless.Method interfaceMethod;
         // inspect the target first, set interface method if we know it.
         if (expected == null) {
             interfaceMethod = null;

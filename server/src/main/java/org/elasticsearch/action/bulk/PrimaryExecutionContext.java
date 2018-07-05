@@ -73,6 +73,7 @@ class PrimaryExecutionContext {
         currentIndex =  findNextNonAborted(currentIndex + 1);
         retryCounter = 0;
         requestToExecute = null;
+        executionResult = null;
     }
 
     public DocWriteRequest<?> getCurrent() {

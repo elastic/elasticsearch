@@ -784,16 +784,16 @@ public class DateFormatters {
             if (formats.length == 1) {
                 return forPattern(formats[0], locale);
             } else {
-                DateTimeFormatter[] formatters = new DateTimeFormatter[formats.length];
+                DateFormatter[] formatters = new DateFormatter[formats.length];
                 for (int i = 0; i < formats.length; i++) {
                     try {
-                        formatters[i] = forPattern(formats[i], locale).formatters()[0];
+                        formatters[i] = forPattern(formats[i], locale);
                     } catch (IllegalArgumentException e) {
                         throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
                     }
                 }
 
-                return new DateFormatter(formatters);
+                return DateFormatter.merge(formatters);
             }
         } else {
             try {

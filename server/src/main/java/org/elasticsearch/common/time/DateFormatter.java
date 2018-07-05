@@ -22,47 +22,55 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
+import java.util.Arrays;
+import java.util.stream.Stream;
 
 /**
  * wrapper class around java.time.DateTimeFormatter that supports multiple formats for easier parsing
  */
 public class DateFormatter {
 
-    private DateTimeFormatter[] formatters;
+    private DateTimeFormatter printer;
+    private DateTimeFormatter[] parsers;
 
-    public DateFormatter(DateTimeFormatter ... formatters) {
-        if (formatters.length == 0) {
-            throw new IllegalArgumentException("DateFormatter requires at least one date time formatter");
-        }
-        this.formatters = formatters;
+    public DateFormatter(DateTimeFormatter printer, DateTimeFormatter ... parsers) {
+        this.printer = printer;
+        this.parsers = parsers;
     }
 
     public TemporalAccessor parse(String input) {
-        if (formatters.length > 1) {
-            for (int i = 1; i < formatters.length; i++) {
+        if (parsers.length > 0) {
+            for (int i = 0; i < parsers.length; i++) {
                 try {
-                    return formatters[i].parse(input);
+                    return parsers[i].parse(input);
                 } catch (DateTimeParseException e) {}
             }
         }
 
-        return formatters[0].parse(input);
+        return printer.parse(input);
     }
 
     public DateFormatter withZone(ZoneId zoneId) {
-        for (int i = 0; i < formatters.length; i++) {
-            formatters[i] = formatters[i].withZone(zoneId);
+        printer = printer.withZone(zoneId);
+        for (int i = 0; i < parsers.length; i++) {
+            parsers[i] = parsers[i].withZone(zoneId);
         }
 
         return this;
     }
 
     public String format(TemporalAccessor accessor) {
-        return formatters[0].format(accessor);
+        return printer.format(accessor);
     }
 
     // for internal use only
-    DateTimeFormatter[] formatters() {
-        return formatters;
+    private DateTimeFormatter[] all() {
+        return Stream.concat(Arrays.stream(new DateTimeFormatter[] { printer }), Arrays.stream(parsers)).toArray(DateTimeFormatter[]::new);
+    }
+
+    public static DateFormatter merge(DateFormatter ... dateFormatters) {
+        DateTimeFormatter[] parsers = Arrays.stream(dateFormatters).map(DateFormatter::all)
+            .flatMap(Arrays::stream).toArray(DateTimeFormatter[]::new);
+        return new DateFormatter(dateFormatters[0].printer, parsers);
     }
 }

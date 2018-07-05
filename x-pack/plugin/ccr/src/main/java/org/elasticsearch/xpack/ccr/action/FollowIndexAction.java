@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.SearchSlowLog;
@@ -77,9 +78,10 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         private int maxWriteSize;
         private int maxConcurrentWrites;
         private int maxBufferSize;
+        private TimeValue retryTimeout;
 
         public Request(String leaderIndex, String followIndex, int maxOperationCount, int maxConcurrentReads, long maxOperationSizeInBytes,
-                       int maxWriteSize, int maxConcurrentWrites, int maxBufferSize) {
+                       int maxWriteSize, int maxConcurrentWrites, int maxBufferSize, TimeValue retryTimeout) {
             if (maxOperationCount < 1) {
                 throw new IllegalArgumentException("maxOperationCount must be larger than 0");
             }
@@ -107,13 +109,14 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             this.maxWriteSize = maxWriteSize;
             this.maxConcurrentWrites = maxConcurrentWrites;
             this.maxBufferSize = maxBufferSize;
+            this.retryTimeout = retryTimeout;
         }
 
         public Request(String leaderIndex, String followIndex) {
             this(leaderIndex, followIndex, ShardFollowNodeTask.DEFAULT_MAX_OPERATION_COUNT,
                 ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READS, ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES,
                 ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE, ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITES,
-                ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE);
+                ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE, null);
         }
 
         Request() {
@@ -147,6 +150,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             maxWriteSize = in.readVInt();
             maxConcurrentWrites = in.readVInt();
             maxBufferSize = in.readVInt();
+            retryTimeout = in.readOptionalTimeValue();
         }
 
         @Override
@@ -160,6 +164,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             out.writeVInt(maxWriteSize);
             out.writeVInt(maxConcurrentWrites);
             out.writeVInt(maxBufferSize);
+            out.writeOptionalTimeValue(retryTimeout);
         }
 
         @Override
@@ -173,6 +178,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
                 maxWriteSize == request.maxWriteSize &&
                 maxConcurrentWrites == request.maxConcurrentWrites &&
                 maxBufferSize == request.maxBufferSize &&
+                Objects.equals(retryTimeout, request.retryTimeout) &&
                 Objects.equals(leaderIndex, request.leaderIndex) &&
                 Objects.equals(followIndex, request.followIndex);
         }
@@ -180,7 +186,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         @Override
         public int hashCode() {
             return Objects.hash(leaderIndex, followIndex, maxOperationCount, maxConcurrentReads, maxOperationSizeInBytes,
-                maxWriteSize, maxConcurrentWrites, maxBufferSize);
+                maxWriteSize, maxConcurrentWrites, maxBufferSize, retryTimeout);
         }
     }
 
@@ -275,11 +281,15 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));for (int i = 0; i < numShards; i++) {
                 final int shardId = i;
                 String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
+                TimeValue retryTimeout = ShardFollowNodeTask.DEFAULT_RETRY_TIMEOUT;
+                if (request.retryTimeout != null) {
+                    retryTimeout = request.retryTimeout;
+                }
                 ShardFollowTask shardFollowTask = new ShardFollowTask(clusterNameAlias,
                         new ShardId(followIndexMetadata.getIndex(), shardId),
                         new ShardId(leaderIndexMetadata.getIndex(), shardId),
                         request.maxOperationCount, request.maxConcurrentReads, request.maxOperationSizeInBytes,
-                        request.maxWriteSize, request.maxConcurrentWrites, request.maxBufferSize, filteredHeaders);
+                        request.maxWriteSize, request.maxConcurrentWrites, request.maxBufferSize, retryTimeout, filteredHeaders);
                 persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
                         new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
                             @Override

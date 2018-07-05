@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -32,6 +33,7 @@ public class ShardFollowTaskTests extends AbstractSerializingTestCase<ShardFollo
             randomIntBetween(1, Integer.MAX_VALUE),
             randomIntBetween(1, Integer.MAX_VALUE),
             randomIntBetween(1, Integer.MAX_VALUE),
+            TimeValue.parseTimeValue(randomTimeValue(), ""),
             randomBoolean() ? null : Collections.singletonMap("key", "value"));
     }
 

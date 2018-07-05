@@ -130,7 +130,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         AtomicBoolean stopped = new AtomicBoolean(false);
         ShardFollowTask params = new ShardFollowTask(null, new ShardId("follow_index", "", 0),
             new ShardId("leader_index", "", 0), maxReadSize, maxConcurrentReads, ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES,
-            maxWriteSize, maxConcurrentWrites, bufferLimit, Collections.emptyMap());
+            maxWriteSize, maxConcurrentWrites, bufferLimit, TimeValue.timeValueMillis(500), Collections.emptyMap());
 
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> {
             try {
@@ -145,7 +145,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         AtomicInteger writeCounter = new AtomicInteger();
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(followGlobalCheckpoint, followGlobalCheckpoint);
         return new ShardFollowNodeTask(1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler,
-            TimeValue.timeValueSeconds(1)) {
+            TimeValue.timeValueSeconds(1), TimeValue.timeValueMillis(500)) {
 
             @Override
             protected void updateMapping(LongConsumer handler) {

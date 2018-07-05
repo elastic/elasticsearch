@@ -290,7 +290,8 @@ public class ShardChangesIT extends ESIntegTestCase {
         atLeastDocsIndexed("index1", numDocsIndexed / 3);
 
         final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", maxReadSize,
-            randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(32, 2048), randomIntBetween(2, 10), randomIntBetween(1024, 10240));
+            randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(32, 2048), randomIntBetween(2, 10),
+            randomIntBetween(1024, 10240), TimeValue.timeValueMillis(500));
         CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
@@ -331,7 +332,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", randomIntBetween(32, 2048),
             randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(32, 2048), randomIntBetween(2, 10),
-            ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE);
+            ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE, TimeValue.timeValueMillis(500));
         client().execute(FollowIndexAction.INSTANCE, followRequest).get();
 
         long maxNumDocsReplicated = Math.min(3000, randomLongBetween(followRequest.getMaxOperationCount(),
@@ -440,7 +441,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         }
 
         final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", 1024, 1, 1024,
-            1024, 1, 10240);
+            1024, 1, 10240, TimeValue.timeValueMillis(500));
         final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 

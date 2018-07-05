@@ -49,11 +49,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     public static final int DEFAULT_MAX_BUFFER_SIZE = 10240;
     public static final long DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES = Long.MAX_VALUE;
     private static final int RETRY_LIMIT = 10;
-    private static final TimeValue RETRY_TIMEOUT = TimeValue.timeValueMillis(500);
+    public static final TimeValue DEFAULT_RETRY_TIMEOUT = new TimeValue(500);
 
     private static final Logger LOGGER = Loggers.getLogger(ShardFollowNodeTask.class);
 
     private final ShardFollowTask params;
+    private final TimeValue retryTimeout;
     private final TimeValue idleShardChangesRequestDelay;
     private final BiConsumer<TimeValue, Runnable> scheduler;
 
@@ -68,10 +69,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo).reversed());
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
-                        ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, TimeValue idleShardChangesRequestDelay) {
+                        ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, TimeValue idleShardChangesRequestDelay,
+                        TimeValue retryTimeout) {
         super(id, type, action, description, parentTask, headers);
         this.params = params;
         this.scheduler = scheduler;
+        this.retryTimeout = retryTimeout;
         this.idleShardChangesRequestDelay = idleShardChangesRequestDelay;
     }
 
@@ -241,7 +244,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         if (shouldRetry(e)) {
             if (isStopped() == false && retryCounter.incrementAndGet() <= RETRY_LIMIT) {
                 LOGGER.debug(new ParameterizedMessage("{} error during follow shard task, retrying...", params.getFollowShardId()), e);
-                scheduler.accept(RETRY_TIMEOUT, task);
+                scheduler.accept(retryTimeout, task);
             } else {
                 markAsFailed(new ElasticsearchException("retrying failed [" + retryCounter.get() +
                     "] times, aborting...", e));

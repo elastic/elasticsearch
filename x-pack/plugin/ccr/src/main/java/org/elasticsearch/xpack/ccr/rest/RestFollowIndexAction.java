@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -62,7 +63,9 @@ public class RestFollowIndexAction extends BaseRestHandler {
         if (restRequest.hasParam(ShardFollowTask.MAX_WRITE_BUFFER_SIZE.getPreferredName())) {
             maxBufferSize = Integer.parseInt(restRequest.param(ShardFollowTask.MAX_WRITE_BUFFER_SIZE.getPreferredName()));
         }
+        TimeValue retryTimeout = restRequest.paramAsTime(ShardFollowTask.RETRY_TIMEOUT.getPreferredName(),
+            ShardFollowNodeTask.DEFAULT_RETRY_TIMEOUT);
         return new Request(restRequest.param("leader_index"), restRequest.param("index"), maxOperationCount, maxConcurrentReads,
-            maxOperationSizeInBytes, maxWriteSize, maxConcurrentWrites, maxBufferSize);
+            maxOperationSizeInBytes, maxWriteSize, maxConcurrentWrites, maxBufferSize, retryTimeout);
     }
 }

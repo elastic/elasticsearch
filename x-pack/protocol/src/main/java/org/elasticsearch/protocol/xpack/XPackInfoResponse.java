@@ -50,7 +50,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class XPackInfoResponse extends ActionResponse implements ToXContentObject {
-    // Temporary location until we simpmlify and move License.java
+    /**
+     * Value of the license's expiration time if it should never expire.
+     */
     public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS = Long.MAX_VALUE - TimeUnit.HOURS.toMillis(24 * 365);
 
     @Nullable private BuildInfo buildInfo;

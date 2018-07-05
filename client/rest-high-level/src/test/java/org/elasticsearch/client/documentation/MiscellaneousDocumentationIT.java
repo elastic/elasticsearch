@@ -28,6 +28,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 
 import java.io.IOException;
 
@@ -64,6 +66,59 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
         boolean response = client.ping(RequestOptions.DEFAULT);
         //end::ping-execute
         assertTrue(response);
+    }
+
+    public void testXPackInfo() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::x-pack-info-execute
+            XPackInfoRequest request = new XPackInfoRequest();
+            request.setVerbose(true);  // <1>
+            request.setCategories(     // <2>
+                    XPackInfoRequest.Category.BUILD,
+                    XPackInfoRequest.Category.LICENSE,
+                    XPackInfoRequest.Category.FEATURES);
+            XPackInfoResponse response = client.xPackInfo(request, RequestOptions.DEFAULT);
+            //end::x-pack-info-execute
+
+            //tag::x-pack-info-response
+            BuildInfo build = response.getBuildInfo();                 // <1>
+            LicenseInfo license = response.getLicenseInfo();           // <2>
+            assertEquals(XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS,
+                    license.getExpiryDate());                          // <3>
+            FeatureSetsInfo features = response.getFeatureSetsInfo();  // <4>
+            //end::x-pack-info-response
+
+            assertNotNull(response.getBuildInfo());
+            assertNotNull(response.getLicenseInfo());
+            assertNotNull(response.getFeatureSetsInfo());
+        }
+        {
+            XPackInfoRequest request = new XPackInfoRequest();
+            // tag::x-pack-info-execute-listener
+            ActionListener<XPackInfoResponse> listener = new ActionListener<XPackInfoResponse>() {
+                @Override
+                public void onResponse(XPackInfoResponse indexResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::x-pack-info-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::x-pack-info-execute-async
+            client.indexAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::x-pack-info-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
     }
 
     public void testInitializationFromClientBuilder() throws IOException {

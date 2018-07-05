@@ -816,7 +816,7 @@ public class RestHighLevelClient implements Closeable {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void deleteScriptAsync(XPackInfoRequest request, RequestOptions options,
+    public void xPackInfoAsync(XPackInfoRequest request, RequestOptions options,
                                   ActionListener<XPackInfoResponse> listener) {
         performRequestAsyncAndParseEntity(request, RequestConverters::xPackInfo, options,
             XPackInfoResponse::fromXContent, listener, emptySet());

@@ -1,4 +1,4 @@
-/*
+1/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -212,6 +212,25 @@ RestIntegTestTask integTestSecure = project.tasks.create('integTestSecure', Rest
 // Create a Integration Test suite just for HA related security based tests
 RestIntegTestTask integTestSecureHa = project.tasks.create('integTestSecureHa', RestIntegTestTask.class) {
   description = "Runs rest tests against an elasticsearch cluster with HDFS configured with HA Namenode and secured by MIT Kerberos."
+}
+
+if (rootProject.ext.compilerJavaVersion.isJava11()) {
+  // TODO remove when: https://github.com/elastic/elasticsearch/issues/31498
+  integTestRunner {
+    systemProperty 'tests.rest.blacklist', [
+            'hdfs_repository/30_snapshot/take snapshot',
+            'hdfs_repository/40_restore/Create a snapshot and then restore it',
+            'hdfs_repository/20_repository_verify/HDFS Repository Verify',
+            'hdfs_repository/30_snapshot_get/Get a snapshot',
+            'hdfs_repository/20_repository_create/HDFS Repository Creation',
+            'hdfs_repository/20_repository_delete/HDFS Delete Repository',
+            'hdfs_repository/30_snapshot_readonly/Get a snapshot - readonly',
+    ].join(',')
+  }
+}
+if (rootProject.ext.runtimeJavaVersion.isJava11()) {
+  // TODO remove when: https://github.com/elastic/elasticsearch/issues/31498
+  integTestHa.enabled = false
 }
 
 // Determine HDFS Fixture compatibility for the current build environment.

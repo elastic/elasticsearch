@@ -452,8 +452,14 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Object visitIntegerLiteral(IntegerLiteralContext ctx) {
         BigDecimal bigD = new BigDecimal(ctx.getText());
-        // TODO: this can be improved to use the smallest type available
-        return new Literal(source(ctx), bigD.longValueExact(), DataType.INTEGER);
+
+        long value = bigD.longValueExact();
+        DataType type = DataType.LONG;
+        // try to downsize to int if possible (since that's the most common type)
+        if ((int) value == value) {
+            type = DataType.INTEGER;
+        }
+        return new Literal(source(ctx), value, type);
     }
 
     @Override

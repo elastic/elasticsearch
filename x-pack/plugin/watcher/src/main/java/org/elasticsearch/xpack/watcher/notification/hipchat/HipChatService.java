@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.notification.hipchat;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -34,10 +35,9 @@ public class HipChatService extends NotificationService<HipChatAccount> {
             Setting.affixKeySetting("xpack.notification.hipchat.account.", "auth_token",
                     (key) -> Setting.simpleString(key, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered));
 
-    private static final Setting.AffixSetting<String> SETTING_AUTH_TOKEN_SECURE =
+    private static final Setting.AffixSetting<SecureString> SETTING_AUTH_TOKEN_SECURE =
             Setting.affixKeySetting("xpack.notification.hipchat.account.", "secure_auth_token",
-                    (key) -> SecureSetting.simpleString(key, Setting.Property.Dynamic, Setting.Property.NodeScope,
-                            Setting.Property.Filtered));
+                    (key) -> SecureSetting.secureString(key, null));
 
     private static final Setting.AffixSetting<String> SETTING_PROFILE =
             Setting.affixKeySetting("xpack.notification.hipchat.account.", "profile",

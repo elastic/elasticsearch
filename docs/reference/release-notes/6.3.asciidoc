@@ -1,8 +1,5 @@
 [[release-notes-6.3.1]]
 == {es} version 6.3.1
-== 6.3.1 Release Notes
-
-coming[6.3.1]
 
 Also see <<breaking-changes-6.3>>.
 

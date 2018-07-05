@@ -56,7 +56,8 @@ public class IndexResolverTests extends ESTestCase {
 
         MappingException ex = expectThrows(MappingException.class, () -> resolution.get());
         assertEquals(
-                "[*] points to indices [a] and [diff] which have different mappings. When using multiple indices, the mappings must be identical.",
+                "[*] points to indices [a] and [diff] which have different mappings. "
+                        + "When using multiple indices, the mappings must be identical.",
                 ex.getMessage());
     }
 }

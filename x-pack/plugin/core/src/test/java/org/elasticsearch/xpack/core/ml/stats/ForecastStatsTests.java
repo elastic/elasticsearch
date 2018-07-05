@@ -36,6 +36,7 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
         assertFalse(properties.containsKey(Fields.RECORDS));
         assertFalse(properties.containsKey(Fields.RUNTIME));
         assertFalse(properties.containsKey(Fields.STATUSES));
+        assertFalse(properties.containsKey(Fields.DURATION));
     }
 
     public void testMerge() {
@@ -58,7 +59,12 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
         statusStats.add("finished", 2L);
         statusStats.add("failed", 5L);
 
-        ForecastStats forecastStats = new ForecastStats(3, memoryStats, recordStats, runtimeStats, statusStats);
+        StatsAccumulator durationStats = new StatsAccumulator();
+        durationStats.add(96);
+        durationStats.add(192);
+        durationStats.add(96);
+
+        ForecastStats forecastStats = new ForecastStats(3, memoryStats, recordStats, runtimeStats, durationStats, statusStats);
 
         StatsAccumulator memoryStats2 = new StatsAccumulator();
         memoryStats2.add(10);
@@ -76,7 +82,11 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
         statusStats2.add("finished", 2L);
         statusStats2.add("scheduled", 1L);
 
-        ForecastStats forecastStats2 = new ForecastStats(2, memoryStats2, recordStats2, runtimeStats2, statusStats2);
+        StatsAccumulator durationStats2 = new StatsAccumulator();
+        durationStats2.add(192);
+        durationStats2.add(192);
+
+        ForecastStats forecastStats2 = new ForecastStats(2, memoryStats2, recordStats2, runtimeStats2, durationStats2, statusStats2);
 
         forecastStats.merge(forecastStats2);
 
@@ -117,6 +127,14 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
         assertEquals(4, mergedCountStats.get("finished").longValue());
         assertEquals(5, mergedCountStats.get("failed").longValue());
         assertEquals(1, mergedCountStats.get("scheduled").longValue());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Double> mergedDurationStats = (Map<String, Double>) mergedStats.get(Fields.DURATION);
+
+        assertTrue(mergedDurationStats != null);
+        assertThat(mergedDurationStats.get(StatsAccumulator.Fields.AVG), equalTo(153.6));
+        assertThat(mergedDurationStats.get(StatsAccumulator.Fields.MAX), equalTo(192.0));
+        assertThat(mergedDurationStats.get(StatsAccumulator.Fields.MIN), equalTo(96.0));
     }
 
     public void testChainedMerge() {
@@ -135,7 +153,12 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
         CountAccumulator statusStats = new CountAccumulator();
         statusStats.add("finished", 2L);
         statusStats.add("failed", 5L);
-        ForecastStats forecastStats = new ForecastStats(3, memoryStats, recordStats, runtimeStats, statusStats);
+        StatsAccumulator durationStats = new StatsAccumulator();
+        durationStats.add(96);
+        durationStats.add(192);
+        durationStats.add(96);
+
+        ForecastStats forecastStats = new ForecastStats(3, memoryStats, recordStats, runtimeStats, durationStats, statusStats);
 
         StatsAccumulator memoryStats2 = new StatsAccumulator();
         memoryStats2.add(10);
@@ -149,7 +172,10 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
         CountAccumulator statusStats2 = new CountAccumulator();
         statusStats2.add("finished", 2L);
         statusStats2.add("scheduled", 1L);
-        ForecastStats forecastStats2 = new ForecastStats(2, memoryStats2, recordStats2, runtimeStats2, statusStats2);
+        StatsAccumulator durationStats2 = new StatsAccumulator();
+        durationStats2.add(192);
+        durationStats2.add(192);
+        ForecastStats forecastStats2 = new ForecastStats(2, memoryStats2, recordStats2, runtimeStats2, durationStats2, statusStats2);
 
         StatsAccumulator memoryStats3 = new StatsAccumulator();
         memoryStats3.add(500);
@@ -159,7 +185,9 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
         runtimeStats3.add(32);
         CountAccumulator statusStats3 = new CountAccumulator();
         statusStats3.add("finished", 1L);
-        ForecastStats forecastStats3 = new ForecastStats(1, memoryStats3, recordStats3, runtimeStats3, statusStats3);
+        StatsAccumulator durationStats3 = new StatsAccumulator();
+        durationStats3.add(282);
+        ForecastStats forecastStats3 = new ForecastStats(1, memoryStats3, recordStats3, runtimeStats3, durationStats3, statusStats3);
 
         ForecastStats forecastStats4 = new ForecastStats();
 
@@ -209,6 +237,14 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
         assertEquals(5, mergedCountStats.get("finished").longValue());
         assertEquals(5, mergedCountStats.get("failed").longValue());
         assertEquals(1, mergedCountStats.get("scheduled").longValue());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Double> mergedDurationStats = (Map<String, Double>) mergedStats.get(Fields.DURATION);
+
+        assertTrue(mergedDurationStats != null);
+        assertThat(mergedDurationStats.get(StatsAccumulator.Fields.AVG), equalTo(175.0));
+        assertThat(mergedDurationStats.get(StatsAccumulator.Fields.MAX), equalTo(282.0));
+        assertThat(mergedDurationStats.get(StatsAccumulator.Fields.MIN), equalTo(96.0));
     }
 
     public void testUniqueCountOfJobs() {
@@ -238,7 +274,7 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
 
     public ForecastStats createForecastStats(long minTotal, long maxTotal) {
         ForecastStats forecastStats = new ForecastStats(randomLongBetween(minTotal, maxTotal), createStatsAccumulator(),
-                createStatsAccumulator(), createStatsAccumulator(), createCountAccumulator());
+                createStatsAccumulator(), createStatsAccumulator(), createStatsAccumulator(), createCountAccumulator());
 
         return forecastStats;
     }

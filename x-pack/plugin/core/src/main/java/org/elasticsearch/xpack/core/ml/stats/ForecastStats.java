@@ -28,6 +28,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
         public static final String MEMORY = "memory_bytes";
         public static final String RUNTIME = "processing_time_ms";
         public static final String RECORDS = "records";
+        public static final String DURATION = "duration_ms";
         public static final String STATUSES = "status";
     }
 
@@ -36,6 +37,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
     private StatsAccumulator memoryStats;
     private StatsAccumulator recordStats;
     private StatsAccumulator runtimeStats;
+    private StatsAccumulator durationStats;
     private CountAccumulator statusCounts;
 
     public ForecastStats() {
@@ -44,6 +46,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
         this.memoryStats = new StatsAccumulator();
         this.recordStats = new StatsAccumulator();
         this.runtimeStats = new StatsAccumulator();
+        this.durationStats = new StatsAccumulator();
         this.statusCounts = new CountAccumulator();
     }
 
@@ -51,12 +54,13 @@ public class ForecastStats implements ToXContentObject, Writeable {
      * Construct ForecastStats for 1 job. Additional statistics can be added by merging other ForecastStats into it.
      */
     public ForecastStats(long total, StatsAccumulator memoryStats, StatsAccumulator recordStats, StatsAccumulator runtimeStats,
-            CountAccumulator statusCounts) {
+            StatsAccumulator durationStats, CountAccumulator statusCounts) {
         this.total = total;
         this.forecastedJobs = total > 0 ? 1 : 0;
         this.memoryStats = Objects.requireNonNull(memoryStats);
         this.recordStats = Objects.requireNonNull(recordStats);
         this.runtimeStats = Objects.requireNonNull(runtimeStats);
+        this.durationStats = Objects.requireNonNull(durationStats);
         this.statusCounts = Objects.requireNonNull(statusCounts);
     }
 
@@ -66,6 +70,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
         this.memoryStats = new StatsAccumulator(in);
         this.recordStats = new StatsAccumulator(in);
         this.runtimeStats = new StatsAccumulator(in);
+        this.durationStats = new StatsAccumulator(in);
         this.statusCounts = new CountAccumulator(in);
     }
 
@@ -78,6 +83,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
         memoryStats.merge(other.memoryStats);
         recordStats.merge(other.recordStats);
         runtimeStats.merge(other.runtimeStats);
+        durationStats.merge(other.durationStats);
         statusCounts.merge(other.statusCounts);
 
         return this;
@@ -98,6 +104,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
             builder.field(Fields.MEMORY, memoryStats.asMap());
             builder.field(Fields.RECORDS, recordStats.asMap());
             builder.field(Fields.RUNTIME, runtimeStats.asMap());
+            builder.field(Fields.DURATION, durationStats.asMap());
             builder.field(Fields.STATUSES, statusCounts.asMap());
         }
 
@@ -113,6 +120,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
             map.put(Fields.MEMORY, memoryStats.asMap());
             map.put(Fields.RECORDS, recordStats.asMap());
             map.put(Fields.RUNTIME, runtimeStats.asMap());
+            map.put(Fields.DURATION, durationStats.asMap());
             map.put(Fields.STATUSES, statusCounts.asMap());
         }
 
@@ -126,12 +134,13 @@ public class ForecastStats implements ToXContentObject, Writeable {
         memoryStats.writeTo(out);
         recordStats.writeTo(out);
         runtimeStats.writeTo(out);
+        durationStats.writeTo(out);
         statusCounts.writeTo(out);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(total, forecastedJobs, memoryStats, recordStats, runtimeStats, statusCounts);
+        return Objects.hash(total, forecastedJobs, memoryStats, recordStats, runtimeStats, durationStats, statusCounts);
     }
 
     @Override
@@ -147,6 +156,7 @@ public class ForecastStats implements ToXContentObject, Writeable {
         ForecastStats other = (ForecastStats) obj;
         return Objects.equals(total, other.total) && Objects.equals(forecastedJobs, other.forecastedJobs)
                 && Objects.equals(memoryStats, other.memoryStats) && Objects.equals(recordStats, other.recordStats)
-                && Objects.equals(runtimeStats, other.runtimeStats) && Objects.equals(statusCounts, other.statusCounts);
+                && Objects.equals(runtimeStats, other.runtimeStats) && Objects.equals(durationStats, other.durationStats)
+                && Objects.equals(statusCounts, other.statusCounts);
     }
 }

@@ -569,7 +569,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             }
 
             searchResponse = execute(new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2)),
-                    highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync);
+                    highLevelClient()::scroll, highLevelClient()::scrollAsync);
 
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(35));
@@ -578,7 +578,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             }
 
             searchResponse = execute(new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2)),
-                    highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync);
+                    highLevelClient()::scroll, highLevelClient()::scrollAsync);
 
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(30));
@@ -595,7 +595,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
             SearchScrollRequest scrollRequest = new SearchScrollRequest(searchResponse.getScrollId()).scroll(TimeValue.timeValueMinutes(2));
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> execute(scrollRequest,
-                    highLevelClient()::searchScroll, highLevelClient()::searchScrollAsync));
+                    highLevelClient()::scroll, highLevelClient()::scrollAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
             assertThat(exception.getRootCause(), instanceOf(ElasticsearchException.class));
             ElasticsearchException rootCause = (ElasticsearchException) exception.getRootCause();
@@ -616,7 +616,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchRequest.add(searchRequest3);
 
         MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+                execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
@@ -658,7 +658,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchRequest.add(searchRequest3);
 
         MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+                execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
@@ -706,7 +706,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchRequest.add(searchRequest3);
 
         MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+                execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
@@ -731,7 +731,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchRequest1.source().highlighter(new HighlightBuilder().field("field"));
         searchRequest2.source().highlighter(new HighlightBuilder().field("field"));
         searchRequest3.source().highlighter(new HighlightBuilder().field("field"));
-        multiSearchResponse = execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+        multiSearchResponse = execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(3));
 
@@ -769,7 +769,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         multiSearchRequest.add(searchRequest2);
 
         MultiSearchResponse multiSearchResponse =
-                execute(multiSearchRequest, highLevelClient()::multiSearch, highLevelClient()::multiSearchAsync);
+                execute(multiSearchRequest, highLevelClient()::msearch, highLevelClient()::msearchAsync);
         assertThat(multiSearchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
         assertThat(multiSearchResponse.getResponses().length, Matchers.equalTo(2));
 
@@ -878,11 +878,11 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
         assertToXContentEquivalent(expectedSource, actualSource, XContentType.JSON);
     }
-    
-    
+
+
     public void testMultiSearchTemplate() throws Exception {
         MultiSearchTemplateRequest multiSearchTemplateRequest = new MultiSearchTemplateRequest();
-        
+
         SearchTemplateRequest goodRequest = new SearchTemplateRequest();
         goodRequest.setRequest(new SearchRequest("index"));
         goodRequest.setScriptType(ScriptType.INLINE);
@@ -900,8 +900,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         goodRequest.setExplain(true);
         goodRequest.setProfile(true);
         multiSearchTemplateRequest.add(goodRequest);
-        
-        
+
+
         SearchTemplateRequest badRequest = new SearchTemplateRequest();
         badRequest.setRequest(new SearchRequest("index"));
         badRequest.setScriptType(ScriptType.INLINE);
@@ -910,17 +910,17 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         scriptParams.put("number", 10);
         badRequest.setScriptParams(scriptParams);
 
-        multiSearchTemplateRequest.add(badRequest);        
-        
+        multiSearchTemplateRequest.add(badRequest);
+
         MultiSearchTemplateResponse multiSearchTemplateResponse =
-                execute(multiSearchTemplateRequest, highLevelClient()::multiSearchTemplate, 
-                        highLevelClient()::multiSearchTemplateAsync);
-        
+                execute(multiSearchTemplateRequest, highLevelClient()::msearchTemplate,
+                        highLevelClient()::msearchTemplateAsync);
+
         Item[] responses = multiSearchTemplateResponse.getResponses();
-        
+
         assertEquals(2, responses.length);
-        
-        
+
+
         assertNull(responses[0].getResponse().getSource());
         SearchResponse goodResponse =responses[0].getResponse().getResponse();
         assertNotNull(goodResponse);
@@ -930,18 +930,18 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertThat(goodResponse.getHits().getMaxScore(), greaterThan(0f));
         SearchHit hit = goodResponse.getHits().getHits()[0];
         assertNotNull(hit.getExplanation());
-        assertFalse(goodResponse.getProfileResults().isEmpty());        
-        
-        
+        assertFalse(goodResponse.getProfileResults().isEmpty());
+
+
         assertNull(responses[0].getResponse().getSource());
         assertThat(responses[1].isFailure(), Matchers.is(true));
-        assertNotNull(responses[1].getFailureMessage());        
+        assertNotNull(responses[1].getFailureMessage());
         assertThat(responses[1].getFailureMessage(), containsString("json_parse_exception"));
     }
-    
+
     public void testMultiSearchTemplateAllBad() throws Exception {
         MultiSearchTemplateRequest multiSearchTemplateRequest = new MultiSearchTemplateRequest();
-        
+
         SearchTemplateRequest badRequest1 = new SearchTemplateRequest();
         badRequest1.setRequest(new SearchRequest("index"));
         badRequest1.setScriptType(ScriptType.INLINE);
@@ -957,8 +957,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         scriptParams.put("number", "BAD NUMBER");
         badRequest1.setScriptParams(scriptParams);
         multiSearchTemplateRequest.add(badRequest1);
-        
-        
+
+
         SearchTemplateRequest badRequest2 = new SearchTemplateRequest();
         badRequest2.setRequest(new SearchRequest("index"));
         badRequest2.setScriptType(ScriptType.INLINE);
@@ -967,13 +967,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         scriptParams.put("number", "BAD NUMBER");
         badRequest2.setScriptParams(scriptParams);
 
-        multiSearchTemplateRequest.add(badRequest2);        
-        
-        // The whole HTTP request should fail if no nested search requests are valid 
+        multiSearchTemplateRequest.add(badRequest2);
+
+        // The whole HTTP request should fail if no nested search requests are valid
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
-                () -> execute(multiSearchTemplateRequest, highLevelClient()::multiSearchTemplate, 
-                        highLevelClient()::multiSearchTemplateAsync));
-        
+                () -> execute(multiSearchTemplateRequest, highLevelClient()::msearchTemplate,
+                        highLevelClient()::msearchTemplateAsync));
+
         assertEquals(RestStatus.BAD_REQUEST, exception.status());
         assertThat(exception.getMessage(), containsString("no requests added"));
     }

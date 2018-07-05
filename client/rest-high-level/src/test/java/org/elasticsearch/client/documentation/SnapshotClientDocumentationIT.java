@@ -213,7 +213,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-repository-request-masterTimeout
 
         // tag::get-repository-execute
-        GetRepositoriesResponse response = client.snapshot().getRepositories(request, RequestOptions.DEFAULT);
+        GetRepositoriesResponse response = client.snapshot().getRepository(request, RequestOptions.DEFAULT);
         // end::get-repository-execute
 
         // tag::get-repository-response
@@ -248,7 +248,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::get-repository-execute-async
-            client.snapshot().getRepositoriesAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.snapshot().getRepositoryAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::get-repository-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -417,7 +417,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::create-snapshot-request-waitForCompletion
 
         // tag::create-snapshot-execute
-        CreateSnapshotResponse response = client.snapshot().createSnapshot(request, RequestOptions.DEFAULT);
+        CreateSnapshotResponse response = client.snapshot().create(request, RequestOptions.DEFAULT);
         // end::create-snapshot-execute
 
         // tag::create-snapshot-response
@@ -452,7 +452,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::create-snapshot-execute-async
-            client.snapshot().createSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.snapshot().createAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::create-snapshot-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

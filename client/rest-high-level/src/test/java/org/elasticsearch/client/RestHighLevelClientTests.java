@@ -20,8 +20,6 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -53,6 +51,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -73,20 +72,30 @@ import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregation
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
+import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static org.elasticsearch.client.RestClientTestUtil.randomHeaders;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.hamcrest.CoreMatchers.endsWith;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -137,7 +146,6 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testInfo() throws IOException {
-        Header[] headers = randomHeaders(random(), "Header");
         MainResponse testInfo = new MainResponse("nodeName", Version.CURRENT, new ClusterName("clusterName"), "clusterUuid",
                 Build.CURRENT);
         mockResponse(testInfo);
@@ -150,7 +158,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 null, false, false, null, 1), randomAlphaOfLengthBetween(5, 10), 5, 5, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
         mockResponse(mockSearchResponse);
-        SearchResponse searchResponse = restHighLevelClient.searchScroll(
+        SearchResponse searchResponse = restHighLevelClient.scroll(
                 new SearchScrollRequest(randomAlphaOfLengthBetween(5, 10)), RequestOptions.DEFAULT);
         assertEquals(mockSearchResponse.getScrollId(), searchResponse.getScrollId());
         assertEquals(0, searchResponse.getHits().totalHits);
@@ -630,6 +638,108 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(PrecisionAtK.NAME));
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
+    }
+
+    public void testApiNamingConventions() throws Exception {
+        String[] notSupportedApi = new String[]{
+            "cat.aliases", "cat.allocation", "cat.count", "cat.fielddata", "cat.health", "cat.help", "cat.indices", "cat.master",
+            "cat.nodeattrs", "cat.nodes", "cat.pending_tasks", "cat.plugins", "cat.recovery", "cat.repositories", "cat.segments",
+            "cat.shards", "cat.snapshots", "cat.tasks", "cat.templates", "cat.thread_pool",
+            "cluster.allocation_explain", "cluster.pending_tasks", "cluster.remote_info", "cluster.reroute", "cluster.state",
+            "cluster.stats",
+            "count", "create", "delete_by_query", "exists_source", "get_source",
+            "indices.delete_alias", "indices.delete_template", "indices.exists_template", "indices.exists_type", "indices.get",
+            "indices.get_upgrade", "indices.put_alias", "indices.recovery", "indices.segments", "indices.shard_stores", "indices.stats",
+            "indices.upgrade", "ingest.processor_grok",
+            "mtermvectors", "nodes.hot_threads", "nodes.info", "nodes.stats", "nodes.usage", "put_script", "reindex", "reindex_rethrottle",
+            "render_search_template", "scripts_painless_execute", "search_shards",
+            "snapshot.restore", "snapshot.status",
+            "tasks.get", "termvectors", "update_by_query"
+        };
+
+        ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("/rest-api-spec/api");
+        Set<String> apiSpec = restSpec.getApis().stream().map(ClientYamlSuiteRestApi::getName).collect(Collectors.toSet());
+
+        Set<String> topLevelMethodsExclusions = new HashSet<>();
+        topLevelMethodsExclusions.add("getLowLevelClient");
+        topLevelMethodsExclusions.add("close");
+
+        Map<String, Method> methods = Arrays.stream(RestHighLevelClient.class.getMethods())
+                .filter(method -> method.getDeclaringClass().equals(RestHighLevelClient.class)
+                        && topLevelMethodsExclusions.contains(method.getName()) == false)
+                .map(method -> Tuple.tuple(toSnakeCase(method.getName()), method))
+                .flatMap(tuple -> tuple.v2().getReturnType().getName().endsWith("Client")
+                        ? getSubClientMethods(tuple.v1(), tuple.v2().getReturnType()) : Stream.of(tuple))
+                .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+
+        Set<String> apiNotFound = new HashSet<>();
+
+        for (Map.Entry<String, Method> entry : methods.entrySet()) {
+            Method method = entry.getValue();
+            String apiName = entry.getKey();
+
+            assertTrue("method [" + apiName + "] is not final",
+                    Modifier.isFinal(method.getClass().getModifiers()) || Modifier.isFinal(method.getModifiers()));
+            assertTrue(Modifier.isPublic(method.getModifiers()));
+
+            if (apiName.endsWith("_async")) {
+                assertTrue("async method [" + method.getName() + "] doesn't have corresponding sync method",
+                        methods.containsKey(apiName.substring(0, apiName.length() - 6)));
+                assertThat(method.getReturnType(), equalTo(Void.TYPE));
+                assertEquals(0, method.getExceptionTypes().length);
+                assertEquals(3, method.getParameterTypes().length);
+                assertThat(method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+                assertThat(method.getParameterTypes()[1].getName(), equalTo(RequestOptions.class.getName()));
+                assertThat(method.getParameterTypes()[2].getName(), equalTo(ActionListener.class.getName()));
+            } else {
+                if (method.getName().equals("ping") || method.getName().contains("exist")) {
+                    assertThat(method.getReturnType().getSimpleName(), equalTo("boolean"));
+                } else {
+                    assertThat(method.getReturnType().getSimpleName(), endsWith("Response"));
+                }
+
+                assertEquals(1, method.getExceptionTypes().length);
+                if (method.getName().equals("ping") || method.getName().equals("info")) {
+                    assertEquals(1, method.getParameterTypes().length);
+                    assertThat(method.getParameterTypes()[0].getName(), equalTo(RequestOptions.class.getName()));
+                } else {
+                    assertEquals(apiName, 2, method.getParameterTypes().length);
+                    assertThat(method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+                    assertThat(method.getParameterTypes()[1].getName(), equalTo(RequestOptions.class.getName()));
+                }
+
+                boolean remove = apiSpec.remove(apiName);
+                if (remove == false) {
+                    apiNotFound.add(apiName);
+                }
+            }
+        }
+
+        assertThat("Some client method doesn't match a corresponding API defined in the REST spec: " + apiNotFound,
+            apiNotFound.size(), equalTo(0));
+        assertThat(apiSpec, equalTo(Arrays.stream(notSupportedApi).collect(Collectors.toSet())));
+    }
+
+    private static Stream<Tuple<String, Method>> getSubClientMethods(String namespace, Class<?> clientClass) {
+        return Arrays.stream(clientClass.getMethods()).filter(method -> method.getDeclaringClass().equals(clientClass))
+                .map(method -> Tuple.tuple(namespace + "." + toSnakeCase(method.getName()), method));
+    }
+
+    private static String toSnakeCase(String camelCase) {
+        List<Character> chars = new ArrayList<>();
+        for (Character aChar : camelCase.toCharArray()) {
+            if (Character.isUpperCase(aChar)) {
+                chars.add('_');
+                chars.add(Character.toLowerCase(aChar));
+            } else {
+                chars.add(aChar);
+            }
+        }
+        char[] stringChars = new char[chars.size()];
+        for (int i = 0; i < chars.size(); i++) {
+            stringChars[i] = chars.get(i);
+        }
+        return new String(stringChars);
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {

@@ -173,7 +173,7 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetMappingsResponse getMappings(GetMappingsRequest getMappingsRequest, RequestOptions options) throws IOException {
+    public GetMappingsResponse getMapping(GetMappingsRequest getMappingsRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(getMappingsRequest, RequestConverters::getMappings, options,
             GetMappingsResponse::fromXContent, emptySet());
     }
@@ -186,8 +186,8 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void getMappingsAsync(GetMappingsRequest getMappingsRequest, RequestOptions options,
-                                 ActionListener<GetMappingsResponse> listener) {
+    public void getMappingAsync(GetMappingsRequest getMappingsRequest, RequestOptions options,
+                                ActionListener<GetMappingsResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(getMappingsRequest, RequestConverters::getMappings, options,
             GetMappingsResponse::fromXContent, listener, emptySet());
     }
@@ -446,7 +446,7 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public ForceMergeResponse forceMerge(ForceMergeRequest forceMergeRequest, RequestOptions options) throws IOException {
+    public ForceMergeResponse forcemerge(ForceMergeRequest forceMergeRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(forceMergeRequest, RequestConverters::forceMerge, options,
                 ForceMergeResponse::fromXContent, emptySet());
     }
@@ -459,7 +459,7 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void forceMergeAsync(ForceMergeRequest forceMergeRequest, RequestOptions options, ActionListener<ForceMergeResponse> listener) {
+    public void forcemergeAsync(ForceMergeRequest forceMergeRequest, RequestOptions options, ActionListener<ForceMergeResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(forceMergeRequest, RequestConverters::forceMerge, options,
                 ForceMergeResponse::fromXContent, listener, emptySet());
     }

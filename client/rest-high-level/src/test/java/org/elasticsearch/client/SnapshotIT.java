@@ -57,8 +57,8 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
     private CreateSnapshotResponse createTestSnapshot(CreateSnapshotRequest createSnapshotRequest) throws IOException {
         // assumes the repository already exists
 
-        return execute(createSnapshotRequest, highLevelClient().snapshot()::createSnapshot,
-            highLevelClient().snapshot()::createSnapshotAsync);
+        return execute(createSnapshotRequest, highLevelClient().snapshot()::create,
+            highLevelClient().snapshot()::createAsync);
     }
 
     public void testCreateRepository() throws IOException {
@@ -73,8 +73,8 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         GetRepositoriesRequest request = new GetRepositoriesRequest();
         request.repositories(new String[]{testRepository});
-        GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepositories,
-            highLevelClient().snapshot()::getRepositoriesAsync);
+        GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepository,
+            highLevelClient().snapshot()::getRepositoryAsync);
         assertThat(1, equalTo(response.repositories().size()));
     }
 
@@ -82,8 +82,8 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertTrue(createTestRepository("other", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
         assertTrue(createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
-        GetRepositoriesResponse response = execute(new GetRepositoriesRequest(), highLevelClient().snapshot()::getRepositories,
-            highLevelClient().snapshot()::getRepositoriesAsync);
+        GetRepositoriesResponse response = execute(new GetRepositoriesRequest(), highLevelClient().snapshot()::getRepository,
+            highLevelClient().snapshot()::getRepositoryAsync);
         assertThat(2, equalTo(response.repositories().size()));
     }
 
@@ -91,7 +91,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         String repository = "doesnotexist";
         GetRepositoriesRequest request = new GetRepositoriesRequest(new String[]{repository});
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(request,
-            highLevelClient().snapshot()::getRepositories, highLevelClient().snapshot()::getRepositoriesAsync));
+            highLevelClient().snapshot()::getRepository, highLevelClient().snapshot()::getRepositoryAsync));
 
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(), equalTo(
@@ -103,8 +103,8 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertTrue(createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 
         GetRepositoriesRequest request = new GetRepositoriesRequest();
-        GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepositories,
-            highLevelClient().snapshot()::getRepositoriesAsync);
+        GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepository,
+            highLevelClient().snapshot()::getRepositoryAsync);
         assertThat(1, equalTo(response.repositories().size()));
 
         DeleteRepositoryRequest deleteRequest = new DeleteRepositoryRequest(repository);

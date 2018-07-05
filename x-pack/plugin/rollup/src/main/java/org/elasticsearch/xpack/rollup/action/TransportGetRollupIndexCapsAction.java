@@ -26,29 +26,33 @@ import java.util.TreeMap;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
 
-public class TransportGetRollupIndexCapsAction extends HandledTransportAction<GetRollupIndexCapsAction.Request, GetRollupIndexCapsAction.Response> {
+public class TransportGetRollupIndexCapsAction extends HandledTransportAction<GetRollupIndexCapsAction.Request,
+    GetRollupIndexCapsAction.Response> {
 
     private final ClusterService clusterService;
 
     @Inject
-    public TransportGetRollupIndexCapsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                        ActionFilters actionFilters) {
+    public TransportGetRollupIndexCapsAction(Settings settings, TransportService transportService,
+                                             ClusterService clusterService, ActionFilters actionFilters) {
         super(settings, GetRollupIndexCapsAction.NAME, transportService, actionFilters,
             (Supplier<GetRollupIndexCapsAction.Request>) GetRollupIndexCapsAction.Request::new);
         this.clusterService = clusterService;
     }
 
     @Override
-    protected void doExecute(Task task, GetRollupIndexCapsAction.Request request, ActionListener<GetRollupIndexCapsAction.Response> listener) {
+    protected void doExecute(Task task, GetRollupIndexCapsAction.Request request,
+                             ActionListener<GetRollupIndexCapsAction.Response> listener) {
 
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(clusterService.getSettings());
-        String[] indices = resolver.concreteIndexNames(clusterService.state(), request.getOptions(), request.getIndexPattern());
+        String[] indices = resolver.concreteIndexNames(clusterService.state(),
+            request.indicesOptions(), request.indices());
         Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(Arrays.asList(indices),
             clusterService.state().getMetaData().indices());
         listener.onResponse(new GetRollupIndexCapsAction.Response(allCaps));
     }
 
-    static Map<String, RollableIndexCaps> getCapsByRollupIndex(List<String> resolvedIndexNames, ImmutableOpenMap<String, IndexMetaData> indices) {
+    static Map<String, RollableIndexCaps> getCapsByRollupIndex(List<String> resolvedIndexNames,
+                                                               ImmutableOpenMap<String, IndexMetaData> indices) {
         Map<String, RollableIndexCaps> allCaps = new TreeMap<>();
 
         StreamSupport.stream(indices.spliterator(), false)

@@ -8,7 +8,7 @@
       "parts": {
         "index": {
           "type": "string",
-          "required": false,
+          "required": true,
           "description": "The rollup index or index pattern to obtain rollup capabilities from."
         }
       }

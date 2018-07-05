@@ -263,8 +263,6 @@ public final class InternalTestCluster extends TestCluster {
         this.nodePrefix = nodePrefix;
 
         assert nodePrefix != null;
-        ArrayList<Class<? extends Plugin>> tmpMockPlugins = new ArrayList<>(mockPlugins);
-
 
         this.mockPlugins = mockPlugins;
 
@@ -458,14 +456,9 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
         ensureOpen();
-        Collection<NodeAndClient> values = nodes.values().stream().filter(predicate).collect(Collectors.toCollection(ArrayList::new));
-        if (!values.isEmpty()) {
-            int whichOne = random.nextInt(values.size());
-            for (NodeAndClient nodeAndClient : values) {
-                if (whichOne-- == 0) {
-                    return nodeAndClient;
-                }
-            }
+        List<NodeAndClient> values = nodes.values().stream().filter(predicate).collect(Collectors.toList());
+        if (values.isEmpty() == false) {
+            return randomFrom(random, values);
         }
         return null;
     }
@@ -476,18 +469,14 @@ public final class InternalTestCluster extends TestCluster {
      * stop any of the running nodes.
      */
     public synchronized void ensureAtLeastNumDataNodes(int n) {
-        boolean added = false;
         int size = numDataNodes();
-        for (int i = size; i < n; i++) {
+        if (size < n) {
             logger.info("increasing cluster size from {} to {}", size, n);
-            added = true;
             if (numSharedDedicatedMasterNodes > 0) {
-                startDataOnlyNode(Settings.EMPTY);
+                startDataOnlyNodes(n - size);
             } else {
-                startNode(Settings.EMPTY);
+                startNodes(n - size);
             }
-        }
-        if (added) {
             validateClusterFormed();
         }
     }
@@ -1649,10 +1638,7 @@ public final class InternalTestCluster extends TestCluster {
      * Starts a node with the given settings and returns it's name.
      */
     public synchronized String startNode(Settings settings) {
-        final int defaultMinMasterNodes = getMinMasterNodes(getMasterNodesCount() + (Node.NODE_MASTER_SETTING.get(settings) ? 1 : 0));
-        NodeAndClient buildNode = buildNode(settings, defaultMinMasterNodes);
-        startAndPublishNodesAndClients(Collections.singletonList(buildNode));
-        return buildNode.name;
+        return startNodes(settings).get(0);
     }
 
     /**

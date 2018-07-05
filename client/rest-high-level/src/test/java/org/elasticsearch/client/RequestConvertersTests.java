@@ -95,6 +95,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.count.CountRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
@@ -1265,6 +1266,53 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(searchSourceBuilder, request.getEntity());
+    }
+
+    public void testCount() throws Exception {
+        String[] indices = randomIndicesNames(0, 5);
+        CountRequest countRequest = new CountRequest(indices);
+
+        int numTypes = randomIntBetween(0, 5);
+        String[] types = new String[numTypes];
+        for (int i = 0; i < numTypes; i++) {
+            types[i] = "type-" + randomAlphaOfLengthBetween(2, 5);
+        }
+        countRequest.types(types);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomCountParams(countRequest, expectedParams);
+        setRandomIndicesOptions(countRequest::indicesOptions, countRequest::indicesOptions, expectedParams);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        if (frequently()){
+            if (randomBoolean()) {
+                searchSourceBuilder.minScore(randomFloat());
+            }
+        }
+        countRequest.source(searchSourceBuilder);
+        Request request = RequestConverters.count(countRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        String type = String.join(",", types);
+        if (Strings.hasLength(type)) {
+            endpoint.add(type);
+        }
+        endpoint.add("_count");
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(searchSourceBuilder, request.getEntity());
+    }
+
+    public void testCountNullSource() throws IOException {
+        CountRequest countRequest = new CountRequest();
+        Request request = RequestConverters.count(countRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_count", request.getEndpoint());
+        assertNull(request.getEntity());
     }
 
     public void testSearchNullIndicesAndTypes() {
@@ -2524,6 +2572,19 @@ public class RequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             searchRequest.scroll(randomTimeValue());
             expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
+        }
+    }
+
+
+    private static void setRandomCountParams(CountRequest countRequest,
+                                              Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            countRequest.routing(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("routing", countRequest.routing());
+        }
+        if (randomBoolean()) {
+            countRequest.preference(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("preference", countRequest.preference());
         }
     }
 

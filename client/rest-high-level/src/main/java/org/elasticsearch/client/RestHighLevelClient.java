@@ -55,6 +55,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.count.CountRequest;
+import org.elasticsearch.client.count.CountResponse;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
@@ -435,6 +437,29 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
+     * Executes a count request using the Count API
+     * @param countRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final CountResponse count(CountRequest countRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(countRequest, RequestConverters::count, options, CountResponse::fromXContent,
+        emptySet());
+    }
+
+    /**
+     * Asynchronously executes a count request using the Count API
+     * @param countRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void countAsync(CountRequest countRequest, RequestOptions options, ActionListener<CountResponse> listener) {
+        performRequestAsyncAndParseEntity(countRequest, RequestConverters::count,  options,CountResponse::fromXContent,
+            listener, emptySet());
+    }
+
+    /**
      * Updates a document using the Update API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
      * @param updateRequest the request
@@ -668,7 +693,7 @@ public class RestHighLevelClient implements Closeable {
                 emptySet());
     }
 
-        
+
     /**
      * Executes a request using the Multi Search Template API.
      *
@@ -678,9 +703,9 @@ public class RestHighLevelClient implements Closeable {
     public final MultiSearchTemplateResponse multiSearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest,
             RequestOptions options) throws IOException {
         return performRequestAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
-                options, MultiSearchTemplateResponse::fromXContext, emptySet());        
-    }   
-    
+                options, MultiSearchTemplateResponse::fromXContext, emptySet());
+    }
+
     /**
      * Asynchronously executes a request using the Multi Search Template API
      *
@@ -692,7 +717,7 @@ public class RestHighLevelClient implements Closeable {
                                           ActionListener<MultiSearchTemplateResponse> listener) {
         performRequestAsyncAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
             options, MultiSearchTemplateResponse::fromXContext, listener, emptySet());
-    }    
+    }
 
     /**
      * Asynchronously executes a request using the Ranking Evaluation API.

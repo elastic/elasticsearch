@@ -37,6 +37,7 @@ The Java High Level REST Client supports the following Search APIs:
 * <<java-rest-high-field-caps>>
 * <<java-rest-high-rank-eval>>
 * <<java-rest-high-explain>>
+* <<java-rest-high-count>>
 
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
@@ -46,6 +47,7 @@ include::search/multi-search-template.asciidoc[]
 include::search/field-caps.asciidoc[]
 include::search/rank-eval.asciidoc[]
 include::search/explain.asciidoc[]
+include::search/count.asciidoc[]
 
 == Miscellaneous APIs
 

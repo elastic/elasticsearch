@@ -86,6 +86,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.count.CountRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -636,6 +637,18 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withIndicesOptions(getAliasesRequest.indicesOptions());
         params.withLocal(getAliasesRequest.local());
+        return request;
+    }
+
+    static Request count(CountRequest countRequest) throws IOException {
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(countRequest.indices(), countRequest.types(), "_count"));
+        Params params = new Params(request);
+        params.withRouting(countRequest.routing());
+        params.withPreference(countRequest.preference());
+        params.withIndicesOptions(countRequest.indicesOptions());
+        if (countRequest.source() != null) {
+            request.setEntity(createEntity(countRequest.source(), REQUEST_BODY_CONTENT_TYPE));
+        }
         return request;
     }
 

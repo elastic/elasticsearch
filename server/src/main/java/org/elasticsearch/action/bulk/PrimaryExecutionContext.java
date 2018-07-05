@@ -206,7 +206,7 @@ class PrimaryExecutionContext {
                     // Make sure to use request.index() here, if you
                     // use docWriteRequest.index() it will use the
                     // concrete index instead of an alias if used!
-                    new BulkItemResponse.Failure(current.index(), docWriteRequest.type(), docWriteRequest.id(),
+                    new BulkItemResponse.Failure(request.index(), docWriteRequest.type(), docWriteRequest.id(),
                         result.getFailure(), result.getSeqNo()));
                 break;
             default:

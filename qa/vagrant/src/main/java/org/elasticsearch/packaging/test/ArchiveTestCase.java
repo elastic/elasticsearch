@@ -134,12 +134,15 @@ public abstract class ArchiveTestCase {
 
         Platforms.onLinux(() -> {
             final String javaPath = sh.run("which java").stdout.trim();
-            sh.run("chmod -x '" + javaPath + "'");
-            final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString());
-            sh.run("chmod +x '" + javaPath + "'");
 
-            assertThat(runResult.exitCode, is(1));
-            assertThat(runResult.stdout, containsString("could not find java; set JAVA_HOME or ensure java is in PATH"));
+            try {
+                sh.run("chmod -x '" + javaPath + "'");
+                final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString());
+                assertThat(runResult.exitCode, is(1));
+                assertThat(runResult.stdout, containsString("could not find java; set JAVA_HOME or ensure java is in PATH"));
+            } finally {
+                sh.run("chmod +x '" + javaPath + "'");
+            }
         });
     }
 
@@ -175,14 +178,14 @@ public abstract class ArchiveTestCase {
             final Result r = sh.run(bin.elasticsearchKeystore + " list");
             assertThat(r.stdout, containsString("keystore.seed"));
         });
-
-        // cleanup for next test
-        rm(installation.config("elasticsearch.keystore"));
     }
 
     @Test
     public void test50StartAndStop() throws IOException {
         assumeThat(installation, is(notNullValue()));
+
+        // cleanup from previous test
+        rm(installation.config("elasticsearch.keystore"));
 
         Archives.runElasticsearch(installation);
 

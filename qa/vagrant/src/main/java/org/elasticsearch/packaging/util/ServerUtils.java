@@ -39,6 +39,7 @@ public class ServerUtils {
     private static final Log LOG = LogFactory.getLog(ServerUtils.class);
 
     private static final long waitTime = TimeUnit.SECONDS.toMillis(60);
+    private static final long timeoutLength = TimeUnit.SECONDS.toMillis(10);
 
     public static void waitForElasticsearch() throws IOException {
         waitForElasticsearch("green", null);
@@ -56,8 +57,8 @@ public class ServerUtils {
             try {
 
                 final HttpResponse response = Request.Get("http://localhost:9200/_cluster/health")
-                    .connectTimeout((int) waitTime)
-                    .socketTimeout((int) waitTime)
+                    .connectTimeout((int) timeoutLength)
+                    .socketTimeout((int) timeoutLength)
                     .execute()
                     .returnResponse();
 

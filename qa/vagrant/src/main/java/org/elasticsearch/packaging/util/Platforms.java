@@ -66,15 +66,23 @@ public class Platforms {
         return new Shell().runIgnoreExitCode("which service").isSuccess();
     }
 
-    public static void onWindows(Runnable action) {
+    public static void onWindows(PlatformAction action) {
         if (WINDOWS) {
             action.run();
         }
     }
 
-    public static void onLinux(Runnable action) {
+    public static void onLinux(PlatformAction action) {
         if (LINUX) {
             action.run();
         }
+    }
+
+    /**
+     * Essentially a Runnable, but we make the distinction so it's more clear that these are synchronous
+     */
+    @FunctionalInterface
+    public interface PlatformAction {
+        void run();
     }
 }

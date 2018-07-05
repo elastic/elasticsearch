@@ -38,48 +38,13 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class JavaJodaTimeDuellingTests extends ESTestCase {
 
-    // java 10 can parse all of these formats just using "+HH:mm"
-    // java 8 can not, furthermore even optional formatters seem to break
-    // requires more investigation
-    // possible candidates for fixes in the openjdk source
-    // https://github.com/dmlloyd/openjdk/commit/c4a9c77a0314826b49a98a991035545f768a421a
-    // https://github.com/dmlloyd/openjdk/commit/dd0368122c35c6a34f322a633bf98c91b50a3c30
-    public void testBrokenWithJava8ButWorksWithJava10() {
-        logger.info("jvm version [{}]", JvmInfo.jvmInfo().version());
-        // works
-        DateTimeFormatter f1 = new DateTimeFormatterBuilder().optionalStart().appendOffset("+HH:mm", "Z")
-            .optionalEnd().toFormatter(Locale.ROOT);
-        f1.parse("Z");
-        f1.parse("-08");
-        f1.parse("+08:00");
-
-        // works
-        DateTimeFormatter f2 = new DateTimeFormatterBuilder().optionalStart().appendOffset("+HHmm", "Z")
-            .optionalEnd().toFormatter(Locale.ROOT);
-        f2.parse("Z");
-        f2.parse("-0800");
-
-        // fails, only the first formatter is able top parse in java8
-//        DateTimeFormatter f3 = new DateTimeFormatterBuilder().appendOptional(f1).appendOptional(f2).toFormatter(Locale.ROOT);
-//        DateTimeFormatter f3 = new DateTimeFormatterBuilder().appendOptional(f2).appendOptional(f1).toFormatter(Locale.ROOT);
-        DateTimeFormatter f3 = new DateTimeFormatterBuilder()
-            .optionalStart().appendZoneId().optionalEnd()
-            .optionalStart().appendOffset("+HHmm", "Z").optionalEnd()
-            .optionalStart().appendOffset("+HH:mm", "Z").optionalEnd()
-            .toFormatter(Locale.ROOT);
-        f3.parse("Z");
-        f3.parse("-08");
-        f3.parse("+08:00");
-        f3.parse("-0800");
-    }
-
     public void testTimeZoneFormatting() {
         assertSameDate("2001-01-01T00:00:00Z", "date_time_no_millis");
         // the following fail under java 8 but work under java 10, needs investigation
         assertSameDate("2001-01-01T00:00:00-0800", "date_time_no_millis");
-//        assertSameDate("2001-01-01T00:00:00+1030", "date_time_no_millis");
-//        assertSameDate("2001-01-01T00:00:00-08", "date_time_no_millis");
-//        assertSameDate("2001-01-01T00:00:00+10:30", "date_time_no_millis");
+        assertSameDate("2001-01-01T00:00:00+1030", "date_time_no_millis");
+        assertSameDate("2001-01-01T00:00:00-08", "date_time_no_millis");
+        assertSameDate("2001-01-01T00:00:00+10:30", "date_time_no_millis");
 
         // different timezone parsing styles require a different number of letters
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss.SSSXXX", Locale.ROOT);
@@ -396,7 +361,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2018-128", "year_month_day||ordinal_date");
     }
 
-    public void assertSameDate(String input, String format) {
+    private void assertSameDate(String input, String format) {
         FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format);
         DateTime jodaDateTime = jodaFormatter.parser().parseDateTime(input);
 

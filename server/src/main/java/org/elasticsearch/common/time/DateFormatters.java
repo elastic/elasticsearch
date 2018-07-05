@@ -886,11 +886,7 @@ public class DateFormatters {
         }
 
         if (accessor.isSupported(ChronoField.OFFSET_SECONDS)) {
-            if (result.getZone().equals(ZoneOffset.UTC)) {
-                result = result.withZoneSameLocal(ZoneOffset.ofTotalSeconds(accessor.get(ChronoField.OFFSET_SECONDS)));
-            } else {
-                result = result.withZoneSameInstant(ZoneOffset.ofTotalSeconds(accessor.get(ChronoField.OFFSET_SECONDS)));
-            }
+            result = result.withZoneSameLocal(ZoneOffset.ofTotalSeconds(accessor.get(ChronoField.OFFSET_SECONDS)));
         }
 
         // millis

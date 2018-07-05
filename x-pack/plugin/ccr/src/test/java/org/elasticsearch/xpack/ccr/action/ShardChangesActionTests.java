@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ShardChangesActionTests extends ESSingleNodeTestCase {
 
-    public void testGetOperationsBetween() throws Exception {
+    public void testGetOperations() throws Exception {
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
@@ -64,7 +64,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         assertThat(operations.length, equalTo(10));
     }
 
-    public void testGetOperationsBetweenWhenShardNotStarted() throws Exception {
+    public void testGetOperationsWhenShardNotStarted() throws Exception {
         IndexShard indexShard = Mockito.mock(IndexShard.class);
 
         ShardRouting shardRouting = TestShardRouting.newShardRouting("index", 0, "_node_id", true, ShardRoutingState.INITIALIZING);
@@ -73,7 +73,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             indexShard.getGlobalCheckpoint(), 0, 1, Long.MAX_VALUE));
     }
 
-    public void testGetOperationsBetweenExceedByteLimit() throws Exception {
+    public void testGetOperationsExceedByteLimit() throws Exception {
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
@@ -101,6 +101,22 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         assertThat(operations[9].seqNo(), equalTo(9L));
         assertThat(operations[10].seqNo(), equalTo(10L));
         assertThat(operations[11].seqNo(), equalTo(11L));
+    }
+
+    public void testGetOperationsAlwaysReturnAtLeastOneOp() throws Exception {
+        final Settings settings = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .build();
+        final IndexService indexService = createIndex("index", settings);
+
+        client().prepareIndex("index", "doc", "0").setSource("{}", XContentType.JSON).get();
+
+        final IndexShard indexShard = indexService.getShard(0);
+        final Translog.Operation[] operations =
+            ShardChangesAction.getOperations(indexShard, indexShard.getGlobalCheckpoint(), 0, 1, 0);
+        assertThat(operations.length, equalTo(1));
+        assertThat(operations[0].seqNo(), equalTo(0L));
     }
 
 }

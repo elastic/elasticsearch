@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,9 +32,26 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.action.UpdateProcessAction.Request;
 import static org.elasticsearch.xpack.core.ml.action.UpdateProcessAction.Response;
 
-public class UpdateJobProcessNotifier extends AbstractComponent implements LocalNodeMasterListener {
+/**
+ * This class serves as a queue for updates to the job process.
+ * Queueing is important for 2 reasons: first, it throttles the updates
+ * to the process, and second and most important, it preserves the order of the updates
+ * for actions that run on the master node. For preserving the order of the updates
+ * to the job config, it's necessary to handle the whole update chain on the master
+ * node. However, for updates to resources the job uses (e.g. calendars, filters),
+ * they can be handled on non-master nodes as long as the update process action
+ * is fetching the latest version of those resources from the index instead of
+ * using the version that existed while the handling action was at work. This makes
+ * sure that even if the order of updates gets reversed, the final process update
+ * will fetch the valid state of those external resources ensuring the process is
+ * in sync.
+ */
+public class UpdateJobProcessNotifier extends AbstractComponent {
+
+    private static final Logger LOGGER = Loggers.getLogger(UpdateJobProcessNotifier.class);
 
     private final Client client;
+    private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final LinkedBlockingQueue<UpdateHolder> orderedJobUpdates = new LinkedBlockingQueue<>(1000);
 
@@ -42,9 +60,15 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
     public UpdateJobProcessNotifier(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool) {
         super(settings);
         this.client = client;
+        this.clusterService = clusterService;
         this.threadPool = threadPool;
-        clusterService.addLocalNodeMasterListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
+
+            @Override
+            public void beforeStart() {
+                start();
+            }
+
             @Override
             public void beforeStop() {
                 stop();
@@ -54,16 +78,6 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
 
     boolean submitJobUpdate(UpdateParams update, ActionListener<Boolean> listener) {
         return orderedJobUpdates.offer(new UpdateHolder(update, listener));
-    }
-
-    @Override
-    public void onMaster() {
-        start();
-    }
-
-    @Override
-    public void offMaster() {
-        stop();
     }
 
     private void start() {
@@ -77,12 +91,6 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
         if (cancellable != null) {
             cancellable.cancel();
         }
-    }
-
-    @Override
-    public String executorName() {
-        // SAME is ok here, because both start() and stop() are inexpensive:
-        return ThreadPool.Names.SAME;
     }
 
     private void processNextUpdate() {
@@ -101,6 +109,15 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
         }
         UpdateHolder updateHolder = updatesIterator.next();
         UpdateParams update = updateHolder.update;
+
+        if (update.isJobUpdate() && clusterService.localNode().isMasterNode() == false) {
+            assert clusterService.localNode().isMasterNode();
+            LOGGER.error("Job update was submitted to non-master node [" + clusterService.nodeName() + "]; update for job ["
+                    + update.getJobId() + "] will be ignored");
+            executeProcessUpdates(updatesIterator);
+            return;
+        }
+
         Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getDetectorUpdates(), update.getFilter(),
                 update.isUpdateScheduledEvents());
 

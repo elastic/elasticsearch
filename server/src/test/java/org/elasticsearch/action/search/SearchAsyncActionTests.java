@@ -96,7 +96,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         AtomicInteger numRequests = new AtomicInteger(0);
-        AbstractSearchAsyncAction asyncAction =
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
             new AbstractSearchAsyncAction<TestSearchPhaseResult>(
                 "test",
                 logger,
@@ -190,7 +190,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         CountDownLatch awaitInitialRequests = new CountDownLatch(1);
         AtomicInteger numRequests = new AtomicInteger(0);
         AtomicInteger numResponses = new AtomicInteger(0);
-        AbstractSearchAsyncAction asyncAction =
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
             new AbstractSearchAsyncAction<TestSearchPhaseResult>(
                 "test",
                 logger,
@@ -256,6 +256,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertEquals(10, numRequests.get());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29242")
     public void testFanOutAndCollect() throws InterruptedException {
         SearchRequest request = new SearchRequest();
         request.allowPartialSearchResults(true);
@@ -296,7 +297,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         final ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
-        AbstractSearchAsyncAction asyncAction =
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
                 new AbstractSearchAsyncAction<TestSearchPhaseResult>(
                         "test",
                         logger,

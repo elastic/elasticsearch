@@ -77,7 +77,6 @@ public class ShardChangesIT extends ESIntegTestCase {
         newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
-        newSettings.put(CcrSettings.CCR_IDLE_SHARD_RETRY_DELAY.getKey(), TimeValue.timeValueMillis(10));
         return newSettings.build();
     }
 
@@ -165,7 +164,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureYellow("index1");
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2");
+        final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
         final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
@@ -223,7 +222,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureYellow("index1");
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2");
+        final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
         final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
@@ -291,7 +290,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", maxReadSize,
             randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(32, 2048), randomIntBetween(2, 10),
-            randomIntBetween(1024, 10240), TimeValue.timeValueMillis(500));
+            randomIntBetween(1024, 10240), TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
         CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
@@ -332,7 +331,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", randomIntBetween(32, 2048),
             randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(32, 2048), randomIntBetween(2, 10),
-            ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE, TimeValue.timeValueMillis(500));
+            ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
         client().execute(FollowIndexAction.INSTANCE, followRequest).get();
 
         long maxNumDocsReplicated = Math.min(3000, randomLongBetween(followRequest.getMaxOperationCount(),
@@ -375,7 +374,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         ensureGreen("index1", "index2");
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2");
+        final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
         client().execute(FollowIndexAction.INSTANCE, followRequest).get();
 
         final int numDocs = randomIntBetween(2, 64);
@@ -418,13 +417,13 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test-leader").get());
         assertAcked(client().admin().indices().prepareCreate("test-follower").get());
         // Leader index does not exist.
-        FollowIndexAction.Request followRequest1 = new FollowIndexAction.Request("non-existent-leader", "test-follower");
+        FollowIndexAction.Request followRequest1 = createFollowRequest("non-existent-leader", "test-follower");
         expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest1).actionGet());
         // Follower index does not exist.
-        FollowIndexAction.Request followRequest2 = new FollowIndexAction.Request("non-test-leader", "non-existent-follower");
+        FollowIndexAction.Request followRequest2 = createFollowRequest("non-test-leader", "non-existent-follower");
         expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest2).actionGet());
         // Both indices do not exist.
-        FollowIndexAction.Request followRequest3 = new FollowIndexAction.Request("non-existent-leader", "non-existent-follower");
+        FollowIndexAction.Request followRequest3 = createFollowRequest("non-existent-leader", "non-existent-follower");
         expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest3).actionGet());
     }
 
@@ -441,7 +440,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         }
 
         final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", 1024, 1, 1024,
-            1024, 1, 10240, TimeValue.timeValueMillis(500));
+            1024, 1, 10240, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
         final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
@@ -641,5 +640,13 @@ public class ShardChangesIT extends ESIntegTestCase {
             SearchResponse response2 = client().search(request2).actionGet();
             assertThat(response2.getHits().getTotalHits(), equalTo(response1.getHits().getTotalHits()));
         });
+    }
+
+    public static FollowIndexAction.Request createFollowRequest(String leaderIndex, String followIndex) {
+        return new FollowIndexAction.Request(leaderIndex, followIndex, ShardFollowNodeTask.DEFAULT_MAX_OPERATION_COUNT,
+            ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READS, ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES,
+            ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE, ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITES,
+            ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE, TimeValue.timeValueMillis(10),
+            TimeValue.timeValueMillis(10));
     }
 }

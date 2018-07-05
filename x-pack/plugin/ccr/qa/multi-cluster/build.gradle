@@ -27,7 +27,6 @@ followClusterTestCluster {
     numNodes = 1
     clusterName = 'follow-cluster'
     setting 'search.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
-    setting 'xpack.ccr.idle_shard_retry_delay', '10ms'
 }
 
 followClusterTestRunner {

@@ -65,7 +65,9 @@ public class RestFollowIndexAction extends BaseRestHandler {
         }
         TimeValue retryTimeout = restRequest.paramAsTime(ShardFollowTask.RETRY_TIMEOUT.getPreferredName(),
             ShardFollowNodeTask.DEFAULT_RETRY_TIMEOUT);
+        TimeValue idleShardRetryTimeout = restRequest.paramAsTime(ShardFollowTask.IDLE_SHARD_RETRY_DELAY.getPreferredName(),
+            ShardFollowNodeTask.DEFAULT_IDLE_SHARD_RETRY_DELAY);
         return new Request(restRequest.param("leader_index"), restRequest.param("index"), maxOperationCount, maxConcurrentReads,
-            maxOperationSizeInBytes, maxWriteSize, maxConcurrentWrites, maxBufferSize, retryTimeout);
+            maxOperationSizeInBytes, maxWriteSize, maxConcurrentWrites, maxBufferSize, retryTimeout, idleShardRetryTimeout);
     }
 }

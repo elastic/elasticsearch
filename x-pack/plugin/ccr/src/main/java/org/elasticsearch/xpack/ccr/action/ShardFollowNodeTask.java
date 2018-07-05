@@ -50,6 +50,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     public static final long DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES = Long.MAX_VALUE;
     private static final int RETRY_LIMIT = 10;
     public static final TimeValue DEFAULT_RETRY_TIMEOUT = new TimeValue(500);
+    public static final TimeValue DEFAULT_IDLE_SHARD_RETRY_DELAY = TimeValue.timeValueSeconds(10);
 
     private static final Logger LOGGER = Loggers.getLogger(ShardFollowNodeTask.class);
 

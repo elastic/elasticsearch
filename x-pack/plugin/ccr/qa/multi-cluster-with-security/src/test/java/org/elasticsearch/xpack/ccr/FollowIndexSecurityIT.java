@@ -84,7 +84,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
                 assertThat(tasks.size(), equalTo(0));
                 assertThat(countCcrNodeTasks(), equalTo(0));
             });
-    
+
             followIndex("leader_cluster:" + allowedIndex, allowedIndex);
             assertThat(countCcrNodeTasks(), equalTo(1));
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_xpack/ccr/_unfollow")));
@@ -95,14 +95,14 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
                 assertThat(tasks.size(), equalTo(0));
                 assertThat(countCcrNodeTasks(), equalTo(0));
             });
-    
+
             createAndFollowIndex("leader_cluster:" + unallowedIndex, unallowedIndex);
             // Verify that nothing has been replicated and no node tasks are running
             // These node tasks should have been failed due to the fact that the user
             // has no sufficient priviledges.
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
             verifyDocuments(adminClient(), unallowedIndex, 0);
-            
+
             followIndex("leader_cluster:" + unallowedIndex, unallowedIndex);
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
             verifyDocuments(adminClient(), unallowedIndex, 0);
@@ -146,12 +146,14 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
     private static void followIndex(String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("POST", "/" + followIndex + "/_xpack/ccr/_follow");
         request.addParameter("leader_index", leaderIndex);
+        request.addParameter("idle_shard_retry_delay", "10ms");
         assertOK(client().performRequest(request));
     }
 
     private static void createAndFollowIndex(String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("POST", "/" + followIndex + "/_xpack/ccr/_create_and_follow");
         request.addParameter("leader_index", leaderIndex);
+        request.addParameter("idle_shard_retry_delay", "10ms");
         assertOK(client().performRequest(request));
     }
 

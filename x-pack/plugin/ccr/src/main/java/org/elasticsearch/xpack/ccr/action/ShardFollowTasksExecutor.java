@@ -35,7 +35,6 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.Ccr;
-import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 
@@ -87,13 +86,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         } else {
             leaderClient = wrapClient(client, params);
         }
-        TimeValue idleShardChangesRequestDelay = settings.getAsTime(CcrSettings.CCR_IDLE_SHARD_RETRY_DELAY.getKey(),
-            CcrSettings.CCR_IDLE_SHARD_RETRY_DELAY.getDefault(settings));
         Client followerClient = wrapClient(client, params);
         BiConsumer<TimeValue, Runnable> scheduler =
             (delay, command) -> threadPool.schedule(delay, Ccr.CCR_THREAD_POOL_NAME, command);
         return new ShardFollowNodeTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers, params,
-            scheduler, idleShardChangesRequestDelay, params.getRetryTimeout()) {
+            scheduler, params.getIdleShardRetryDelay(), params.getRetryTimeout()) {
 
             @Override
             protected void updateMapping(LongConsumer handler) {

@@ -1623,21 +1623,21 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Starts a node with default settings and returns it's name.
+     * Starts a node with default settings and returns its name.
      */
     public synchronized String startNode() {
         return startNode(Settings.EMPTY);
     }
 
     /**
-     * Starts a node with the given settings builder and returns it's name.
+     * Starts a node with the given settings builder and returns its name.
      */
     public synchronized String startNode(Settings.Builder settings) {
         return startNode(settings.build());
     }
 
     /**
-     * Starts a node with the given settings and returns it's name.
+     * Starts a node with the given settings and returns its name.
      */
     public synchronized String startNode(Settings settings) {
         return startNodes(settings).get(0);

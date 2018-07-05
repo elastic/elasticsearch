@@ -40,12 +40,12 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     static final ParseField LEADER_SHARD_INDEX_UUID_FIELD = new ParseField("leader_shard_index_uuid");
     static final ParseField LEADER_SHARD_SHARDID_FIELD = new ParseField("leader_shard_shard");
     static final ParseField HEADERS = new ParseField("headers");
-    public static final ParseField MAX_OPERATION_COUNT = new ParseField("max_operation_count");
-    public static final ParseField MAX_CONCURRENT_READS = new ParseField("max_concurrent_reads");
-    public static final ParseField MAX_OPERATION_SIZE_IN_BYTES = new ParseField("max_operation_size_in_bytes");
+    public static final ParseField MAX_BATCH_OPERATION_COUNT = new ParseField("max_batch_operation_count");
+    public static final ParseField MAX_CONCURRENT_READS_BATCHES = new ParseField("max_concurrent_read_batches");
+    public static final ParseField MAX_BATCH_SIZE_IN_BYTES = new ParseField("max_batch_size_in_bytes");
     public static final ParseField MAX_WRITE_SIZE = new ParseField("max_write_size");
-    public static final ParseField MAX_CONCURRENT_WRITES = new ParseField("max_concurrent_writes");
-    public static final ParseField MAX_BUFFER_SIZE = new ParseField("max_buffer_size");
+    public static final ParseField MAX_CONCURRENT_WRITES_BATCHES = new ParseField("max_concurrent_write_batches");
+    public static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<ShardFollowTask, Void> PARSER = new ConstructingObjectParser<>(NAME,
@@ -61,12 +61,12 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_SHARD_INDEX_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_SHARD_INDEX_UUID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), LEADER_SHARD_SHARDID_FIELD);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_OPERATION_COUNT);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_CONCURRENT_READS);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAX_OPERATION_SIZE_IN_BYTES);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_BATCH_OPERATION_COUNT);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_CONCURRENT_READS_BATCHES);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAX_BATCH_SIZE_IN_BYTES);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_WRITE_SIZE);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_CONCURRENT_WRITES);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_BUFFER_SIZE);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_CONCURRENT_WRITES_BATCHES);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_WRITE_BUFFER_SIZE);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HEADERS);
     }
 
@@ -175,50 +175,22 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        {
-            if (leaderClusterAlias != null) {
-                builder.field(LEADER_CLUSTER_ALIAS_FIELD.getPreferredName(), leaderClusterAlias);
-            }
+        if (leaderClusterAlias != null) {
+            builder.field(LEADER_CLUSTER_ALIAS_FIELD.getPreferredName(), leaderClusterAlias);
         }
-        {
-            builder.field(FOLLOW_SHARD_INDEX_FIELD.getPreferredName(), followShardId.getIndex().getName());
-        }
-        {
-            builder.field(FOLLOW_SHARD_INDEX_UUID_FIELD.getPreferredName(), followShardId.getIndex().getUUID());
-        }
-        {
-            builder.field(FOLLOW_SHARD_SHARDID_FIELD.getPreferredName(), followShardId.id());
-        }
-        {
-            builder.field(LEADER_SHARD_INDEX_FIELD.getPreferredName(), leaderShardId.getIndex().getName());
-        }
-        {
-            builder.field(LEADER_SHARD_INDEX_UUID_FIELD.getPreferredName(), leaderShardId.getIndex().getUUID());
-        }
-        {
-            builder.field(LEADER_SHARD_SHARDID_FIELD.getPreferredName(), leaderShardId.id());
-        }
-        {
-            builder.field(MAX_OPERATION_COUNT.getPreferredName(), maxReadSize);
-        }
-        {
-            builder.field(MAX_CONCURRENT_READS.getPreferredName(), maxConcurrentReads);
-        }
-        {
-            builder.field(MAX_OPERATION_SIZE_IN_BYTES.getPreferredName(), maxOperationSizeInBytes);
-        }
-        {
-            builder.field(MAX_WRITE_SIZE.getPreferredName(), maxWriteSize);
-        }
-        {
-            builder.field(MAX_CONCURRENT_WRITES.getPreferredName(), maxConcurrentWrites);
-        }
-        {
-            builder.field(MAX_BUFFER_SIZE.getPreferredName(), maxBufferSize);
-        }
-        {
-            builder.field(HEADERS.getPreferredName(), headers);
-        }
+        builder.field(FOLLOW_SHARD_INDEX_FIELD.getPreferredName(), followShardId.getIndex().getName());
+        builder.field(FOLLOW_SHARD_INDEX_UUID_FIELD.getPreferredName(), followShardId.getIndex().getUUID());
+        builder.field(FOLLOW_SHARD_SHARDID_FIELD.getPreferredName(), followShardId.id());
+        builder.field(LEADER_SHARD_INDEX_FIELD.getPreferredName(), leaderShardId.getIndex().getName());
+        builder.field(LEADER_SHARD_INDEX_UUID_FIELD.getPreferredName(), leaderShardId.getIndex().getUUID());
+        builder.field(LEADER_SHARD_SHARDID_FIELD.getPreferredName(), leaderShardId.id());
+        builder.field(MAX_BATCH_OPERATION_COUNT.getPreferredName(), maxReadSize);
+        builder.field(MAX_CONCURRENT_READS_BATCHES.getPreferredName(), maxConcurrentReads);
+        builder.field(MAX_BATCH_SIZE_IN_BYTES.getPreferredName(), maxOperationSizeInBytes);
+        builder.field(MAX_WRITE_SIZE.getPreferredName(), maxWriteSize);
+        builder.field(MAX_CONCURRENT_WRITES_BATCHES.getPreferredName(), maxConcurrentWrites);
+        builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxBufferSize);
+        builder.field(HEADERS.getPreferredName(), headers);
         return builder.endObject();
     }
 

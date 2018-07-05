@@ -48,7 +48,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     public static final int DEFAULT_MAX_CONCURRENT_WRITES = 1;
     public static final int DEFAULT_MAX_BUFFER_SIZE = 10240;
     public static final long DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES = Long.MAX_VALUE;
-    public static final TimeValue DEFAULT_IDLE_SHARD_CHANGES_DELAY = TimeValue.timeValueSeconds(10);
     private static final int RETRY_LIMIT = 10;
     private static final TimeValue RETRY_TIMEOUT = TimeValue.timeValueMillis(500);
 
@@ -110,7 +109,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
 
         if (numConcurrentReads == 0) {
-            // We sneak peek if there is any thing new in the leader primary.
+            // We sneak peek if there is any thing new in the leader.
             // If there is we will happily accept
             numConcurrentReads++;
             long from = lastRequestedSeqno + 1;

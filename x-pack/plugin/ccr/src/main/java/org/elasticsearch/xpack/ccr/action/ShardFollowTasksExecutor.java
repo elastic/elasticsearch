@@ -48,8 +48,6 @@ import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.ccr.action.ShardFollowNodeTask.DEFAULT_IDLE_SHARD_CHANGES_DELAY;
-
 public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
 
     private final Client client;
@@ -89,8 +87,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         } else {
             leaderClient = wrapClient(client, params);
         }
-        TimeValue idleShardChangesRequestDelay =
-            settings.getAsTime(CcrSettings.CCR_IDLE_SHARD_RETRY_DELAY.getKey(), DEFAULT_IDLE_SHARD_CHANGES_DELAY);
+        TimeValue idleShardChangesRequestDelay = settings.getAsTime(CcrSettings.CCR_IDLE_SHARD_RETRY_DELAY.getKey(),
+            CcrSettings.CCR_IDLE_SHARD_RETRY_DELAY.getDefault(settings));
         Client followerClient = wrapClient(client, params);
         BiConsumer<TimeValue, Runnable> scheduler =
             (delay, command) -> threadPool.schedule(delay, Ccr.CCR_THREAD_POOL_NAME, command);

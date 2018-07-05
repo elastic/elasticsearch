@@ -39,28 +39,28 @@ public class RestFollowIndexAction extends BaseRestHandler {
 
     static Request createRequest(RestRequest restRequest) {
         int maxOperationCount = ShardFollowNodeTask.DEFAULT_MAX_OPERATION_COUNT;
-        if (restRequest.hasParam(ShardFollowTask.MAX_OPERATION_COUNT.getPreferredName())) {
-            maxOperationCount = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_OPERATION_COUNT.getPreferredName()));
+        if (restRequest.hasParam(ShardFollowTask.MAX_BATCH_OPERATION_COUNT.getPreferredName())) {
+            maxOperationCount = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_BATCH_OPERATION_COUNT.getPreferredName()));
         }
         int maxConcurrentReads = ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READS;
-        if (restRequest.hasParam(ShardFollowTask.MAX_CONCURRENT_READS.getPreferredName())) {
-            maxConcurrentReads = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_READS.getPreferredName()));
+        if (restRequest.hasParam(ShardFollowTask.MAX_CONCURRENT_READS_BATCHES.getPreferredName())) {
+            maxConcurrentReads = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_READS_BATCHES.getPreferredName()));
         }
         long maxOperationSizeInBytes = ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES;
-        if (restRequest.hasParam(ShardFollowTask.MAX_OPERATION_SIZE_IN_BYTES.getPreferredName())) {
-            maxOperationSizeInBytes = Long.valueOf(restRequest.param(ShardFollowTask.MAX_OPERATION_SIZE_IN_BYTES.getPreferredName()));
+        if (restRequest.hasParam(ShardFollowTask.MAX_BATCH_SIZE_IN_BYTES.getPreferredName())) {
+            maxOperationSizeInBytes = Long.valueOf(restRequest.param(ShardFollowTask.MAX_BATCH_SIZE_IN_BYTES.getPreferredName()));
         }
         int maxWriteSize = ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE;
         if (restRequest.hasParam(ShardFollowTask.MAX_WRITE_SIZE.getPreferredName())) {
             maxWriteSize = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_WRITE_SIZE.getPreferredName()));
         }
         int maxConcurrentWrites = ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITES;
-        if (restRequest.hasParam(ShardFollowTask.MAX_CONCURRENT_WRITES.getPreferredName())) {
-            maxConcurrentWrites = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_WRITES.getPreferredName()));
+        if (restRequest.hasParam(ShardFollowTask.MAX_CONCURRENT_WRITES_BATCHES.getPreferredName())) {
+            maxConcurrentWrites = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_WRITES_BATCHES.getPreferredName()));
         }
         int maxBufferSize = ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE;
-        if (restRequest.hasParam(ShardFollowTask.MAX_BUFFER_SIZE.getPreferredName())) {
-            maxBufferSize = Integer.parseInt(restRequest.param(ShardFollowTask.MAX_BUFFER_SIZE.getPreferredName()));
+        if (restRequest.hasParam(ShardFollowTask.MAX_WRITE_BUFFER_SIZE.getPreferredName())) {
+            maxBufferSize = Integer.parseInt(restRequest.param(ShardFollowTask.MAX_WRITE_BUFFER_SIZE.getPreferredName()));
         }
         return new Request(restRequest.param("leader_index"), restRequest.param("index"), maxOperationCount, maxConcurrentReads,
             maxOperationSizeInBytes, maxWriteSize, maxConcurrentWrites, maxBufferSize);

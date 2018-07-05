@@ -661,17 +661,28 @@ public class InternalEngine extends Engine {
         LUCENE_DOC_NOT_FOUND
     }
 
-    private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnSeqNo(final Operation op) throws IOException {
-        assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "resolving ops based on seq# but no seqNo is found";
+    static final class OpVsLuceneLookupResult {
         final OpVsLuceneDocStatus status;
+        final long seqNoOfNewerDoc; //seqno of a newer version found in Lucene; otherwise -1
+        OpVsLuceneLookupResult(OpVsLuceneDocStatus status, long seqNoOfNewerDoc) {
+            this.status = status;
+            this.seqNoOfNewerDoc = seqNoOfNewerDoc;
+            assert (status == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL && seqNoOfNewerDoc >= 0) ||
+                   (status != OpVsLuceneDocStatus.OP_STALE_OR_EQUAL && seqNoOfNewerDoc == -1) :
+                   "status=" + status + " ,seqno_newer_doc=" + seqNoOfNewerDoc;
+        }
+    }
+
+    private OpVsLuceneLookupResult compareOpToLuceneDocBasedOnSeqNo(final Operation op) throws IOException {
+        assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "resolving ops based on seq# but no seqNo is found";
+        final OpVsLuceneLookupResult result;
         VersionValue versionValue = getVersionFromMap(op.uid().bytes());
         assert incrementVersionLookup();
         if (versionValue != null) {
-            if  (op.seqNo() > versionValue.seqNo ||
-                (op.seqNo() == versionValue.seqNo && op.primaryTerm() > versionValue.term))
-                status = OpVsLuceneDocStatus.OP_NEWER;
-            else {
-                status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+            if (op.seqNo() > versionValue.seqNo || (op.seqNo() == versionValue.seqNo && op.primaryTerm() > versionValue.term)) {
+                result = new OpVsLuceneLookupResult(OpVsLuceneDocStatus.OP_NEWER, -1);
+            } else {
+                result = new OpVsLuceneLookupResult(OpVsLuceneDocStatus.OP_STALE_OR_EQUAL, versionValue.seqNo);
             }
         } else {
             // load from index
@@ -679,23 +690,23 @@ public class InternalEngine extends Engine {
             try (Searcher searcher = acquireSearcher("load_seq_no", SearcherScope.INTERNAL)) {
                 DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), op.uid());
                 if (docAndSeqNo == null) {
-                    status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
+                    result = new OpVsLuceneLookupResult(OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, -1);
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
-                    status = OpVsLuceneDocStatus.OP_NEWER;
+                    result = new OpVsLuceneLookupResult(OpVsLuceneDocStatus.OP_NEWER, -1);
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
                     // load term to tie break
                     final long existingTerm = VersionsAndSeqNoResolver.loadPrimaryTerm(docAndSeqNo, op.uid().field());
                     if (op.primaryTerm() > existingTerm) {
-                        status = OpVsLuceneDocStatus.OP_NEWER;
+                        result = new OpVsLuceneLookupResult(OpVsLuceneDocStatus.OP_NEWER, -1);
                     } else {
-                        status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+                        result = new OpVsLuceneLookupResult(OpVsLuceneDocStatus.OP_STALE_OR_EQUAL, docAndSeqNo.seqNo);
                     }
                 } else {
-                    status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+                    result = new OpVsLuceneLookupResult(OpVsLuceneDocStatus.OP_STALE_OR_EQUAL, docAndSeqNo.seqNo);
                 }
             }
         }
-        return status;
+        return result;
     }
 
     /** resolves the current version of the document, returning null if not found */
@@ -927,11 +938,11 @@ public class InternalEngine extends Engine {
                 // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
                 plan = IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
             } else {
-                final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
-                if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
-                    plan = IndexingStrategy.processAsStaleOp(softDeleteEnabled, index.seqNo(), index.version());
+                final OpVsLuceneLookupResult opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
+                if (opVsLucene.status == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
+                    plan = IndexingStrategy.processAsStaleOp(softDeleteEnabled, index.seqNo(), index.version(), opVsLucene.seqNoOfNewerDoc);
                 } else {
-                    plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
+                    plan = IndexingStrategy.processNormally(opVsLucene.status == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
                         index.seqNo(), index.version());
                 }
             }
@@ -1000,9 +1011,9 @@ public class InternalEngine extends Engine {
         index.parsedDoc().version().setLongValue(plan.versionForIndexing);
         try {
             if (plan.addStaleOpToLucene) {
-                addStaleDocs(index.docs(), indexWriter);
+                addStaleDocs(index.docs(), plan.seqNoOfNewerVersion);
             } else if (plan.useLuceneUpdateDocument) {
-                updateDocs(index.uid(), index.docs(), indexWriter);
+                updateDocs(index.uid(), plan, index.docs());
             } else {
                 // document does not exists, we can optimize for create, but double check if assertions are running
                 assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
@@ -1065,9 +1076,14 @@ public class InternalEngine extends Engine {
         numDocAppends.inc(docs.size());
     }
 
-    private void addStaleDocs(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
+    private void addStaleDocs(final List<ParseContext.Document> docs, final long seqNoOfNewerVersion) throws IOException {
         assert softDeleteEnabled : "Add history documents but soft-deletes is disabled";
-        docs.forEach(d -> d.add(softDeleteField));
+        assert seqNoOfNewerVersion >= 0 : "Invalid newer version; seqno=" + seqNoOfNewerVersion;
+        NumericDocValuesField updatedBySeqNoField = new NumericDocValuesField(SeqNoFieldMapper.UPDATED_BY_SEQNO_NAME, seqNoOfNewerVersion);
+        for (ParseContext.Document doc : docs) {
+            doc.add(softDeleteField);
+            doc.add(updatedBySeqNoField);
+        }
         if (docs.size() > 1) {
             indexWriter.addDocuments(docs);
         } else {
@@ -1082,11 +1098,12 @@ public class InternalEngine extends Engine {
         final long versionForIndexing;
         final boolean indexIntoLucene;
         final boolean addStaleOpToLucene;
+        final long seqNoOfNewerVersion; // the seqno of the newer copy of this _uid if exists; otherwise -1
         final Optional<IndexResult> earlyResultOnPreFlightError;
 
         private IndexingStrategy(boolean currentNotFoundOrDeleted, boolean useLuceneUpdateDocument,
                                  boolean indexIntoLucene, boolean addStaleOpToLucene, long seqNoForIndexing,
-                                 long versionForIndexing, IndexResult earlyResultOnPreFlightError) {
+                                 long versionForIndexing, long seqNoOfNewerVersion, IndexResult earlyResultOnPreFlightError) {
             assert useLuceneUpdateDocument == false || indexIntoLucene :
                 "use lucene update is set to true, but we're not indexing into lucene";
             assert (indexIntoLucene && earlyResultOnPreFlightError != null) == false :
@@ -1099,39 +1116,41 @@ public class InternalEngine extends Engine {
             this.versionForIndexing = versionForIndexing;
             this.indexIntoLucene = indexIntoLucene;
             this.addStaleOpToLucene = addStaleOpToLucene;
+            this.seqNoOfNewerVersion = seqNoOfNewerVersion;
+            assert addStaleOpToLucene == false || seqNoOfNewerVersion >= 0 : "stale op [" + seqNoForIndexing + "] with invalid newer seqno";
             this.earlyResultOnPreFlightError =
                 earlyResultOnPreFlightError == null ? Optional.empty() :
                     Optional.of(earlyResultOnPreFlightError);
         }
 
         static IndexingStrategy optimizedAppendOnly(long seqNoForIndexing) {
-            return new IndexingStrategy(true, false, true, false, seqNoForIndexing, 1, null);
+            return new IndexingStrategy(true, false, true, false, seqNoForIndexing, 1, -1, null);
         }
 
         static IndexingStrategy skipDueToVersionConflict(
                 VersionConflictEngineException e, boolean currentNotFoundOrDeleted, long currentVersion) {
             final IndexResult result = new IndexResult(e, currentVersion);
             return new IndexingStrategy(
-                    currentNotFoundOrDeleted, false, false, false, SequenceNumbers.UNASSIGNED_SEQ_NO, Versions.NOT_FOUND, result);
+                    currentNotFoundOrDeleted, false, false, false, SequenceNumbers.UNASSIGNED_SEQ_NO, Versions.NOT_FOUND, -1, result);
         }
 
         static IndexingStrategy processNormally(boolean currentNotFoundOrDeleted,
                                                 long seqNoForIndexing, long versionForIndexing) {
             return new IndexingStrategy(currentNotFoundOrDeleted, currentNotFoundOrDeleted == false,
-                true, false, seqNoForIndexing, versionForIndexing, null);
+                true, false, seqNoForIndexing, versionForIndexing, -1, null);
         }
 
         static IndexingStrategy overrideExistingAsIfNotThere(
             long seqNoForIndexing, long versionForIndexing) {
-            return new IndexingStrategy(true, true, true, false, seqNoForIndexing, versionForIndexing, null);
+            return new IndexingStrategy(true, true, true, false, seqNoForIndexing, versionForIndexing, -1, null);
         }
 
         static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted, long seqNoForIndexing, long versionForIndexing) {
-            return new IndexingStrategy(currentNotFoundOrDeleted, false, false, false, seqNoForIndexing, versionForIndexing, null);
+            return new IndexingStrategy(currentNotFoundOrDeleted, false, false, false, seqNoForIndexing, versionForIndexing, -1, null);
         }
 
-        static IndexingStrategy processAsStaleOp(boolean addStaleOpToLucene, long seqNoForIndexing, long versionForIndexing) {
-            return new IndexingStrategy(false, false, false, addStaleOpToLucene, seqNoForIndexing, versionForIndexing, null);
+        static IndexingStrategy processAsStaleOp(boolean addStaleOpToLucene, long seqNoForIndexing, long versionForIndexing, long seqNoOfNewerVersion) {
+            return new IndexingStrategy(false, false, false, addStaleOpToLucene, seqNoForIndexing, versionForIndexing, seqNoOfNewerVersion, null);
         }
     }
 
@@ -1157,12 +1176,13 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    private void updateDocs(final Term uid, final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
+    private void updateDocs(Term uid, IndexingStrategy plan, List<ParseContext.Document> docs) throws IOException {
         if (softDeleteEnabled) {
+            NumericDocValuesField updatedBySeqNoField = new NumericDocValuesField(SeqNoFieldMapper.UPDATED_BY_SEQNO_NAME, plan.seqNoForIndexing);
             if (docs.size() > 1) {
-                indexWriter.softUpdateDocuments(uid, docs, softDeleteField);
+                indexWriter.softUpdateDocuments(uid, docs, softDeleteField, updatedBySeqNoField);
             } else {
-                indexWriter.softUpdateDocument(uid, docs.get(0), softDeleteField);
+                indexWriter.softUpdateDocument(uid, docs.get(0), softDeleteField, updatedBySeqNoField);
             }
         } else {
             if (docs.size() > 1) {
@@ -1256,7 +1276,7 @@ public class InternalEngine extends Engine {
             // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
             plan = DeletionStrategy.processButSkipLucene(false, delete.seqNo(), delete.version());
         } else {
-            final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
+            final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete).status;
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
                 plan = DeletionStrategy.processAsStaleOp(softDeleteEnabled, false, delete.seqNo(), delete.version());
             } else {
@@ -1314,7 +1334,8 @@ public class InternalEngine extends Engine {
                 if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
                     indexWriter.addDocument(doc);
                 } else {
-                    indexWriter.softUpdateDocument(delete.uid(), doc, softDeleteField);
+                    NumericDocValuesField updatedBySeqNoField = new NumericDocValuesField(SeqNoFieldMapper.UPDATED_BY_SEQNO_NAME, plan.seqNoOfDeletion);
+                    indexWriter.softUpdateDocument(delete.uid(), doc, softDeleteField, updatedBySeqNoField);
                 }
             } else if (plan.currentlyDeleted == false) {
                 // any exception that comes from this is a either an ACE or a fatal exception there

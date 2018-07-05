@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.junit.Before;
+import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -109,5 +111,12 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
                 instance.timeZone(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.cursor());
         mutator.accept(newRequest);
         return newRequest;
+    }
+
+    @Test
+    protected void testTimeZone() {
+        final SqlQueryRequest sqlQueryRequest = createTestInstance();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> sqlQueryRequest.timeZone((TimeZone)null));
+        assertEquals("time zone may not be null.", e.getMessage());
     }
 }

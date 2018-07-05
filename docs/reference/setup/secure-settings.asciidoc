@@ -80,7 +80,7 @@ bin/elasticsearch-keystore remove the.setting.name.to.remove
 === Reloadable secure settings
 
 Just like the settings values in `elasticsearch.yml`, changes to the
-keystore contents will not be automatically applied to the running
+keystore contents are not automatically applied to the running
 elasticsearch node. Re-reading settings requires a node restart.
 However, certain secure settings are marked as *reloadable*. Such settings
 can be re-read and applied on a running node.
@@ -100,8 +100,8 @@ This API will decrypt and re-read the entire keystore, on every cluster node,
 but only the *reloadable* secure settings will be applied. Changes to other
 settings will not get into effect until the next restart. Once the call returns,
 the reload has been completed, meaning that all internal datastructures dependent
-on these settings have been changed. The reload operation is defined in
-relation with each *reloadable* secure setting.
+on these settings have been changed. Everything should look as if the settings
+had the new value from the start.
 
 When changing multiple *reloadable* secure settings, modify all of them, on
 each cluster node, and then issue a `reload_secure_settings` call, instead

@@ -55,22 +55,26 @@ PUT _snapshot/my_s3_repository
 
 Most client settings are specified inside `elasticsearch.yml`, but some are
 sensitive and must be stored in the {ref}/secure-settings.html[elasticsearch keystore].
-For example, to use explicit AWS access keys, execute:
+
+For example, before you start the node, run these commands to add AWS access
+key settings to the keystore:
 
 [source,sh]
 ----
 bin/elasticsearch-keystore add s3.client.default.access_key
 bin/elasticsearch-keystore add s3.client.default.secret_key
 ----
-to add settings value to the keystore, before starting up the node. Any existing `s3`
-repositories, as well as any newly created ones, will pick up the values stored
-in the keystore. *All* client secure settings of this plugin are
-{ref}/secure-settings.html#reloadable-secure-settings[reloadable]. After the
-reload call returns, `s3` clients will use the latest settings from the keystore.
 
-NOTE: In progress snapshot/restore jobs will not be preempted by a *reload*
-of the client's secure settings. They will complete using the client as it was
-built when the operation started.
+*All* client secure settings of this plugin are
+{ref}/secure-settings.html#reloadable-secure-settings[reloadable]. After you
+reload the settings, the internal `s3` clients, used to transfer the snapshot
+contents, will utilize the latest settings from the keystore. Any existing `s3`
+repositories, as well as any newly created ones, will pick up the new values
+stored in the keystore.
+
+NOTE: In progress snapshot/restore tasks will not be preempted by a *reload*
+of the client's secure settings. The task will complete using the client as it
+was built when the operation started.
 
 The following is the list of all the available client settings.
 Those that must be stored in the keystore are marked as `Secure` and are *reloadable*.

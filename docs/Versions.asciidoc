@@ -1,4 +1,4 @@
-:version:               6.3.0
+:version:               6.3.1
 :major-version:         6.x
 :lucene_version:        7.3.1
 :lucene_version_path:   7_3_1

@@ -125,7 +125,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                                Consumer<Exception> errorHandler) {
                 final BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(), operations);
                 followerClient.execute(BulkShardOperationsAction.INSTANCE, request,
-                    ActionListener.wrap(response -> handler.accept(response.getLocalCheckpoint()), errorHandler));
+                    ActionListener.wrap(response -> handler.accept(response.getGlobalCheckpoint()), errorHandler));
             }
 
             @Override

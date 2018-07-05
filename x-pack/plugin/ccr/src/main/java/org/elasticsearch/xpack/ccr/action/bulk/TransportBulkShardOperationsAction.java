@@ -103,8 +103,7 @@ public class TransportBulkShardOperationsAction
         }).toArray(Translog.Operation[]::new);
         final Translog.Location location = applyTranslogOperations(targetOperations, primary, Engine.Operation.Origin.PRIMARY);
         final BulkShardOperationsRequest replicaRequest = new BulkShardOperationsRequest(shardId, targetOperations);
-        long localCheckPoint = primary.getLocalCheckpoint();
-        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(localCheckPoint), location, null, primary, logger);
+        return new CcrWritePrimaryResult(replicaRequest, location, primary, logger);
     }
 
     @Override
@@ -130,6 +129,25 @@ public class TransportBulkShardOperationsAction
     @Override
     protected BulkShardOperationsResponse newResponseInstance() {
         return new BulkShardOperationsResponse();
+    }
+
+    /**
+     * Custom write result to include global checkpoint after ops have been replicated.
+     */
+    static class CcrWritePrimaryResult extends WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> {
+
+        CcrWritePrimaryResult(BulkShardOperationsRequest request, Translog.Location location, IndexShard primary, Logger logger) {
+            super(request, new BulkShardOperationsResponse(), location, null, primary, logger);
+        }
+
+        @Override
+        protected void respondIfPossible(Exception ex) {
+            assert Thread.holdsLock(this);
+            // maybe invoked multiple times, but that is ok as global checkpoint does not go backwards
+            finalResponseIfSuccessful.setGlobalCheckpoint(primary.getGlobalCheckpoint());
+            super.respondIfPossible(ex);
+        }
+
     }
 
 }

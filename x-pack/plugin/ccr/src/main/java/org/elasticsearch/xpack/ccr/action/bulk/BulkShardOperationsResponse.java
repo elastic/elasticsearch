@@ -14,17 +14,17 @@ import java.io.IOException;
 
 public final class BulkShardOperationsResponse extends ReplicationResponse implements WriteResponse {
 
-    private long localCheckpoint;
-
-    BulkShardOperationsResponse(long localCheckPoint) {
-        this.localCheckpoint = localCheckPoint;
-    }
+    private long globalCheckpoint;
 
     BulkShardOperationsResponse() {
     }
 
-    public long getLocalCheckpoint() {
-        return localCheckpoint;
+    public long getGlobalCheckpoint() {
+        return globalCheckpoint;
+    }
+
+    public void setGlobalCheckpoint(long globalCheckpoint) {
+        this.globalCheckpoint = globalCheckpoint;
     }
 
     @Override
@@ -34,12 +34,12 @@ public final class BulkShardOperationsResponse extends ReplicationResponse imple
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        localCheckpoint = in.readZLong();
+        globalCheckpoint = in.readZLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeZLong(localCheckpoint);
+        out.writeZLong(globalCheckpoint);
     }
 }

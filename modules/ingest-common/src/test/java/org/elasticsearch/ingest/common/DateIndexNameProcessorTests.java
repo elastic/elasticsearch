@@ -20,9 +20,9 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.function.Function;
@@ -32,9 +32,9 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class DateIndexNameProcessorTests extends ESTestCase {
 
     public void testJodaPattern() throws Exception {
-        Function<String, DateTime> function = DateFormat.Joda.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSZ", DateTimeZone.UTC, Locale.ROOT);
+        Function<String, ZonedDateTime> function = DateFormat.Time.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSX", ZoneOffset.UTC, Locale.ROOT);
         DateIndexNameProcessor processor = new DateIndexNameProcessor(
-                "_tag", "_field", Collections.singletonList(function), DateTimeZone.UTC,
+                "_tag", "_field", Collections.singletonList(function), ZoneOffset.UTC,
                 "events-", "y", "yyyyMMdd"
         );
 
@@ -44,20 +44,20 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20160425||/y{yyyyMMdd|UTC}}>"));
     }
 
-    public void testTAI64N()throws Exception {
-        Function<String, DateTime> function = DateFormat.Tai64n.getFunction(null, DateTimeZone.UTC, null);
+    public void testTAI64N() throws Exception {
+        Function<String, ZonedDateTime> function = DateFormat.Tai64n.getFunction(null, ZoneOffset.UTC, null);
         DateIndexNameProcessor dateProcessor = new DateIndexNameProcessor("_tag", "_field", Collections.singletonList(function),
-                DateTimeZone.UTC, "events-", "m", "yyyyMMdd");
+            ZoneOffset.UTC, "events-", "m", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
                 Collections.singletonMap("_field", (randomBoolean() ? "@" : "") + "4000000050d506482dbdf024"));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20121222||/m{yyyyMMdd|UTC}}>"));
     }
 
-    public void testUnixMs()throws Exception {
-        Function<String, DateTime> function = DateFormat.UnixMs.getFunction(null, DateTimeZone.UTC, null);
+    public void testUnixMs() throws Exception {
+        Function<String, ZonedDateTime> function = DateFormat.UnixMs.getFunction(null, ZoneOffset.UTC, null);
         DateIndexNameProcessor dateProcessor = new DateIndexNameProcessor("_tag", "_field", Collections.singletonList(function),
-                DateTimeZone.UTC, "events-", "m", "yyyyMMdd");
+            ZoneOffset.UTC, "events-", "m", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
                 Collections.singletonMap("_field", "1000500"));
         dateProcessor.execute(document);
@@ -69,14 +69,13 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
     }
 
-    public void testUnix()throws Exception {
-        Function<String, DateTime> function = DateFormat.Unix.getFunction(null, DateTimeZone.UTC, null);
+    public void testUnix() throws Exception {
+        Function<String, ZonedDateTime> function = DateFormat.Unix.getFunction(null, ZoneOffset.UTC, null);
         DateIndexNameProcessor dateProcessor = new DateIndexNameProcessor("_tag", "_field", Collections.singletonList(function),
-                DateTimeZone.UTC, "events-", "m", "yyyyMMdd");
+            ZoneOffset.UTC, "events-", "m", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
                 Collections.singletonMap("_field", "1000.5"));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
     }
-
 }

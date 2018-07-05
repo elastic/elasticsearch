@@ -19,38 +19,41 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 import java.util.function.Function;
 
 enum DateFormat {
     Iso8601 {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return ISODateTimeFormat.dateTimeParser().withZone(timezone)::parseDateTime;
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
+            DateFormatter formatter = DateFormatters.forPattern("date_time_no_millis");
+            return (date) -> ZonedDateTime.from(formatter.parse(date)).withZoneSameInstant(timezone);
         }
     },
     Unix {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return (date) -> new DateTime((long)(Double.parseDouble(date) * 1000), timezone);
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
+            return (date) -> Instant.ofEpochMilli(((Double) (Double.parseDouble(date) * 1000)).longValue()).atZone(timezone);
         }
     },
     UnixMs {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return (date) -> new DateTime(Long.parseLong(date), timezone);
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
+            return (date) -> Instant.ofEpochMilli(Long.parseLong(date)).atZone(timezone);
         }
     },
     Tai64n {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return (date) -> new DateTime(parseMillis(date), timezone);
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
+            return (date) -> Instant.ofEpochMilli(parseMillis(date)).atZone(timezone);
         }
 
         private long parseMillis(String date) {
@@ -63,15 +66,20 @@ enum DateFormat {
             return ((base * 1000) - 10000) + (rest/1000000);
         }
     },
-    Joda {
+    Time {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            DateTimeFormatter parser = DateTimeFormat.forPattern(format).withZone(timezone).withLocale(locale);
-            return text -> parser.withDefaultYear((new DateTime(DateTimeZone.UTC)).getYear()).parseDateTime(text);
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
+            DateFormatter formatter = DateFormatters.forPattern(format, locale).withZone(timezone);
+            return text -> {
+                TemporalAccessor accessor = formatter.parse(text);
+                ZonedDateTime startOfThisYear = DateFormatters.EPOCH_ZONED_DATE_TIME.withYear(ZonedDateTime.now(timezone)
+                    .get(ChronoField.YEAR));
+                return DateFormatters.toZonedDateTime(accessor, startOfThisYear).withZoneSameLocal(timezone);
+            };
         }
     };
 
-    abstract Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale);
+    abstract Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale);
 
     static DateFormat fromString(String format) {
         switch (format) {
@@ -84,7 +92,7 @@ enum DateFormat {
             case "TAI64N":
                 return Tai64n;
             default:
-                return Joda;
+                return Time;
         }
     }
 }

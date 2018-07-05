@@ -28,17 +28,45 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.ISODateTimeFormat;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.SignStyle;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
+import static java.time.temporal.ChronoField.DAY_OF_MONTH;
+import static java.time.temporal.ChronoField.HOUR_OF_DAY;
+import static java.time.temporal.ChronoField.MILLI_OF_SECOND;
+import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
+import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
+import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
+
 public final class DateProcessor extends AbstractProcessor {
+
+    private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
+        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendLiteral("-")
+        .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral('-')
+        .appendValue(DAY_OF_MONTH, 2, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral('T')
+        .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .appendOffset("+HH:MM", "Z")
+        .toFormatter(Locale.ROOT);
+
 
     public static final String TYPE = "date";
     static final String DEFAULT_TARGET_FIELD = "@timestamp";
@@ -48,7 +76,7 @@ public final class DateProcessor extends AbstractProcessor {
     private final String field;
     private final String targetField;
     private final List<String> formats;
-    private final List<Function<Map<String, Object>, Function<String, DateTime>>> dateParsers;
+    private final List<Function<Map<String, Object>, Function<String, ZonedDateTime>>> dateParsers;
 
     DateProcessor(String tag, @Nullable TemplateScript.Factory timezone, @Nullable TemplateScript.Factory locale,
                   String field, List<String> formats, String targetField) {
@@ -65,8 +93,8 @@ public final class DateProcessor extends AbstractProcessor {
         }
     }
 
-    private DateTimeZone newDateTimeZone(Map<String, Object> params) {
-        return timezone == null ? DateTimeZone.UTC : DateTimeZone.forID(timezone.newInstance(params).execute());
+    private ZoneId newDateTimeZone(Map<String, Object> params) {
+        return timezone == null ? ZoneOffset.UTC : ZoneId.of(timezone.newInstance(params).execute());
     }
 
     private Locale newLocale(Map<String, Object> params) {
@@ -82,9 +110,9 @@ public final class DateProcessor extends AbstractProcessor {
             value = obj.toString();
         }
 
-        DateTime dateTime = null;
+        ZonedDateTime dateTime = null;
         Exception lastException = null;
-        for (Function<Map<String, Object>, Function<String, DateTime>> dateParser : dateParsers) {
+        for (Function<Map<String, Object>, Function<String, ZonedDateTime>> dateParser : dateParsers) {
             try {
                 dateTime = dateParser.apply(ingestDocument.getSourceAndMetadata()).apply(value);
             } catch (Exception e) {
@@ -97,7 +125,7 @@ public final class DateProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("unable to parse date [" + value + "]", lastException);
         }
 
-        ingestDocument.setFieldValue(targetField, ISODateTimeFormat.dateTime().print(dateTime));
+        ingestDocument.setFieldValue(targetField, dateTime.format(DATE_FORMATTER));
     }
 
     @Override

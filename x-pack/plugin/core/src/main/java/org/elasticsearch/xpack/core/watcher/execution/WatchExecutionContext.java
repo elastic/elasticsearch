@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.core.watcher.execution;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
@@ -43,6 +45,7 @@ public abstract class WatchExecutionContext {
     private Transform.Result transformResult;
     private ConcurrentMap<String, ActionWrapperResult> actionsResults = ConcurrentCollections.newConcurrentMap();
     private String nodeId;
+    private String executedBy;
 
     public WatchExecutionContext(String watchId, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
         this.id = new Wid(watchId, executionTime);
@@ -85,6 +88,14 @@ public abstract class WatchExecutionContext {
     public void ensureWatchExists(CheckedSupplier<Watch, Exception> supplier) throws Exception {
         if (watch == null) {
             watch = supplier.get();
+            // now that the watch exists, extract out the authentication
+            if (watch.status() != null && watch.status().getHeaders() != null) {
+                String header = watch.status().getHeaders().get(AuthenticationField.AUTHENTICATION_KEY);
+                if (header != null) {
+                    Authentication auth = Authentication.decode(header);
+                    executedBy = auth.getUser().principal();
+                }
+            }
         }
     }
 
@@ -136,6 +147,11 @@ public abstract class WatchExecutionContext {
     public String getNodeId() {
         return nodeId;
     }
+
+    /**
+     * @return The user that executes the watch, which will be stored in the watch history
+     */
+    public String getExecutedBy() { return executedBy; }
 
     public void start() {
         assert phase == ExecutionPhase.AWAITS_EXECUTION;

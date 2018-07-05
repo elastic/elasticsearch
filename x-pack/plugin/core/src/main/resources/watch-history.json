@@ -120,6 +120,9 @@
         "messages": {
           "type": "text"
         },
+        "executed_by": {
+          "type": "text"
+        },
         "exception" : {
           "type" : "object",
           "enabled" : false

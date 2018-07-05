@@ -501,12 +501,12 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // tag::get-snapshots-response
         List<SnapshotInfo> snapshotsInfos = response.getSnapshots();
         SnapshotInfo snapshotInfo = snapshotsInfos.get(0);
-        RestStatus restStatus = snapshotInfo.status();
-        SnapshotId snapshotId = snapshotInfo.snapshotId();
-        SnapshotState snapshotState = snapshotInfo.state();
-        List<SnapshotShardFailure> snapshotShardFailures = snapshotInfo.shardFailures();
-        long startTime = snapshotInfo.startTime();
-        long endTime = snapshotInfo.endTime();
+        RestStatus restStatus = snapshotInfo.status(); // <1>
+        SnapshotId snapshotId = snapshotInfo.snapshotId(); // <2>
+        SnapshotState snapshotState = snapshotInfo.state(); // <3>
+        List<SnapshotShardFailure> snapshotShardFailures = snapshotInfo.shardFailures(); // <4>
+        long startTime = snapshotInfo.startTime(); // <5>
+        long endTime = snapshotInfo.endTime(); // <6>
         // end::get-snapshots-response
         assertEquals(1, snapshotsInfos.size());
     }

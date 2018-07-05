@@ -100,3 +100,9 @@ snapshots:
 --------------------------------------------------
 include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[get-snapshots-response]
 --------------------------------------------------
+<1> The REST status of a snapshot
+<2> The snapshot id
+<3> The current state of the snapshot
+<4> Information about failures that occurred during the shard snapshot process.
+<5> The snapshot start time
+<6> The snapshot end time

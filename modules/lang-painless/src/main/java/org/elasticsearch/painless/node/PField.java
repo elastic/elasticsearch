@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Field;
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
@@ -73,7 +73,7 @@ public final class PField extends AStoreable {
             if (field != null) {
                 sub = new PSubField(location, field);
             } else {
-                Method getter = struct.methods.get(
+                Painless.Method getter = struct.methods.get(
                     new Definition.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
 
                 if (getter == null) {
@@ -81,7 +81,7 @@ public final class PField extends AStoreable {
                         new Definition.MethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
                 }
 
-                Method setter = struct.methods.get(
+                Painless.Method setter = struct.methods.get(
                     new Definition.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
                 if (getter != null || setter != null) {

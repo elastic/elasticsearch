@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.def;
@@ -78,7 +78,7 @@ public final class PCallInvoke extends AExpression {
         }
 
         MethodKey methodKey = new MethodKey(name, arguments.size());
-        Method method = prefix instanceof EStatic ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
+        Painless.Method method = prefix instanceof EStatic ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
 
         if (method != null) {
             sub = new PSubCallInvoke(location, method, prefix.actual, arguments);

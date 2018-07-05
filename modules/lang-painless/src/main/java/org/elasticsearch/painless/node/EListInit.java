@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
@@ -37,8 +37,8 @@ import java.util.Set;
 public final class EListInit extends AExpression {
     private final List<AExpression> values;
 
-    private Method constructor = null;
-    private Method method = null;
+    private Painless.Method constructor = null;
+    private Painless.Method method = null;
 
     public EListInit(Location location, List<AExpression> values) {
         super(location);

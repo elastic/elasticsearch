@@ -23,7 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Parameter;
@@ -93,7 +93,7 @@ public final class SFunction extends AStatement {
 
     Class<?> rtnType = null;
     List<Parameter> parameters = new ArrayList<>();
-    Method method = null;
+    Painless.Method method = null;
 
     private Variable loop = null;
 
@@ -146,7 +146,7 @@ public final class SFunction extends AStatement {
 
         org.objectweb.asm.commons.Method method = new org.objectweb.asm.commons.Method(
             name, MethodType.methodType(Definition.defClassToObjectClass(rtnType), paramClasses).toMethodDescriptorString());
-        this.method = new Method(name, null, null, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
+        this.method = new Painless.Method(name, null, null, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
     }
 
     @Override

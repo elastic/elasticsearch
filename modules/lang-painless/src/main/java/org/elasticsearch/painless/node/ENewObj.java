@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -39,7 +39,7 @@ public final class ENewObj extends AExpression {
     private final String type;
     private final List<AExpression> arguments;
 
-    private Method constructor;
+    private Painless.Method constructor;
 
     public ENewObj(Location location, String type, List<AExpression> arguments) {
         super(location);

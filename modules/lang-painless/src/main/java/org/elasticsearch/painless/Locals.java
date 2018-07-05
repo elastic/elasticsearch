@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 
@@ -109,9 +108,9 @@ public final class Locals {
     }
 
     /** Creates a new program scope: the list of methods. It is the parent for all methods */
-    public static Locals newProgramScope(Definition definition, Collection<Method> methods) {
+    public static Locals newProgramScope(Definition definition, Collection<Painless.Method> methods) {
         Locals locals = new Locals(null, definition, null, null);
-        for (Method method : methods) {
+        for (Painless.Method method : methods) {
             locals.addMethod(method);
         }
         return locals;
@@ -142,8 +141,8 @@ public final class Locals {
     }
 
     /** Looks up a method. Returns null if the method does not exist. */
-    public Method getMethod(MethodKey key) {
-        Method method = lookupMethod(key);
+    public Painless.Method getMethod(MethodKey key) {
+        Painless.Method method = lookupMethod(key);
         if (method != null) {
             return method;
         }
@@ -198,7 +197,7 @@ public final class Locals {
     // variable name -> variable
     private Map<String,Variable> variables;
     // method name+arity -> methods
-    private Map<MethodKey,Method> methods;
+    private Map<MethodKey, Painless.Method> methods;
 
     /**
      * Create a new Locals
@@ -236,7 +235,7 @@ public final class Locals {
     }
 
     /** Looks up a method at this scope only. Returns null if the method does not exist. */
-    private Method lookupMethod(MethodKey key) {
+    private Painless.Method lookupMethod(MethodKey key) {
         if (methods == null) {
             return null;
         }
@@ -255,7 +254,7 @@ public final class Locals {
         return variable;
     }
 
-    private void addMethod(Method method) {
+    private void addMethod(Painless.Method method) {
         if (methods == null) {
             methods = new HashMap<>();
         }

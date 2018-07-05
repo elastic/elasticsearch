@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -168,7 +168,7 @@ public final class SSource extends AStatement {
     }
 
     public void analyze(Definition definition) {
-        Map<MethodKey, Method> methods = new HashMap<>();
+        Map<MethodKey, Painless.Method> methods = new HashMap<>();
 
         for (SFunction function : functions) {
             function.generateSignature(definition);

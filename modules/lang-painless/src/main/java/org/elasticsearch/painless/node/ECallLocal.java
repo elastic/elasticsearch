@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -40,7 +40,7 @@ public final class ECallLocal extends AExpression {
     private final String name;
     private final List<AExpression> arguments;
 
-    private Method method = null;
+    private Painless.Method method = null;
 
     public ECallLocal(Location location, String name, List<AExpression> arguments) {
         super(location);

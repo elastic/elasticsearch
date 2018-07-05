@@ -23,7 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Field;
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.FeatureTest;
@@ -404,7 +404,7 @@ public class NodeToStringTests extends ESTestCase {
     public void testPSubCallInvoke() {
         Location l = new Location(getTestName(), 0);
         Struct c = definition.getPainlessStructFromJavaClass(Integer.class);
-        Method m = c.methods.get(new MethodKey("toString", 0));
+        Painless.Method m = c.methods.get(new MethodKey("toString", 0));
         PSubCallInvoke node = new PSubCallInvoke(l, m, null, emptyList());
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubCallInvoke (EVariable a) toString)", node.toString());
@@ -501,8 +501,8 @@ public class NodeToStringTests extends ESTestCase {
     public void testPSubShortcut() {
         Location l = new Location(getTestName(), 0);
         Struct s = definition.getPainlessStructFromJavaClass(FeatureTest.class);
-        Method getter = s.methods.get(new MethodKey("getX", 0));
-        Method setter = s.methods.get(new MethodKey("setX", 1));
+        Painless.Method getter = s.methods.get(new MethodKey("getX", 0));
+        Painless.Method setter = s.methods.get(new MethodKey("setX", 1));
         PSubShortcut node = new PSubShortcut(l, "x", FeatureTest.class.getName(), getter, setter);
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubShortcut (EVariable a) x)", node.toString());

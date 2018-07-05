@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -38,8 +38,8 @@ final class PSubMapShortcut extends AStoreable {
     private final Struct struct;
     private AExpression index;
 
-    private Method getter;
-    private Method setter;
+    private Painless.Method getter;
+    private Painless.Method setter;
 
     PSubMapShortcut(Location location, Struct struct, AExpression index) {
         super(location);

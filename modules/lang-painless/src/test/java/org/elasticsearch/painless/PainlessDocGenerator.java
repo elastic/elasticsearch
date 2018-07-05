@@ -24,7 +24,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.painless.Definition.Field;
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Painless;
 import org.elasticsearch.painless.Definition.Struct;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -51,8 +51,8 @@ public class PainlessDocGenerator {
     private static final Definition definition = new Definition(BASE_WHITELISTS);
     private static final Logger logger = ESLoggerFactory.getLogger(PainlessDocGenerator.class);
     private static final Comparator<Field> FIELD_NAME = comparing(f -> f.name);
-    private static final Comparator<Method> METHOD_NAME = comparing(m -> m.name);
-    private static final Comparator<Method> NUMBER_OF_ARGS = comparing(m -> m.arguments.size());
+    private static final Comparator<Painless.Method> METHOD_NAME = comparing(m -> m.name);
+    private static final Comparator<Painless.Method> NUMBER_OF_ARGS = comparing(m -> m.arguments.size());
 
     public static void main(String[] args) throws IOException {
         Path apiRootPath = PathUtils.get(args[0]);
@@ -94,7 +94,7 @@ public class PainlessDocGenerator {
                     typeStream.println("++::");
 
                     Consumer<Field> documentField = field -> PainlessDocGenerator.documentField(typeStream, field);
-                    Consumer<Method> documentMethod = method -> PainlessDocGenerator.documentMethod(typeStream, method);
+                    Consumer<Painless.Method> documentMethod = method -> PainlessDocGenerator.documentMethod(typeStream, method);
                     struct.staticMembers.values().stream().sorted(FIELD_NAME).forEach(documentField);
                     struct.members.values().stream().sorted(FIELD_NAME).forEach(documentField);
                     struct.staticMethods.values().stream().sorted(METHOD_NAME.thenComparing(NUMBER_OF_ARGS)).forEach(documentMethod);
@@ -159,7 +159,7 @@ public class PainlessDocGenerator {
     /**
      * Document a method.
      */
-    private static void documentMethod(PrintStream stream, Method method) {
+    private static void documentMethod(PrintStream stream, Painless.Method method) {
         stream.print("* ++[[");
         emitAnchor(stream, method);
         stream.print("]]");
@@ -209,9 +209,9 @@ public class PainlessDocGenerator {
     }
 
     /**
-     * Anchor text for a {@link Method}.
+     * Anchor text for a {@link Painless.Method}.
      */
-    private static void emitAnchor(PrintStream stream, Method method) {
+    private static void emitAnchor(PrintStream stream, Painless.Method method) {
         emitAnchor(stream, method.owner);
         stream.print('-');
         stream.print(methodName(method));
@@ -228,7 +228,7 @@ public class PainlessDocGenerator {
         stream.print(field.name);
     }
 
-    private static String methodName(Method method) {
+    private static String methodName(Painless.Method method) {
         return method.name.equals("<init>") ? method.owner.name : method.name;
     }
 
@@ -260,11 +260,11 @@ public class PainlessDocGenerator {
     }
 
     /**
-     * Emit an external link to Javadoc for a {@link Method}.
+     * Emit an external link to Javadoc for a {@link Painless.Method}.
      *
      * @param root name of the root uri variable
      */
-    private static void emitJavadocLink(PrintStream stream, String root, Method method) {
+    private static void emitJavadocLink(PrintStream stream, String root, Painless.Method method) {
         stream.print("link:{");
         stream.print(root);
         stream.print("-javadoc}/");
@@ -306,9 +306,9 @@ public class PainlessDocGenerator {
     }
 
     /**
-     * Pick the javadoc root for a {@link Method}.
+     * Pick the javadoc root for a {@link Painless.Method}.
      */
-    private static String javadocRoot(Method method) {
+    private static String javadocRoot(Painless.Method method) {
         if (method.augmentation != null) {
             return "painless";
         }

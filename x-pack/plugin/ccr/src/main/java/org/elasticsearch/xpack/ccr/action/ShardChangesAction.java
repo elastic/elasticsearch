@@ -150,15 +150,15 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
     public static final class Response extends ActionResponse {
 
         private long indexMetadataVersion;
-        private long leaderCheckpoint;
+        private long globalCheckpoint;
         private Translog.Operation[] operations;
 
         Response() {
         }
 
-        Response(long indexMetadataVersion, long leaderCheckpoint, final Translog.Operation[] operations) {
+        Response(long indexMetadataVersion, long globalCheckpoint, final Translog.Operation[] operations) {
             this.indexMetadataVersion = indexMetadataVersion;
-            this.leaderCheckpoint = leaderCheckpoint;
+            this.globalCheckpoint = globalCheckpoint;
             this.operations = operations;
         }
 
@@ -166,8 +166,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return indexMetadataVersion;
         }
 
-        public long getLeaderCheckpoint() {
-            return leaderCheckpoint;
+        public long getGlobalCheckpoint() {
+            return globalCheckpoint;
         }
 
         public Translog.Operation[] getOperations() {
@@ -178,7 +178,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
             indexMetadataVersion = in.readVLong();
-            leaderCheckpoint = in.readZLong();
+            globalCheckpoint = in.readZLong();
             operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
         }
 
@@ -186,7 +186,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVLong(indexMetadataVersion);
-            out.writeZLong(leaderCheckpoint);
+            out.writeZLong(globalCheckpoint);
             out.writeArray(Translog.Operation::writeOperation, operations);
         }
 
@@ -196,7 +196,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             if (o == null || getClass() != o.getClass()) return false;
             final Response response = (Response) o;
             return indexMetadataVersion == response.indexMetadataVersion &&
-                leaderCheckpoint == response.leaderCheckpoint &&
+                globalCheckpoint == response.globalCheckpoint &&
                 Arrays.equals(operations, response.operations);
         }
 
@@ -204,7 +204,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         public int hashCode() {
             int result = 1;
             result += Objects.hashCode(indexMetadataVersion);
-            result += Objects.hashCode(leaderCheckpoint);
+            result += Objects.hashCode(globalCheckpoint);
             result += Arrays.hashCode(operations);
             return result;
         }

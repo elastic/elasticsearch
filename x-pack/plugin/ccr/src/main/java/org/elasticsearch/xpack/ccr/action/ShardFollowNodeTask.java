@@ -29,7 +29,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.OptionalLong;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -170,16 +169,21 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private void handleReadResponse(long from, int maxOperationCount, long maxRequiredSeqNo, ShardChangesAction.Response response) {
         maybeUpdateMapping(response.getIndexMetadataVersion(), () -> {
             synchronized (ShardFollowNodeTask.this) {
-                globalCheckpoint = Math.max(globalCheckpoint, response.getLeaderCheckpoint());
+                globalCheckpoint = Math.max(globalCheckpoint, response.getGlobalCheckpoint());
                 buffer.addAll(Arrays.asList(response.getOperations()));
                 coordinateWrites();
 
-                OptionalLong lastOp = Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::seqNo).max();
-                if (lastOp.isPresent() && lastOp.getAsLong() < maxRequiredSeqNo) {
-                    long newFrom = lastOp.getAsLong() + 1;
-                    int newSize = (int) (maxRequiredSeqNo - lastOp.getAsLong());
+                Long lastOpSeqNo = null;
+                if (response.getOperations().length != 0) {
+                    lastOpSeqNo = response.getOperations()[response.getOperations().length - 1].seqNo();
+                    assert lastOpSeqNo == Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::seqNo).max().getAsLong();
+                }
+
+                if (lastOpSeqNo != null && lastOpSeqNo < maxRequiredSeqNo) {
+                    long newFrom = lastOpSeqNo + 1;
+                    int newSize = (int) (maxRequiredSeqNo - lastOpSeqNo);
                     LOGGER.trace("{} received [{}] as last op while [{}] was expected, continue to read [{}/{}]...",
-                        params.getFollowShardId(), lastOp.getAsLong(), maxRequiredSeqNo, newFrom, maxOperationCount);
+                        params.getFollowShardId(), lastOpSeqNo, maxRequiredSeqNo, newFrom, maxOperationCount);
                     sendShardChangesRequest(newFrom, newSize, maxRequiredSeqNo);
                     return;
                 }
@@ -188,7 +192,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 if (response.getOperations().length != 0) {
                     LOGGER.trace("{} post updating lastRequestedSeqno to [{}]", params.getFollowShardId(), lastRequestedSeqno);
                     Translog.Operation firstOp = response.getOperations()[0];
-                    lastRequestedSeqno = Math.max(lastRequestedSeqno, lastOp.getAsLong());
+                    lastRequestedSeqno = Math.max(lastRequestedSeqno, lastOpSeqNo);
                     assert firstOp.seqNo() == from;
                     coordinateReads();
                 } else {
@@ -223,7 +227,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 params.getFollowShardId(), currentIndexMetadataVersion, minimumRequiredIndexMetadataVersion);
             task.run();
         } else {
-            LOGGER.debug("{} updating mapping, index metadata version [{}] is lower than minimum required index metadata version [{}]",
+            LOGGER.trace("{} updating mapping, index metadata version [{}] is lower than minimum required index metadata version [{}]",
                 params.getFollowShardId(), currentIndexMetadataVersion, minimumRequiredIndexMetadataVersion);
             updateMapping(imdVersion -> {
                 retryCounter.set(0);

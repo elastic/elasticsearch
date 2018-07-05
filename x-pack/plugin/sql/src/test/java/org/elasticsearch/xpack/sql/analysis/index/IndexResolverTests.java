@@ -8,14 +8,12 @@ package org.elasticsearch.xpack.sql.analysis.index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Map;
 
 public class IndexResolverTests extends ESTestCase {
 
-    @Test
     public void testMergeSameMapping() throws Exception {
         Map<String, EsField> oneMapping = TypesTests.loadMapping("mapping-basic.json", true);
         Map<String, EsField> sameMapping = TypesTests.loadMapping("mapping-basic.json", true);
@@ -35,7 +33,6 @@ public class IndexResolverTests extends ESTestCase {
         assertEquals(sameMapping, esIndex.mapping());
     }
 
-    @Test
     public void testMergeDifferentMapping() throws Exception {
         Map<String, EsField> oneMapping = TypesTests.loadMapping("mapping-basic.json", true);
         Map<String, EsField> sameMapping = TypesTests.loadMapping("mapping-basic.json", true);

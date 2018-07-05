@@ -445,12 +445,19 @@ allprojects {
   }
 
   File licenseHeaderFile;
-  if (eclipse.project.name.startsWith(':x-pack')) {
+  String prefix = ':x-pack';
+ 
+  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+    prefix = prefix.replace(':', '_')
+  }
+  if (eclipse.project.name.startsWith(prefix)) {
       licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/elastic-license-header.txt')
   } else {
       licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/oss-license-header.txt')
   }
-  String licenseHeader = licenseHeaderFile.getText('UTF-8').replace('\n', '\\\\n')
+  
+  String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'
+  String licenseHeader = licenseHeaderFile.getText('UTF-8').replace(System.lineSeparator(), lineSeparator)
   task copyEclipseSettings(type: Copy) {
     // TODO: "package this up" for external builds
     from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')

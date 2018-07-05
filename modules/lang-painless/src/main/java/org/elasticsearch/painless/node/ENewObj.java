@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Painless;
-import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -62,7 +61,7 @@ public final class ENewObj extends AExpression {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        Struct struct = locals.getDefinition().getPainlessStructFromJavaClass(actual);
+        Painless.Struct struct = locals.getDefinition().getPainlessStructFromJavaClass(actual);
         constructor = struct.constructors.get(new Painless.MethodKey("<init>", arguments.size()));
 
         if (constructor != null) {

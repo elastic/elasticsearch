@@ -19,14 +19,15 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Struct;
 import org.objectweb.asm.Opcodes;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class Painless {
@@ -202,6 +203,84 @@ public class Painless {
             this.modifiers = modifiers;
             this.getter = getter;
             this.setter = setter;
+        }
+    }
+
+    public static final class Struct {
+        public final String name;
+        public final Class<?> clazz;
+        public final org.objectweb.asm.Type type;
+
+        public final Map<MethodKey, Method> constructors;
+        public final Map<MethodKey, Method> staticMethods;
+        public final Map<MethodKey, Method> methods;
+
+        public final Map<String, Field> staticMembers;
+        public final Map<String, Field> members;
+
+        public final Map<String, MethodHandle> getters;
+        public final Map<String, MethodHandle> setters;
+
+        public final Method functionalMethod;
+
+        public Struct(String name, Class<?> clazz, org.objectweb.asm.Type type) {
+            this.name = name;
+            this.clazz = clazz;
+            this.type = type;
+
+            constructors = new HashMap<>();
+            staticMethods = new HashMap<>();
+            methods = new HashMap<>();
+
+            staticMembers = new HashMap<>();
+            members = new HashMap<>();
+
+            getters = new HashMap<>();
+            setters = new HashMap<>();
+
+            functionalMethod = null;
+        }
+
+        private Struct(Struct struct, Method functionalMethod) {
+            name = struct.name;
+            clazz = struct.clazz;
+            type = struct.type;
+
+            constructors = Collections.unmodifiableMap(struct.constructors);
+            staticMethods = Collections.unmodifiableMap(struct.staticMethods);
+            methods = Collections.unmodifiableMap(struct.methods);
+
+            staticMembers = Collections.unmodifiableMap(struct.staticMembers);
+            members = Collections.unmodifiableMap(struct.members);
+
+            getters = Collections.unmodifiableMap(struct.getters);
+            setters = Collections.unmodifiableMap(struct.setters);
+
+            this.functionalMethod = functionalMethod;
+        }
+
+        public Struct freeze(Method functionalMethod) {
+            return new Struct(this, functionalMethod);
+        }
+
+        @Override
+        public boolean equals(Object object) {
+            if (this == object) {
+                return true;
+            }
+
+            if (object == null || getClass() != object.getClass()) {
+                return false;
+            }
+
+            Struct struct = (Struct)object;
+
+            return name.equals(struct.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return name.hashCode();
         }
     }
 }

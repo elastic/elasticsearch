@@ -168,7 +168,7 @@ public class FunctionRef {
         }
 
         // lookup requested method
-        Definition.Struct struct = definition.getPainlessStructFromJavaClass(definition.getJavaClassFromPainlessType(type));
+        Painless.Struct struct = definition.getPainlessStructFromJavaClass(definition.getJavaClassFromPainlessType(type));
         final Painless.Method impl;
         // ctor ref
         if ("new".equals(call)) {

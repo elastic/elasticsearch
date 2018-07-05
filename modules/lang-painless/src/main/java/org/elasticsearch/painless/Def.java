@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Struct;
+import org.elasticsearch.painless.Painless.Struct;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;

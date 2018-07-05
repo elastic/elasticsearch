@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Painless;
-import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -35,13 +34,13 @@ import java.util.Set;
  */
 final class PSubListShortcut extends AStoreable {
 
-    private final Struct struct;
+    private final Painless.Struct struct;
     private AExpression index;
 
     private Painless.Method getter;
     private Painless.Method setter;
 
-    PSubListShortcut(Location location, Struct struct, AExpression index) {
+    PSubListShortcut(Location location, Painless.Struct struct, AExpression index) {
         super(location);
 
         this.struct = Objects.requireNonNull(struct);

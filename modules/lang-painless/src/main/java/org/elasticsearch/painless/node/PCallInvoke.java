@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Painless;
-import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -70,7 +69,7 @@ public final class PCallInvoke extends AExpression {
             throw createError(new IllegalArgumentException("Illegal call [" + name + "] on array type."));
         }
 
-        Struct struct = locals.getDefinition().getPainlessStructFromJavaClass(prefix.actual);
+        Painless.Struct struct = locals.getDefinition().getPainlessStructFromJavaClass(prefix.actual);
 
         if (prefix.actual.isPrimitive()) {
             struct = locals.getDefinition().getPainlessStructFromJavaClass(Definition.getBoxedType(prefix.actual));

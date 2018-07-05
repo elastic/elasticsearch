@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.painless.Definition.Struct;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.reflect.Modifier;
@@ -65,8 +64,8 @@ public class PainlessDocGenerator {
                 Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false, StandardCharsets.UTF_8.name())) {
             emitGeneratedWarning(indexStream);
-            List<Struct> structs = definition.getStructs().stream().sorted(comparing(t -> t.name)).collect(toList());
-            for (Struct struct : structs) {
+            List<Painless.Struct> structs = definition.getStructs().stream().sorted(comparing(t -> t.name)).collect(toList());
+            for (Painless.Struct struct : structs) {
                 if (struct.clazz.isPrimitive()) {
                     // Primitives don't have methods to reference
                     continue;
@@ -97,7 +96,7 @@ public class PainlessDocGenerator {
                     struct.members.values().stream().sorted(FIELD_NAME).forEach(documentField);
                     struct.staticMethods.values().stream().sorted(METHOD_NAME.thenComparing(NUMBER_OF_ARGS)).forEach(documentMethod);
                     struct.constructors.values().stream().sorted(NUMBER_OF_ARGS).forEach(documentMethod);
-                    Map<String, Struct> inherited = new TreeMap<>();
+                    Map<String, Painless.Struct> inherited = new TreeMap<>();
                     struct.methods.values().stream().sorted(METHOD_NAME.thenComparing(NUMBER_OF_ARGS)).forEach(method -> {
                         if (method.owner == struct) {
                             documentMethod(typeStream, method);
@@ -109,7 +108,7 @@ public class PainlessDocGenerator {
                     if (false == inherited.isEmpty()) {
                         typeStream.print("* Inherits methods from ");
                         boolean first = true;
-                        for (Struct inheritsFrom : inherited.values()) {
+                        for (Painless.Struct inheritsFrom : inherited.values()) {
                             if (first) {
                                 first = false;
                             } else {
@@ -199,9 +198,9 @@ public class PainlessDocGenerator {
     }
 
     /**
-     * Anchor text for a {@link Struct}.
+     * Anchor text for a {@link Painless.Struct}.
      */
-    private static void emitAnchor(PrintStream stream, Struct struct) {
+    private static void emitAnchor(PrintStream stream, Painless.Struct struct) {
         stream.print("painless-api-reference-");
         stream.print(struct.name.replace('.', '-'));
     }
@@ -242,10 +241,10 @@ public class PainlessDocGenerator {
     }
 
     /**
-     * Emit a {@link Struct}. If the {@linkplain Struct} is primitive or def this just emits the name of the struct. Otherwise this emits
-     * an internal link with the name.
+     * Emit a {@link Painless.Struct}. If the {@linkplain Painless.Struct} is primitive or def this just emits the name of the struct.
+     * Otherwise this emits an internal link with the name.
      */
-    private static void emitStruct(PrintStream stream, Struct struct) {
+    private static void emitStruct(PrintStream stream, Painless.Struct struct) {
         if (false == struct.clazz.isPrimitive() && false == struct.name.equals("def")) {
             stream.print("<<");
             emitAnchor(stream, struct);
@@ -321,9 +320,9 @@ public class PainlessDocGenerator {
     }
 
     /**
-     * Pick the javadoc root for a {@link Struct}.
+     * Pick the javadoc root for a {@link Painless.Struct}.
      */
-    private static String javadocRoot(Struct struct) {
+    private static String javadocRoot(Painless.Struct struct) {
         String classPackage = struct.clazz.getPackage().getName();
         if (classPackage.startsWith("java")) {
             return "java8";

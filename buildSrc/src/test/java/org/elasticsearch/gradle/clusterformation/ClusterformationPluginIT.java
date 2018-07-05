@@ -50,8 +50,8 @@ public class ClusterformationPluginIT extends GradleIntegrationTestCase {
         assertEquals(TaskOutcome.SUCCESS, result.task(":user1").getOutcome());
         assertOutputContains(
             result.getOutput(),
-                "Starting cluster: myTestCluster",
-                "Stopping myTestCluster, number of claims is 0"
+                "Starting `myTestCluster`",
+                "Stopping `myTestCluster`, number of claims is 0"
         );
     }
 
@@ -66,8 +66,8 @@ public class ClusterformationPluginIT extends GradleIntegrationTestCase {
         assertNull(result.task(":user1"));
         assertOutputDoesNotContain(
             result.getOutput(),
-            "Starting cluster: myTestCluster",
-            "Stopping myTestCluster, number of claims is 0"
+            "Starting `myTestCluster`",
+            "Stopping `myTestCluster`, number of claims is 0"
         );
     }
 
@@ -82,9 +82,9 @@ public class ClusterformationPluginIT extends GradleIntegrationTestCase {
         assertEquals(TaskOutcome.SUCCESS, result.task(":user2").getOutcome());
         assertOutputContains(
             result.getOutput(),
-            "Starting cluster: myTestCluster",
-            "Not stopping myTestCluster, since cluster still has 1 claim(s)",
-            "Stopping myTestCluster, number of claims is 0"
+            "Starting `myTestCluster`",
+            "Not stopping `myTestCluster`, since node still has 1 claim(s)",
+            "Stopping `myTestCluster`, number of claims is 0"
         );
     }
 
@@ -99,10 +99,10 @@ public class ClusterformationPluginIT extends GradleIntegrationTestCase {
         assertEquals(TaskOutcome.UP_TO_DATE, result.task(":upToDate2").getOutcome());
         assertOutputContains(
             result.getOutput(),
-            "Not stopping myTestCluster, since cluster still has 1 claim(s)",
-            "cluster was not running: myTestCluster"
+            "Not stopping `myTestCluster`, since node still has 1 claim(s)",
+            "`myTestCluster` was not running, no need to stop"
         );
-        assertOutputDoesNotContain(result.getOutput(), "Starting cluster: myTestCluster");
+        assertOutputDoesNotContain(result.getOutput(), "Starting `myTestCluster`");
     }
 
     public void testUseClusterBySkippedTask() {
@@ -116,8 +116,8 @@ public class ClusterformationPluginIT extends GradleIntegrationTestCase {
         assertEquals(TaskOutcome.SKIPPED, result.task(":skipped2").getOutcome());
         assertOutputContains(
             result.getOutput(),
-            "Not stopping myTestCluster, since cluster still has 1 claim(s)",
-            "cluster was not running: myTestCluster"
+            "Not stopping `myTestCluster`, since node still has 1 claim(s)",
+            "`myTestCluster` was not running, no need to stop"
         );
         assertOutputDoesNotContain(result.getOutput(), "Starting cluster: myTestCluster");
     }
@@ -134,8 +134,8 @@ public class ClusterformationPluginIT extends GradleIntegrationTestCase {
         assertOutputContains(
             result.getOutput(),
             "> Task :user1",
-            "Starting cluster: myTestCluster",
-            "Stopping myTestCluster, number of claims is 0"
+            "Starting `myTestCluster`",
+            "Stopping `myTestCluster`, number of claims is 0"
         );
     }
 
@@ -151,9 +151,9 @@ public class ClusterformationPluginIT extends GradleIntegrationTestCase {
         String output = result.getOutput();
         assertOutputContains(
             output,
-            "Starting cluster: myTestCluster",
-            "Not stopping myTestCluster, since cluster still has 1 claim(s)",
-            "Stopping myTestCluster, number of claims is 0"
+            "Starting `myTestCluster`",
+            "Not stopping `myTestCluster`, since node still has 1 claim(s)",
+            "Stopping `myTestCluster`, number of claims is 0"
         );
         assertOutputOnlyOnce(output, "Task :syncClusterFormationArtifacts");
     }
@@ -168,8 +168,8 @@ public class ClusterformationPluginIT extends GradleIntegrationTestCase {
         assertEquals(TaskOutcome.FAILED, result.task(":itAlwaysFails").getOutcome());
         assertOutputContains(
             result.getOutput(),
-            "Starting cluster: myTestCluster",
-            "Forcefully stopping myTestCluster, number of claims is 1",
+            "Starting `myTestCluster`",
+            "Forcefully stopping `myTestCluster`, number of claims is 1",
             "Execution failed for task ':itAlwaysFails'."
         );
     }
@@ -185,8 +185,8 @@ public class ClusterformationPluginIT extends GradleIntegrationTestCase {
         assertNull(result.task(":dependsOnFailed"));
         assertOutputContains(
             result.getOutput(),
-            "Starting cluster: myTestCluster",
-            "Forcefully stopping myTestCluster, number of claims is 2"
+            "Starting `myTestCluster`",
+            "Forcefully stopping `myTestCluster`, number of claims is 2"
         );
     }
 

@@ -21,9 +21,14 @@ package org.elasticsearch.gradle.clusterformation;
 import org.gradle.api.Task;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.TaskState;
 
 public class ClusterFormationTaskExecutionListener implements TaskExecutionListener, TaskActionListener {
+
+    private final Logger logger = Logging.getLogger(ClusterFormationTaskExecutionListener.class);
+
     @Override
     public void afterExecute(Task task, TaskState state) {
         // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been and caused the

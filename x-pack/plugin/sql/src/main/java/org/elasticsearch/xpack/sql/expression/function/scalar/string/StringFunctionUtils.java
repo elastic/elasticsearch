@@ -1,24 +1,19 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- *  [2017] Elasticsearch Incorporated. All Rights Reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch Incorporated and its suppliers,
- * if any.  The intellectual and technical concepts contained
- * herein are proprietary to Elasticsearch Incorporated
- * and its suppliers and may be covered by U.S. and Foreign Patents,
- * patents in process, and are protected by trade secret or copyright law.
- * Dissemination of this information or reproduction of this material
- * is strictly forbidden unless prior written permission is obtained
- * from Elasticsearch Incorporated.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
  */
-
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 abstract class StringFunctionUtils {
     
+    /**
+     * Trims the trailing whitespace characters from the given String. Uses {@link java.lang.Character.isWhitespace(char)}
+     * to determine if a character is whitespace or not.
+     *
+     * @param s       the original String
+     * @return the resulting String
+     */
     static String trimTrailingWhitespaces(String s) {
         if (!hasLength(s)) {
             return s;
@@ -31,6 +26,13 @@ abstract class StringFunctionUtils {
         return sb.toString();
     }
     
+    /**
+     * Trims the leading whitespace characters from the given String. Uses {@link java.lang.Character.isWhitespace(char)}
+     * to determine if a character is whitespace or not.
+     *
+     * @param s       the original String
+     * @return the resulting String
+     */
     static String trimLeadingWhitespaces(String s) {
         if (!hasLength(s)) {
             return s;

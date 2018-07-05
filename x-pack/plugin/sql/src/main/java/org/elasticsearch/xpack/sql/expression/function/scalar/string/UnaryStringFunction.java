@@ -1,31 +1,26 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
- * __________________
- *
- *  [2017] Elasticsearch Incorporated. All Rights Reserved.
- *
- * NOTICE:  All information contained herein is, and remains
- * the property of Elasticsearch Incorporated and its suppliers,
- * if any.  The intellectual and technical concepts contained
- * herein are proprietary to Elasticsearch Incorporated
- * and its suppliers and may be covered by U.S. and Foreign Patents,
- * patents in process, and are protected by trade secret or copyright law.
- * Dissemination of this information or reproduction of this material
- * is strictly forbidden unless prior written permission is obtained
- * from Elasticsearch Incorporated.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
  */
-
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
+import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.util.Locale;
 import java.util.Objects;
+
+import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 
 public abstract class UnaryStringFunction extends UnaryScalarFunction {
 
@@ -60,6 +55,23 @@ public abstract class UnaryStringFunction extends UnaryScalarFunction {
     }
 
     protected abstract StringOperation operation();
+    
+    @Override
+    protected ScriptTemplate asScriptFrom(FieldAttribute field) {
+        //TODO change this to use _source instead of the exact form (aka field.keyword for text fields)
+        return new ScriptTemplate(formatScript("doc[{}].value"),
+                paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
+                dataType());
+    }
+    
+    @Override
+    protected String formatScript(String template) {
+        // basically, transform the script to InternalSqlScriptUtils.[function_name](other_function_or_field_name)
+        return super.formatScript(
+                format(Locale.ROOT, "{sql}.%s(%s)", 
+                        StringUtils.underscoreToLowerCamelCase(operation().toString()), 
+                        template));
+    }
 
     @Override
     public boolean equals(Object obj) {

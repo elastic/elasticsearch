@@ -12,41 +12,31 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
- * Converts an int ASCII code to a character value.
+ * Returns the length (in characters) of the string expression.
  */
-public class Char extends UnaryStringFunction {
+public class CharLength extends UnaryStringFunction {
 
-    public Char(Location location, Expression field) {
+    public CharLength(Location location, Expression field) {
         super(location, field);
     }
 
     @Override
-    protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
-            return new TypeResolution("Unresolved children");
-        }
-
-        return field().dataType().isInteger ? TypeResolution.TYPE_RESOLVED : new TypeResolution(
-                "'%s' requires a integer type, received %s", operation(), field().dataType().esType);
+    protected NodeInfo<CharLength> info() {
+        return NodeInfo.create(this, CharLength::new, field());
     }
 
     @Override
-    protected NodeInfo<Char> info() {
-        return NodeInfo.create(this, Char::new, field());
-    }
-
-    @Override
-    protected Char replaceChild(Expression newChild) {
-        return new Char(location(), newChild);
+    protected CharLength replaceChild(Expression newChild) {
+        return new CharLength(location(), newChild);
     }
 
     @Override
     protected StringOperation operation() {
-        return StringOperation.CHAR;
+        return StringOperation.CHAR_LENGTH;
     }
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return DataType.INTEGER;
     }
 }

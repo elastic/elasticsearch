@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.function.Function;
-import java.util.stream.IntStream;
 
 public class StringProcessor implements Processor {
     
@@ -48,8 +48,8 @@ public class StringProcessor implements Processor {
             int i = n.intValue();
             return i < 0 || i > 255 ? null : String.valueOf((char) i);
         }),
-        LCASE((String s) -> s.toLowerCase()),
-        UCASE((String s) -> s.toUpperCase()),
+        LCASE((String s) -> s.toLowerCase(Locale.ROOT)),
+        UCASE((String s) -> s.toUpperCase(Locale.ROOT)),
         LENGTH((String s) -> StringFunctionUtils.trimTrailingWhitespaces(s).length()),
         RTRIM((String s) -> StringFunctionUtils.trimTrailingWhitespaces(s)),
         LTRIM((String s) -> StringFunctionUtils.trimLeadingWhitespaces(s)),
@@ -64,7 +64,8 @@ public class StringProcessor implements Processor {
             
             return new String(spaces);
         }),
-        BIT_LENGTH((String s) -> s.getBytes().length * 8);
+        BIT_LENGTH((String s) -> s.getBytes(StandardCharsets.UTF_8).length * 8),
+        CHAR_LENGTH(String::length);
 
         private final Function<Object, Object> apply;
 
@@ -95,6 +96,15 @@ public class StringProcessor implements Processor {
 
         public final Object apply(Object l) {
             return apply.apply(l);
+        }
+
+        /*
+         * Overriden to "translate" the function name ("char") into a function name that is not a reserved keyword in java.
+         * Used in Painless scripting.
+         */
+        @Override
+        public String toString() {
+            return this == CHAR ? "character" : super.toString();
         }
     }
     

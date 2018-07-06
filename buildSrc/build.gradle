@@ -198,6 +198,20 @@ if (project != rootProject) {
   // TODO needs to be updated in CI, needs update in NamingConventions
   targetCompatibility = "1.9"
   sourceCompatibility = "1.9"
+<<<<<<< HEAD
+=======
+  // tests can't  be run with randomized test runner: IllegalArgumentExceptio
+  test.enabled = false
+  task integTest(type: Test) {
+    exclude "**/*Tests.class"
+    include "**/*IT.class"
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    inputs.dir(file("src.testKit"))
+  }
+  check.dependsOn(integTest)
+
+>>>>>>> 258ad8b73bc... Move build integration tests out of :buildSrc project
 
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false

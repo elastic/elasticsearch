@@ -169,8 +169,6 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
 
     /**
      * Start the cluster if not running. Does nothing if the cluster is already running.
-     *
-     * @return future of thread running in the background
      */
     @Override
     public void start() {

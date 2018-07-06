@@ -282,7 +282,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      *
      * @param source The map to index
      */
-    public IndexRequest source(Map source) throws ElasticsearchGenerationException {
+    public IndexRequest source(Map<String, ?> source) throws ElasticsearchGenerationException {
         return source(source, Requests.INDEX_CONTENT_TYPE);
     }
 
@@ -291,7 +291,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      *
      * @param source The map to index
      */
-    public IndexRequest source(Map source, XContentType contentType) throws ElasticsearchGenerationException {
+    public IndexRequest source(Map<String, ?> source, XContentType contentType) throws ElasticsearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);

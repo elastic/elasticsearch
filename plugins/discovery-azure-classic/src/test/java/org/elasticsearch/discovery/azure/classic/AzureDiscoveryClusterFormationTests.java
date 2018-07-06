@@ -93,7 +93,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
     public static final ExternalResource MUTE_IN_FIPS_JVM = new ExternalResource() {
         @Override
         protected void before() {
-            assumeFalse("Can't run in a FIPS JVM because none if the supported Keystore types can be used", inFipsJvm());
+            assumeFalse("Can't run in a FIPS JVM because none of the supported Keystore types can be used", inFipsJvm());
         }
     };
 

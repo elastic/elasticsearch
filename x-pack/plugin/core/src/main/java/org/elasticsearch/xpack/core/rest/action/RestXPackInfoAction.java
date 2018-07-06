@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -20,7 +18,6 @@ import java.util.EnumSet;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestXPackInfoAction extends XPackRestHandler {
     public RestXPackInfoAction(Settings settings, RestController controller) {

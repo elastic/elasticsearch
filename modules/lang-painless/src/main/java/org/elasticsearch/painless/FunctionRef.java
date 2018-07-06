@@ -20,7 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookup.Method;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodType;
@@ -56,9 +56,9 @@ public class FunctionRef {
     public final MethodType delegateMethodType;
 
     /** interface method */
-    public final Method interfaceMethod;
+    public final PainlessMethod interfaceMethod;
     /** delegate method */
-    public final Method delegateMethod;
+    public final PainlessMethod delegateMethod;
 
     /** factory method type descriptor */
     public final String factoryDescriptor;
@@ -90,7 +90,7 @@ public class FunctionRef {
      * @param delegateMethod implementation method
      * @param numCaptures number of captured arguments
      */
-    public FunctionRef(Class<?> expected, Method interfaceMethod, Method delegateMethod, int numCaptures) {
+    public FunctionRef(Class<?> expected, PainlessMethod interfaceMethod, PainlessMethod delegateMethod, int numCaptures) {
         MethodType delegateMethodType = delegateMethod.getMethodType();
 
         interfaceMethodName = interfaceMethod.name;
@@ -136,7 +136,7 @@ public class FunctionRef {
      * It is for runtime use only.
      */
     public FunctionRef(Class<?> expected,
-                       Method interfaceMethod, String delegateMethodName, MethodType delegateMethodType, int numCaptures) {
+                       PainlessMethod interfaceMethod, String delegateMethodName, MethodType delegateMethodType, int numCaptures) {
         interfaceMethodName = interfaceMethod.name;
         factoryMethodType = MethodType.methodType(expected,
             delegateMethodType.dropParameterTypes(numCaptures, delegateMethodType.parameterCount()));
@@ -159,11 +159,11 @@ public class FunctionRef {
     /**
      * Looks up {@code type::call} from the whitelist, and returns a matching method.
      */
-    private static PainlessLookup.Method lookup(PainlessLookup painlessLookup, Class<?> expected,
-                                                String type, String call, boolean receiverCaptured) {
+    private static PainlessMethod lookup(PainlessLookup painlessLookup, Class<?> expected,
+                                         String type, String call, boolean receiverCaptured) {
         // check its really a functional interface
         // for e.g. Comparable
-        Method method = painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod;
+        PainlessMethod method = painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod;
         if (method == null) {
             throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                "to [" + PainlessLookup.ClassToName(expected) + "], not a functional interface");
@@ -171,13 +171,13 @@ public class FunctionRef {
 
         // lookup requested method
         PainlessLookup.Struct struct = painlessLookup.getPainlessStructFromJavaClass(painlessLookup.getJavaClassFromPainlessType(type));
-        final PainlessLookup.Method impl;
+        final PainlessMethod impl;
         // ctor ref
         if ("new".equals(call)) {
             impl = struct.constructors.get(new PainlessLookup.MethodKey("<init>", method.arguments.size()));
         } else {
             // look for a static impl first
-            PainlessLookup.Method staticImpl = struct.staticMethods.get(new PainlessLookup.MethodKey(call, method.arguments.size()));
+            PainlessMethod staticImpl = struct.staticMethods.get(new PainlessLookup.MethodKey(call, method.arguments.size()));
             if (staticImpl == null) {
                 // otherwise a virtual impl
                 final int arity;

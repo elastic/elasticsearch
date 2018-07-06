@@ -19,14 +19,11 @@
 
 package org.elasticsearch.painless.lookup;
 
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.spi.Whitelist;
-import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,7 +42,7 @@ import java.util.regex.Pattern;
  */
 public final class PainlessLookup {
 
-    private static final Map<String, Method> methodCache = new HashMap<>();
+    private static final Map<String, PainlessMethod> methodCache = new HashMap<>();
     private static final Map<String, Field> fieldCache = new HashMap<>();
 
     private static final Pattern TYPE_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
@@ -54,107 +51,6 @@ public final class PainlessLookup {
     public static final class def {
         private def() {
 
-        }
-    }
-
-    public static class Method {
-        public final String name;
-        public final Struct owner;
-        public final Class<?> augmentation;
-        public final Class<?> rtn;
-        public final List<Class<?>> arguments;
-        public final org.objectweb.asm.commons.Method method;
-        public final int modifiers;
-        public final MethodHandle handle;
-
-        public Method(String name, Struct owner, Class<?> augmentation, Class<?> rtn, List<Class<?>> arguments,
-                      org.objectweb.asm.commons.Method method, int modifiers, MethodHandle handle) {
-            this.name = name;
-            this.augmentation = augmentation;
-            this.owner = owner;
-            this.rtn = rtn;
-            this.arguments = Collections.unmodifiableList(arguments);
-            this.method = method;
-            this.modifiers = modifiers;
-            this.handle = handle;
-        }
-
-        /**
-         * Returns MethodType for this method.
-         * <p>
-         * This works even for user-defined Methods (where the MethodHandle is null).
-         */
-        public MethodType getMethodType() {
-            // we have a methodhandle already (e.g. whitelisted class)
-            // just return its type
-            if (handle != null) {
-                return handle.type();
-            }
-            // otherwise compute it
-            final Class<?> params[];
-            final Class<?> returnValue;
-            if (augmentation != null) {
-                // static method disguised as virtual/interface method
-                params = new Class<?>[1 + arguments.size()];
-                params[0] = augmentation;
-                for (int i = 0; i < arguments.size(); i++) {
-                    params[i + 1] = defClassToObjectClass(arguments.get(i));
-                }
-                returnValue = defClassToObjectClass(rtn);
-            } else if (Modifier.isStatic(modifiers)) {
-                // static method: straightforward copy
-                params = new Class<?>[arguments.size()];
-                for (int i = 0; i < arguments.size(); i++) {
-                    params[i] = defClassToObjectClass(arguments.get(i));
-                }
-                returnValue = defClassToObjectClass(rtn);
-            } else if ("<init>".equals(name)) {
-                // constructor: returns the owner class
-                params = new Class<?>[arguments.size()];
-                for (int i = 0; i < arguments.size(); i++) {
-                    params[i] = defClassToObjectClass(arguments.get(i));
-                }
-                returnValue = owner.clazz;
-            } else {
-                // virtual/interface method: add receiver class
-                params = new Class<?>[1 + arguments.size()];
-                params[0] = owner.clazz;
-                for (int i = 0; i < arguments.size(); i++) {
-                    params[i + 1] = defClassToObjectClass(arguments.get(i));
-                }
-                returnValue = defClassToObjectClass(rtn);
-            }
-            return MethodType.methodType(returnValue, params);
-        }
-
-        public void write(MethodWriter writer) {
-            final org.objectweb.asm.Type type;
-            final Class<?> clazz;
-            if (augmentation != null) {
-                assert java.lang.reflect.Modifier.isStatic(modifiers);
-                clazz = augmentation;
-                type = org.objectweb.asm.Type.getType(augmentation);
-            } else {
-                clazz = owner.clazz;
-                type = owner.type;
-            }
-
-            if (java.lang.reflect.Modifier.isStatic(modifiers)) {
-                // invokeStatic assumes that the owner class is not an interface, so this is a
-                // special case for interfaces where the interface method boolean needs to be set to
-                // true to reference the appropriate class constant when calling a static interface
-                // method since java 8 did not check, but java 9 and 10 do
-                if (java.lang.reflect.Modifier.isInterface(clazz.getModifiers())) {
-                    writer.visitMethodInsn(Opcodes.INVOKESTATIC,
-                            type.getInternalName(), name, getMethodType().toMethodDescriptorString(), true);
-                } else {
-                    writer.invokeStatic(type, method);
-                }
-            } else if (java.lang.reflect.Modifier.isInterface(clazz.getModifiers())) {
-                writer.invokeInterface(type, method);
-            } else {
-                writer.invokeVirtual(type, method);
-            }
         }
     }
 
@@ -238,9 +134,9 @@ public final class PainlessLookup {
         public final Class<?> clazz;
         public final org.objectweb.asm.Type type;
 
-        public final Map<MethodKey, Method> constructors;
-        public final Map<MethodKey, Method> staticMethods;
-        public final Map<MethodKey, Method> methods;
+        public final Map<MethodKey, PainlessMethod> constructors;
+        public final Map<MethodKey, PainlessMethod> staticMethods;
+        public final Map<MethodKey, PainlessMethod> methods;
 
         public final Map<String, Field> staticMembers;
         public final Map<String, Field> members;
@@ -248,7 +144,7 @@ public final class PainlessLookup {
         public final Map<String, MethodHandle> getters;
         public final Map<String, MethodHandle> setters;
 
-        public final Method functionalMethod;
+        public final PainlessMethod functionalMethod;
 
         private Struct(String name, Class<?> clazz, org.objectweb.asm.Type type) {
             this.name = name;
@@ -268,7 +164,7 @@ public final class PainlessLookup {
             functionalMethod = null;
         }
 
-        private Struct(Struct struct, Method functionalMethod) {
+        private Struct(Struct struct, PainlessMethod functionalMethod) {
             name = struct.name;
             clazz = struct.clazz;
             type = struct.type;
@@ -286,7 +182,7 @@ public final class PainlessLookup {
             this.functionalMethod = functionalMethod;
         }
 
-        private Struct freeze(Method functionalMethod) {
+        private Struct freeze(PainlessMethod functionalMethod) {
             return new Struct(this, functionalMethod);
         }
 
@@ -762,7 +658,7 @@ public final class PainlessLookup {
         }
 
         MethodKey painlessMethodKey = new MethodKey("<init>", whitelistConstructor.painlessParameterTypeNames.size());
-        Method painlessConstructor = ownerStruct.constructors.get(painlessMethodKey);
+        PainlessMethod painlessConstructor = ownerStruct.constructors.get(painlessMethodKey);
 
         if (painlessConstructor == null) {
             org.objectweb.asm.commons.Method asmConstructor = org.objectweb.asm.commons.Method.getMethod(javaConstructor);
@@ -776,7 +672,7 @@ public final class PainlessLookup {
             }
 
             painlessConstructor = methodCache.computeIfAbsent(buildMethodCacheKey(ownerStruct.name, "<init>", painlessParametersTypes),
-                    key -> new Method("<init>", ownerStruct, null, void.class, painlessParametersTypes,
+                    key -> new PainlessMethod("<init>", ownerStruct, null, void.class, painlessParametersTypes,
                             asmConstructor, javaConstructor.getModifiers(), javaHandle));
             ownerStruct.constructors.put(painlessMethodKey, painlessConstructor);
         } else if (painlessConstructor.arguments.equals(painlessParametersTypes) == false){
@@ -868,7 +764,7 @@ public final class PainlessLookup {
         MethodKey painlessMethodKey = new MethodKey(whitelistMethod.javaMethodName, whitelistMethod.painlessParameterTypeNames.size());
 
         if (javaAugmentedClass == null && Modifier.isStatic(javaMethod.getModifiers())) {
-            Method painlessMethod = ownerStruct.staticMethods.get(painlessMethodKey);
+            PainlessMethod painlessMethod = ownerStruct.staticMethods.get(painlessMethodKey);
 
             if (painlessMethod == null) {
                 org.objectweb.asm.commons.Method asmMethod = org.objectweb.asm.commons.Method.getMethod(javaMethod);
@@ -883,8 +779,8 @@ public final class PainlessLookup {
 
                 painlessMethod = methodCache.computeIfAbsent(
                         buildMethodCacheKey(ownerStruct.name, whitelistMethod.javaMethodName, painlessParametersTypes),
-                        key -> new Method(whitelistMethod.javaMethodName, ownerStruct, null, painlessReturnClass, painlessParametersTypes,
-                                asmMethod, javaMethod.getModifiers(), javaMethodHandle));
+                        key -> new PainlessMethod(whitelistMethod.javaMethodName, ownerStruct, null, painlessReturnClass,
+                                painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle));
                 ownerStruct.staticMethods.put(painlessMethodKey, painlessMethod);
             } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn == painlessReturnClass &&
                     painlessMethod.arguments.equals(painlessParametersTypes)) == false) {
@@ -894,7 +790,7 @@ public final class PainlessLookup {
                         "and parameters " + painlessParametersTypes + " and " + painlessMethod.arguments);
             }
         } else {
-            Method painlessMethod = ownerStruct.methods.get(painlessMethodKey);
+            PainlessMethod painlessMethod = ownerStruct.methods.get(painlessMethodKey);
 
             if (painlessMethod == null) {
                 org.objectweb.asm.commons.Method asmMethod = org.objectweb.asm.commons.Method.getMethod(javaMethod);
@@ -909,7 +805,7 @@ public final class PainlessLookup {
 
                 painlessMethod = methodCache.computeIfAbsent(
                         buildMethodCacheKey(ownerStruct.name, whitelistMethod.javaMethodName, painlessParametersTypes),
-                        key -> new Method(whitelistMethod.javaMethodName, ownerStruct, javaAugmentedClass, painlessReturnClass,
+                        key -> new PainlessMethod(whitelistMethod.javaMethodName, ownerStruct, javaAugmentedClass, painlessReturnClass,
                                 painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle));
                 ownerStruct.methods.put(painlessMethodKey, painlessMethod);
             } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn.equals(painlessReturnClass) &&
@@ -1023,9 +919,9 @@ public final class PainlessLookup {
                     " is not a super type of owner struct [" + owner.name + "] in copy.");
             }
 
-            for (Map.Entry<MethodKey,Method> kvPair : child.methods.entrySet()) {
+            for (Map.Entry<MethodKey,PainlessMethod> kvPair : child.methods.entrySet()) {
                 MethodKey methodKey = kvPair.getKey();
-                Method method = kvPair.getValue();
+                PainlessMethod method = kvPair.getValue();
                 if (owner.methods.get(methodKey) == null) {
                     // TODO: some of these are no longer valid or outright don't work
                     // TODO: since classes may not come from the Painless classloader
@@ -1091,9 +987,9 @@ public final class PainlessLookup {
      */
     private void addRuntimeClass(final Struct struct) {
         // add all getters/setters
-        for (Map.Entry<MethodKey, Method> method : struct.methods.entrySet()) {
+        for (Map.Entry<MethodKey, PainlessMethod> method : struct.methods.entrySet()) {
             String name = method.getKey().name;
-            Method m = method.getValue();
+            PainlessMethod m = method.getValue();
 
             if (m.arguments.size() == 0 &&
                 name.startsWith("get") &&
@@ -1132,7 +1028,7 @@ public final class PainlessLookup {
     }
 
     /** computes the functional interface method for a class, or returns null */
-    private Method computeFunctionalInterfaceMethod(Struct clazz) {
+    private PainlessMethod computeFunctionalInterfaceMethod(Struct clazz) {
         if (!clazz.clazz.isInterface()) {
             return null;
         }
@@ -1167,7 +1063,7 @@ public final class PainlessLookup {
         }
         // inspect the one method found from the reflection API, it should match the whitelist!
         java.lang.reflect.Method oneMethod = methods.get(0);
-        Method painless = clazz.methods.get(new PainlessLookup.MethodKey(oneMethod.getName(), oneMethod.getParameterCount()));
+        PainlessMethod painless = clazz.methods.get(new PainlessLookup.MethodKey(oneMethod.getName(), oneMethod.getParameterCount()));
         if (painless == null || painless.method.equals(org.objectweb.asm.commons.Method.getMethod(oneMethod)) == false) {
             throw new IllegalArgumentException("Class: " + clazz.name + " is functional but the functional " +
                 "method is not whitelisted!");

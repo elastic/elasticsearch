@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.PainlessLookup.Method;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessLookup.MethodKey;
 import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
@@ -38,8 +38,8 @@ public final class EMapInit extends AExpression {
     private final List<AExpression> keys;
     private final List<AExpression> values;
 
-    private Method constructor = null;
-    private Method method = null;
+    private PainlessMethod constructor = null;
+    private PainlessMethod method = null;
 
     public EMapInit(Location location, List<AExpression> keys, List<AExpression> values) {
         super(location);

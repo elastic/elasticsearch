@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookup.Method;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessLookup.Struct;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -39,8 +39,8 @@ final class PSubListShortcut extends AStoreable {
     private final Struct struct;
     private AExpression index;
 
-    private Method getter;
-    private Method setter;
+    private PainlessMethod getter;
+    private PainlessMethod setter;
 
     PSubListShortcut(Location location, Struct struct, AExpression index) {
         super(location);

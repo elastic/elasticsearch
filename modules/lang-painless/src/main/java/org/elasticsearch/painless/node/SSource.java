@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookup.Method;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessLookup.MethodKey;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -168,7 +168,7 @@ public final class SSource extends AStatement {
     }
 
     public void analyze(PainlessLookup painlessLookup) {
-        Map<MethodKey, Method> methods = new HashMap<>();
+        Map<MethodKey, PainlessMethod> methods = new HashMap<>();
 
         for (SFunction function : functions) {
             function.generateSignature(painlessLookup);

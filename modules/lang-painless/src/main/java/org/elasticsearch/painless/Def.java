@@ -20,7 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookup.Method;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessLookup.Struct;
 
 import java.lang.invoke.CallSite;
@@ -182,14 +182,14 @@ public final class Def {
      * @return matching method to invoke. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
-    static Method lookupMethodInternal(PainlessLookup painlessLookup, Class<?> receiverClass, String name, int arity) {
+    static PainlessMethod lookupMethodInternal(PainlessLookup painlessLookup, Class<?> receiverClass, String name, int arity) {
         PainlessLookup.MethodKey key = new PainlessLookup.MethodKey(name, arity);
         // check whitelist for matching method
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
             Struct struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
 
             if (struct != null) {
-                Method method = struct.methods.get(key);
+                PainlessMethod method = struct.methods.get(key);
                 if (method != null) {
                     return method;
                 }
@@ -199,7 +199,7 @@ public final class Def {
                 struct = painlessLookup.getPainlessStructFromJavaClass(iface);
 
                 if (struct != null) {
-                    Method method = struct.methods.get(key);
+                    PainlessMethod method = struct.methods.get(key);
                     if (method != null) {
                         return method;
                     }
@@ -260,7 +260,7 @@ public final class Def {
 
          // lookup the method with the proper arity, then we know everything (e.g. interface types of parameters).
          // based on these we can finally link any remaining lambdas that were deferred.
-         Method method = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
+         PainlessMethod method = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
          MethodHandle handle = method.handle;
 
          int replaced = 0;
@@ -326,12 +326,12 @@ public final class Def {
     static MethodHandle lookupReference(PainlessLookup painlessLookup, Lookup lookup, String interfaceClass,
                                         Class<?> receiverClass, String name) throws Throwable {
          Class<?> interfaceType = painlessLookup.getJavaClassFromPainlessType(interfaceClass);
-         Method interfaceMethod = painlessLookup.getPainlessStructFromJavaClass(interfaceType).functionalMethod;
+         PainlessMethod interfaceMethod = painlessLookup.getPainlessStructFromJavaClass(interfaceType).functionalMethod;
          if (interfaceMethod == null) {
              throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
          }
          int arity = interfaceMethod.arguments.size();
-         Method implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
+         PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
         return lookupReferenceInternal(painlessLookup, lookup, interfaceType, implMethod.owner.name,
                 implMethod.name, receiverClass);
      }
@@ -343,7 +343,7 @@ public final class Def {
          final FunctionRef ref;
          if ("this".equals(type)) {
              // user written method
-             Method interfaceMethod = painlessLookup.getPainlessStructFromJavaClass(clazz).functionalMethod;
+             PainlessMethod interfaceMethod = painlessLookup.getPainlessStructFromJavaClass(clazz).functionalMethod;
              if (interfaceMethod == null) {
                  throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                     "to [" + PainlessLookup.ClassToName(clazz) + "], not a functional interface");

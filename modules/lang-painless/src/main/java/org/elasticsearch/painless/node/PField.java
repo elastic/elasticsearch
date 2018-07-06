@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookup.Field;
-import org.elasticsearch.painless.lookup.PainlessLookup.Method;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessLookup.Struct;
 import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
@@ -73,7 +73,7 @@ public final class PField extends AStoreable {
             if (field != null) {
                 sub = new PSubField(location, field);
             } else {
-                Method getter = struct.methods.get(
+                PainlessMethod getter = struct.methods.get(
                     new PainlessLookup.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
 
                 if (getter == null) {
@@ -81,7 +81,7 @@ public final class PField extends AStoreable {
                         new PainlessLookup.MethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
                 }
 
-                Method setter = struct.methods.get(
+                PainlessMethod setter = struct.methods.get(
                     new PainlessLookup.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
                 if (getter != null || setter != null) {

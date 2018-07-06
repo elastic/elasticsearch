@@ -48,6 +48,39 @@ SELECT emp_no * 2 AS e FROM test_emp GROUP BY e ORDER BY e;
 groupByModScalar
 SELECT (emp_no % 3) + 1 AS e FROM test_emp GROUP BY e ORDER BY e;
 
+// multiple group by
+groupByMultiOnText
+SELECT gender g, languages l FROM "test_emp" GROUP BY gender, languages ORDER BY gender ASC, languages ASC;
+groupByMultiOnTextWithWhereClause
+SELECT gender g, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender, languages ORDER BY gender ASC, languages ASC;
+groupByMultiOnTextWithWhereAndLimit
+SELECT gender g, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender, languages ORDER BY gender, languages LIMIT 1;
+groupByMultiOnTextOnAlias
+SELECT gender g, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY g, l ORDER BY gender ASC, languages ASC;
+groupByMultiOnTextOnAliasOrderDesc
+SELECT gender g, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY g, l ORDER BY g, l ASC;
+
+groupByMultiOnDate
+SELECT birth_date b, languages l FROM "test_emp" GROUP BY birth_date, languages ORDER BY birth_date DESC, languages;
+groupByMultiOnDateWithWhereClause
+SELECT birth_date b, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date, languages ORDER BY birth_date DESC, languages;
+groupByMultiOnDateWithWhereAndLimit
+SELECT birth_date b, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date, languages ORDER BY birth_date DESC, languages LIMIT 1;
+groupByMultiOnDateOnAlias
+SELECT birth_date b, languages l FROM "test_emp" WHERE emp_no < 10020 GROUP BY b, l ORDER BY birth_date DESC, languages;
+
+groupByMultiAddScalar
+SELECT emp_no + 1 AS e, languages + 5 AS l FROM test_emp GROUP BY e, l ORDER BY e, l;
+groupByMultiMinScalarDesc
+SELECT emp_no - 1 AS e, languages - 5 AS l  FROM test_emp GROUP BY e, l ORDER BY e DESC, l;
+groupByMultiAddScalarDesc
+SELECT emp_no % 2 AS e, languages % 10 AS l FROM test_emp GROUP BY e, l ORDER BY e DESC, l;
+groupByMultiMulScalar
+SELECT emp_no * 2 AS e, languages * 2 AS l FROM test_emp GROUP BY e, l ORDER BY e, l;
+groupByMultiModScalar
+SELECT (emp_no % 3) + 1 AS e, (languages % 3) + 1 AS l FROM test_emp GROUP BY e, l ORDER BY e, l;
+
+
 //
 // Aggregate Functions
 //
@@ -76,6 +109,18 @@ countDistinct
 SELECT COUNT(DISTINCT hire_date) AS count FROM test_emp;
 // end::countDistinct
 
+aggCountAliasAndWhereClauseMultiGroupBy
+SELECT gender g, languages l, COUNT(*) c FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender, languages ORDER BY gender, languages;
+aggCountAliasAndWhereClauseAndLimitMultiGroupBy
+SELECT gender g, languages l, COUNT(*) c FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender, languages ORDER BY gender, languages LIMIT 1;
+aggCountAliasWithCastAndFilterMultiGroupBy
+SELECT gender g, languages l, CAST(COUNT(*) AS INT) c FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender, languages ORDER BY gender, languages;
+aggCountWithAliasMultiGroupBy
+SELECT gender g, languages l, COUNT(*) c FROM "test_emp" GROUP BY g, l ORDER BY gender, languages;
+aggCountWithAliasMultiGroupByDifferentOrder
+SELECT gender g, languages l, COUNT(*) c FROM "test_emp" GROUP BY g, l ORDER BY languages ASC, gender DESC;
+
+
 
 // Conditional COUNT
 aggCountAndHaving
@@ -84,7 +129,6 @@ aggCountAndHavingEquality
 SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING COUNT(*) = 10 ORDER BY gender;
 aggCountOnColumnAndHaving
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING COUNT(gender) > 10 ORDER BY gender;
-// NOT supported yet since Having introduces a new agg
 aggCountOnColumnAndWildcardAndHaving
 SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING COUNT(gender) > 10 ORDER BY gender;
 aggCountAndHavingOnAlias
@@ -101,14 +145,40 @@ aggCountOnColumnAndHavingBetween
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender;
 aggCountOnColumnAndHavingBetweenWithLimit
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender LIMIT 1;
-
 aggCountOnColumnAndHavingOnAliasAndFunction
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND COUNT(gender) < 70 ORDER BY gender;
-// NOT supported yet since Having introduces a new agg
 aggCountOnColumnAndHavingOnAliasAndFunctionWildcard -> COUNT(*/1) vs COUNT(gender)
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND COUNT(*) < 70 ORDER BY gender;
 aggCountOnColumnAndHavingOnAliasAndFunctionConstant
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND COUNT(1) < 70 ORDER BY gender;
+
+aggCountAndHavingMultiGroupBy
+SELECT gender g, languages l, COUNT(*) c FROM "test_emp" GROUP BY g, l HAVING COUNT(*) > 10 ORDER BY gender, l;
+aggCountOnColumnAndHavingMultiGroupBy
+SELECT gender g, languages l, COUNT(gender) c FROM "test_emp" GROUP BY g, l HAVING COUNT(gender) > 10 ORDER BY gender, languages;
+aggCountOnSecondColumnAndHavingMultiGroupBy
+SELECT gender g, languages l, COUNT(languages) c FROM "test_emp" GROUP BY g, l HAVING COUNT(gender) > 10 ORDER BY gender, languages;
+aggCountOnColumnAndWildcardAndHavingMultiGroupBy
+SELECT gender g, languages l, COUNT(*) c FROM "test_emp" GROUP BY g, l HAVING COUNT(gender) > 10 ORDER BY gender, languages;
+aggCountAndHavingOnAliasMultiGroupBy
+SELECT gender g, languages l, COUNT(*) c FROM "test_emp" GROUP BY g, l HAVING c > 10 ORDER BY gender, languages;
+aggCountOnColumnAndHavingOnAliasMultiGroupBy
+SELECT gender g, languages l, COUNT(gender) c FROM "test_emp" GROUP BY g, l HAVING c > 10 ORDER BY gender, languages;
+aggCountOnColumnAndMultipleHavingMultiGroupBy
+SELECT gender g, languages l, COUNT(gender) c FROM "test_emp" GROUP BY g, l HAVING c > 10 AND c < 70 ORDER BY gender, languages;
+aggCountOnColumnAndMultipleHavingWithLimitMultiGroupBy
+SELECT gender g, languages l, COUNT(gender) c FROM "test_emp" GROUP BY g, l HAVING c > 10 AND c < 70 ORDER BY gender, languages LIMIT 1;
+aggCountOnColumnAndHavingBetweenMultiGroupBy
+SELECT gender g, languages l, COUNT(gender) c FROM "test_emp" GROUP BY g, l HAVING c BETWEEN 10 AND 70 ORDER BY gender, languages;
+aggCountOnColumnAndHavingBetweenWithLimitMultiGroupBy
+SELECT gender g, languages l, COUNT(gender) c FROM "test_emp" GROUP BY g, l HAVING c BETWEEN 10 AND 70 ORDER BY gender, languages LIMIT 1;
+
+aggCountOnColumnAndHavingOnAliasAndFunctionMultiGroupBy
+SELECT gender g, languages l, COUNT(gender) c FROM "test_emp" GROUP BY g, l HAVING c > 10 AND COUNT(gender) < 70 ORDER BY gender, languages;
+aggCountOnColumnAndHavingOnAliasAndFunctionWildcardMultiGroupBy -> COUNT(*/1) vs COUNT(gender)
+SELECT gender g, languages l, COUNT(gender) c FROM "test_emp" GROUP BY g, l HAVING c > 10 AND COUNT(*) < 70 ORDER BY gender, languages;
+aggCountOnColumnAndHavingOnAliasAndFunctionConstantMultiGroupBy
+SELECT gender g, languages l, COUNT(gender) c FROM "test_emp" GROUP BY g, l HAVING c > 10 AND COUNT(1) < 70 ORDER BY gender, languages;
 
 
 // MIN
@@ -148,6 +218,21 @@ aggMinWithMultipleHavingBetween
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g HAVING m BETWEEN 10 AND 99999 ORDER BY g LIMIT 1;
 aggMinWithMultipleHavingOnAliasAndFunction
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND MIN(emp_no) < 99999 ORDER BY gender;
+
+aggMinWithHavingGroupMultiGroupBy
+SELECT gender g, languages l, MIN(emp_no) m FROM "test_emp" GROUP BY g, l HAVING MIN(emp_no) > 10 ORDER BY gender, languages;
+aggMinWithHavingOnAliasMultiGroupBy
+SELECT gender g, languages l, MIN(emp_no) m FROM "test_emp" GROUP BY g, l HAVING m > 10 ORDER BY gender, languages;
+aggMinWithMultipleHavingMultiGroupBy
+SELECT gender g, languages l, MIN(emp_no) m FROM "test_emp" GROUP BY g, l HAVING m > 10 AND m < 99999 ORDER BY gender, languages;
+aggMinWithMultipleHavingBetweenMultiGroupBy
+SELECT gender g, languages l, MIN(emp_no) m FROM "test_emp" GROUP BY g, l HAVING m BETWEEN 10 AND 99999 ORDER BY gender, languages;
+aggMinWithMultipleHavingWithLimitMultiGroupBy
+SELECT gender g, languages l, MIN(emp_no) m FROM "test_emp" GROUP BY g, l HAVING m > 10 AND m < 99999 ORDER BY g, l LIMIT 1;
+aggMinWithMultipleHavingBetweenMultiGroupBy
+SELECT gender g, languages l, MIN(emp_no) m FROM "test_emp" GROUP BY g, l HAVING m BETWEEN 10 AND 99999 ORDER BY g, l LIMIT 1;
+aggMinWithMultipleHavingOnAliasAndFunctionMultiGroupBy
+SELECT gender g, languages l, MIN(emp_no) m FROM "test_emp" GROUP BY g, l HAVING m > 10 AND MIN(emp_no) < 99999 ORDER BY gender, languages;
 
 
 // MAX
@@ -258,6 +343,8 @@ SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING 
 //
 aggGroupByOnScalarWithHaving
 SELECT emp_no + 1 AS e FROM test_emp GROUP BY e HAVING AVG(salary) BETWEEN 1 AND 10010 ORDER BY e;
+aggMultiGroupByOnScalarWithHaving
+SELECT emp_no + 1 AS e, languages % 10 AS l FROM test_emp GROUP BY e, l HAVING AVG(salary) BETWEEN 1 AND 10010 ORDER BY e, l;
 
 //
 // Mixture of Aggs that triggers promotion of aggs to stats
@@ -277,12 +364,34 @@ SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_
 aggHavingScalarOnAggFunctionsWithoutAliasesInAndNotInGroupBy
 SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY languages HAVING MAX(salary) % MIN(salary) + AVG(salary) > 3000 ORDER BY languages;
 
+aggMultiGroupByMultiIncludingScalarFunction
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY gender, languages ORDER BY gender, languages;
+aggMultiGroupByHavingWithAggNotInGroupBy
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY gender, languages HAVING AVG(salary) > 30000 ORDER BY gender, languages;
+aggMultiGroupByHavingWithAliasOnScalarFromGroupBy
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY gender, languages HAVING d BETWEEN 50 AND 10000 AND AVG(salary) > 30000 ORDER BY gender, languages;
+aggMultiGroupByHavingWithScalarFunctionBasedOnAliasFromGroupBy
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY gender, languages HAVING ma % mi > 1 AND AVG(salary) > 30000 ORDER BY gender, languages;
+aggMultiGroupByHavingWithMultipleScalarFunctionsBasedOnAliasFromGroupBy
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY gender, languages HAVING d - ma % mi > 0 AND AVG(salary) > 30000 ORDER BY gender, languages;
+aggMultiGroupByHavingWithMultipleScalarFunctionsBasedOnAliasFromGroupByAndAggNotInGroupBy
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY gender, languages HAVING ROUND(d - ABS(ma % mi)) + AVG(salary) > 0 AND AVG(salary) > 30000 ORDER BY gender, languages;
+aggMultiGroupByHavingScalarOnAggFunctionsWithoutAliasesInAndNotInGroupBy
+SELECT MIN(salary) mi, MAX(salary) ma, MAX(salary) - MIN(salary) AS d FROM test_emp GROUP BY gender, languages HAVING MAX(salary) % MIN(salary) + AVG(salary) > 3000 ORDER BY gender, languages;
+
+
 //
 // Mixture of aggs that get promoted plus filtering on one of them 
 //
 aggMultiWithHaving
 SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g HAVING max > 74600 ORDER BY gender;
 
+aggMultiGroupByMultiWithHaving
+SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g, languages HAVING max > 74600 ORDER BY gender, languages;
+
+
 // filter on count (which is a special agg)
 aggMultiWithHavingOnCount
 SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g HAVING c > 40 ORDER BY gender;
+aggMultiGroupByMultiWithHavingOnCount
+SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g, languages HAVING c > 40 ORDER BY gender, languages;

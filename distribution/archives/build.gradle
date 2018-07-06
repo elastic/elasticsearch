@@ -102,7 +102,7 @@ Closure commonZipConfig = {
 
 task buildIntegTestZip(type: Zip) {
   configure(commonZipConfig)
-  with archiveFiles(transportModulesFiles, 'zip', false)
+  with archiveFiles(transportModulesFiles, 'zip', true)
 }
 
 task buildZip(type: Zip) {

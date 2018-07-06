@@ -435,6 +435,8 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
         String keystorePath = settings.get(TRUSTSTORE_PATH);
+        System.out.println(settings);
+        System.out.println(keystorePath);
         if (keystorePath != null) {
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
             if (keystorePass == null) {

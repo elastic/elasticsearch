@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbcx.JdbcDataSource;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
+import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
 import java.sql.Connection;

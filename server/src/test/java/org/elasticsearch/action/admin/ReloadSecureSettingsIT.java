@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -205,7 +206,10 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
                             assertThat(nodesMap.size(), equalTo(cluster().size()));
                             for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
                                 assertThat(nodeResponse.reloadException(), notNullValue());
-                                assertThat(nodeResponse.reloadException(), instanceOf(IOException.class));
+                                // Running in a JVM with a BouncyCastle FIPS Security Provider, decrypting the Keystore with the wrong
+                                // password can return a SecurityException if the DataInputStream can't be fully consumed
+                                assertThat(nodeResponse.reloadException(),
+                                    anyOf(instanceOf(IOException.class), instanceOf(SecurityException.class)));
                             }
                         } catch (final AssertionError e) {
                             reloadSettingsError.set(e);

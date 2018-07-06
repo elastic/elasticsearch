@@ -28,6 +28,7 @@ public class Equals extends BinaryComparison {
         return new Equals(location(), newLeft, newRight);
     }
 
+    @Override
     public Object fold() {
         return Objects.equals(left().fold(), right().fold());
     }
@@ -39,6 +40,6 @@ public class Equals extends BinaryComparison {
 
     @Override
     public String symbol() {
-        return "=";
+        return "==";
     }
 }

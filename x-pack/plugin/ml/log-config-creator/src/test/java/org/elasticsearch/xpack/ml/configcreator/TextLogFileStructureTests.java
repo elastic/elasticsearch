@@ -55,11 +55,7 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
             containsString("match => { \"message\" => \"\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]" +
                 "\\[.*\" }\n"));
         assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"timestamp\", \"ISO8601\" ]\n"));
-        if (timezone == null) {
-            assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
-        } else {
-            assertThat(structure.getLogstashFromFileConfig(), containsString("timezone => \"" + timezone + "\"\n"));
-        }
+        assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToIngestPipelineConfig(), not(containsString("encoding:")));
         } else {
@@ -72,7 +68,7 @@ public class TextLogFileStructureTests extends LogConfigCreatorTestCase {
             containsString("\"patterns\": [ \"\\\\[%{TIMESTAMP_ISO8601:timestamp}\\\\]\\\\[%{LOGLEVEL:loglevel} \\\\]" +
                 "\\\\[.*\" ]\n"));
         assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"field\": \"timestamp\",\n"));
-        assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"formats\": [ \"ISO8601\" ],\n"));
+        assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"formats\": [ \"ISO8601\" ]\n"));
     }
 
     public void testCreateMultiLineMessageStartRegexGivenNoPrefaces() {

@@ -311,6 +311,15 @@ public final class TimestampFormatFinder {
             this.hasFractionalComponentSmallerThanMillisecond = hasFractionalComponentSmallerThanMillisecond;
         }
 
+        /**
+         * Does the parsing the timestamp produce different results depending on the timezone of the parser?
+         * I.e., does the textual representation NOT define the timezone?
+         */
+        public boolean hasTimezoneDependentParsing() {
+            return dateFormats.stream()
+                .anyMatch(dateFormat -> dateFormat.contains("HH") && dateFormat.toLowerCase(Locale.ROOT).indexOf('z') == -1);
+        }
+
         @Override
         public int hashCode() {
             return Objects.hash(candidateIndex, preface, dateFormats, simplePattern.pattern(), grokPatternName, epilogue,

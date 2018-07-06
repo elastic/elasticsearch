@@ -36,10 +36,6 @@ public class XmlLogFileStructureTests extends LogConfigCreatorTestCase {
         }
         assertThat(structure.getLogstashFromFileConfig(), containsString("pattern => \"^\\s*<log4j:event\"\n"));
         assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
-        if (timezone == null) {
-            assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
-        } else {
-            assertThat(structure.getLogstashFromFileConfig(), containsString("timezone => \"" + timezone + "\"\n"));
-        }
+        assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
     }
 }

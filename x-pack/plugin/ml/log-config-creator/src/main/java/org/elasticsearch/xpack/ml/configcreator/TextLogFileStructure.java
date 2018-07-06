@@ -34,14 +34,11 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
         "%s" +
-        "\n" +
-        "processors:\n" +
-        "- add_locale: ~\n" +
+        "%s" +
         "\n" +
         "output.logstash:\n" +
         "  hosts: [\"localhost:5044\"]\n";
-    private static final String COMMON_LOGSTASH_FILTERS_TEMPLATE =
-        "  grok {\n" +
+    private static final String COMMON_LOGSTASH_FILTERS_TEMPLATE = "  grok {\n" +
         "    match => { \"message\" => %s%s%s }\n" +
         "  }\n" +
         "%s" +
@@ -92,9 +89,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
     private static final String FILEBEAT_TO_INGEST_PIPELINE_WITHOUT_MODULE_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
         "%s" +
-        "\n" +
-        "processors:\n" +
-        "- add_locale: ~\n" +
+        "%s" +
         "\n" +
         "output.elasticsearch:\n" +
         "  hosts: [\"http://localhost:9200\"]\n" +
@@ -110,8 +105,8 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "      }%s,\n" +
         "      \"date\": {\n" +
         "        \"field\": \"%s\",\n" +
-        "        \"formats\": [ %s ],\n" +
-        "        \"timezone\": \"{{ " + BEAT_TIMEZONE_FIELD + " }}\"\n" +
+        "%s" +
+        "        \"formats\": [ %s ]\n" +
         "      },\n" +
         "      \"remove\": {\n" +
         "        \"field\": \"%s\"\n" +
@@ -173,6 +168,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
             // a regular pattern of timestamps as a log file?  Probably not...
             throw new UserException(ExitCodes.DATA_ERROR, "Could not find a timestamp in the log sample provided");
         }
+        boolean hasTimezoneDependentParsing = bestTimestamp.v1().hasTimezoneDependentParsing();
 
         terminal.println(Verbosity.VERBOSE, "Most likely timestamp format is [" + bestTimestamp.v1() + "]");
 
@@ -222,25 +218,26 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         String dateFormatsStr = bestTimestamp.v1().dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\""));
 
         String filebeatInputOptions = makeFilebeatInputOptions(multiLineRegex, null);
-        filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions);
+        filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions,
+            makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing));
         String logstashFromFilebeatFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
             makeLogstashFractionalSecondsGsubFilter(interimTimestampField, bestTimestamp.v1()), interimTimestampField, dateFormatsStr,
-            interimTimestampField, makeLogstashTimezoneSetting(true));
+            interimTimestampField, makeLogstashTimezoneSetting(hasTimezoneDependentParsing, true));
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatFilters);
         String logstashFromFileFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
             makeLogstashFractionalSecondsGsubFilter(interimTimestampField, bestTimestamp.v1()), interimTimestampField, dateFormatsStr,
-            interimTimestampField, makeLogstashTimezoneSetting(false));
+            interimTimestampField, makeLogstashTimezoneSetting(hasTimezoneDependentParsing, false));
         logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(multiLineRegex),
             logstashFromFileFilters, indexName);
         FilebeatModule matchingModule = (filebeatModuleStore != null) ? filebeatModuleStore.findMatchingModule(sampleMessages) : null;
         if (matchingModule == null) {
             filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_WITHOUT_MODULE_TEMPLATE,
-                filebeatInputOptions, typeName);
+                filebeatInputOptions, makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing), typeName);
             String jsonEscapedGrokPattern = grokPattern.replaceAll("([\\\\\"])", "\\\\$1");
             ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_WITHOUT_MODULE_TEMPLATE, typeName,
                 typeName, jsonEscapedGrokPattern,
                 makeIngestPipelineFractionalSecondsGsubFilter(interimTimestampField, bestTimestamp.v1()), interimTimestampField,
-                dateFormatsStr, interimTimestampField);
+                makeIngestPipelineTimezoneSetting(hasTimezoneDependentParsing), dateFormatsStr, interimTimestampField);
         } else {
             String aOrAn = ("aeiou".indexOf(matchingModule.fileType.charAt(0)) >= 0) ? "an" : "a";
             terminal.println("An existing Filebeat module [" + matchingModule.moduleName +

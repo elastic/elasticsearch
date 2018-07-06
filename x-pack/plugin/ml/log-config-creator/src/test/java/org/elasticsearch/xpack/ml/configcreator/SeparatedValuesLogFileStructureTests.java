@@ -39,11 +39,7 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("columns => [ \"time\", \"message\" ]\n"));
         assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
-        if (timezone == null) {
-            assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
-        } else {
-            assertThat(structure.getLogstashFromFileConfig(), containsString("timezone => \"" + timezone + "\"\n"));
-        }
+        assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
     }
 
     public void testCreateConfigsGivenCsvWithIncompleteLastRecord() throws Exception {
@@ -73,11 +69,7 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
             assertThat(structure.getLogstashFromFileConfig(), containsString("charset => \"" + charset + "\""));
         }
         assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
-        if (timezone == null) {
-            assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
-        } else {
-            assertThat(structure.getLogstashFromFileConfig(), containsString("timezone => \"" + timezone + "\"\n"));
-        }
+        assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
     }
 
     public void testFindHeaderFromSampleGivenHeaderInSample() throws IOException {

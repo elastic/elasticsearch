@@ -105,7 +105,7 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
         return String.format(Locale.ROOT, LOGSTASH_DATE_FILTER_TEMPLATE,
             makeLogstashFractionalSecondsGsubFilter(timeFieldName, timestampMatch), fieldQuote, timeFieldName, fieldQuote,
             timestampMatch.dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\"")),
-            makeLogstashTimezoneSetting(isFromFilebeat), copyFilter);
+            makeLogstashTimezoneSetting(timestampMatch.hasTimezoneDependentParsing(), isFromFilebeat), copyFilter);
     }
 
     protected SortedMap<String, String> guessMappings(List<Map<String, ?>> sampleRecords) throws UserException {

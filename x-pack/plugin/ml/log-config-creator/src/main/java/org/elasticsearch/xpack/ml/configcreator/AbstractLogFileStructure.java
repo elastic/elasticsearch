@@ -26,7 +26,8 @@ public abstract class AbstractLogFileStructure {
 
     protected static final boolean IS_WINDOWS = System.getProperty("os.name").startsWith("Windows");
     protected static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
-    protected static final String BEAT_TIMEZONE_FIELD = "beat.timezone";
+
+    private static final String BEAT_TIMEZONE_FIELD = "beat.timezone";
 
     // NUMBER Grok pattern doesn't support scientific notation, so we extend it
     private static final Grok NUMBER_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{NUMBER}(?:[eE][+-]?[0-3]?[0-9]{1,2})?$");
@@ -41,6 +42,9 @@ public abstract class AbstractLogFileStructure {
         "  multiline.negate: true\n" +
         "  multiline.match: after\n";
     private static final String FILEBEAT_EXCLUDE_LINES_TEMPLATE = "  exclude_lines: ['^%s']\n";
+    private static final String FILEBEAT_ADD_LOCALE_PROCESSOR = "\n" +
+        "processors:\n" +
+        "- add_locale: ~\n";
 
     private static final String LOGSTASH_ENCODING_TEMPLATE = "      charset => \"%s\"\n";
     private static final String LOGSTASH_MULTILINE_CODEC_TEMPLATE = "    codec => multiline {\n" +
@@ -75,6 +79,7 @@ public abstract class AbstractLogFileStructure {
         "        \"pattern\": \"([:.,]\\\\d{3})\\\\d*\",\n" +
         "        \"replacement\": \"$1\"\n" +
         "      }";
+    private static final String INGEST_PIPELINE_DATE_PARSE_TIMEZONE = "        \"timezone\": \"{{ " + BEAT_TIMEZONE_FIELD + " }}\",\n";
 
     private static final String FIELD_MAPPING_TEMPLATE = "        \"%s\": {\n" +
         "          \"type\": \"%s\"\n" +
@@ -252,8 +257,21 @@ public abstract class AbstractLogFileStructure {
         }
     }
 
-    protected String makeLogstashTimezoneSetting(boolean isFromFilebeat) {
-        String timezone = isFromFilebeat ? "%{" + BEAT_TIMEZONE_FIELD + "}" : logstashFileTimezone;
-        return (timezone == null) ? "" : String.format(Locale.ROOT, LOGSTASH_TIMEZONE_SETTING_TEMPLATE, timezone);
+    protected String makeFilebeatAddLocaleSetting(boolean hasTimezoneDependentParsing) {
+        return hasTimezoneDependentParsing ? FILEBEAT_ADD_LOCALE_PROCESSOR : "";
+    }
+
+    protected String makeLogstashTimezoneSetting(boolean hasTimezoneDependentParsing, boolean isFromFilebeat) {
+        if (hasTimezoneDependentParsing) {
+            String timezone = isFromFilebeat ? "%{" + BEAT_TIMEZONE_FIELD + "}" : logstashFileTimezone;
+            if (timezone != null) {
+                return String.format(Locale.ROOT, LOGSTASH_TIMEZONE_SETTING_TEMPLATE, timezone);
+            }
+        }
+        return "";
+    }
+
+    protected String makeIngestPipelineTimezoneSetting(boolean hasTimezoneDependentParsing) {
+        return hasTimezoneDependentParsing ? INGEST_PIPELINE_DATE_PARSE_TIMEZONE : "";
     }
 }

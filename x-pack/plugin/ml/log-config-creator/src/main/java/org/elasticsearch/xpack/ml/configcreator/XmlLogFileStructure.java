@@ -37,9 +37,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
         "%s" +
-        "\n" +
-        "processors:\n" +
-        "- add_locale: ~\n" +
+        "%s" +
         "\n" +
         "output.logstash:\n" +
         "  hosts: [\"localhost:5044\"]\n";
@@ -176,15 +174,17 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
         mappings = guessMappings(sampleRecords);
 
+        boolean hasTimezoneDependentParsing = false;
         String logstashFromFilebeatDateFilter = "";
         String logstashFromFileDateFilter = "";
         if (timeField != null) {
+            hasTimezoneDependentParsing = timeField.v2().hasTimezoneDependentParsing();
             logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), true);
             logstashFromFileDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), false);
         }
 
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
-            makeFilebeatInputOptions("^\\s*" + messagePrefix, null));
+            makeFilebeatInputOptions("^\\s*" + messagePrefix, null), makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing));
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatDateFilter);
         logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput("^\\s*" + messagePrefix),
             logstashFromFileDateFilter, indexName);

@@ -37,9 +37,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
         "%s" +
-        "\n" +
-        "processors:\n" +
-        "- add_locale: ~\n" +
+        "%s" +
         "\n" +
         "output.logstash:\n" +
         "  hosts: [\"localhost:5044\"]\n";
@@ -125,7 +123,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
             try {
                 Map<String, String> sampleRecord;
                 while ((sampleRecord = csvReader.read(csvHeader)) != null) {
-                    if (sampleRecords.isEmpty()) {
+                    if (sampleRecords.size() == (isCsvHeaderInFile ? 0 : 1)) {
                         createPreambleComment(Pattern.compile("\n").splitAsStream(sample).limit(csvReader.getLineNumber())
                             .collect(Collectors.joining("\n", "", "\n")));
                     }
@@ -372,6 +370,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
 
         char delimiter = (char) csvPreference.getDelimiterChar();
         String timeLineRegex = null;
+        boolean hasTimezoneDependentParsing = false;
         String logstashFromFilebeatDateFilter = "";
         String logstashFromFileDateFilter = "";
         if (timeField != null) {
@@ -394,6 +393,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
                 }
             }
 
+            hasTimezoneDependentParsing = timeField.v2().hasTimezoneDependentParsing();
             logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), true);
             logstashFromFileDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), false);
         }
@@ -403,7 +403,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
             .collect(Collectors.joining(",")) : null;
 
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
-            makeFilebeatInputOptions(timeLineRegex, excludeColumns));
+            makeFilebeatInputOptions(timeLineRegex, excludeColumns), makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing));
         String logstashColumns = Arrays.stream(csvHeader)
             .map(column -> (column.indexOf('"') >= 0) ? ("'" + column + "'") : ("\"" + column + "\"")).collect(Collectors.joining(", "));
         String separatorIfRequired = (delimiter == ',') ? "" : String.format(Locale.ROOT, SEPARATOR_TEMPLATE, delimiter);

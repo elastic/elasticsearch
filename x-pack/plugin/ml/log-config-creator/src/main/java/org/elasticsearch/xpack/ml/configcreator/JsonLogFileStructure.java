@@ -33,9 +33,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
     private static final String FILEBEAT_TO_LOGSTASH_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
         "%s" +
-        "\n" +
-        "processors:\n" +
-        "- add_locale: ~\n" +
+        "%s" +
         "\n" +
         "output.logstash:\n" +
         "  hosts: [\"localhost:5044\"]\n";
@@ -89,9 +87,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
     private static final String FILEBEAT_TO_INGEST_PIPELINE_TEMPLATE = "filebeat.inputs:\n" +
         "- type: log\n" +
         "%s" +
-        "\n" +
-        "processors:\n" +
-        "- add_locale: ~\n" +
+        "%s" +
         "\n" +
         "output.elasticsearch:\n" +
         "  hosts: [\"http://localhost:9200\"]\n" +
@@ -99,8 +95,8 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
     private static final String INGEST_PIPELINE_DATE_PROCESSOR_TEMPLATE = "%s,\n" +
         "      \"date\": {\n" +
         "        \"field\": \"%s\",\n" +
-        "        \"formats\": [ %s ],\n" +
-        "        \"timezone\": \"{{ " + BEAT_TIMEZONE_FIELD + " }}\"\n" +
+        "%s" +
+        "        \"formats\": [ %s ]\n" +
         "      }\n";
     private static final String INGEST_PIPELINE_FROM_FILEBEAT_TEMPLATE = "PUT _ingest/pipeline/%s\n" +
         "{\n" +
@@ -143,24 +139,29 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
         Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
         mappings = guessMappings(sampleRecords);
 
+        boolean hasTimezoneDependentParsing = false;
         String logstashFromFilebeatDateFilter = "";
         String logstashFromFileDateFilter = "";
         String ingestPipelineDateProcessor = "";
         if (timeField != null) {
+            hasTimezoneDependentParsing = timeField.v2().hasTimezoneDependentParsing();
             logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), true);
             logstashFromFileDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), false);
             String jsonEscapedField = timeField.v1().replaceAll("([\\\\\"])", "\\\\$1").replace("\t", "\\t");
             ingestPipelineDateProcessor = String.format(Locale.ROOT, INGEST_PIPELINE_DATE_PROCESSOR_TEMPLATE,
                 makeIngestPipelineFractionalSecondsGsubFilter(jsonEscapedField, timeField.v2()), jsonEscapedField,
+                makeIngestPipelineTimezoneSetting(hasTimezoneDependentParsing),
                 timeField.v2().dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\"")));
         }
 
         String filebeatInputOptions = makeFilebeatInputOptions(null, null);
-        filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions);
+        filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions,
+            makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing));
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatDateFilter);
         logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(null),
             logstashFromFileDateFilter, indexName);
-        filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_TEMPLATE, filebeatInputOptions, typeName);
+        filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_TEMPLATE, filebeatInputOptions,
+            makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing), typeName);
         ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_TEMPLATE, typeName, typeName,
             ingestPipelineDateProcessor);
     }

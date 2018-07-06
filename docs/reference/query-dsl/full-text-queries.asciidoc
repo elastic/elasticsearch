@@ -25,7 +25,7 @@ The queries in this group are:
 
     The multi-field version of the `match` query.
 
-<<query-dsl-common-terms-query,`common_terms` query>>::
+<<query-dsl-common-terms-query,`common` terms query>>::
 
     A more specialized query which gives more preference to uncommon words.
 
@@ -35,7 +35,7 @@ The queries in this group are:
     allowing you to specify AND|OR|NOT conditions and multi-field search
     within a single query string. For expert users only.
 
-<<query-dsl-simple-query-string-query,`simple_query_string`>>::
+<<query-dsl-simple-query-string-query,`simple_query_string` query>>::
 
     A simpler, more robust version of the `query_string` syntax suitable
     for exposing directly to users.

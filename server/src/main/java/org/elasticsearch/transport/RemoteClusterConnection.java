@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -369,9 +370,11 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         private void connect(ActionListener<Void> connectListener, boolean forceRun) {
             final boolean runConnect;
             final Collection<ActionListener<Void>> toNotify;
+            final ActionListener<Void> listener = connectListener == null ? null :
+                ContextPreservingActionListener.wrapPreservingContext(connectListener, transportService.getThreadPool().getThreadContext());
             synchronized (queue) {
-                if (connectListener != null && queue.offer(connectListener) == false) {
-                    connectListener.onFailure(new RejectedExecutionException("connect queue is full"));
+                if (listener != null && queue.offer(listener) == false) {
+                    listener.onFailure(new RejectedExecutionException("connect queue is full"));
                     return;
                 }
                 if (forceRun == false && queue.isEmpty()) {

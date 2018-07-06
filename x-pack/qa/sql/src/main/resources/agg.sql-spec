@@ -80,6 +80,8 @@ SELECT COUNT(DISTINCT hire_date) AS count FROM test_emp;
 // Conditional COUNT
 aggCountAndHaving
 SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING COUNT(*) > 10 ORDER BY gender;
+aggCountAndHavingEquality
+SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING COUNT(*) = 10 ORDER BY gender;
 aggCountOnColumnAndHaving
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING COUNT(gender) > 10 ORDER BY gender;
 // NOT supported yet since Having introduces a new agg
@@ -91,6 +93,8 @@ aggCountOnColumnAndHavingOnAlias
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 ORDER BY gender;
 aggCountOnColumnAndMultipleHaving
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender ;
+aggCountOnColumnAndMultipleHavingEquals
+SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c = 63 ORDER BY gender ;
 aggCountOnColumnAndMultipleHavingWithLimit
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender LIMIT 1;
 aggCountOnColumnAndHavingBetween
@@ -144,6 +148,7 @@ aggMinWithMultipleHavingBetween
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g HAVING m BETWEEN 10 AND 99999 ORDER BY g LIMIT 1;
 aggMinWithMultipleHavingOnAliasAndFunction
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g HAVING m > 10 AND MIN(emp_no) < 99999 ORDER BY gender;
+
 
 // MAX
 aggMaxImplicit

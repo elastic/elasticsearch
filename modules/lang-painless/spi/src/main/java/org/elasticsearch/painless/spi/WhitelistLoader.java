@@ -147,7 +147,7 @@ public final class WhitelistLoader {
                 String javaClassName = null;
                 boolean onlyFQNJavaClassName = false;
                 List<WhitelistConstructor> whitelistConstructors = null;
-                List<Whitelist.Method> whitelistMethods = null;
+                List<WhitelistMethod> whitelistMethods = null;
                 List<Whitelist.Field> whitelistFields = null;
 
                 while ((line = reader.readLine()) != null) {
@@ -271,7 +271,7 @@ public final class WhitelistLoader {
                                 tokens = new String[0];
                             }
 
-                            whitelistMethods.add(new Whitelist.Method(origin, javaAugmentedClassName, javaMethodName,
+                            whitelistMethods.add(new WhitelistMethod(origin, javaAugmentedClassName, javaMethodName,
                                 painlessReturnTypeName, Arrays.asList(tokens)));
 
                         // Handle the case for a field definition.

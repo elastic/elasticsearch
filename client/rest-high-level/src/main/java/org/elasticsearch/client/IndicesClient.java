@@ -39,6 +39,7 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -435,6 +436,34 @@ public final class IndicesClient {
                                  ActionListener<GetSettingsResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(getSettingsRequest, RequestConverters::getSettings, options,
             GetSettingsResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Retrieve information about one or more indexes
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-index.html">
+     * Indices Get Index API on elastic.co</a>
+     * @param getIndexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetIndexResponse get(GetIndexRequest getIndexRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getIndexRequest, RequestConverters::getIndex, options,
+            GetIndexResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Retrieve information about one or more indexes
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-index.html">
+     * Indices Get Index API on elastic.co</a>
+     * @param getIndexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getAsync(GetIndexRequest getIndexRequest, RequestOptions options,
+                         ActionListener<GetIndexResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getIndexRequest, RequestConverters::getIndex, options,
+            GetIndexResponse::fromXContent, listener, emptySet());
     }
 
     /**

@@ -71,17 +71,17 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertEquals(LicenseStatus.ACTIVE, info.getLicenseInfo().getStatus());
 
         FeatureSet graph = info.getFeatureSetsInfo().getFeatureSets().get("graph");
-        assertEquals("Graph Data Exploration for the Elastic Stack", graph.description());
+        assertNotNull(graph.description());
         assertFalse(graph.available());
         assertTrue(graph.enabled());
         assertNull(graph.nativeCodeInfo());
         FeatureSet monitoring = info.getFeatureSetsInfo().getFeatureSets().get("monitoring");
-        assertEquals("Monitoring for the Elastic Stack", monitoring.description());
+        assertNotNull(monitoring.description());
         assertTrue(monitoring.available());
         assertTrue(monitoring.enabled());
         assertNull(monitoring.nativeCodeInfo());
         FeatureSet ml = info.getFeatureSetsInfo().getFeatureSets().get("ml");
-        assertEquals("Machine Learning for the Elastic Stack", ml.description());
+        assertNotNull(ml.description());
         assertFalse(ml.available());
         assertTrue(ml.enabled());
         assertEquals(mainResponse.getVersion().toString(),

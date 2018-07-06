@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest;
 
+import io.netty.channel.Channel;
 import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -13,7 +14,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.netty4.Netty4HttpRequest;
+import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.netty4.Netty4HttpChannel;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -50,10 +52,11 @@ public class SecurityRestFilter implements RestHandler {
         if (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed() && request.method() != Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request
             if (extractClientCertificate) {
-                Netty4HttpRequest nettyHttpRequest = (Netty4HttpRequest) request;
-                SslHandler handler = nettyHttpRequest.getChannel().pipeline().get(SslHandler.class);
+                HttpChannel httpChannel = request.getHttpChannel();
+                Channel nettyChannel = ((Netty4HttpChannel) httpChannel).getNettyChannel();
+                SslHandler handler = nettyChannel.pipeline().get(SslHandler.class);
                 assert handler != null;
-                ServerTransportFilter.extractClientCertificates(logger, threadContext, handler.engine(), nettyHttpRequest.getChannel());
+                ServerTransportFilter.extractClientCertificates(logger, threadContext, handler.engine(), nettyChannel);
             }
             service.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(
                 authentication -> {

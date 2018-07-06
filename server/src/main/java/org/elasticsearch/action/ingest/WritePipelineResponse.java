@@ -20,44 +20,19 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
-import java.io.IOException;
-
 public class WritePipelineResponse extends AcknowledgedResponse implements ToXContentObject {
 
-    private static final ConstructingObjectParser<WritePipelineResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "write_pipeline_response", true, args -> new WritePipelineResponse((boolean) args[0]));
-
-    static {
-        declareAcknowledgedField(PARSER);
-    }
-
     WritePipelineResponse() {
-
     }
 
     public WritePipelineResponse(boolean acknowledged) {
         super(acknowledged);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        readAcknowledged(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        writeAcknowledged(out);
-    }
-
     public static WritePipelineResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return new WritePipelineResponse(parseAcknowledged(parser));
     }
 }

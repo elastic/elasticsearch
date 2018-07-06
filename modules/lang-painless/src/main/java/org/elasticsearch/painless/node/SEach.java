@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -72,7 +71,7 @@ public class SEach extends AStatement {
         Class<?> clazz;
 
         try {
-            clazz = Definition.TypeToClass(locals.getDefinition().getType(this.type));
+            clazz = locals.getDefinition().getJavaClassFromPainlessType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }

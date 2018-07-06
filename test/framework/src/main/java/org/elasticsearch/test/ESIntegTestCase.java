@@ -104,6 +104,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -126,7 +127,8 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -138,6 +140,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.node.NodeMocksPlugin;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptMetaData;
@@ -151,6 +154,10 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -432,10 +439,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             randomSettingsBuilder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
             if (randomBoolean()) {
                 randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), randomBoolean());
-            }
-
-            if (randomBoolean()) {
-                randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), randomBoolean());
             }
             PutIndexTemplateRequestBuilder putTemplate = client().admin().indices()
                 .preparePutTemplate("random_index_template")
@@ -823,7 +826,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Waits till a (pattern) field name mappings concretely exists on all nodes. Note, this waits for the current
+     * Waits until mappings for the provided fields exist on all nodes. Note, this waits for the current
      * started shards and checks for concrete mappings.
      */
     public void assertConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) throws Exception {
@@ -833,11 +836,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
             IndexService indexService = indicesService.indexService(resolveIndex(index));
             assertThat("index service doesn't exists on " + node, indexService, notNullValue());
-            DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-            assertThat("document mapper doesn't exists on " + node, documentMapper, notNullValue());
+            MapperService mapperService = indexService.mapperService();
             for (String fieldName : fieldNames) {
-                Collection<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
-                assertThat("field " + fieldName + " doesn't exists on " + node, matches, Matchers.not(emptyIterable()));
+                MappedFieldType fieldType = mapperService.fullName(fieldName);
+                assertNotNull("field " + fieldName + " doesn't exists on " + node, fieldType);
             }
         }
         assertMappingOnMaster(index, type, fieldNames);
@@ -2015,6 +2017,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             mocks.add(MockHttpTransport.TestPlugin.class);
         }
         mocks.add(TestSeedPlugin.class);
+        mocks.add(AssertActionNamePlugin.class);
         return Collections.unmodifiableList(mocks);
     }
 
@@ -2022,6 +2025,25 @@ public abstract class ESIntegTestCase extends ESTestCase {
         @Override
         public List<Setting<?>> getSettings() {
             return Arrays.asList(INDEX_TEST_SEED_SETTING);
+        }
+    }
+
+    public static final class AssertActionNamePlugin extends Plugin implements NetworkPlugin {
+        @Override
+        public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                   ThreadContext threadContext) {
+            return Arrays.asList(new TransportInterceptor() {
+                @Override
+                public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                                boolean forceExecution,
+                                                                                                TransportRequestHandler<T> actualHandler) {
+                    if (TransportService.isValidActionName(action) == false) {
+                        throw new IllegalArgumentException("invalid action name [" + action + "] must start with one of: " +
+                            TransportService.VALID_ACTION_PREFIXES );
+                    }
+                    return actualHandler;
+                }
+            });
         }
     }
 

@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
-import org.elasticsearch.xpack.sql.client.shared.ObjectUtils;
-import org.elasticsearch.xpack.sql.client.shared.Version;
+import org.elasticsearch.xpack.sql.client.ObjectUtils;
+import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;

@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -42,6 +43,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -51,10 +57,12 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
+import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,14 +71,18 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
@@ -88,9 +100,70 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
-        plugins.add(TestPlugin.class);
-        return plugins;
+        return Stream.concat(
+                super.getPlugins().stream(),
+                Stream.of(TestPlugin.class, FooEnginePlugin.class, BarEnginePlugin.class))
+                .collect(Collectors.toList());
+    }
+
+    public static class FooEnginePlugin extends Plugin implements EnginePlugin {
+
+        static class FooEngineFactory implements EngineFactory {
+
+            @Override
+            public Engine newReadWriteEngine(final EngineConfig config) {
+                return new InternalEngine(config);
+            }
+
+        }
+
+        private static final Setting<Boolean> FOO_INDEX_SETTING =
+                Setting.boolSetting("index.foo_index", false, Setting.Property.IndexScope);
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(FOO_INDEX_SETTING);
+        }
+
+        @Override
+        public Optional<EngineFactory> getEngineFactory(final IndexSettings indexSettings) {
+            if (FOO_INDEX_SETTING.get(indexSettings.getSettings())) {
+                return Optional.of(new FooEngineFactory());
+            } else {
+                return Optional.empty();
+            }
+        }
+
+    }
+
+    public static class BarEnginePlugin extends Plugin implements EnginePlugin {
+
+        static class BarEngineFactory implements EngineFactory {
+
+            @Override
+            public Engine newReadWriteEngine(final EngineConfig config) {
+                return new InternalEngine(config);
+            }
+
+        }
+
+        private static final Setting<Boolean> BAR_INDEX_SETTING =
+                Setting.boolSetting("index.bar_index", false, Setting.Property.IndexScope);
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(BAR_INDEX_SETTING);
+        }
+
+        @Override
+        public Optional<EngineFactory> getEngineFactory(final IndexSettings indexSettings) {
+            if (BAR_INDEX_SETTING.get(indexSettings.getSettings())) {
+                return Optional.of(new BarEngineFactory());
+            } else {
+                return Optional.empty();
+            }
+        }
+
     }
 
     public static class TestPlugin extends Plugin implements MapperPlugin {
@@ -438,4 +511,56 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertTrue(indicesService.isMetaDataField(builtIn));
         }
     }
+
+    public void testGetEngineFactory() throws IOException {
+        final IndicesService indicesService = getIndicesService();
+
+        final Boolean[] values = new Boolean[] { true, false, null };
+        for (final Boolean value : values) {
+            final String indexName = "foo-" + value;
+            final Index index = new Index(indexName, UUIDs.randomBase64UUID());
+            final Settings.Builder builder = Settings.builder()
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
+            if (value != null) {
+                builder.put(FooEnginePlugin.FOO_INDEX_SETTING.getKey(), value);
+            }
+
+            final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
+                    .settings(builder.build())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build();
+            final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+            if (value != null && value) {
+                assertThat(indexService.getEngineFactory(), instanceOf(FooEnginePlugin.FooEngineFactory.class));
+            } else {
+                assertThat(indexService.getEngineFactory(), instanceOf(InternalEngineFactory.class));
+            }
+        }
+    }
+
+    public void testConflictingEngineFactories() throws IOException {
+        final String indexName = "foobar";
+        final Index index = new Index(indexName, UUIDs.randomBase64UUID());
+        final Settings settings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
+                .put(FooEnginePlugin.FOO_INDEX_SETTING.getKey(), true)
+                .put(BarEnginePlugin.BAR_INDEX_SETTING.getKey(), true)
+                .build();
+        final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
+                .settings(settings)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+
+        final IndicesService indicesService = getIndicesService();
+        final IllegalStateException e =
+                expectThrows(IllegalStateException.class, () -> indicesService.createIndex(indexMetaData, Collections.emptyList()));
+        final String pattern =
+                ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
+        assertThat(e, hasToString(new RegexMatcher(pattern)));
+    }
+
 }

@@ -99,7 +99,6 @@ import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -140,7 +139,7 @@ public class ClusterStateChanges extends AbstractComponent {
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Environment environment = TestEnvironment.newEnvironment(settings);
-        Transport transport = null; // it's not used
+        Transport transport = mock(Transport.class); // it's not used
 
         // mocks
         clusterService = mock(ClusterService.class);

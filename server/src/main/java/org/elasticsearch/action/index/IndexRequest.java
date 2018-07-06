@@ -38,7 +38,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -283,7 +282,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      *
      * @param source The map to index
      */
-    public IndexRequest source(Map source) throws ElasticsearchGenerationException {
+    public IndexRequest source(Map<String, ?> source) throws ElasticsearchGenerationException {
         return source(source, Requests.INDEX_CONTENT_TYPE);
     }
 
@@ -292,7 +291,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      *
      * @param source The map to index
      */
-    public IndexRequest source(Map source, XContentType contentType) throws ElasticsearchGenerationException {
+    public IndexRequest source(Map<String, ?> source, XContentType contentType) throws ElasticsearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);

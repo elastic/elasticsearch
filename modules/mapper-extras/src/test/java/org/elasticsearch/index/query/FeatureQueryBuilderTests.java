@@ -33,8 +33,10 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
@@ -46,7 +48,8 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
         for (String type : getCurrentTypes()) {
             mapperService.merge(type, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(type,
                     "my_feature_field", "type=feature",
-                    "my_negative_feature_field", "type=feature,positive_score_impact=false"))), MapperService.MergeReason.MAPPING_UPDATE);
+                    "my_negative_feature_field", "type=feature,positive_score_impact=false",
+                    "my_feature_vector_field", "type=feature_vector"))), MapperService.MergeReason.MAPPING_UPDATE);
         }
     }
 
@@ -58,8 +61,10 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
     @Override
     protected FeatureQueryBuilder doCreateTestQueryBuilder() {
         ScoreFunction function;
+        boolean mayUseNegativeField = true;
         switch (random().nextInt(3)) {
         case 0:
+            mayUseNegativeField = false;
             function = new ScoreFunction.Log(1 + randomFloat());
             break;
         case 1:
@@ -75,19 +80,22 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
         default:
             throw new AssertionError();
         }
-        return new FeatureQueryBuilder("my_feature_field", function);
+        List<String> fields = new ArrayList<>();
+        fields.add("my_feature_field");
+        fields.add("unmapped_field");
+        fields.add("my_feature_vector_field.feature");
+        if (mayUseNegativeField) {
+            fields.add("my_negative_feature_field");
+        }
+        
+        final String field = randomFrom(fields);
+        return new FeatureQueryBuilder(field, function);
     }
 
     @Override
     protected void doAssertLuceneQuery(FeatureQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         Class<?> expectedClass = FeatureField.newSaturationQuery("", "", 1, 1).getClass();
         assertThat(query, either(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(expectedClass)));
-    }
-
-    @Override
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/30605")
-    public void testUnknownField() {
-        super.testUnknownField();
     }
 
     public void testDefaultScoreFunction() throws IOException {
@@ -109,7 +117,7 @@ public class FeatureQueryBuilderTests extends AbstractQueryTestCase<FeatureQuery
                 "    }\n" +
                 "}";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
-        assertEquals("[feature] query only works on [feature] fields, not [text]", e.getMessage());
+        assertEquals("[feature] query only works on [feature] fields and features of [feature_vector] fields, not [text]", e.getMessage());
     }
 
     public void testIllegalCombination() throws IOException {

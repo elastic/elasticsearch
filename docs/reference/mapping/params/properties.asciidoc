@@ -78,7 +78,7 @@ GET my_index/_search
 {
   "query": {
     "match": {
-      "manager.name": "Alice White" <1>
+      "manager.name": "Alice White" 
     }
   },
   "aggs": {
@@ -89,7 +89,7 @@ GET my_index/_search
       "aggs": {
         "Employee Ages": {
           "histogram": {
-            "field": "employees.age", <2>
+            "field": "employees.age", 
             "interval": 5
           }
         }

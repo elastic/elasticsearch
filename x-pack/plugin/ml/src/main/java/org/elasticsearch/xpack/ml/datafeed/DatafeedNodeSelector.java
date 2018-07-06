@@ -12,12 +12,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 
 import java.util.List;
 import java.util.Objects;
@@ -64,11 +64,11 @@ public class DatafeedNodeSelector {
         PriorityFailureCollector priorityFailureCollector = new PriorityFailureCollector();
         priorityFailureCollector.add(verifyIndicesActive(datafeed));
 
-        JobTaskStatus taskStatus = null;
+        JobTaskState jobTaskState = null;
         JobState jobState = JobState.CLOSED;
         if (jobTask != null) {
-            taskStatus = (JobTaskStatus) jobTask.getStatus();
-            jobState = taskStatus == null ? JobState.OPENING : taskStatus.getState();
+            jobTaskState = (JobTaskState) jobTask.getState();
+            jobState = jobTaskState == null ? JobState.OPENING : jobTaskState.getState();
         }
 
         if (jobState.isAnyOf(JobState.OPENING, JobState.OPENED) == false) {
@@ -78,8 +78,8 @@ public class DatafeedNodeSelector {
             priorityFailureCollector.add(new AssignmentFailure(reason, true));
         }
 
-        if (taskStatus != null && taskStatus.isStatusStale(jobTask)) {
-            String reason = "cannot start datafeed [" + datafeed.getId() + "], job [" + datafeed.getJobId() + "] status is stale";
+        if (jobTaskState != null && jobTaskState.isStatusStale(jobTask)) {
+            String reason = "cannot start datafeed [" + datafeed.getId() + "], job [" + datafeed.getJobId() + "] state is stale";
             priorityFailureCollector.add(new AssignmentFailure(reason, true));
         }
 
@@ -91,7 +91,7 @@ public class DatafeedNodeSelector {
         List<String> indices = datafeed.getIndices();
         for (String index : indices) {
 
-            if (isRemoteIndex(index)) {
+            if (MlRemoteLicenseChecker.isRemoteIndex(index)) {
                 // We cannot verify remote indices
                 continue;
             }
@@ -120,10 +120,6 @@ public class DatafeedNodeSelector {
             }
         }
         return null;
-    }
-
-    private boolean isRemoteIndex(String index) {
-        return index.indexOf(':') != -1;
     }
 
     private static class AssignmentFailure {

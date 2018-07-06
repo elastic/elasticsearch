@@ -54,7 +54,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_COUNT;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_TOP_HITS;
-import static org.elasticsearch.search.query.QueryPhase.canEarlyTerminate;
 
 /**
  * A {@link QueryCollectorContext} that creates top docs collector

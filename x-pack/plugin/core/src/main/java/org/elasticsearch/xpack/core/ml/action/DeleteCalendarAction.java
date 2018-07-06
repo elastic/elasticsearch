@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, DeleteCalendarAction.Response> {
+public class DeleteCalendarAction extends Action<DeleteCalendarAction.Response> {
 
     public static final DeleteCalendarAction INSTANCE = new DeleteCalendarAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/delete";
@@ -96,17 +96,5 @@ public class DeleteCalendarAction extends Action<DeleteCalendarAction.Request, D
         }
 
         public Response() {}
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
-        }
     }
 }

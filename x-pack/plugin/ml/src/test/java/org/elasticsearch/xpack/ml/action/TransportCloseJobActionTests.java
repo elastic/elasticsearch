@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -51,7 +50,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         mlBuilder.putJob(BaseMlIntegTestCase.createScheduledJob("job_id").build(new Date()), false);
         mlBuilder.putDatafeed(BaseMlIntegTestCase.createDatafeed("datafeed_id", "job_id",
-                Collections.singletonList("*")), null);
+                Collections.singletonList("*")), Collections.emptyMap());
         final PersistentTasksCustomMetaData.Builder startDataFeedTaskBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", null, JobState.OPENED, startDataFeedTaskBuilder);
         addTask("datafeed_id", 0L, null, DatafeedState.STARTED, startDataFeedTaskBuilder);
@@ -265,7 +264,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
 
         TransportCloseJobAction transportAction = new TransportCloseJobAction(Settings.EMPTY,
-                mock(TransportService.class), mock(ThreadPool.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
+                mock(TransportService.class), mock(ThreadPool.class), mock(ActionFilters.class),
                 clusterService, mock(Client.class), mock(Auditor.class), mock(PersistentTasksService.class));
 
         AtomicBoolean gotResponse = new AtomicBoolean(false);
@@ -314,7 +313,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
                                PersistentTasksCustomMetaData.Builder tasks) {
         tasks.addTask(MLMetadataField.datafeedTaskId(datafeedId), StartDatafeedAction.TASK_NAME,
                 new StartDatafeedAction.DatafeedParams(datafeedId, startTime), new Assignment(nodeId, "test assignment"));
-        tasks.updateTaskStatus(MLMetadataField.datafeedTaskId(datafeedId), state);
+        tasks.updateTaskState(MLMetadataField.datafeedTaskId(datafeedId), state);
     }
 
 }

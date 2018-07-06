@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
-public class StartDatafeedAction extends Action<StartDatafeedAction.Request, StartDatafeedAction.Response> {
+public class StartDatafeedAction extends Action<StartDatafeedAction.Response> {
 
     public static final ParseField START_TIME = new ParseField("start");
     public static final ParseField END_TIME = new ParseField("end");
@@ -286,16 +286,6 @@ public class StartDatafeedAction extends Action<StartDatafeedAction.Request, Sta
 
         public Response(boolean acknowledged) {
             super(acknowledged);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            writeAcknowledged(out);
         }
 
         @Override

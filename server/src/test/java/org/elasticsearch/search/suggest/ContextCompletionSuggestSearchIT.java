@@ -23,7 +23,6 @@ import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -68,7 +67,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testContextPrefix() throws Exception {
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         map.put("cat", ContextBuilder.category("cat").field("cat").build());
         boolean addAnotherContext = randomBoolean();
         if (addAnotherContext) {
@@ -101,7 +100,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testContextRegex() throws Exception {
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         map.put("cat", ContextBuilder.category("cat").field("cat").build());
         boolean addAnotherContext = randomBoolean();
         if (addAnotherContext) {
@@ -134,7 +133,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testContextFuzzy() throws Exception {
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         map.put("cat", ContextBuilder.category("cat").field("cat").build());
         boolean addAnotherContext = randomBoolean();
         if (addAnotherContext) {
@@ -168,7 +167,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     public void testContextFilteringWorksWithUTF8Categories() throws Exception {
         CategoryContextMapping contextMapping = ContextBuilder.category("cat").field("cat").build();
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
         IndexResponse indexResponse = client().prepareIndex(INDEX, TYPE, "1")
@@ -189,7 +188,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     public void testSingleContextFiltering() throws Exception {
         CategoryContextMapping contextMapping = ContextBuilder.category("cat").field("cat").build();
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
         int numDocs = 10;
@@ -215,7 +214,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     public void testSingleContextBoosting() throws Exception {
         CategoryContextMapping contextMapping = ContextBuilder.category("cat").field("cat").build();
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
         int numDocs = 10;
@@ -242,7 +241,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testMultiContextFiltering() throws Exception {
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         map.put("cat", ContextBuilder.category("cat").field("cat").build());
         map.put("type", ContextBuilder.category("type").field("type").build());
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
@@ -278,7 +277,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     @AwaitsFix(bugUrl = "multiple context boosting is broken, as a suggestion, contexts pair is treated as (num(context) entries)")
     public void testMultiContextBoosting() throws Exception {
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         map.put("cat", ContextBuilder.category("cat").field("cat").build());
         map.put("type", ContextBuilder.category("type").field("type").build());
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
@@ -333,7 +332,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testSeveralContexts() throws Exception {
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         final int numContexts = randomIntBetween(2, 5);
         for (int i = 0; i < numContexts; i++) {
             map.put("type" + i, ContextBuilder.category("type" + i).field("type" + i).build());
@@ -365,7 +364,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testGeoFiltering() throws Exception {
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         map.put("geo", ContextBuilder.geo("geo").build());
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
@@ -395,7 +394,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testGeoBoosting() throws Exception {
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         map.put("geo", ContextBuilder.geo("geo").build());
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
@@ -426,7 +425,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testGeoPointContext() throws Exception {
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         map.put("geo", ContextBuilder.geo("geo").build());
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
@@ -466,7 +465,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         neighbours.add("gcpu");
         neighbours.add("u10h");
 
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         map.put("geo", ContextBuilder.geo("geo").precision(4).build());
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
@@ -553,7 +552,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testSkipDuplicatesWithContexts() throws Exception {
-        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         map.put("type", ContextBuilder.category("type").field("type").build());
         map.put("cat", ContextBuilder.category("cat").field("cat").build());
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
@@ -614,7 +613,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         List<String> categoryContextFields = new ArrayList<>();
         if (completionMappingBuilder.contextMappings != null) {
             mapping.startArray("contexts");
-            for (Map.Entry<String, ContextMapping> contextMapping : completionMappingBuilder.contextMappings.entrySet()) {
+            for (Map.Entry<String, ContextMapping<?>> contextMapping : completionMappingBuilder.contextMappings.entrySet()) {
                 mapping.startObject()
                         .field("name", contextMapping.getValue().name())
                         .field("type", contextMapping.getValue().type().name());

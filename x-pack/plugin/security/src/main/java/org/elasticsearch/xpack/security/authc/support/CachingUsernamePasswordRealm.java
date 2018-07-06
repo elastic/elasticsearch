@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
@@ -31,11 +32,11 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     private final Cache<String, ListenableFuture<Tuple<AuthenticationResult, UserWithHash>>> cache;
     private final ThreadPool threadPool;
-    final Hasher hasher;
+    final Hasher cacheHasher;
 
     protected CachingUsernamePasswordRealm(String type, RealmConfig config, ThreadPool threadPool) {
         super(type, config);
-        hasher = Hasher.resolve(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING.get(config.settings()), Hasher.SSHA256);
+        cacheHasher = Hasher.resolve(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING.get(config.settings()));
         this.threadPool = threadPool;
         TimeValue ttl = CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING.get(config.settings());
         if (ttl.getNanos() > 0) {
@@ -101,7 +102,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     if (result.isAuthenticated()) {
                         final User user = result.getUser();
                         authenticatedUser.set(user);
-                        final UserWithHash userWithHash = new UserWithHash(user, token.credentials(), hasher);
+                        final UserWithHash userWithHash = new UserWithHash(user, token.credentials(), cacheHasher);
                         future.onResponse(new Tuple<>(result, userWithHash));
                     } else {
                         future.onResponse(new Tuple<>(result, null));
@@ -177,10 +178,15 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     }
 
     @Override
-    public Map<String, Object> usageStats() {
-        Map<String, Object> stats = super.usageStats();
-        stats.put("size", cache.count());
-        return stats;
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        super.usageStats(ActionListener.wrap(stats -> {
+            stats.put("cache", Collections.singletonMap("size", getCacheSize()));
+            listener.onResponse(stats);
+        }, listener::onFailure));
+    }
+
+    protected int getCacheSize() {
+        return cache.count();
     }
 
     protected abstract void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener);
@@ -227,16 +233,14 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     private static class UserWithHash {
         final User user;
         final char[] hash;
-        final Hasher hasher;
 
         UserWithHash(User user, SecureString password, Hasher hasher) {
             this.user = Objects.requireNonNull(user);
             this.hash = password == null ? null : hasher.hash(password);
-            this.hasher = hasher;
         }
 
         boolean verify(SecureString password) {
-            return hash != null && hasher.verify(password, hash);
+            return hash != null && Hasher.verifyHash(password, hash);
         }
     }
 }

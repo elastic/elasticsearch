@@ -9,7 +9,9 @@ dependencies {
   compile "org.elasticsearch.test:framework:${version}"
 
   // JDBC testing dependencies
-  compile xpackProject('plugin:sql:jdbc')
+  compile project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
+
+  compile project(path: xpackModule('sql:sql-action'))
   compile "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
 
   // CLI testing dependencies
@@ -22,6 +24,7 @@ dependencies {
 test.enabled = false
 
 dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
 forbiddenApisMain {
@@ -75,6 +78,7 @@ thirdPartyAudit.excludes = [
 subprojects {
   apply plugin: 'elasticsearch.standalone-rest-test'
   dependencies {
+    
     /* Since we're a standalone rest test we actually get transitive
      * dependencies but we don't really want them because they cause
      * all kinds of trouble with the jar hell checks. So we suppress
@@ -87,7 +91,9 @@ subprojects {
     // JDBC testing dependencies
     testRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
     testRuntime "com.h2database:h2:1.4.197"
-    testRuntime xpackProject('plugin:sql:jdbc')
+    testRuntime project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
+    testRuntime xpackProject('plugin:sql:sql-client')
+
 
     // TODO check if needed
     testRuntime("org.antlr:antlr4-runtime:4.5.3") {
@@ -96,7 +102,7 @@ subprojects {
 
     // CLI testing dependencies
     testRuntime project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
-    testRuntime (xpackProject('plugin:sql:sql-proto')) {
+    testRuntime (xpackProject('plugin:sql:sql-action')) {
       transitive = false
     }
     testRuntime "org.jline:jline:3.6.0"

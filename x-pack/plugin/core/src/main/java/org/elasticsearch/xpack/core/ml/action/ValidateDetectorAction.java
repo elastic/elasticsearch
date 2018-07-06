@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ValidateDetectorAction extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response> {
+public class ValidateDetectorAction extends Action<ValidateDetectorAction.Response> {
 
     public static final ValidateDetectorAction INSTANCE = new ValidateDetectorAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/validate/detector";
@@ -114,18 +114,6 @@ public class ValidateDetectorAction extends Action<ValidateDetectorAction.Reques
 
         public Response(boolean acknowledged) {
             super(acknowledged);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
         }
     }
 

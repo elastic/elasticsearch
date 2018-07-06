@@ -22,7 +22,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 
-public class ValidateJobConfigAction extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response> {
+public class ValidateJobConfigAction extends Action<ValidateJobConfigAction.Response> {
 
     public static final ValidateJobConfigAction INSTANCE = new ValidateJobConfigAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/validate";
@@ -120,18 +120,6 @@ public class ValidateJobConfigAction extends Action<ValidateJobConfigAction.Requ
 
         public Response(boolean acknowledged) {
             super(acknowledged);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
         }
     }
 

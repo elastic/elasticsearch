@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -213,7 +212,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
             }
 
             @Override
-            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 logger.debug("Job [" + jobId + "] is successfully marked as deleted");
                 listener.onResponse(true);
             }

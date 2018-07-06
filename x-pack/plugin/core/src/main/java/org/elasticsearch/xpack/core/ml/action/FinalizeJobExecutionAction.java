@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionAction.Request, FinalizeJobExecutionAction.Response> {
+public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionAction.Response> {
 
     public static final FinalizeJobExecutionAction INSTANCE = new FinalizeJobExecutionAction();
     public static final String NAME = "cluster:internal/xpack/ml/job/finalize_job_execution";
@@ -78,18 +78,6 @@ public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionActio
         }
 
         public Response() {
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
         }
     }
 

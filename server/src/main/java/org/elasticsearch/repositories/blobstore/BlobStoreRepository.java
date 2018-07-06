@@ -50,6 +50,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -256,7 +257,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         indexMetaDataFormat = new ChecksumBlobStoreFormat<>(INDEX_METADATA_CODEC, METADATA_NAME_FORMAT,
             IndexMetaData::fromXContent, namedXContentRegistry, isCompress());
         snapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
-            SnapshotInfo::fromXContent, namedXContentRegistry, isCompress());
+            SnapshotInfo::fromXContentInternal, namedXContentRegistry, isCompress());
     }
 
     @Override
@@ -555,10 +556,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 String blobName = "master.dat";
                 BytesArray bytes = new BytesArray(testBytes);
                 try (InputStream stream = bytes.streamInput()) {
-                    testContainer.writeBlob(blobName + "-temp", stream, bytes.length());
+                    testContainer.writeBlobAtomic(blobName, stream, bytes.length(), true);
                 }
-                // Make sure that move is supported
-                testContainer.move(blobName + "-temp", blobName);
                 return seed;
             }
         } catch (IOException exp) {
@@ -665,13 +664,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // write the index file
         final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
         logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
-        writeAtomic(indexBlob, snapshotsBytes);
+        writeAtomic(indexBlob, snapshotsBytes, true);
         // delete the N-2 index file if it exists, keep the previous one around as a backup
         if (isReadOnly() == false && newGen - 2 >= 0) {
             final String oldSnapshotIndexFile = INDEX_FILE_PREFIX + Long.toString(newGen - 2);
-            if (snapshotsBlobContainer.blobExists(oldSnapshotIndexFile)) {
-                snapshotsBlobContainer.deleteBlob(oldSnapshotIndexFile);
-            }
+            snapshotsBlobContainer.deleteBlobIgnoringIfNotExists(oldSnapshotIndexFile);
         }
 
         // write the current generation to the index-latest file
@@ -680,11 +677,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             bStream.writeLong(newGen);
             genBytes = bStream.bytes();
         }
-        if (snapshotsBlobContainer.blobExists(INDEX_LATEST_BLOB)) {
-            snapshotsBlobContainer.deleteBlob(INDEX_LATEST_BLOB);
-        }
         logger.debug("Repository [{}] updating index.latest with generation [{}]", metadata.name(), newGen);
-        writeAtomic(INDEX_LATEST_BLOB, genBytes);
+        writeAtomic(INDEX_LATEST_BLOB, genBytes, false);
     }
 
     /**
@@ -703,11 +697,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             bytes = bStream.bytes();
         }
-        if (snapshotsBlobContainer.blobExists(INCOMPATIBLE_SNAPSHOTS_BLOB)) {
-            snapshotsBlobContainer.deleteBlob(INCOMPATIBLE_SNAPSHOTS_BLOB);
-        }
         // write the incompatible snapshots blob
-        writeAtomic(INCOMPATIBLE_SNAPSHOTS_BLOB, bytes);
+        writeAtomic(INCOMPATIBLE_SNAPSHOTS_BLOB, bytes, false);
     }
 
     /**
@@ -773,19 +764,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return latest;
     }
 
-    private void writeAtomic(final String blobName, final BytesReference bytesRef) throws IOException {
-        final String tempBlobName = "pending-" + blobName + "-" + UUIDs.randomBase64UUID();
+    private void writeAtomic(final String blobName, final BytesReference bytesRef, boolean failIfAlreadyExists) throws IOException {
         try (InputStream stream = bytesRef.streamInput()) {
-            snapshotsBlobContainer.writeBlob(tempBlobName, stream, bytesRef.length());
-            snapshotsBlobContainer.move(tempBlobName, blobName);
-        } catch (IOException ex) {
-            // temporary blob creation or move failed - try cleaning up
-            try {
-                snapshotsBlobContainer.deleteBlobIgnoringIfNotExists(tempBlobName);
-            } catch (IOException e) {
-                ex.addSuppressed(e);
-            }
-            throw ex;
+            snapshotsBlobContainer.writeBlobAtomic(blobName, stream, bytesRef.length(), failIfAlreadyExists);
         }
     }
 
@@ -830,7 +811,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try  {
                 BytesArray bytes = new BytesArray(seed);
                 try (InputStream stream = bytes.streamInput()) {
-                    testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", stream, bytes.length());
+                    testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", stream, bytes.length(), true);
                 }
             } catch (IOException exp) {
                 throw new RepositoryVerificationException(metadata.name(), "store location [" + blobStore() + "] is not accessible on the node [" + localNode + "]", exp);
@@ -955,7 +936,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // Delete temporary index files first, as we might otherwise fail in the next step creating the new index file if an earlier
                 // attempt to write an index file with this generation failed mid-way after creating the temporary file.
                 for (final String blobName : blobs.keySet()) {
-                    if (indexShardSnapshotsFormat.isTempBlobName(blobName)) {
+                    if (FsBlobContainer.isTempBlobName(blobName)) {
                         try {
                             blobContainer.deleteBlobIgnoringIfNotExists(blobName);
                         } catch (IOException e) {
@@ -1269,7 +1250,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                                                   snapshotRateLimitingTimeInNanos::inc);
                     }
                     inputStream = new AbortableInputStream(inputStream, fileInfo.physicalName());
-                    blobContainer.writeBlob(fileInfo.partName(i), inputStream, partBytes);
+                    blobContainer.writeBlob(fileInfo.partName(i), inputStream, partBytes, true);
                 }
                 Store.verify(indexInput);
                 snapshotStatus.addProcessedFile(fileInfo.length());

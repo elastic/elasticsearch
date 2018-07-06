@@ -11,6 +11,7 @@ import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.SearchResultEntry;
+import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import com.unboundid.ldap.sdk.controls.AuthorizationIdentityRequestControl;
 import org.apache.logging.log4j.Logger;
@@ -102,7 +103,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     @Override
     protected List<String> getDefaultLdapUrls(Settings settings) {
         return Collections.singletonList("ldap://" + settings.get(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING) +
-                ":" + ldapPort);
+                ":" + ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING.get(settings));
     }
 
     @Override
@@ -195,6 +196,11 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             bindDN = bindDN + "@" + settings.get(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING);
         }
         return bindDN;
+    }
+
+    // Exposed for testing
+    ServerSet getServerSet() {
+        return super.serverSet;
     }
 
     ADAuthenticator getADAuthenticator(String username) {

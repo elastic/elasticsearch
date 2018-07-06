@@ -692,8 +692,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         deprecatedMethods.add("multi_get");
         deprecatedMethods.add("multi_search");
         deprecatedMethods.add("search_scroll");
-
-
+        
         ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("/rest-api-spec/api");
         Set<String> apiSpec = restSpec.getApis().stream().map(ClientYamlSuiteRestApi::getName).collect(Collectors.toSet());
 

@@ -125,6 +125,8 @@ SELECT gender g, languages l, COUNT(*) c FROM "test_emp" GROUP BY g, l ORDER BY 
 // Conditional COUNT
 aggCountAndHaving
 SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING COUNT(*) > 10 ORDER BY gender;
+aggCountAndHavingEquality
+SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING COUNT(*) = 10 ORDER BY gender;
 aggCountOnColumnAndHaving
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING COUNT(gender) > 10 ORDER BY gender;
 aggCountOnColumnAndWildcardAndHaving
@@ -135,6 +137,8 @@ aggCountOnColumnAndHavingOnAlias
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 ORDER BY gender;
 aggCountOnColumnAndMultipleHaving
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender ;
+aggCountOnColumnAndMultipleHavingEquals
+SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c = 63 ORDER BY gender ;
 aggCountOnColumnAndMultipleHavingWithLimit
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender LIMIT 1;
 aggCountOnColumnAndHavingBetween

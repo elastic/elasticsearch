@@ -45,6 +45,7 @@ subprojects {
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ml:${version}": xpackModule('ml')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-monitoring:${version}": xpackModule('monitoring')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-security:${version}": xpackModule('security')]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-sql:${version}": xpackModule('sql')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-upgrade:${version}": xpackModule('upgrade')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-watcher:${version}": xpackModule('watcher')]
 }

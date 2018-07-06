@@ -78,6 +78,7 @@ Index Management::
 * <<java-rest-high-indices-put-settings>>
 * <<java-rest-high-get-settings>>
 * <<java-rest-high-indices-validate-query>>
+* <<java-rest-high-get-index>>
 
 Mapping Management::
 * <<java-rest-high-put-mapping>>
@@ -114,6 +115,7 @@ include::indices/get_settings.asciidoc[]
 include::indices/put_template.asciidoc[]
 include::indices/validate_query.asciidoc[]
 include::indices/get_templates.asciidoc[]
+include::indices/get_index.asciidoc[]
 
 == Cluster APIs
 

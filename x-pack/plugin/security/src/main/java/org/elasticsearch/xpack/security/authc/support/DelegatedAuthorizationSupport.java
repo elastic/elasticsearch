@@ -6,9 +6,11 @@
 
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -22,39 +24,38 @@ import static org.elasticsearch.common.Strings.collectionToDelimitedString;
 
 public class DelegatedAuthorizationSupport {
 
-    private final List<Realm> lookupRealms;
-    private final ThreadContext threadContext;
+    private final RealmUserLookup lookup;
+    private final Logger logger;
 
     public DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, RealmConfig config) {
         this(allRealms, DelegatedAuthorizationSettings.AUTHZ_REALMS.get(config.settings()), config.threadContext());
     }
 
     protected DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, List<String> lookupRealms, ThreadContext threadContext) {
-        this.lookupRealms = resolveRealms(allRealms, lookupRealms);
-        this.threadContext = threadContext;
+       this.lookup = new RealmUserLookup(resolveRealms(allRealms, lookupRealms), threadContext);
+       this.logger = Loggers.getLogger(getClass());
     }
 
     public boolean hasDelegation() {
-        return this.lookupRealms.isEmpty() == false;
+        return this.lookup.hasRealms();
     }
 
-    public void resolveUser(String username, ActionListener<AuthenticationResult> resultListener) {
-        if (lookupRealms.isEmpty()) {
-            throw new IllegalStateException("No realms have been configured for delegation");
+    public void resolve(String username, ActionListener<AuthenticationResult> resultListener) {
+        if (hasDelegation() == false) {
+            resultListener.onResponse(AuthenticationResult.unsuccessful("No realms have been configured for delegation", null));
+            return;
         }
-        ActionListener<User> userListener = ActionListener.wrap(user -> {
-            if (user != null) {
-                resultListener.onResponse(AuthenticationResult.success(user));
+        ActionListener<Tuple<User, Realm>> userListener = ActionListener.wrap(tuple -> {
+            if (tuple != null) {
+                logger.trace("Found user " + tuple.v1() + " in realm " + tuple.v2());
+                resultListener.onResponse(AuthenticationResult.success(tuple.v1()));
             } else {
                 resultListener.onResponse(AuthenticationResult.unsuccessful("the principal [" + username
-                    + "] was authenticated, but no user could be found in realms [" + collectionToDelimitedString(lookupRealms, ",")
+                    + "] was authenticated, but no user could be found in realms [" + collectionToDelimitedString(lookup.getRealms(), ",")
                     + "]", null));
             }
         }, resultListener::onFailure);
-        final IteratingActionListener<User, Realm> iteratingListener = new IteratingActionListener<>(userListener,
-            (realm, listener) -> realm.lookupUser(username, listener),
-            lookupRealms, threadContext);
-        iteratingListener.run();
+        lookup.lookup(username, userListener);
     }
 
     private List<Realm> resolveRealms(Iterable<? extends Realm> allRealms, List<String> lookupRealms) {

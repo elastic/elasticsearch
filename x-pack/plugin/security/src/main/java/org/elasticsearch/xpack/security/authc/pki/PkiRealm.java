@@ -121,7 +121,7 @@ public class PkiRealm extends Realm implements CachingRealm {
             User user = cache.get(fingerprint);
             if (user != null) {
                 if (delegatedRealms.hasDelegation()) {
-                    delegatedRealms.resolveUser(token.principal(), listener);
+                    delegatedRealms.resolve(token.principal(), listener);
                 } else {
                     listener.onResponse(AuthenticationResult.success(user));
                 }
@@ -137,7 +137,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                     listener.onResponse(result);
                 }, listener::onFailure);
                 if (delegatedRealms.hasDelegation()) {
-                    delegatedRealms.resolveUser(token.principal(), cachingListener);
+                    delegatedRealms.resolve(token.principal(), cachingListener);
                 } else {
                     this.buildUser(token, cachingListener);
                 }

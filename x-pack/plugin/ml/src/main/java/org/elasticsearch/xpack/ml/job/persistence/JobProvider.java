@@ -63,6 +63,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -93,6 +96,9 @@ import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.core.ml.stats.CountAccumulator;
+import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
+import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
@@ -1112,6 +1118,53 @@ public class JobProvider {
                 result -> handler.accept(result.result), errorHandler, () -> null);
     }
 
+    public void getForecastStats(String jobId, Consumer<ForecastStats> handler, Consumer<Exception> errorHandler) {
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+
+        QueryBuilder termQuery = new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE);
+        QueryBuilder jobQuery = new TermsQueryBuilder(Job.ID.getPreferredName(), jobId);
+        QueryBuilder finalQuery = new BoolQueryBuilder().filter(termQuery).filter(jobQuery);
+
+        SearchRequest searchRequest = new SearchRequest(indexName);
+        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions()));
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.query(finalQuery);
+        sourceBuilder.aggregation(
+                AggregationBuilders.stats(ForecastStats.Fields.MEMORY).field(ForecastRequestStats.MEMORY_USAGE.getPreferredName()));
+        sourceBuilder.aggregation(AggregationBuilders.stats(ForecastStats.Fields.RECORDS)
+                .field(ForecastRequestStats.PROCESSED_RECORD_COUNT.getPreferredName()));
+        sourceBuilder.aggregation(
+                AggregationBuilders.stats(ForecastStats.Fields.RUNTIME).field(ForecastRequestStats.PROCESSING_TIME_MS.getPreferredName()));
+        sourceBuilder.aggregation(
+                AggregationBuilders.terms(ForecastStats.Fields.STATUSES).field(ForecastRequestStats.STATUS.getPreferredName()));
+        sourceBuilder.size(0);
+
+        searchRequest.source(sourceBuilder);
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(searchResponse -> {
+                    long totalHits = searchResponse.getHits().getTotalHits();
+                    Aggregations aggregations = searchResponse.getAggregations();
+                    if (totalHits == 0 || aggregations == null) {
+                        handler.accept(new ForecastStats());
+                        return;
+                    }
+                    Map<String, Aggregation> aggregationsAsMap = aggregations.asMap();
+                    StatsAccumulator memoryStats = StatsAccumulator
+                            .fromStatsAggregation((Stats) aggregationsAsMap.get(ForecastStats.Fields.MEMORY));
+                    StatsAccumulator recordStats = StatsAccumulator
+                            .fromStatsAggregation((Stats) aggregationsAsMap.get(ForecastStats.Fields.RECORDS));
+                    StatsAccumulator runtimeStats = StatsAccumulator
+                            .fromStatsAggregation((Stats) aggregationsAsMap.get(ForecastStats.Fields.RUNTIME));
+                    CountAccumulator statusCount = CountAccumulator
+                            .fromTermsAggregation((StringTerms) aggregationsAsMap.get(ForecastStats.Fields.STATUSES));
+
+                    ForecastStats forecastStats = new ForecastStats(totalHits, memoryStats, recordStats, runtimeStats, statusCount);
+                    handler.accept(forecastStats);
+                }, errorHandler), client::search);
+
+    }
+    
     public void updateCalendar(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove,
                                Consumer<Calendar> handler, Consumer<Exception> errorHandler) {
 

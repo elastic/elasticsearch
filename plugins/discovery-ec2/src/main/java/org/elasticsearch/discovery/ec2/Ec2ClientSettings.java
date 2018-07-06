@@ -21,14 +21,20 @@ package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
+import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.BasicAWSCredentials;
-
+import com.amazonaws.auth.BasicSessionCredentials;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
+
 import java.util.Locale;
 
 /**
@@ -41,6 +47,9 @@ final class Ec2ClientSettings {
 
     /** The secret key (ie password) for connecting to ec2. */
     static final Setting<SecureString> SECRET_KEY_SETTING = SecureSetting.secureString("discovery.ec2.secret_key", null);
+
+    /** The session token for connecting to ec2. */
+    static final Setting<SecureString> SESSION_TOKEN_SETTING = SecureSetting.secureString("discovery.ec2.session_token", null);
 
     /** The host name of a proxy to connect to ec2 through. */
     static final Setting<String> PROXY_HOST_SETTING = Setting.simpleString("discovery.ec2.proxy.host", Property.NodeScope);
@@ -66,8 +75,12 @@ final class Ec2ClientSettings {
     static final Setting<TimeValue> READ_TIMEOUT_SETTING = Setting.timeSetting("discovery.ec2.read_timeout",
             TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope);
 
+    private static final Logger logger = Loggers.getLogger(Ec2ClientSettings.class);
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
+
     /** Credentials to authenticate with ec2. */
-    final BasicAWSCredentials credentials;
+    final AWSCredentials credentials;
 
     /**
      * The ec2 endpoint the client should talk to, or empty string to use the
@@ -96,7 +109,7 @@ final class Ec2ClientSettings {
     /** The read timeout for the ec2 client. */
     final int readTimeoutMillis;
 
-    protected Ec2ClientSettings(BasicAWSCredentials credentials, String endpoint, Protocol protocol, String proxyHost, int proxyPort,
+    protected Ec2ClientSettings(AWSCredentials credentials, String endpoint, Protocol protocol, String proxyHost, int proxyPort,
             String proxyUsername, String proxyPassword, int readTimeoutMillis) {
         this.credentials = credentials;
         this.endpoint = endpoint;
@@ -108,26 +121,45 @@ final class Ec2ClientSettings {
         this.readTimeoutMillis = readTimeoutMillis;
     }
 
-    static BasicAWSCredentials loadCredentials(Settings settings) {
-        try (SecureString accessKey = ACCESS_KEY_SETTING.get(settings);
-                SecureString secretKey = SECRET_KEY_SETTING.get(settings);) {
-            if (accessKey.length() != 0) {
-                if (secretKey.length() != 0) {
-                    return new BasicAWSCredentials(accessKey.toString(), secretKey.toString());
-                } else {
-                    throw new IllegalArgumentException("Missing secret key for ec2 client.");
+    static AWSCredentials loadCredentials(Settings settings) {
+        try (SecureString key = ACCESS_KEY_SETTING.get(settings);
+             SecureString secret = SECRET_KEY_SETTING.get(settings);
+             SecureString sessionToken = SESSION_TOKEN_SETTING.get(settings)) {
+            if (key.length() == 0 && secret.length() == 0) {
+                if (sessionToken.length() > 0) {
+                    throw new SettingsException("Setting [{}] is set but [{}] and [{}] are not",
+                        SESSION_TOKEN_SETTING.getKey(), ACCESS_KEY_SETTING.getKey(), SECRET_KEY_SETTING.getKey());
                 }
-            } else if (secretKey.length() != 0) {
-                throw new IllegalArgumentException("Missing access key for ec2 client.");
+
+                logger.debug("Using either environment variables, system properties or instance profile credentials");
+                return null;
+            } else {
+                if (key.length() == 0) {
+                    DEPRECATION_LOGGER.deprecated("Setting [{}] is set but [{}] is not, which will be unsupported in future",
+                        SECRET_KEY_SETTING.getKey(), ACCESS_KEY_SETTING.getKey());
+                }
+                if (secret.length() == 0) {
+                    DEPRECATION_LOGGER.deprecated("Setting [{}] is set but [{}] is not, which will be unsupported in future",
+                        ACCESS_KEY_SETTING.getKey(), SECRET_KEY_SETTING.getKey());
+                }
+
+                final AWSCredentials credentials;
+                if (sessionToken.length() == 0) {
+                    logger.debug("Using basic key/secret credentials");
+                    credentials = new BasicAWSCredentials(key.toString(), secret.toString());
+                } else {
+                    logger.debug("Using basic session credentials");
+                    credentials = new BasicSessionCredentials(key.toString(), secret.toString(), sessionToken.toString());
+                }
+                return credentials;
             }
-            return null;
         }
     }
 
     // pkg private for tests
     /** Parse settings for a single client. */
     static Ec2ClientSettings getClientSettings(Settings settings) {
-        final BasicAWSCredentials credentials = loadCredentials(settings);
+        final AWSCredentials credentials = loadCredentials(settings);
         try (SecureString proxyUsername = PROXY_USERNAME_SETTING.get(settings);
              SecureString proxyPassword = PROXY_PASSWORD_SETTING.get(settings)) {
             return new Ec2ClientSettings(

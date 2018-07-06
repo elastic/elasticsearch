@@ -256,8 +256,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     /**
      * The mapping source definition.
      */
-    @SuppressWarnings("unchecked")
-    public PutMappingRequest source(Map mappingSource) {
+    public PutMappingRequest source(Map<String, ?> mappingSource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);

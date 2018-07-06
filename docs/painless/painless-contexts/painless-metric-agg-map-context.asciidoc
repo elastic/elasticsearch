@@ -1,0 +1,47 @@
+[[painless-metric-agg-map-context]]
+=== Metric aggregation map context
+
+Use a Painless script to
+{es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[map]
+values for use in a scripted metric aggregation. A map script is run once per
+collected document following an optional
+<<painless-metric-agg-init-context, initialization script>> and is required as
+part of a full metric aggregation.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`params['_agg']` (`Map`)::
+        `Map` used to add values for processing in a
+        <<painless-metric-agg-map-context, combine script>> or returned
+        directly.
+
+`doc` (`Map`, read-only)::
+        Contains the fields of the current document where each field is a
+        `List` of values.
+
+`_score` (`double` read-only)::
+        The similarity score of the current document.
+
+*Side Effects*
+
+`params['_agg']` (`Map`)::
+        Use this `Map` to add values for processing in a combine script.
+        Additional values must be of the type `Map`, `List`, `String` or
+        primitive. If an initialization script is provided as part the
+        aggregation then values added from the initialization script are
+        available as well.  If no combine script is specified, values must be
+        directly stored in `_agg`. If no combine script and no
+        <<painless-metric-agg-reduce-context, reduce script>> are specified, the
+        values are used as the result.
+
+*Return*
+
+`void`::
+        No expected return value.
+
+*API*
+
+The standard <<painless-api-reference, Painless API>> is available.

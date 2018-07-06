@@ -1,3 +1,12 @@
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.test.AntFixture
+import org.elasticsearch.gradle.test.ClusterConfiguration
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+import java.lang.reflect.Field
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -64,14 +73,245 @@ test {
   exclude '**/*CredentialsTests.class'
 }
 
-check {
-  // also execute the QA tests when testing the plugin
-  dependsOn 'qa:amazon-s3:check'
+boolean useFixture = false
+
+// We test against two repositories, one which uses the usual two-part "permanent" credentials and
+// the other which uses three-part "temporary" or "session" credentials.
+
+String s3PermanentAccessKey = System.getenv("amazon_s3_access_key")
+String s3PermanentSecretKey = System.getenv("amazon_s3_secret_key")
+String s3PermanentBucket = System.getenv("amazon_s3_bucket")
+String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
+
+String s3TemporaryAccessKey = System.getenv("amazon_s3_access_key_temporary")
+String s3TemporarySecretKey = System.getenv("amazon_s3_secret_key_temporary")
+String s3TemporarySessionToken = System.getenv("amazon_s3_session_token_temporary")
+String s3TemporaryBucket = System.getenv("amazon_s3_bucket_temporary")
+String s3TemporaryBasePath = System.getenv("amazon_s3_base_path_temporary")
+
+// If all these variables are missing then we are testing against the internal fixture instead, which has the following
+// credentials hard-coded in.
+
+if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath
+        && !s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3TemporaryBasePath && !s3TemporarySessionToken) {
+
+  s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
+  s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
+  s3PermanentBucket = 'permanent-bucket-test'
+  s3PermanentBasePath = 'integration_test'
+
+  s3TemporaryAccessKey = 's3_integration_test_temporary_access_key'
+  s3TemporarySecretKey = 's3_integration_test_temporary_secret_key'
+  s3TemporaryBucket = 'temporary-bucket-test'
+  s3TemporaryBasePath = 'integration_test'
+  s3TemporarySessionToken = 's3_integration_test_temporary_session_token'
+
+  useFixture = true
+} else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath
+        || !s3TemporaryAccessKey || !s3TemporarySecretKey || !s3TemporaryBucket || !s3TemporaryBasePath || !s3TemporarySessionToken) {
+  throw new IllegalArgumentException("not all options specified to run against external S3 service")
+}
+
+final String minioVersion = 'RELEASE.2018-06-22T23-48-46Z'
+final String minioBinDir = "${buildDir}/minio/bin"
+final String minioDataDir = "${buildDir}/minio/data"
+final String minioAddress = "127.0.0.1:60920"
+
+final String minioDistribution
+final String minioCheckSum
+if (Os.isFamily(Os.FAMILY_MAC)) {
+  minioDistribution = 'darwin-amd64'
+  minioCheckSum = '96b0bcb2f590e8e65fb83d5c3e221f9bd1106b49fa6f22c6b726b80b845d7c60'
+} else if (Os.isFamily(Os.FAMILY_UNIX)) {
+  minioDistribution = 'linux-amd64'
+  minioCheckSum = '713dac7c105285eab3b92649be92b5e793b29d3525c7929fa7aaed99374fad99'
+} else {
+  minioDistribution = null
+  minioCheckSum = null
+}
+
+buildscript {
+  repositories {
+    maven {
+      url 'https://plugins.gradle.org/m2/'
+    }
+  }
+  dependencies {
+    classpath 'de.undercouch:gradle-download-task:3.4.3'
+  }
+}
+
+if (useFixture && minioDistribution) {
+  apply plugin: 'de.undercouch.download'
+
+  final String minioFileName = "minio.${minioVersion}"
+  final String minioDownloadURL = "https://dl.minio.io/server/minio/release/${minioDistribution}/archive/${minioFileName}"
+  final String minioFilePath = "${gradle.gradleUserHomeDir}/downloads/minio/${minioDistribution}/${minioFileName}"
+
+  task downloadMinio(type: Download) {
+    src minioDownloadURL
+    dest minioFilePath
+    onlyIfModified true
+  }
+
+  task verifyMinioChecksum(type: Verify, dependsOn: downloadMinio) {
+    src minioFilePath
+    algorithm 'SHA-256'
+    checksum minioCheckSum
+  }
+
+  task installMinio(type: Sync, dependsOn: verifyMinioChecksum) {
+    from minioFilePath
+    into minioBinDir
+    fileMode 0755
+  }
+
+  task startMinio {
+    dependsOn installMinio
+
+    ext.minioPid = 0L
+
+    doLast {
+      new File("${minioDataDir}/${s3PermanentBucket}").mkdirs()
+      // we skip these tests on Windows so we do no need to worry about compatibility here
+      final ProcessBuilder minio = new ProcessBuilder(
+              "${minioBinDir}/${minioFileName}",
+              "server",
+              "--address",
+              minioAddress,
+              minioDataDir)
+      minio.environment().put('MINIO_ACCESS_KEY', s3PermanentAccessKey)
+      minio.environment().put('MINIO_SECRET_KEY', s3PermanentSecretKey)
+      final Process process = minio.start()
+      if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
+        try {
+          Class<?> cProcessImpl = process.getClass()
+          Field fPid = cProcessImpl.getDeclaredField("pid")
+          if (!fPid.isAccessible()) {
+            fPid.setAccessible(true)
+          }
+          minioPid = fPid.getInt(process)
+        } catch (Exception e) {
+          logger.error("failed to read pid from minio process", e)
+          process.destroyForcibly()
+          throw e
+        }
+      } else {
+        minioPid = process.pid()
+      }
+
+      new BufferedReader(new InputStreamReader(process.getInputStream())).withReader { br ->
+        String line
+        int httpPort = 0
+        while ((line = br.readLine()) != null) {
+          logger.info(line)
+          if (line.matches('.*Endpoint.*:\\d+$')) {
+            assert httpPort == 0
+            final int index = line.lastIndexOf(":")
+            assert index >= 0
+            httpPort = Integer.parseInt(line.substring(index + 1))
+
+            final File script = new File(project.buildDir, "minio/minio.killer.sh")
+            script.setText(
+                    ["function shutdown {",
+                     "  kill ${minioPid}",
+                     "}",
+                     "trap shutdown EXIT",
+                     // will wait indefinitely for input, but we never pass input, and the pipe is only closed when the build dies
+                     "read line\n"].join('\n'), 'UTF-8')
+            final ProcessBuilder killer = new ProcessBuilder("bash", script.absolutePath)
+            killer.start()
+            break
+          }
+        }
+
+        assert httpPort > 0
+      }
+    }
+  }
+
+  task stopMinio(type: LoggedExec) {
+    onlyIf { startMinio.minioPid > 0 }
+
+    doFirst {
+      logger.info("Shutting down minio with pid ${startMinio.minioPid}")
+    }
+
+    final Object pid = "${ -> startMinio.minioPid }"
+
+    // we skip these tests on Windows so we do no need to worry about compatibility here
+    executable = 'kill'
+    args('-9', pid)
+  }
+
+  RestIntegTestTask integTestMinio = project.tasks.create('integTestMinio', RestIntegTestTask.class) {
+    description = "Runs REST tests using the Minio repository."
+  }
+
+  // The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
+  project.afterEvaluate {
+    ClusterConfiguration cluster = project.extensions.getByName('integTestMinioCluster') as ClusterConfiguration
+    cluster.dependsOn(project.bundlePlugin)
+    cluster.keystoreSetting 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
+    cluster.keystoreSetting 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
+
+    cluster.setting 's3.client.integration_test_permanent.endpoint', "http://${minioAddress}"
+
+    Task restIntegTestTask = project.tasks.getByName('integTestMinio')
+    restIntegTestTask.clusterConfig.plugin(project.path)
+
+    // Default jvm arguments for all test clusters
+    String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
+            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+            " " + System.getProperty('tests.jvm.argline', '')
+
+    restIntegTestTask.clusterConfig.jvmArgs = jvmArgs
+  }
+
+  integTestMinioRunner.dependsOn(startMinio)
+  integTestMinioRunner.finalizedBy(stopMinio)
+  // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
+  integTestMinioRunner.systemProperty 'tests.rest.blacklist', 'repository_s3/30_repository_temporary_credentials/*'
+
+  project.check.dependsOn(integTestMinio)
+}
+
+/** A task to start the AmazonS3Fixture which emulates an S3 service **/
+task s3Fixture(type: AntFixture) {
+  dependsOn testClasses
+  env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
+  executable = new File(project.runtimeJavaHome, 'bin/java')
+  args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3PermanentBucket, s3TemporaryBucket
+}
+
+Map<String, Object> expansions = [
+  'permanent_bucket': s3PermanentBucket,
+  'permanent_base_path': s3PermanentBasePath,
+  'temporary_bucket': s3TemporaryBucket,
+  'temporary_base_path': s3TemporaryBasePath
+]
+
+processTestResources {
+  inputs.properties(expansions)
+  MavenFilteringHack.filter(it, expansions)
 }
 
 integTestCluster {
-  keystoreSetting 's3.client.integration_test.access_key', "s3_integration_test_access_key"
-  keystoreSetting 's3.client.integration_test.secret_key', "s3_integration_test_secret_key"
+  keystoreSetting 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
+  keystoreSetting 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
+
+  keystoreSetting 's3.client.integration_test_temporary.access_key', s3TemporaryAccessKey
+  keystoreSetting 's3.client.integration_test_temporary.secret_key', s3TemporarySecretKey
+  keystoreSetting 's3.client.integration_test_temporary.session_token', s3TemporarySessionToken
+
+  if (useFixture) {
+    dependsOn s3Fixture
+    /* Use a closure on the string to delay evaluation until tests are executed */
+    setting 's3.client.integration_test_permanent.endpoint', "http://${-> s3Fixture.addressAndPort}"
+    setting 's3.client.integration_test_temporary.endpoint', "http://${-> s3Fixture.addressAndPort}"
+  } else {
+    println "Using an external service to test the repository-s3 plugin"
+  }
 }
 
 thirdPartyAudit.excludes = [

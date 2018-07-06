@@ -273,7 +273,7 @@ public class RolloverIT extends ESIntegTestCase {
             assertThat(response.getNewIndex(), equalTo("test-000002"));
             assertThat("Should rollover with a small max_size condition", response.isRolledOver(), equalTo(true));
             final IndexMetaData oldIndex = client().admin().cluster().prepareState().get().getState().metaData().index("test-1");
-            List<Condition> metConditions = oldIndex.getRolloverInfos().get("test_alias").getMetConditions();
+            List<Condition<?>> metConditions = oldIndex.getRolloverInfos().get("test_alias").getMetConditions();
             assertThat(metConditions.size(), equalTo(1));
             assertThat(metConditions.get(0).toString(), equalTo(new MaxSizeCondition(maxSizeValue).toString()));
             assertThat(oldIndex.getRolloverInfos().get("test_alias").getTime(),

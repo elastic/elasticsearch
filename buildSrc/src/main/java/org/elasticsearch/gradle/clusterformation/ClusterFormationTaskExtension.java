@@ -30,7 +30,7 @@ public class ClusterFormationTaskExtension {
 
     private final Task task;
 
-    private final List<ElasticsearchConfiguration> claimedClusters = new ArrayList<>();
+    private final List<ElasticsearchConfigurationInternal> claimedClusters = new ArrayList<>();
 
     private final Logger logger =  Logging.getLogger(ClusterFormationTaskExtension.class);
 
@@ -38,7 +38,7 @@ public class ClusterFormationTaskExtension {
         this.task = task;
     }
 
-    public void use(ElasticsearchConfiguration cluster) {
+    public void use(ElasticsearchConfigurationInternal cluster) {
         // not likely to configure the same task from multiple threads as of Gradle 4.7, but it's the right thing to do
         synchronized (claimedClusters) {
             if (claimedClusters.contains(cluster)) {
@@ -52,7 +52,7 @@ public class ClusterFormationTaskExtension {
         logger.info("CF: the {} task will use cluster: {}", task.getName(), cluster.getName());
     }
 
-    public List<ElasticsearchConfiguration> getClaimedClusters() {
+    public List<ElasticsearchConfigurationInternal> getClaimedClusters() {
         synchronized (claimedClusters) {
             return Collections.unmodifiableList(claimedClusters);
         }

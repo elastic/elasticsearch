@@ -36,8 +36,8 @@ import java.util.List;
 
 public class ClusterformationPlugin implements Plugin<Project> {
 
-    public static final String LIST_TASK_NAME = "listElasticSearchClusters";
-    public static final String EXTENSION_NAME = "elasticSearchClusters";
+    public static final String LIST_TASK_NAME = "listElasticsearchClusters";
+    public static final String EXTENSION_NAME = "elasticsearchClusters";
     public static final String TASK_EXTENSION_NAME = "clusterFormation";
 
     private static final String HELPER_CONFIGURATION_NAME = "_internalClusterFormationConfiguration";
@@ -117,8 +117,8 @@ public class ClusterformationPlugin implements Plugin<Project> {
         // Make sure we only claim the clusters for the tasks that will actually execute
         project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
             taskExecutionGraph.getAllTasks().forEach(task -> {
-                    List<ElasticsearchConfiguration> claimedClusters = getTaskExtension(task).getClaimedClusters();
-                    claimedClusters.forEach(ElasticsearchConfiguration::claim);
+                    List<ElasticsearchConfigurationInternal> claimedClusters = getTaskExtension(task).getClaimedClusters();
+                    claimedClusters.forEach(ElasticsearchConfigurationInternal::claim);
             })
         );
 

@@ -28,11 +28,11 @@ public class ClusterformationPluginIT extends GradleIntegrationTestCase {
     public void testListClusters() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("clusterformation"))
-            .withArguments("listElasticSearchClusters", "-s")
+            .withArguments("listElasticsearchClusters", "-s")
             .withPluginClasspath()
             .build();
 
-        assertEquals(TaskOutcome.SUCCESS, result.task(":listElasticSearchClusters").getOutcome());
+        assertEquals(TaskOutcome.SUCCESS, result.task(":listElasticsearchClusters").getOutcome());
         assertOutputContains(
             result.getOutput(),
                 "   * myTestCluster:"

@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 
 import static org.gradle.internal.os.OperatingSystem.current;
 
-public class ElasticsearchNode implements ElasticsearchConfiguration {
+class ElasticsearchNode implements ElasticsearchConfigurationInternal {
 
     private static final int ES_DESTROY_TIMEOUT = 20;
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
@@ -120,6 +120,7 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
 
     @Override
     public void setVersion(Version version) {
+        Objects.requireNonNull(version, "Can't configure a null version");
         checkNotRunning();
         this.version = version;
     }
@@ -131,14 +132,15 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
 
     @Override
     public void setDistribution(Distribution distribution) {
+        Objects.requireNonNull(distribution, "Can't configure a null distribution");
         checkNotRunning();
         this.distribution = distribution;
     }
 
     @Override
     public void setJavaHome(File javaHome) {
-        checkNotRunning();
         Objects.requireNonNull(javaHome, "null javaHome passed to cluster formation");
+        checkNotRunning();
         if (javaHome.exists() == false) {
             throw new ClusterFormationException("java home does not exists `" + javaHome + "`");
         }

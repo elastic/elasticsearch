@@ -40,11 +40,11 @@ public class ClusterFormationTaskExecutionListener implements TaskExecutionListe
             // right now, we will terminate the cluster underneath it.
             // this listener could maintain a task to cluster mapping, but that's overkill for now.
             ClusterformationPlugin.getTaskExtension(task).getClaimedClusters().forEach(
-                ElasticsearchConfiguration::forceStop
+                ElasticsearchConfigurationInternal::forceStop
             );
         } else {
             ClusterformationPlugin.getTaskExtension(task).getClaimedClusters().forEach(
-                ElasticsearchConfiguration::unClaimAndStop
+                ElasticsearchConfigurationInternal::unClaimAndStop
             );
         }
     }
@@ -52,7 +52,7 @@ public class ClusterFormationTaskExecutionListener implements TaskExecutionListe
     @Override
     public void beforeActions(Task task) {
         // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-        ClusterformationPlugin.getTaskExtension(task).getClaimedClusters().forEach(ElasticsearchConfiguration::start);
+        ClusterformationPlugin.getTaskExtension(task).getClaimedClusters().forEach(ElasticsearchConfigurationInternal::start);
     }
 
     @Override

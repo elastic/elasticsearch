@@ -43,7 +43,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationBuilder<Numeric, WeightedAvgAggregationBuilder> {
+public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationBuilder.LeafOnly<Numeric, WeightedAvgAggregationBuilder> {
     public static final String NAME = "weighted_avg";
     public static final ParseField VALUE_FIELD = new ParseField("value");
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
@@ -84,7 +84,7 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
      * Read from a stream.
      */
     public WeightedAvgAggregationBuilder(StreamInput in) throws IOException {
-        super(in);
+        super(in, ValueType.NUMERIC);
     }
 
     @Override

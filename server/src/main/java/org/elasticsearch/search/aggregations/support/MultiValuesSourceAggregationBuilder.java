@@ -104,13 +104,6 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         read(in);
     }
 
-    protected MultiValuesSourceAggregationBuilder(StreamInput in) throws IOException {
-        super(in);
-        assert serializeTargetValueType() : "Wrong read constructor called for subclass that serializes its targetValueType";
-        this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
-        read(in);
-    }
-
     /**
      * Read from a stream.
      */

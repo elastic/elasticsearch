@@ -58,7 +58,7 @@ public final class EInstanceof extends AExpression {
 
         // ensure the specified type is part of the definition
         try {
-            clazz = Definition.TypeToClass(locals.getDefinition().getType(this.type));
+            clazz = locals.getDefinition().getJavaClassFromPainlessType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }

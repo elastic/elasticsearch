@@ -153,7 +153,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         this.transport = transport;
         this.threadPool = threadPool;
         this.localNodeFactory = localNodeFactory;
-        this.connectionManager = new ConnectionManager(logger);
+        this.connectionManager = new ConnectionManager(logger, transport, threadPool, TcpTransport.PING_SCHEDULE.get(settings));
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         setTracerLogInclude(TRACE_LOG_INCLUDE_SETTING.get(settings));
         setTracerLogExclude(TRACE_LOG_EXCLUDE_SETTING.get(settings));
@@ -329,7 +329,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         if (isLocalNode(node)) {
             return;
         }
-        connectionManager.connectToNode(transport, node, connectionProfile, (newConnection, actualProfile) -> {
+        connectionManager.connectToNode(node, connectionProfile, (newConnection, actualProfile) -> {
             // We don't validate cluster names to allow for CCS connections.
             final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true).discoveryNode;
             if (validateConnections && node.equals(remote) == false) {

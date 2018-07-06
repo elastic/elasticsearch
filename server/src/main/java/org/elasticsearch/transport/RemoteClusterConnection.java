@@ -295,6 +295,11 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         }
 
         @Override
+        public boolean isClosed() {
+            return proxyConnection.isClosed();
+        }
+
+        @Override
         public Version getVersion() {
             return proxyConnection.getVersion();
         }

@@ -267,8 +267,12 @@ public class Netty4Transport extends TcpTransport {
         return esChannel;
     }
 
-    ScheduledPing getPing() {
-        return scheduledPing;
+    long successfulPingCount() {
+        return successfulPings.count();
+    }
+
+    long failedPingCount() {
+        return failedPings.count();
     }
 
     @Override

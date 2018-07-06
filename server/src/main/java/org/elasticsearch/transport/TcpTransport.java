@@ -186,6 +186,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // This is the number of bytes necessary to read the message size
     public static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
     public static final int PING_DATA_SIZE = -1;
+    protected final CounterMetric successfulPings = new CounterMetric();
+    protected final CounterMetric failedPings = new CounterMetric();
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final BytesReference EMPTY_BYTES_REFERENCE = new BytesArray(new byte[0]);
 
@@ -194,9 +196,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final String[] features;
 
     private final CircuitBreakerService circuitBreakerService;
-    // package visibility for tests
-    protected final ScheduledPing scheduledPing;
-    private final TimeValue pingSchedule;
     protected final ThreadPool threadPool;
     private final BigArrays bigArrays;
     protected final NetworkService networkService;
@@ -226,6 +225,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final MeanMetric transmittedBytesMetric = new MeanMetric();
     private volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
+    private final BytesReference pingMessage;
 
     public TcpTransport(String transportName, Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
@@ -235,8 +235,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
         this.circuitBreakerService = circuitBreakerService;
-        this.scheduledPing = new ScheduledPing();
-        this.pingSchedule = PING_SCHEDULE.get(settings);
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.compress = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
@@ -253,6 +251,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             });
             // use a sorted set to present the features in a consistent order
             this.features = new TreeSet<>(defaultFeatures.names()).toArray(new String[defaultFeatures.names().size()]);
+        }
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeByte((byte) 'E');
+            out.writeByte((byte) 'S');
+            out.writeInt(TcpTransport.PING_DATA_SIZE);
+            pingMessage = out.bytes();
+        } catch (IOException e) {
+            throw new IllegalStateException(e.getMessage(), e); // won't happen
         }
     }
 
@@ -277,9 +284,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     protected void doStart() {
-        if (pingSchedule.millis() > 0) {
-            threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
-        }
     }
 
     @Override
@@ -341,86 +345,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    public class ScheduledPing extends AbstractLifecycleRunnable {
-
-        /**
-         * The magic number (must be lower than 0) for a ping message.
-         */
-        private final BytesReference pingHeader;
-        final CounterMetric successfulPings = new CounterMetric();
-        final CounterMetric failedPings = new CounterMetric();
-
-        public ScheduledPing() {
-            super(lifecycle, logger);
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.writeByte((byte) 'E');
-                out.writeByte((byte) 'S');
-                out.writeInt(PING_DATA_SIZE);
-                pingHeader = out.bytes();
-            } catch (IOException e) {
-                throw new IllegalStateException(e.getMessage(), e); // won't happen
-            }
-        }
-
-        @Override
-        protected void doRunInLifecycle() throws Exception {
-//            for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
-//                DiscoveryNode node = entry.getKey();
-//                NodeChannels channels = entry.getValue();
-//                for (TcpChannel channel : channels.getChannels()) {
-//                    internalSendMessage(channel, pingHeader, new SendMetricListener(pingHeader.length()) {
-//                        @Override
-//                        protected void innerInnerOnResponse(Void v) {
-//                            successfulPings.inc();
-//                        }
-//
-//                        @Override
-//                        protected void innerOnFailure(Exception e) {
-//                            if (channel.isOpen()) {
-//                                logger.debug(() -> new ParameterizedMessage("[{}] failed to send ping transport message", node), e);
-//                                failedPings.inc();
-//                            } else {
-//                                logger.trace(() ->
-//                                    new ParameterizedMessage("[{}] failed to send ping transport message (channel closed)", node), e);
-//                            }
-//
-//                        }
-//                    });
-//                }
-//            }
-        }
-
-        public long getSuccessfulPings() {
-            return successfulPings.count();
-        }
-
-        public long getFailedPings() {
-            return failedPings.count();
-        }
-
-        @Override
-        protected void onAfterInLifecycle() {
-            try {
-                threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, this);
-            } catch (EsRejectedExecutionException ex) {
-                if (ex.isExecutorShutdown()) {
-                    logger.debug("couldn't schedule new ping execution, executor is shutting down", ex);
-                } else {
-                    throw ex;
-                }
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            if (lifecycle.stoppedOrClosed()) {
-                logger.trace("failed to send ping transport message", e);
-            } else {
-                logger.warn("failed to send ping transport message", e);
-            }
-        }
-    }
-
     public final class NodeChannels implements Connection {
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
         private final List<TcpChannel> channels;
@@ -458,8 +382,31 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             return connectionTypeHandle.getChannel(channels);
         }
 
-        public boolean allChannelsOpen() {
+        boolean allChannelsOpen() {
             return channels.stream().allMatch(TcpChannel::isOpen);
+        }
+
+        void sendPing() {
+            for (TcpChannel channel : channels) {
+                internalSendMessage(channel, pingMessage, new SendMetricListener(pingMessage.length()) {
+                    @Override
+                    protected void innerInnerOnResponse(Void v) {
+                        successfulPings.inc();
+                    }
+
+                    @Override
+                    protected void innerOnFailure(Exception e) {
+                        if (channel.isOpen()) {
+                            logger.debug(() -> new ParameterizedMessage("[{}] failed to send ping transport message", node), e);
+                            failedPings.inc();
+                        } else {
+                            logger.trace(() ->
+                                new ParameterizedMessage("[{}] failed to send ping transport message (channel closed)", node), e);
+                        }
+
+                    }
+                });
+            }
         }
 
         @Override

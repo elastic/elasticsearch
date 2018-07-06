@@ -22,15 +22,20 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -38,19 +43,30 @@ public class ConnectionManager {
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = newConcurrentMap();
     private final KeyedLock<String> connectionLock = new KeyedLock<>();
-    private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final Logger logger;
+    private final Transport transport;
+    private final ThreadPool threadPool;
+    private final TimeValue pingSchedule;
+    private final Lifecycle lifecycle = new Lifecycle();
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
-    public ConnectionManager(Logger logger) {
+    public ConnectionManager(Logger logger, Transport transport, ThreadPool threadPool, TimeValue pingSchedule) {
         this.logger = logger;
+        this.transport = transport;
+        this.threadPool = threadPool;
+        this.pingSchedule = pingSchedule;
+        this.lifecycle.moveToStarted();
+
+        if (pingSchedule.millis() > 0 && transport instanceof TcpTransport) {
+            threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, new ScheduledPing());
+        }
     }
 
     public void registerListener(TransportConnectionListener.NodeConnectionListener listener) {
         this.connectionListener.listeners.add(listener);
     }
 
-    public void connectToNode(Transport transport, DiscoveryNode node, ConnectionProfile connectionProfile,
+    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
                               CheckedBiConsumer<Transport.Connection, ConnectionProfile, IOException> connectionValidator)
         throws ConnectTransportException {
         if (node == null) {
@@ -124,8 +140,48 @@ public class ConnectionManager {
     }
 
     private void ensureOpen() {
-        if (isClosed.get()) {
+        if (lifecycle.started() == false) {
             throw new IllegalStateException("connection manager is closed");
+        }
+    }
+
+    private class ScheduledPing extends AbstractLifecycleRunnable {
+
+        private ScheduledPing() {
+            super(lifecycle, logger);
+        }
+
+        @Override
+        protected void doRunInLifecycle() {
+            for (Map.Entry<DiscoveryNode, Transport.Connection> entry : connectedNodes.entrySet()) {
+                Transport.Connection connection = entry.getValue();
+                if (connection instanceof TcpTransport.NodeChannels) {
+                    TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
+                    channels.sendPing();
+                }
+            }
+        }
+
+        @Override
+        protected void onAfterInLifecycle() {
+            try {
+                threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, this);
+            } catch (EsRejectedExecutionException ex) {
+                if (ex.isExecutorShutdown()) {
+                    logger.debug("couldn't schedule new ping execution, executor is shutting down", ex);
+                } else {
+                    throw ex;
+                }
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            if (lifecycle.stoppedOrClosed()) {
+                logger.trace("failed to send ping transport message", e);
+            } else {
+                logger.warn("failed to send ping transport message", e);
+            }
         }
     }
 

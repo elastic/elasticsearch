@@ -57,7 +57,7 @@ A typical listener for `XPackInfoResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[x-pack-info-execute-listener]
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-info-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

@@ -22,6 +22,8 @@ package org.elasticsearch.client.documentation;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
@@ -30,8 +32,14 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse.BuildInfo;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 
 import java.io.IOException;
+import java.util.EnumSet;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Documentation for miscellaneous APIs in the high level java client.
@@ -68,16 +76,16 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(response);
     }
 
-    public void testXPackInfo() throws IOException {
+    public void testXPackInfo() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
             //tag::x-pack-info-execute
             XPackInfoRequest request = new XPackInfoRequest();
-            request.setVerbose(true);  // <1>
-            request.setCategories(     // <2>
+            request.setVerbose(true);          // <1>
+            request.setCategories(EnumSet.of(  // <2>
                     XPackInfoRequest.Category.BUILD,
                     XPackInfoRequest.Category.LICENSE,
-                    XPackInfoRequest.Category.FEATURES);
+                    XPackInfoRequest.Category.FEATURES));
             XPackInfoResponse response = client.xPackInfo(request, RequestOptions.DEFAULT);
             //end::x-pack-info-execute
 
@@ -114,7 +122,7 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::x-pack-info-execute-async
-            client.indexAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.xPackInfoAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-info-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

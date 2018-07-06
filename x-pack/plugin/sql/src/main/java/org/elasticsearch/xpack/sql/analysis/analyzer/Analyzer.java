@@ -113,6 +113,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 //new ImplicitCasting()
                 );
         // TODO: this might be removed since the deduplication happens already in ResolveFunctions
+        @SuppressWarnings("unused")
         Batch deduplication = new Batch("Deduplication",
                 new PruneDuplicateFunctions());
 
@@ -196,7 +197,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                  .collect(toList())
                 );
     }
-    
+
     private static boolean hasStar(List<? extends Expression> exprs) {
         for (Expression expression : exprs) {
             if (expression instanceof UnresolvedStar) {

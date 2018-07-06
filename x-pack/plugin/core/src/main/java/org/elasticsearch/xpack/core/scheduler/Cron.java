@@ -254,7 +254,6 @@ public class Cron implements ToXContentFragment {
     private transient boolean lastdayOfMonth = false;
     private transient boolean nearestWeekday = false;
     private transient int lastdayOffset = 0;
-    private transient boolean expressionParsed = false;
 
     public static final int MAX_YEAR = Calendar.getInstance(UTC, Locale.ROOT).get(Calendar.YEAR) + 100;
 
@@ -802,7 +801,6 @@ public class Cron implements ToXContentFragment {
     ////////////////////////////////////////////////////////////////////////////
 
     private void buildExpression(String expression) {
-        expressionParsed = true;
 
         try {
 
@@ -1200,32 +1198,6 @@ public class Cron implements ToXContentFragment {
         StringBuilder buf = new StringBuilder();
 
         Iterator<Integer> itr = set.iterator();
-        boolean first = true;
-        while (itr.hasNext()) {
-            Integer iVal = itr.next();
-            String val = iVal.toString();
-            if (!first) {
-                buf.append(",");
-            }
-            buf.append(val);
-            first = false;
-        }
-
-        return buf.toString();
-    }
-
-    private static String expressionSetSummary(java.util.ArrayList<Integer> list) {
-
-        if (list.contains(NO_SPEC)) {
-            return "?";
-        }
-        if (list.contains(ALL_SPEC)) {
-            return "*";
-        }
-
-        StringBuilder buf = new StringBuilder();
-
-        Iterator<Integer> itr = list.iterator();
         boolean first = true;
         while (itr.hasNext()) {
             Integer iVal = itr.next();

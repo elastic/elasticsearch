@@ -439,7 +439,8 @@ public class SettingsTests extends ESTestCase {
 
         Settings filteredSettings = builder.build().filter((k) -> false);
         assertEquals(0, filteredSettings.size());
-        for (String k : filteredSettings.keySet()) {
+        // TODO not sure what the following loop is supposed to test, can we remove it?
+        for (@SuppressWarnings("unused") String k : filteredSettings.keySet()) {
             fail("no element");
 
         }

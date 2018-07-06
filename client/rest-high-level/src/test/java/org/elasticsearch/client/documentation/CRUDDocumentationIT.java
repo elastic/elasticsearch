@@ -100,6 +100,7 @@ import static org.hamcrest.Matchers.not;
  */
 public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
+    @SuppressWarnings("unused")
     public void testIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -264,6 +265,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testUpdate() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -532,6 +534,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testDelete() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -651,6 +654,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testBulk() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -753,6 +757,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testGet() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -1067,6 +1072,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testMultiGet() throws Exception {
         RestHighLevelClient client = highLevelClient();
 

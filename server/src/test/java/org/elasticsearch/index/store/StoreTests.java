@@ -367,10 +367,8 @@ public class StoreTests extends ESTestCase {
 
         }
 
-        final long luceneChecksum;
         try (IndexInput indexInput = dir.openInput("lucene_checksum.bin", IOContext.DEFAULT)) {
             assertEquals(luceneFileLength, indexInput.length());
-            luceneChecksum = CodecUtil.retrieveChecksum(indexInput);
         }
 
         dir.close();
@@ -464,7 +462,6 @@ public class StoreTests extends ESTestCase {
 
     private static final class LuceneManagedDirectoryService extends DirectoryService {
         private final Directory dir;
-        private final Random random;
 
         LuceneManagedDirectoryService(Random random) {
             this(random, true);
@@ -473,7 +470,6 @@ public class StoreTests extends ESTestCase {
         LuceneManagedDirectoryService(Random random, boolean preventDoubleWrite) {
             super(new ShardId(INDEX_SETTINGS.getIndex(), 1), INDEX_SETTINGS);
             dir = StoreTests.newDirectory(random);
-            this.random = random;
         }
 
         @Override
@@ -690,7 +686,6 @@ public class StoreTests extends ESTestCase {
         if (randomBoolean()) {
             store.cleanupAndVerify("test", firstMeta);
             String[] strings = store.directory().listAll();
-            int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
                 if (file.startsWith("extra")) {
@@ -706,7 +701,6 @@ public class StoreTests extends ESTestCase {
         } else {
             store.cleanupAndVerify("test", secondMeta);
             String[] strings = store.directory().listAll();
-            int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
                 if (file.startsWith("extra")) {

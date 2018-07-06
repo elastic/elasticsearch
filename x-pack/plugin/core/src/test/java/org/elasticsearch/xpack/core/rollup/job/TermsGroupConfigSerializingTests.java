@@ -14,7 +14,6 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -25,9 +24,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCase<TermsGroupConfig> {
-
-    private static final List<String> FLOAT_TYPES = Arrays.asList("half_float", "float", "double", "scaled_float");
-    private static final List<String> NATURAL_TYPES = Arrays.asList("byte", "short", "integer", "long");
 
     @Override
     protected TermsGroupConfig doParseInstance(XContentParser parser) throws IOException {

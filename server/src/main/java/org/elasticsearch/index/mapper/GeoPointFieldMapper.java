@@ -309,6 +309,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                         token = context.parser().nextToken();
                         double lat = context.parser().doubleValue();
                         token = context.parser().nextToken();
+                        @SuppressWarnings("unused")
                         Double alt = Double.NaN;
                         if (token == XContentParser.Token.VALUE_NUMBER) {
                             alt = GeoPoint.assertZValue(ignoreZValue.value(), context.parser().doubleValue());

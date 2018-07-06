@@ -89,6 +89,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             this.collator = ref.collator;
         }
 
+        @Override
         public CollationFieldType clone() {
             return new CollationFieldType(this);
         }
@@ -242,7 +243,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         private boolean numeric = false;
         private String variableTop = null;
         private boolean hiraganaQuaternaryMode = false;
-        private String nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);

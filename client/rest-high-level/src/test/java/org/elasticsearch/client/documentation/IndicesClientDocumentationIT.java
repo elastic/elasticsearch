@@ -711,6 +711,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    @SuppressWarnings("unused")
     public void testGetFieldMapping() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 
@@ -896,6 +897,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    @SuppressWarnings("unused")
     public void testRefreshIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -964,6 +966,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    @SuppressWarnings("unused")
     public void testFlushIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1040,6 +1043,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    @SuppressWarnings("unused")
     public void testSyncedFlushIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1313,6 +1317,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    @SuppressWarnings("unused")
     public void testForceMergeIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1386,6 +1391,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    @SuppressWarnings("unused")
     public void testClearCache() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1532,6 +1538,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    @SuppressWarnings("unused")
     public void testExistsAlias() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1595,6 +1602,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    @SuppressWarnings("unused")
     public void testUpdateAliases() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1920,6 +1928,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    @SuppressWarnings("unused")
     public void testGetAlias() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1990,6 +1999,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    @SuppressWarnings("unused")
     public void testIndexPutSettings() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -2320,6 +2330,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    @SuppressWarnings("unused")
     public void testValidateQuery() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
 

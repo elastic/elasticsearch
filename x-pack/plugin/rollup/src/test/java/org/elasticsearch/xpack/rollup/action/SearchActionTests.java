@@ -16,9 +16,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -30,8 +27,6 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -79,6 +74,7 @@ import static org.mockito.Mockito.when;
 public class SearchActionTests extends ESTestCase {
 
     private NamedWriteableRegistry namedWriteableRegistry;
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
@@ -550,8 +546,7 @@ public class SearchActionTests extends ESTestCase {
     public void testNoIndicesToSeparate() {
         String[] indices = new String[]{};
         ImmutableOpenMap<String, IndexMetaData> meta = ImmutableOpenMap.<String, IndexMetaData>builder().build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> TransportRollupSearchAction.separateIndices(indices, meta));
+        expectThrows(IllegalArgumentException.class, () -> TransportRollupSearchAction.separateIndices(indices, meta));
     }
 
     public void testSeparateAll() {
@@ -801,9 +796,6 @@ public class SearchActionTests extends ESTestCase {
 
         MultiSearchResponse msearchResponse
                 = new MultiSearchResponse(new MultiSearchResponse.Item[]{unrolledResponse, rolledResponse}, 123);
-
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-        ScriptService scriptService = mock(ScriptService.class);
 
         SearchResponse response = TransportRollupSearchAction.processResponses(separateIndices, msearchResponse,
                 mock(InternalAggregation.ReduceContext.class));

@@ -31,16 +31,16 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.junit.After;
 import org.junit.Before;
 
@@ -334,13 +334,11 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         private final PersistentTaskParams params;
         private final AllocatedPersistentTask task;
         private final PersistentTaskState state;
-        private final PersistentTasksExecutor<?> holder;
 
-        Execution(PersistentTaskParams params, AllocatedPersistentTask task, PersistentTaskState state, PersistentTasksExecutor<?> holder) {
+        Execution(PersistentTaskParams params, AllocatedPersistentTask task, PersistentTaskState state) {
             this.params = params;
             this.task = task;
             this.state = state;
-            this.holder = holder;
         }
     }
 
@@ -356,7 +354,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                                                                       final PersistentTaskState state,
                                                                       final AllocatedPersistentTask task,
                                                                       final PersistentTasksExecutor<Params> executor) {
-            executions.add(new Execution(params, task, state, executor));
+            executions.add(new Execution(params, task, state));
         }
 
         public Execution get(int i) {

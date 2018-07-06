@@ -29,7 +29,6 @@ public class PagerDutyAccount {
     private final String serviceKey;
     private final HttpClient httpClient;
     private final IncidentEventDefaults eventDefaults;
-    private final Logger logger;
 
     PagerDutyAccount(String name, Settings accountSettings, Settings serviceSettings, HttpClient httpClient, Logger logger) {
         this.name = name;
@@ -37,7 +36,6 @@ public class PagerDutyAccount {
         this.httpClient = httpClient;
 
         this.eventDefaults = new IncidentEventDefaults(accountSettings.getAsSettings(TRIGGER_DEFAULTS_SETTING));
-        this.logger = logger;
     }
 
     public String getName() {

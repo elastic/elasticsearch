@@ -20,8 +20,8 @@ package org.elasticsearch.versioning;
 
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -357,7 +357,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 // zero-pad sequential
                 logger.info("--> use zero-padded sequential ids");
                 ids = new IDSource() {
-                    final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
                     final String zeroPad = String.format(Locale.ROOT, "%0" + TestUtil.nextInt(random, 4, 20) + "d", 0);
                     int upto;
 
@@ -373,7 +372,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 logger.info("--> use random long ids");
                 ids = new IDSource() {
                     final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
-                    int upto;
 
                     @Override
                     public String next() {
@@ -386,8 +384,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 logger.info("--> use zero-padded random long ids");
                 ids = new IDSource() {
                     final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
-                    final String zeroPad = String.format(Locale.ROOT, "%015d", 0);
-                    int upto;
 
                     @Override
                     public String next() {

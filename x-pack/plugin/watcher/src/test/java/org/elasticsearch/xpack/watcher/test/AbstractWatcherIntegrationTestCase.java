@@ -541,12 +541,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
         private final List<ScheduleTriggerEngineMock> schedulers;
         private final ClockMock clock;
-        private final Logger logger;
 
         TimeWarp(Iterable<ScheduleTriggerEngineMock> schedulers, ClockMock clock, Logger logger) {
             this.schedulers = StreamSupport.stream(schedulers.spliterator(), false).collect(Collectors.toList());
             this.clock = clock;
-            this.logger = logger;
         }
 
         public void trigger(String jobName) {

@@ -63,9 +63,7 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
     protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
-        final MockTcpTransport t = (MockTcpTransport) transport;
-        @SuppressWarnings("unchecked") final TcpTransport.NodeChannels channels =
-                (TcpTransport.NodeChannels) connection;
+        final TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
         CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }
 

@@ -666,7 +666,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     }
 
     public void testFreeDiskPercentageAfterShardAssigned() {
-        RoutingNode rn = new RoutingNode("node1", newNode("node1"));
         DiskThresholdDecider decider = makeDecider(Settings.EMPTY);
 
         Map<String, DiskUsage> usages = new HashMap<>();

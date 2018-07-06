@@ -972,9 +972,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertSuggestionSize(searchSuggest, 0, 25480, "title");  // Just to prove that we've run through a ton of options
 
         suggest.size(1);
-        long start = System.currentTimeMillis();
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", "title", suggest);
-        long total = System.currentTimeMillis() - start;
         assertSuggestion(searchSuggest, 0, 0, "title", "united states house of representatives elections in washington 2006");
         // assertThat(total, lessThan(1000L)); // Takes many seconds without fix - just for debugging
     }
@@ -1139,7 +1137,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject());
 
-        PhraseSuggestionBuilder in = suggest.collateQuery(filterStr);
+        suggest.collateQuery(filterStr);
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, namedSuggestion);
             fail("Post filter error has been swallowed");
@@ -1157,7 +1155,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
                         .endObject());
 
 
-        PhraseSuggestionBuilder phraseSuggestWithNoParams = suggest.collateQuery(collateWithParams);
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, namedSuggestion);
             fail("Malformed query (lack of additional params) should fail");

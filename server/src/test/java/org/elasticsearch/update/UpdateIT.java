@@ -19,19 +19,6 @@
 
 package org.elasticsearch.update;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -55,6 +42,19 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -586,15 +586,13 @@ public class UpdateIT extends ESIntegTestCase {
         final class UpdateThread extends Thread {
             final Map<Integer,Integer> failedMap = new HashMap<>();
             final int numberOfIds;
-            final int updatesPerId;
             final int maxUpdateRequests = numberOfIdsPerThread*numberOfUpdatesPerId;
             final int maxDeleteRequests = numberOfIdsPerThread*numberOfUpdatesPerId;
             private final Semaphore updateRequestsOutstanding = new Semaphore(maxUpdateRequests);
             private final Semaphore deleteRequestsOutstanding = new Semaphore(maxDeleteRequests);
 
-            UpdateThread(int numberOfIds, int updatesPerId) {
+            UpdateThread(int numberOfIds) {
                 this.numberOfIds = numberOfIds;
-                this.updatesPerId = updatesPerId;
             }
 
             final class UpdateListener implements ActionListener<UpdateResponse> {
@@ -725,7 +723,7 @@ public class UpdateIT extends ESIntegTestCase {
         final List<UpdateThread> threads = new ArrayList<>();
 
         for (int i = 0; i < numberOfThreads; i++) {
-            UpdateThread ut = new UpdateThread(numberOfIdsPerThread, numberOfUpdatesPerId);
+            UpdateThread ut = new UpdateThread(numberOfIdsPerThread);
             ut.start();
             threads.add(ut);
         }
@@ -749,7 +747,7 @@ public class UpdateIT extends ESIntegTestCase {
         //This means that we add 1 to the expected versions and attempts
         //All the previous operations should be complete or failed at this point
         for (int i = 0; i < numberOfIdsPerThread; ++i) {
-            UpdateResponse ur = client().prepareUpdate("test", "type1", Integer.toString(i))
+            client().prepareUpdate("test", "type1", Integer.toString(i))
                     .setScript(fieldIncScript)
                 .setRetryOnConflict(Integer.MAX_VALUE)
                 .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())

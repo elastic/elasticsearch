@@ -46,9 +46,6 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    /** A lookup for the index this script will operate on. */
-    private final SearchLookup lookup;
-
     /** A leaf lookup for the bound segment this script will operate on. */
     private final LeafReaderContext leafContext;
 
@@ -60,7 +57,6 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript {
 
     public SearchScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         this.params = params;
-        this.lookup = lookup;
         this.leafContext = leafContext;
         // TODO: remove leniency when painless does not implement SearchScript for executable script cases
         this.leafLookup = leafContext == null ? null : lookup.getLeafSearchLookup(leafContext);

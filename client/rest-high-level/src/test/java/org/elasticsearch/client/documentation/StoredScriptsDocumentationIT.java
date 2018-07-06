@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase {
 
+    @SuppressWarnings("unused")
     public void testGetStoredScript() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -129,6 +130,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
 
     }
 
+    @SuppressWarnings("unused")
     public void testDeleteStoredScript() throws Exception {
         RestHighLevelClient client = highLevelClient();
 

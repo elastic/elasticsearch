@@ -310,8 +310,8 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
 
     private void assertGeoDistanceRangeQuery(String query, double lat, double lon, double distance, DistanceUnit distanceUnit) throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        // TODO: what can we check?
+        // just parse the query
+        parseQuery(query).toQuery(createShardContext());
     }
 
     public void testFromJson() throws IOException {

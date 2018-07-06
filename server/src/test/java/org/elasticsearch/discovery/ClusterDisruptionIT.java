@@ -364,7 +364,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     public void testSearchWithRelocationAndSlowClusterStateProcessing() throws Exception {
         // don't use DEFAULT settings (which can cause node disconnects on a slow CI machine)
         configureCluster(Settings.EMPTY, 3, null, 1);
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().startMasterOnlyNode();
         final String node_1 = internalCluster().startDataOnlyNode();
 
         logger.info("--> creating index [test] with one shard and on replica");

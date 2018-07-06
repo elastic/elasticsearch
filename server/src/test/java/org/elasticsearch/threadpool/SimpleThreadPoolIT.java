@@ -55,7 +55,6 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             }
         }
         logger.info("pre node threads are {}", preNodeStartThreadNames);
-        String node = internalCluster().startNode();
         logger.info("do some indexing, flushing, optimize, and searches");
         int numDocs = randomIntBetween(2, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];

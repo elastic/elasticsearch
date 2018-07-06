@@ -30,8 +30,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -55,7 +53,6 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
  * A field mapper for boolean fields.
  */
 public class BooleanFieldMapper extends FieldMapper {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(BooleanFieldMapper.class));
 
     public static final String CONTENT_TYPE = "boolean";
 

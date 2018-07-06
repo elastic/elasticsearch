@@ -12,11 +12,11 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 
@@ -30,7 +30,6 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
     private final String DEFAULT_SORT = null;
     private final String DEFAULT_START = null;
     private final String DEFAULT_END = null;
-    private final String DEFAULT_DESCRIPTION = null;
     private final boolean DEFAULT_DESC_ORDER = true;
 
     public RestGetModelSnapshotsAction(Settings settings, RestController controller) {

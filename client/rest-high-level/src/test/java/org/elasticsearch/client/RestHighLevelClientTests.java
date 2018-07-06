@@ -21,7 +21,6 @@ package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
 
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -85,7 +84,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.client.RestClientTestUtil.randomHeaders;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Matchers.any;
@@ -137,7 +135,6 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testInfo() throws IOException {
-        Header[] headers = randomHeaders(random(), "Header");
         MainResponse testInfo = new MainResponse("nodeName", Version.CURRENT, new ClusterName("clusterName"), "clusterUuid",
                 Build.CURRENT);
         mockResponse(testInfo);

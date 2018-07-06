@@ -52,7 +52,6 @@ import static org.hamcrest.Matchers.containsString;
 public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
     private IndexService indexService;
     private DocumentMapperParser parser;
-    private DocumentMapperParser preEs6Parser;
 
     @Before
     public void setup() {

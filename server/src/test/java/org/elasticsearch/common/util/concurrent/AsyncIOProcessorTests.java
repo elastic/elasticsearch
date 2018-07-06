@@ -39,7 +39,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
             protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
                 if (blockInternal) {
                     synchronized (this) {
-                        for (Tuple<Object, Consumer<Exception>> c :candidates) {
+                        for (int i = 0; i < candidates.size(); i++) {
                             received.incrementAndGet();
                         }
                     }

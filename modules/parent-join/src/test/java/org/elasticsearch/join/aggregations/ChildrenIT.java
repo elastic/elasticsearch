@@ -458,13 +458,12 @@ public class ChildrenIT extends ParentChildTestCase {
 
     private static final class Control {
 
-        final String category;
         final Set<String> articleIds = new HashSet<>();
         final Set<String> commentIds = new HashSet<>();
         final Map<String, Set<String>> commenterToCommentId = new HashMap<>();
 
         private Control(String category) {
-            this.category = category;
+            // category not used any further
         }
     }
 }

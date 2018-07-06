@@ -19,10 +19,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.xpack.core.security.SecurityField;
 
-import javax.crypto.Mac;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -35,6 +31,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import javax.crypto.Mac;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 
@@ -104,11 +105,9 @@ public final class HashProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final Settings settings;
         private final Map<String, SecureString> secureKeys;
 
         public Factory(Settings settings) {
-            this.settings = settings;
             this.secureKeys = new HashMap<>();
             HMAC_KEY_SETTING.getAllConcreteSettings(settings).forEach(k -> {
                 secureKeys.put(k.getKey(), k.get(settings));

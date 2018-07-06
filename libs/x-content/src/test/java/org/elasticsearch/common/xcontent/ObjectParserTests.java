@@ -222,7 +222,7 @@ public class ObjectParserTests extends ESTestCase {
     public void testFailOnValueType() throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"numeric_value\" : false}");
         class TestStruct {
-            public String test;
+            @SuppressWarnings("unused") public String test;
         }
         ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo");
         TestStruct s = new TestStruct();

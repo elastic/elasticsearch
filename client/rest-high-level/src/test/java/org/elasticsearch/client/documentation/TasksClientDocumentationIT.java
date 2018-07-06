@@ -66,6 +66,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
+    @SuppressWarnings("unused")
     public void testListTasks() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -149,6 +150,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testCancelTasks() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {

@@ -33,12 +33,12 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
+import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
-import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.joda.time.DateTime;
 import org.mockito.stubbing.Answer;
 
@@ -50,8 +50,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.mockito.Mockito.mock;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class IndexerUtilsTests extends AggregatorTestCase {
@@ -194,7 +194,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         String indexName = randomAlphaOfLengthBetween(1, 10);
         RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);
 
-        String timestampField = "the_histo";
         String valueField = "the_avg";
 
         Directory directory = newDirectory();

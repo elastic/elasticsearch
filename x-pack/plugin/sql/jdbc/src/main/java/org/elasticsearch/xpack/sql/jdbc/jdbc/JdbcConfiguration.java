@@ -66,7 +66,6 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     }
 
     // immutable properties
-    private final String originalUrl;
     private final boolean debug;
     private final String debugOut;
 
@@ -146,8 +145,6 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     // and also do input processing as oppose to handling this from the constructor (which is tricky or impossible)
     private JdbcConfiguration(URI baseURI, String u, Properties props) throws JdbcSQLException {
         super(baseURI, u, props);
-
-        this.originalUrl = u;
 
         this.debug = parseValue(DEBUG, props.getProperty(DEBUG, DEBUG_DEFAULT), Boolean::parseBoolean);
         this.debugOut = props.getProperty(DEBUG_OUTPUT, DEBUG_OUTPUT_DEFAULT);

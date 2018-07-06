@@ -10,7 +10,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -51,8 +50,6 @@ public class DataCountsReporter extends AbstractComponent {
      */
     public static final Setting<Integer> ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING = Setting
             .intSetting("max.percent.outoforder.errors", 25, Property.NodeScope);
-
-    private static final TimeValue PERSIST_INTERVAL = TimeValue.timeValueMillis(10_000L);
 
     private final Job job;
     private final JobDataCountsPersister dataCountsPersister;

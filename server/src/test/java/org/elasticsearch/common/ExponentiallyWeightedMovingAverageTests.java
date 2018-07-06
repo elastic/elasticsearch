@@ -23,7 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
-import static org.junit.Assert.assertThat;
 
 /**
  * Implements exponentially weighted moving averages (commonly abbreviated EWMA) for a single value.
@@ -41,19 +40,11 @@ public class ExponentiallyWeightedMovingAverageTests extends ESTestCase {
     }
 
     public void testInvalidAlpha() {
-        try {
-            ExponentiallyWeightedMovingAverage ewma = new ExponentiallyWeightedMovingAverage(-0.5, 10);
-            fail("should have failed to create EWMA");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("alpha must be greater or equal to 0 and less than or equal to 1"));
-        }
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new ExponentiallyWeightedMovingAverage(-0.5, 10));
+        assertThat(ex.getMessage(), equalTo("alpha must be greater or equal to 0 and less than or equal to 1"));
 
-        try {
-            ExponentiallyWeightedMovingAverage ewma = new ExponentiallyWeightedMovingAverage(1.5, 10);
-            fail("should have failed to create EWMA");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("alpha must be greater or equal to 0 and less than or equal to 1"));
-        }
+        ex = expectThrows(IllegalArgumentException.class, () -> new ExponentiallyWeightedMovingAverage(1.5, 10));
+        assertThat(ex.getMessage(), equalTo("alpha must be greater or equal to 0 and less than or equal to 1"));
     }
 
     public void testConvergingToValue() {

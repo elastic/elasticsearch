@@ -361,6 +361,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
             // Cron doesn't have a parse helper method to see if the cron is valid,
             // so just construct a temporary cron object and if the cron is bad, it'll
             // throw an exception
+            @SuppressWarnings("unused")
             Cron testCron = new Cron(cron);
             if (groupConfig == null && (metricsConfig == null || metricsConfig.isEmpty())) {
                 throw new IllegalArgumentException("At least one grouping or metric must be configured.");

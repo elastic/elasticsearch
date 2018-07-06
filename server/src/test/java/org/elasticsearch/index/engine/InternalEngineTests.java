@@ -2773,11 +2773,7 @@ public class InternalEngineTests extends EngineTestCase {
                 IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), null, config.getTranslogRecoveryRunner(),
                 new NoneCircuitBreakerService(), () -> SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm::get);
-        try {
-            InternalEngine internalEngine = new InternalEngine(brokenConfig);
-            fail("translog belongs to a different engine");
-        } catch (EngineCreationFailureException ex) {
-        }
+        expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!
         assertVisibleCount(engine, numDocs, false);

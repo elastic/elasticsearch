@@ -94,16 +94,17 @@ public final class Role {
         private ClusterPermission cluster = ClusterPermission.NONE;
         private RunAsPermission runAs = RunAsPermission.NONE;
         private List<IndicesPermission.Group> groups = new ArrayList<>();
-        private FieldPermissionsCache fieldPermissionsCache = null;
+        // TODO something is fishy here, why is this not used
+        // private FieldPermissionsCache fieldPermissionsCache = null;
 
         private Builder(String[] names, FieldPermissionsCache fieldPermissionsCache) {
             this.names = names;
-            this.fieldPermissionsCache = fieldPermissionsCache;
+            // this.fieldPermissionsCache = fieldPermissionsCache;
         }
 
         private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache) {
             this.names = new String[] { rd.getName() };
-            this.fieldPermissionsCache = fieldPermissionsCache;
+            // this.fieldPermissionsCache = fieldPermissionsCache;
             if (rd.getClusterPrivileges().length == 0) {
                 cluster = ClusterPermission.NONE;
             } else {

@@ -21,6 +21,7 @@ package org.elasticsearch.test.store;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.BaseDirectoryWrapper;
@@ -74,8 +75,6 @@ public class MockFSDirectoryService extends FsDirectoryService {
     private final double randomIOExceptionRate;
     private final double randomIOExceptionRateOnOpen;
     private final MockDirectoryWrapper.Throttling throttle;
-    private final boolean preventDoubleWrite;
-    private final boolean noDeleteOpenFile;
     private final boolean crashIndex;
 
     @Inject
@@ -87,8 +86,6 @@ public class MockFSDirectoryService extends FsDirectoryService {
 
         randomIOExceptionRate = RANDOM_IO_EXCEPTION_RATE_SETTING.get(indexSettings);
         randomIOExceptionRateOnOpen = RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.get(indexSettings);
-        preventDoubleWrite = RANDOM_PREVENT_DOUBLE_WRITE_SETTING.get(indexSettings);
-        noDeleteOpenFile = RANDOM_NO_DELETE_OPEN_FILE_SETTING.exists(indexSettings) ? RANDOM_NO_DELETE_OPEN_FILE_SETTING.get(indexSettings) : random.nextBoolean();
         random.nextInt(shardId.getId() + 1); // some randomness per shard
         throttle = MockDirectoryWrapper.Throttling.NEVER;
         crashIndex = CRASH_INDEX_SETTING.get(indexSettings);

@@ -24,9 +24,9 @@ import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -64,6 +64,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -156,10 +157,6 @@ import static org.junit.Assert.fail;
 public final class InternalTestCluster extends TestCluster {
 
     private final Logger logger = Loggers.getLogger(getClass());
-
-
-    private static final AtomicInteger clusterOrdinal = new AtomicInteger();
-
 
     public static final int DEFAULT_LOW_NUM_MASTER_NODES = 1;
     public static final int DEFAULT_HIGH_NUM_MASTER_NODES = 3;
@@ -263,11 +260,8 @@ public final class InternalTestCluster extends TestCluster {
         this.nodePrefix = nodePrefix;
 
         assert nodePrefix != null;
-        ArrayList<Class<? extends Plugin>> tmpMockPlugins = new ArrayList<>(mockPlugins);
-
 
         this.mockPlugins = mockPlugins;
-
 
         sharedNodesSeeds = new long[numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes];
         for (int i = 0; i < sharedNodesSeeds.length; i++) {
@@ -1911,6 +1905,7 @@ public final class InternalTestCluster extends TestCluster {
         return null;
     }
 
+    @Override
     public synchronized Iterable<Client> getClients() {
         ensureOpen();
         return () -> {

@@ -19,9 +19,11 @@
 
 package org.elasticsearch.index.translog;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
+
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -226,7 +228,6 @@ public class TruncateTranslogIT extends ESIntegTestCase {
     public void testCorruptTranslogTruncationOfReplica() throws Exception {
         internalCluster().startNodes(2, Settings.EMPTY);
 
-        final String primaryNode = internalCluster().getNodeNames()[0];
         final String replicaNode = internalCluster().getNodeNames()[1];
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()

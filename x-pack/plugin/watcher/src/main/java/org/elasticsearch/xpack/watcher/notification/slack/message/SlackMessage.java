@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,18 +30,11 @@ public class SlackMessage implements MessageElement {
     final String text;
     final Attachment[] attachments;
 
-    //Note on constructors:
-    // Slack with fail to send a message if it has no attachments AND no text.
-    // Slack will succeed with attachments OR text.
-    public SlackMessage(String from, String[] to, String icon, Attachment[] attachments) {
-        this(from, to, icon, null, attachments); // Empty text
-    }
+    public SlackMessage(String from, String[] to, String icon, @Nullable String text, @Nullable Attachment[] attachments) {
+        if(text == null && attachments == null) {
+            throw new IllegalArgumentException("Both text and attachments cannot be null.");
+        }
 
-    public SlackMessage(String from, String[] to, String icon, String text) {
-        this(from, to, icon, text, null); // Empty attachments
-    }
-
-    public SlackMessage(String from, String[] to, String icon, String text, Attachment[] attachments) {
         this.from = from;
         this.to = to;
         this.icon = icon;
@@ -213,7 +207,7 @@ public class SlackMessage implements MessageElement {
                 attachments.addAll(dynamicAttachments.render(engine, model, defaults.attachment));
             }
             if (attachments == null) {
-                return new SlackMessage(from, to, icon, text);
+                return new SlackMessage(from, to, icon, text, null);
             }
             return new SlackMessage(from, to, icon, text, attachments.toArray(new Attachment[attachments.size()]));
         }

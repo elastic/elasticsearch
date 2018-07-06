@@ -573,7 +573,7 @@ public class SlackMessageTests extends ESTestCase {
         HttpResponse response = new HttpResponse(500);
         String path = randomAlphaOfLength(20);
         HttpRequest request = HttpRequest.builder("localhost", 1234).path(path).build();
-        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", "text");
+        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", "text", null);
         SentMessages sentMessages = new SentMessages("foo",
                 Arrays.asList(SentMessages.SentMessage.responded("recipient", slackMessage, request, response)));
 
@@ -601,15 +601,19 @@ public class SlackMessageTests extends ESTestCase {
     }
 
     public void testCanHaveNullText()  throws Exception {
-        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", new Attachment[1]);
+        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", null, new Attachment[1]);
         assertNull(slackMessage.getText());
         assertNotNull(slackMessage.getAttachments());
     }
 
     public void testCanHaveNullAttachments()  throws Exception {
-        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", "text");
+        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", "text", null);
         assertNotNull(slackMessage.getText());
         assertNull(slackMessage.getAttachments());
+    }
+
+    public void testCannotHaveNullAttachmentsAndNullText() throws Exception {
+        expectThrows(IllegalArgumentException.class, () -> new SlackMessage("from", new String[]{"to"}, "icon", null, null));
     }
 
     private static void writeFieldIfNotNull(XContentBuilder builder, String field, Object value) throws IOException {

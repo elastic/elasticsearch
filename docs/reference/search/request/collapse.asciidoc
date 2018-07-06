@@ -137,9 +137,9 @@ GET /twitter/_search
         "field" : "country",
         "inner_hits" : {
             "name": "by_location",
+            "collapse" : {"field" : "user"},
             "size": 3
-        },
-        "collapse" : {"field" : "user"}
+        }
     }
 }
 --------------------------------------------------

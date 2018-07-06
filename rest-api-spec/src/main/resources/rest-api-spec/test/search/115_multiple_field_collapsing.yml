@@ -48,10 +48,10 @@
             query: { "match" : { "address" : "victoria" }}
             collapse:
               field: country
-              inner_hits: {}
-              collapse:
-                field : city
-                inner_hits: {}
+              inner_hits:
+                collapse:
+                  field : city
+                  inner_hits: {}
 
 
     # ************* error if internal collapse contains another collapse
@@ -63,10 +63,10 @@
             query: { "match" : { "address" : "victoria" }}
             collapse:
               field: country
-              inner_hits: {}
-              collapse:
-                field : city
-                collapse:  { field: city }
+              inner_hits:
+                collapse:
+                  field : city
+                  collapse:  { field: city }
 
 
 
@@ -81,8 +81,8 @@
               inner_hits:
                 name: by_location
                 size: 3
-              collapse:
-                field : city
+                collapse:
+                  field : city
 
     - match: { hits.total: 8 }
     - length: { hits.hits: 2 }
@@ -117,8 +117,8 @@
                 name: by_location
                 size: 3
                 sort: [{ "city": "desc" }]
-              collapse:
-                field : city
+                collapse:
+                  field : city
 
     - match: { hits.total: 8 }
     - length: { hits.hits: 2 }

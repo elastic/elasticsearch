@@ -92,7 +92,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
 
         this.standardRealmsOnly = Collections.unmodifiableList(standardRealms);
         this.nativeRealmsOnly = Collections.unmodifiableList(nativeRealms);
-        realms.forEach(r -> r.initialize(this));
+        realms.forEach(r -> r.initialize(this, licenseState));
     }
 
     @Override

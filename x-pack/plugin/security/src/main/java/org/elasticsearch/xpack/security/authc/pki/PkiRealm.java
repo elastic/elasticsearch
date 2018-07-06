@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -96,11 +97,11 @@ public class PkiRealm extends Realm implements CachingRealm {
     }
 
     @Override
-    public void initialize(Iterable<Realm> realms) {
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
         if (delegatedRealms != null) {
             throw new IllegalStateException("Realm has already been initialized");
         }
-        delegatedRealms = new DelegatedAuthorizationSupport(realms, config);
+        delegatedRealms = new DelegatedAuthorizationSupport(realms, config, licenseState);
     }
 
     @Override

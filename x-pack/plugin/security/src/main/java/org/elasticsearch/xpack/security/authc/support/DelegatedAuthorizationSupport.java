@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -34,13 +36,14 @@ public class DelegatedAuthorizationSupport {
 
     private final RealmUserLookup lookup;
     private final Logger logger;
+    private final XPackLicenseState licenseState;
 
     /**
      * Resolves the {@link DelegatedAuthorizationSettings#AUTHZ_REALMS} setting from {@code config} and calls
-     * {@link #DelegatedAuthorizationSupport(Iterable, List, ThreadContext)}
+     * {@link #DelegatedAuthorizationSupport(Iterable, List, ThreadContext, XPackLicenseState)}
      */
-    public DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, RealmConfig config) {
-        this(allRealms, DelegatedAuthorizationSettings.AUTHZ_REALMS.get(config.settings()), config.threadContext());
+    public DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, RealmConfig config, XPackLicenseState licenseState) {
+        this(allRealms, DelegatedAuthorizationSettings.AUTHZ_REALMS.get(config.settings()), config.threadContext(), licenseState);
     }
 
     /**
@@ -48,9 +51,11 @@ public class DelegatedAuthorizationSupport {
      * {@code allRealms}.
      * @throws IllegalArgumentException if one of the specified realms does not exist
      */
-    protected DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, List<String> lookupRealms, ThreadContext threadContext) {
+    protected DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, List<String> lookupRealms, ThreadContext threadContext,
+                                            XPackLicenseState licenseState) {
        this.lookup = new RealmUserLookup(resolveRealms(allRealms, lookupRealms), threadContext);
        this.logger = Loggers.getLogger(getClass());
+       this.licenseState = licenseState;
     }
 
     /**
@@ -69,6 +74,13 @@ public class DelegatedAuthorizationSupport {
      * with a meaningful diagnostic message.
      */
     public void resolve(String username, ActionListener<AuthenticationResult> resultListener) {
+        if (licenseState.isAuthorizingRealmAllowed() == false) {
+            resultListener.onResponse(AuthenticationResult.unsuccessful(
+                DelegatedAuthorizationSettings.AUTHZ_REALMS.getKey() + " are not permitted",
+                LicenseUtils.newComplianceException(DelegatedAuthorizationSettings.AUTHZ_REALMS.getKey())
+            ));
+            return;
+        }
         if (hasDelegation() == false) {
             resultListener.onResponse(AuthenticationResult.unsuccessful(
                 "No [" + DelegatedAuthorizationSettings.AUTHZ_REALMS.getKey() + "] have been configured", null));

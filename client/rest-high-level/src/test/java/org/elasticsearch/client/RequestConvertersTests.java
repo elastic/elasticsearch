@@ -584,6 +584,39 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getEntity(), nullValue());
     }
 
+    public void testGetIndex() throws IOException {
+        String[] indicesUnderTest = randomBoolean() ? null : randomIndicesNames(0, 5);
+
+        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(indicesUnderTest);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(getIndexRequest, expectedParams);
+        setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
+        setRandomLocal(getIndexRequest, expectedParams);
+        setRandomHumanReadable(getIndexRequest, expectedParams);
+
+        if (randomBoolean()) {
+            // the request object will not have include_defaults present unless it is set to
+            // true
+            getIndexRequest.includeDefaults(randomBoolean());
+            if (getIndexRequest.includeDefaults()) {
+                expectedParams.put("include_defaults", Boolean.toString(true));
+            }
+        }
+
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indicesUnderTest != null && indicesUnderTest.length > 0) {
+            endpoint.add(String.join(",", indicesUnderTest));
+        }
+
+        Request request = RequestConverters.getIndex(getIndexRequest);
+
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getEntity(), nullValue());
+    }
+
     public void testDeleteIndexEmptyIndices() {
         String[] indices = randomBoolean() ? null : Strings.EMPTY_ARRAY;
         ActionRequestValidationException validationException = new DeleteIndexRequest(indices).validate();
@@ -2089,13 +2122,21 @@ public class RequestConvertersTests extends ESTestCase {
         getSnapshotsRequest.snapshots(Arrays.asList(snapshot1, snapshot2).toArray(new String[0]));
         setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
 
-        boolean ignoreUnavailable = randomBoolean();
-        getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
-        expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+        if (randomBoolean()) {
+            boolean ignoreUnavailable = randomBoolean();
+            getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
+            expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+        } else {
+            expectedParams.put("ignore_unavailable", Boolean.FALSE.toString());
+        }
 
-        boolean verbose = randomBoolean();
-        getSnapshotsRequest.verbose(verbose);
-        expectedParams.put("verbose", Boolean.toString(verbose));
+        if (randomBoolean()) {
+            boolean verbose = randomBoolean();
+            getSnapshotsRequest.verbose(verbose);
+            expectedParams.put("verbose", Boolean.toString(verbose));
+        } else {
+            expectedParams.put("verbose", Boolean.TRUE.toString());
+        }
 
         Request request = RequestConverters.getSnapshots(getSnapshotsRequest);
         assertThat(endpoint, equalTo(request.getEndpoint()));

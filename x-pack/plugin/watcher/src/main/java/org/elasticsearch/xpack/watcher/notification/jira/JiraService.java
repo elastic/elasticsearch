@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.watcher.notification.jira;
 
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -41,17 +43,17 @@ public class JiraService extends NotificationService<JiraAccount> {
             Setting.affixKeySetting("xpack.notification.jira.account.", "password",
                     (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
 
-    private static final Setting.AffixSetting<String> SETTING_SECURE_USER =
+    private static final Setting.AffixSetting<SecureString> SETTING_SECURE_USER =
             Setting.affixKeySetting("xpack.notification.jira.account.", "secure_user",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> SecureSetting.secureString(key, null));
 
-    private static final Setting.AffixSetting<String> SETTING_SECURE_URL =
+    private static final Setting.AffixSetting<SecureString> SETTING_SECURE_URL =
             Setting.affixKeySetting("xpack.notification.jira.account.", "secure_url",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> SecureSetting.secureString(key, null));
 
-    private static final Setting.AffixSetting<String> SETTING_SECURE_PASSWORD =
+    private static final Setting.AffixSetting<SecureString> SETTING_SECURE_PASSWORD =
             Setting.affixKeySetting("xpack.notification.jira.account.", "secure_password",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> SecureSetting.secureString(key, null));
 
     private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS =
             Setting.affixKeySetting("xpack.notification.jira.account.", "issue_defaults",

@@ -87,4 +87,18 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertEquals(mainResponse.getVersion().toString(),
                 ml.nativeCodeInfo().get("version").toString().replace("-SNAPSHOT", ""));
     }
+
+    public void testXPackInfoEmptyRequest() throws IOException {
+        XPackInfoResponse info = highLevelClient().xPackInfo(new XPackInfoRequest(), RequestOptions.DEFAULT);
+
+        /*
+         * The default in the transport client is non-verbose and returning
+         * no categories which is the opposite of the default when you use
+         * the API over REST. We don't want to break the transport client
+         * even though it doesn't feel like a good default.
+         */
+        assertNull(info.getBuildInfo());
+        assertNull(info.getLicenseInfo());
+        assertNull(info.getFeatureSetsInfo());
+    }
 }

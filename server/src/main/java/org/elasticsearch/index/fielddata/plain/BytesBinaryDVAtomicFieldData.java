@@ -89,7 +89,7 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
     }
 
     @Override
-    public ScriptDocValues getScriptValues() {
+    public ScriptDocValues<BytesRef> getScriptValues() {
         return new ScriptDocValues.BytesRefs(getBytesValues());
     }
 

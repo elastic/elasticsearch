@@ -65,7 +65,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             scripts.put("1==1", vars -> Boolean.TRUE);
             scripts.put("use_fielddata_please", vars -> {
                 LeafDocLookup leafDocLookup = (LeafDocLookup) vars.get("_doc");
-                ScriptDocValues scriptDocValues = leafDocLookup.get("employees.name");
+                ScriptDocValues<?> scriptDocValues = leafDocLookup.get("employees.name");
                 return "virginia_potts".equals(scriptDocValues.get(0));
             });
             return scripts;

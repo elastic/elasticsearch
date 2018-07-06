@@ -36,12 +36,12 @@ import java.util.List;
 
 public class ClusterformationPlugin implements Plugin<Project> {
 
-    public static final String LIST_TASK_NAME = "listElasticsearchClusters";
-    public static final String EXTENSION_NAME = "elasticsearchClusters";
-    public static final String TASK_EXTENSION_NAME = "clusterFormation";
+    private static final String LIST_TASK_NAME = "listElasticsearch";
+    private static final String NODE_EXTENSION_NAME = "elasticsearchNodes";
+    private static final String TASK_EXTENSION_NAME = "clusterFormation";
 
     private static final String HELPER_CONFIGURATION_NAME = "_internalClusterFormationConfiguration";
-    public static final String SYNC_ARTIFACTS_TASK_NAME = "syncClusterFormationArtifacts";
+    private static final String SYNC_ARTIFACTS_TASK_NAME = "syncClusterFormationArtifacts";
 
     private final Logger logger =  Logging.getLogger(ClusterformationPlugin.class);
 
@@ -52,14 +52,14 @@ public class ClusterformationPlugin implements Plugin<Project> {
         // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<? extends ElasticsearchConfiguration> container = project.container(
             ElasticsearchNode.class,
-            (name) -> new ElasticsearchNode(
+            name -> new ElasticsearchNode(
                 name,
                 GradleServicesAdapter.getInstance(project),
                 getArtifactsDir(project),
-                new File(project.getBuildDir(), "clusterFormation")
+                new File(project.getBuildDir(), TASK_EXTENSION_NAME)
             )
         );
-        project.getExtensions().add(EXTENSION_NAME, container);
+        project.getExtensions().add(NODE_EXTENSION_NAME, container);
 
         // register an extension for all current and future tasks, so that any task can declare that it wants to use a
         // specific cluster.

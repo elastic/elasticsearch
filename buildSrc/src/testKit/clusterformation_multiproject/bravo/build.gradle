@@ -1,7 +1,7 @@
 plugins {
     id 'elasticsearch.clusterformation'
 }
-elasticsearchClusters {
+elasticsearchNodes {
     myTestCluster {
         distribution = 'ZIP'
         version = '6.2.0'
@@ -9,15 +9,15 @@ elasticsearchClusters {
 }
 
 task user1 {
-    clusterFormation.use elasticsearchClusters.myTestCluster
+    clusterFormation.use elasticsearchNodes.myTestCluster
     doLast {
-        println "Cluster running @ ${elasticsearchClusters.myTestCluster.httpSocketURI}"
+        println "Cluster running @ ${elasticsearchNodes.myTestCluster.httpSocketURI}"
     }
 }
 
 task user2 {
-    clusterFormation.use elasticsearchClusters.myTestCluster
+    clusterFormation.use elasticsearchNodes.myTestCluster
     doLast {
-        println "Cluster running @ ${elasticsearchClusters.myTestCluster.httpSocketURI}"
+        println "Cluster running @ ${elasticsearchNodes.myTestCluster.httpSocketURI}"
     }
 }

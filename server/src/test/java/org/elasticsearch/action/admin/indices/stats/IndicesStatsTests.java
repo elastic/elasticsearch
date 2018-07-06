@@ -27,12 +27,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -153,6 +157,18 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         assertEquals(0, common.refresh.getListeners());
     }
 
+    @SuppressWarnings("unchecked")
+    public void testUuidOnRootStatsIndices() throws IOException {
+        String uuid = createIndex("test").indexUUID();
+        IndicesStatsResponse rsp = client().admin().indices().prepareStats().get();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, rsp.toString())) {
+            assertEquals(
+                uuid,
+                ((Map<String, Object>)((Map<String,Object>) parser.map().get("indices")).get("test")).get("uuid")
+            );
+        }
+    }
+
     /**
      * Gives access to package private IndicesStatsResponse constructor for test purpose.
      **/
@@ -160,5 +176,4 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
                                                                int failedShards, List<DefaultShardOperationFailedException> shardFailures) {
         return new IndicesStatsResponse(shards, totalShards, successfulShards, failedShards, shardFailures);
     }
-
 }

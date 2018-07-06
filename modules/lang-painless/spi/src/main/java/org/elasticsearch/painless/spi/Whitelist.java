@@ -30,7 +30,7 @@ import java.util.Objects;
  *
  * A whitelist consists of several pieces with {@link WhitelistClass}s as the top level.  Each
  * {@link WhitelistClass} will contain zero-to-many {@link WhitelistConstructor}s, {@link WhitelistMethod}s, and
- * {@link Field}s which are what will be available with a Painless script.  See each individual
+ * {@link WhitelistField}s which are what will be available with a Painless script.  See each individual
  * whitelist object for more detail.
  */
 public final class Whitelist {
@@ -54,30 +54,6 @@ public final class Whitelist {
 
     public static final List<Whitelist> BASE_WHITELISTS =
         Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Whitelist.class, BASE_WHITELIST_FILES));
-
-    /**
-     * Field represents the equivalent of a Java field available as a whitelisted class field
-     * within Painless.  Fields for Painless classes may be accessed exactly as fields for Java classes
-     * are using the '.' operator on an existing class variable/field.
-     */
-    public static class Field {
-
-        /** Information about where this method was whitelisted from.  Can be used for error messages. */
-        public final String origin;
-
-        /** The Java field name used to look up the Java field through reflection. */
-        public final String javaFieldName;
-
-        /** The Painless type name for the field which can be used to look up the Java field through reflection. */
-        public final String painlessFieldTypeName;
-
-        /** Standard constructor.  All values must be not {@code null}. */
-        public Field(String origin, String javaFieldName, String painlessFieldTypeName) {
-            this.origin = Objects.requireNonNull(origin);
-            this.javaFieldName = Objects.requireNonNull(javaFieldName);
-            this.painlessFieldTypeName = Objects.requireNonNull(painlessFieldTypeName);
-        }
-    }
 
     /** The {@link ClassLoader} used to look up the whitelisted Java classes, constructors, methods, and fields. */
     public final ClassLoader javaClassLoader;

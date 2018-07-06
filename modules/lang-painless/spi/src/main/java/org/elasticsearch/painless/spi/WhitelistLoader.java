@@ -148,7 +148,7 @@ public final class WhitelistLoader {
                 boolean onlyFQNJavaClassName = false;
                 List<WhitelistConstructor> whitelistConstructors = null;
                 List<WhitelistMethod> whitelistMethods = null;
-                List<Whitelist.Field> whitelistFields = null;
+                List<WhitelistField> whitelistFields = null;
 
                 while ((line = reader.readLine()) != null) {
                     number = reader.getLineNumber();
@@ -285,7 +285,7 @@ public final class WhitelistLoader {
                                 throw new IllegalArgumentException("invalid field definition: unexpected format [" + line + "]");
                             }
 
-                            whitelistFields.add(new Whitelist.Field(origin, tokens[1], tokens[0]));
+                            whitelistFields.add(new WhitelistField(origin, tokens[1], tokens[0]));
                         }
                     }
                 }

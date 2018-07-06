@@ -22,6 +22,7 @@ package org.elasticsearch.painless.lookup;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistClass;
 import org.elasticsearch.painless.spi.WhitelistConstructor;
+import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistMethod;
 import org.objectweb.asm.Type;
 
@@ -274,7 +275,7 @@ public final class PainlessLookup {
                         addMethod(whitelist.javaClassLoader, painlessTypeName, whitelistMethod);
                     }
 
-                    for (Whitelist.Field whitelistField : whitelistStruct.whitelistFields) {
+                    for (WhitelistField whitelistField : whitelistStruct.whitelistFields) {
                         origin = whitelistField.origin;
                         addField(painlessTypeName, whitelistField);
                     }
@@ -622,7 +623,7 @@ public final class PainlessLookup {
         }
     }
 
-    private void addField(String ownerStructName, Whitelist.Field whitelistField) {
+    private void addField(String ownerStructName, WhitelistField whitelistField) {
         PainlessClass ownerStruct = javaClassesToPainlessStructs.get(painlessTypesToJavaClasses.get(ownerStructName));
 
         if (ownerStruct == null) {

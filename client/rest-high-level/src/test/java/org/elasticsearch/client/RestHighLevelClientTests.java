@@ -92,6 +92,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.CoreMatchers.endsWith;
@@ -641,22 +642,51 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testApiNamingConventions() throws Exception {
-        String[] notSupportedApi = new String[]{
-            "cat.aliases", "cat.allocation", "cat.count", "cat.fielddata", "cat.health", "cat.help", "cat.indices", "cat.master",
-            "cat.nodeattrs", "cat.nodes", "cat.pending_tasks", "cat.plugins", "cat.recovery", "cat.repositories", "cat.segments",
-            "cat.shards", "cat.snapshots", "cat.tasks", "cat.templates", "cat.thread_pool",
-            "cluster.allocation_explain", "cluster.pending_tasks", "cluster.remote_info", "cluster.reroute", "cluster.state",
-            "cluster.stats",
-            "count", "create", "delete_by_query", "exists_source", "get_source",
-            "indices.delete_alias", "indices.delete_template", "indices.exists_template", "indices.exists_type", "indices.get",
-            "indices.get_upgrade", "indices.put_alias", "indices.recovery", "indices.segments", "indices.shard_stores", "indices.stats",
-            "indices.upgrade", "ingest.processor_grok",
-            "mtermvectors", "nodes.hot_threads", "nodes.info", "nodes.stats", "nodes.usage", "put_script", "reindex", "reindex_rethrottle",
-            "render_search_template", "scripts_painless_execute", "search_shards",
-            "snapshot.restore", "snapshot.status",
-            "tasks.get", "termvectors", "update_by_query"
+        //this list should be empty once the high-level client is feature complete
+        String[] notYetSupportedApi = new String[]{
+            "cluster.remote_info",
+            "count",
+            "create",
+            "delete_by_query",
+            "exists_source",
+            "get_source",
+            "indices.delete_alias",
+            "indices.delete_template",
+            "indices.exists_template",
+            "indices.exists_type",
+            "indices.get_upgrade",
+            "indices.put_alias",
+            "mtermvectors",
+            "put_script",
+            "reindex",
+            "reindex_rethrottle",
+            "render_search_template",
+            "scripts_painless_execute",
+            "snapshot.restore",
+            "snapshot.status",
+            "tasks.get",
+            "termvectors",
+            "update_by_query"
         };
-
+        //These API are not required for high-level client feature completeness
+        String[] notRequiredApi = new String[] {
+            "cluster.allocation_explain",
+            "cluster.pending_tasks",
+            "cluster.reroute",
+            "cluster.state",
+            "cluster.stats",
+            "indices.shard_stores",
+            "indices.upgrade",
+            "indices.recovery",
+            "indices.segments",
+            "indices.stats",
+            "ingest.processor_grok",
+            "nodes.info",
+            "nodes.stats",
+            "nodes.hot_threads",
+            "nodes.usage",
+            "search_shards",
+        };
         ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("/rest-api-spec/api");
         Set<String> apiSpec = restSpec.getApis().stream().map(ClientYamlSuiteRestApi::getName).collect(Collectors.toSet());
 
@@ -682,6 +712,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                     Modifier.isFinal(method.getClass().getModifiers()) || Modifier.isFinal(method.getModifiers()));
             assertTrue(Modifier.isPublic(method.getModifiers()));
 
+            //we convert all the method names to snake case, hence we need to look for the '_async' suffix rather than 'Async'
             if (apiName.endsWith("_async")) {
                 assertTrue("async method [" + method.getName() + "] doesn't have corresponding sync method",
                         methods.containsKey(apiName.substring(0, apiName.length() - 6)));
@@ -692,6 +723,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 assertThat(method.getParameterTypes()[1].getName(), equalTo(RequestOptions.class.getName()));
                 assertThat(method.getParameterTypes()[2].getName(), equalTo(ActionListener.class.getName()));
             } else {
+                //A few methods return a boolean rather than a response object
                 if (method.getName().equals("ping") || method.getName().contains("exist")) {
                     assertThat(method.getReturnType().getSimpleName(), equalTo("boolean"));
                 } else {
@@ -699,6 +731,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 }
 
                 assertEquals(1, method.getExceptionTypes().length);
+                //a few methods don't accept a request object as argument
                 if (method.getName().equals("ping") || method.getName().equals("info")) {
                     assertEquals(1, method.getParameterTypes().length);
                     assertThat(method.getParameterTypes()[0].getName(), equalTo(RequestOptions.class.getName()));
@@ -714,10 +747,15 @@ public class RestHighLevelClientTests extends ESTestCase {
                 }
             }
         }
-
         assertThat("Some client method doesn't match a corresponding API defined in the REST spec: " + apiNotFound,
             apiNotFound.size(), equalTo(0));
-        assertThat(apiSpec, equalTo(Arrays.stream(notSupportedApi).collect(Collectors.toSet())));
+
+        //we decided not to support cat API in the high-level REST client, they are supposed to be used from a low-level client
+        apiSpec.removeIf(api -> api.startsWith("cat."));
+        Stream.concat(Arrays.stream(notYetSupportedApi), Arrays.stream(notRequiredApi)).forEach(
+            api -> assertTrue(api + " API is either not defined in the spec or already supported by the high-level client",
+                apiSpec.remove(api)));
+        assertThat("Some API are not supported but they should be: " + apiSpec, apiSpec.size(), equalTo(0));
     }
 
     private static Stream<Tuple<String, Method>> getSubClientMethods(String namespace, Class<?> clientClass) {
@@ -726,20 +764,16 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     private static String toSnakeCase(String camelCase) {
-        List<Character> chars = new ArrayList<>();
+        StringBuilder snakeCaseString = new StringBuilder();
         for (Character aChar : camelCase.toCharArray()) {
             if (Character.isUpperCase(aChar)) {
-                chars.add('_');
-                chars.add(Character.toLowerCase(aChar));
+                snakeCaseString.append('_');
+                snakeCaseString.append(Character.toLowerCase(aChar));
             } else {
-                chars.add(aChar);
+                snakeCaseString.append(aChar);
             }
         }
-        char[] stringChars = new char[chars.size()];
-        for (int i = 0; i < chars.size(); i++) {
-            stringChars[i] = chars.get(i);
-        }
-        return new String(stringChars);
+        return snakeCaseString.toString();
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {

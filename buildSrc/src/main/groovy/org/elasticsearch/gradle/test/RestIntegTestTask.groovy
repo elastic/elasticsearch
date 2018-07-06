@@ -111,7 +111,7 @@ public class RestIntegTestTask extends DefaultTask {
         }
 
         // copy the rest spec/tests into the test resources
-        Task copyRestSpec = createCopyRestSpecTask(project, includePackaged.get())
+        Task copyRestSpec = createCopyRestSpecTask(project, includePackaged)
 
         runner.dependsOn(copyRestSpec)
         
@@ -218,7 +218,7 @@ public class RestIntegTestTask extends DefaultTask {
      * @param project The project to add the copy task to
      * @param includePackagedTests true if the packaged tests should be copied, false otherwise
      */
-    public static Task createCopyRestSpecTask(Project project, boolean includePackagedTests) {
+    private static Task createCopyRestSpecTask(Project project, Provider<Boolean> includePackagedTests) {
         project.configurations {
             restSpec
         }
@@ -240,7 +240,7 @@ public class RestIntegTestTask extends DefaultTask {
         project.afterEvaluate {
             copyRestSpec.from({ project.zipTree(project.configurations.restSpec.singleFile) }) {
                 include 'rest-api-spec/api/**'
-                if (includePackagedTests) {
+                if (includePackagedTests.get()) {
                     include 'rest-api-spec/test/**'
                 }
             }

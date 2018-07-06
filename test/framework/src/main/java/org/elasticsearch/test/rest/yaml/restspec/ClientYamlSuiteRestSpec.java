@@ -21,13 +21,21 @@ package org.elasticsearch.test.rest.yaml.restspec;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.stream.Stream;
 
 import org.elasticsearch.common.io.PathUtils;
@@ -80,15 +88,30 @@ public class ClientYamlSuiteRestSpec {
      * Parses the complete set of REST spec available under the provided directories
      */
     public static ClientYamlSuiteRestSpec load(String classpathPrefix) throws Exception {
-        Path dir = PathUtils.get(ClientYamlSuiteRestSpec.class.getResource(classpathPrefix).toURI());
         ClientYamlSuiteRestSpec restSpec = new ClientYamlSuiteRestSpec();
         ClientYamlSuiteRestApiParser restApiParser = new ClientYamlSuiteRestApiParser();
-        try (Stream<Path> stream = Files.walk(dir)) {
-            stream.forEach(item -> {
-                if (item.toString().endsWith(".json")) {
-                    parseSpecFile(restApiParser, item, restSpec);
+        URL specResource = ClientYamlSuiteRestSpec.class.getResource(classpathPrefix);
+
+        if (specResource.getFile().contains(".jar")) {
+            int indexOf = specResource.getFile().indexOf(".jar");
+            String jarFileName = specResource.getFile().substring(0, indexOf + 4);
+            JarFile jarFile = new JarFile(jarFileName);
+            Enumeration<JarEntry> e = jarFile.entries();
+            while (e.hasMoreElements()) {
+                JarEntry entry = e.nextElement();
+                if (entry.getName().startsWith( classpathPrefix) && entry.getName().endsWith(".json")) {
+                    parseSpecFile(restApiParser, entry.getName(), restSpec);
                 }
-            });
+            }
+        } else {
+            Path dir = PathUtils.get(ClientYamlSuiteRestSpec.class.getResource(classpathPrefix).toURI());
+            try (Stream<Path> stream = Files.walk(dir)) {
+                stream.forEach(item -> {
+                    if (item.toString().endsWith(".json")) {
+                        parseSpecFile(restApiParser, item, restSpec);
+                    }
+                });
+            }
         }
         return restSpec;
     }

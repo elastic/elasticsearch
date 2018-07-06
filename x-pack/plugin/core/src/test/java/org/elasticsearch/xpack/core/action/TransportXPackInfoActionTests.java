@@ -14,6 +14,7 @@ import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 
@@ -52,8 +53,8 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             featureSets.add(fs);
         }
 
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null, Collections.emptySet());
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         TransportXPackInfoAction action = new TransportXPackInfoAction(Settings.EMPTY, transportService,
             mock(ActionFilters.class), licenseService, featureSets);
 

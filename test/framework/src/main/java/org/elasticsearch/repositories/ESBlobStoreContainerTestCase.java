@@ -61,7 +61,12 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
         try(BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-            writeBlob(container, "foobar", new BytesArray(data));
+            writeBlob(container, "foobar", new BytesArray(data), randomBoolean());
+            if (randomBoolean()) {
+                // override file, to check if we get latest contents
+                data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+                writeBlob(container, "foobar", new BytesArray(data), false);
+            }
             try (InputStream stream = container.readBlob("foobar")) {
                 BytesRefBuilder target = new BytesRefBuilder();
                 while (target.length() < data.length) {
@@ -123,7 +128,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
 
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             final BytesArray bytesArray = new BytesArray(data);
-            writeBlob(container, blobName, bytesArray);
+            writeBlob(container, blobName, bytesArray, randomBoolean());
             container.deleteBlob(blobName); // should not raise
 
             // blob deleted, so should raise again
@@ -149,20 +154,21 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
             final BlobContainer container = store.blobContainer(new BlobPath());
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             final BytesArray bytesArray = new BytesArray(data);
-            writeBlob(container, blobName, bytesArray);
+            writeBlob(container, blobName, bytesArray, true);
             // should not be able to overwrite existing blob
-            expectThrows(FileAlreadyExistsException.class, () -> writeBlob(container, blobName, bytesArray));
+            expectThrows(FileAlreadyExistsException.class, () -> writeBlob(container, blobName, bytesArray, true));
             container.deleteBlob(blobName);
-            writeBlob(container, blobName, bytesArray); // after deleting the previous blob, we should be able to write to it again
+            writeBlob(container, blobName, bytesArray, true); // after deleting the previous blob, we should be able to write to it again
         }
     }
 
-    protected void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray) throws IOException {
+    protected void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray,
+                             boolean failIfAlreadyExists) throws IOException {
         try (InputStream stream = bytesArray.streamInput()) {
             if (randomBoolean()) {
-                container.writeBlob(blobName, stream, bytesArray.length());
+                container.writeBlob(blobName, stream, bytesArray.length(), failIfAlreadyExists);
             } else {
-                container.writeBlobAtomic(blobName, stream, bytesArray.length());
+                container.writeBlobAtomic(blobName, stream, bytesArray.length(), failIfAlreadyExists);
             }
         }
     }

@@ -24,7 +24,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookup.Field;
+import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessLookup.Struct;
 import java.io.IOException;
@@ -51,7 +51,7 @@ public class PainlessDocGenerator {
 
     private static final PainlessLookup PAINLESS_LOOKUP = new PainlessLookup(BASE_WHITELISTS);
     private static final Logger logger = ESLoggerFactory.getLogger(PainlessDocGenerator.class);
-    private static final Comparator<Field> FIELD_NAME = comparing(f -> f.name);
+    private static final Comparator<PainlessField> FIELD_NAME = comparing(f -> f.name);
     private static final Comparator<PainlessMethod> METHOD_NAME = comparing(m -> m.name);
     private static final Comparator<PainlessMethod> NUMBER_OF_ARGS = comparing(m -> m.arguments.size());
 
@@ -94,7 +94,7 @@ public class PainlessDocGenerator {
                     typeStream.print(struct.name);
                     typeStream.println("++::");
 
-                    Consumer<Field> documentField = field -> PainlessDocGenerator.documentField(typeStream, field);
+                    Consumer<PainlessField> documentField = field -> PainlessDocGenerator.documentField(typeStream, field);
                     Consumer<PainlessMethod> documentMethod = method -> PainlessDocGenerator.documentMethod(typeStream, method);
                     struct.staticMembers.values().stream().sorted(FIELD_NAME).forEach(documentField);
                     struct.members.values().stream().sorted(FIELD_NAME).forEach(documentField);
@@ -130,7 +130,7 @@ public class PainlessDocGenerator {
         logger.info("Done writing [index.asciidoc]");
     }
 
-    private static void documentField(PrintStream stream, Field field) {
+    private static void documentField(PrintStream stream, PainlessField field) {
         stream.print("** [[");
         emitAnchor(stream, field);
         stream.print("]]");
@@ -221,9 +221,9 @@ public class PainlessDocGenerator {
     }
 
     /**
-     * Anchor text for a {@link Field}.
+     * Anchor text for a {@link PainlessField}.
      */
-    private static void emitAnchor(PrintStream stream, Field field) {
+    private static void emitAnchor(PrintStream stream, PainlessField field) {
         emitAnchor(stream, field.owner);
         stream.print('-');
         stream.print(field.name);
@@ -293,11 +293,11 @@ public class PainlessDocGenerator {
     }
 
     /**
-     * Emit an external link to Javadoc for a {@link Field}.
+     * Emit an external link to Javadoc for a {@link PainlessField}.
      *
      * @param root name of the root uri variable
      */
-    private static void emitJavadocLink(PrintStream stream, String root, Field field) {
+    private static void emitJavadocLink(PrintStream stream, String root, PainlessField field) {
         stream.print("link:{");
         stream.print(root);
         stream.print("-javadoc}/");
@@ -317,9 +317,9 @@ public class PainlessDocGenerator {
     }
 
     /**
-     * Pick the javadoc root for a {@link Field}.
+     * Pick the javadoc root for a {@link PainlessField}.
      */
-    private static String javadocRoot(Field field) {
+    private static String javadocRoot(PainlessField field) {
         return javadocRoot(field.owner);
     }
 

@@ -42,7 +42,7 @@ import java.util.regex.Pattern;
 public final class PainlessLookup {
 
     private static final Map<String, PainlessMethod> methodCache = new HashMap<>();
-    private static final Map<String, Field> fieldCache = new HashMap<>();
+    private static final Map<String, PainlessField> fieldCache = new HashMap<>();
 
     private static final Pattern TYPE_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
 
@@ -50,26 +50,6 @@ public final class PainlessLookup {
     public static final class def {
         private def() {
 
-        }
-    }
-
-    public static final class Field {
-        public final String name;
-        public final Struct owner;
-        public final Class<?> clazz;
-        public final String javaName;
-        public final int modifiers;
-        private final MethodHandle getter;
-        private final MethodHandle setter;
-
-        private Field(String name, String javaName, Struct owner, Class<?> clazz, int modifiers, MethodHandle getter, MethodHandle setter) {
-            this.name = name;
-            this.javaName = javaName;
-            this.owner = owner;
-            this.clazz = clazz;
-            this.modifiers = modifiers;
-            this.getter = getter;
-            this.setter = setter;
         }
     }
 
@@ -85,8 +65,8 @@ public final class PainlessLookup {
         public final Map<PainlessMethodKey, PainlessMethod> staticMethods;
         public final Map<PainlessMethodKey, PainlessMethod> methods;
 
-        public final Map<String, Field> staticMembers;
-        public final Map<String, Field> members;
+        public final Map<String, PainlessField> staticMembers;
+        public final Map<String, PainlessField> members;
 
         public final Map<String, MethodHandle> getters;
         public final Map<String, MethodHandle> setters;
@@ -803,12 +783,12 @@ public final class PainlessLookup {
                         "with owner struct [" + ownerStruct.name + "] is not final");
             }
 
-            Field painlessField = ownerStruct.staticMembers.get(whitelistField.javaFieldName);
+            PainlessField painlessField = ownerStruct.staticMembers.get(whitelistField.javaFieldName);
 
             if (painlessField == null) {
                 painlessField = fieldCache.computeIfAbsent(
                         buildFieldCacheKey(ownerStruct.name, whitelistField.javaFieldName, painlessFieldClass.getName()),
-                        key -> new Field(whitelistField.javaFieldName, javaField.getName(),
+                        key -> new PainlessField(whitelistField.javaFieldName, javaField.getName(),
                                 ownerStruct, painlessFieldClass, javaField.getModifiers(), null, null));
                 ownerStruct.staticMembers.put(whitelistField.javaFieldName, painlessField);
             } else if (painlessField.clazz != painlessFieldClass) {
@@ -832,12 +812,12 @@ public final class PainlessLookup {
                     " not found for class [" + ownerStruct.clazz.getName() + "].");
             }
 
-            Field painlessField = ownerStruct.members.get(whitelistField.javaFieldName);
+            PainlessField painlessField = ownerStruct.members.get(whitelistField.javaFieldName);
 
             if (painlessField == null) {
                 painlessField = fieldCache.computeIfAbsent(
                         buildFieldCacheKey(ownerStruct.name, whitelistField.javaFieldName, painlessFieldClass.getName()),
-                        key -> new Field(whitelistField.javaFieldName, javaField.getName(),
+                        key -> new PainlessField(whitelistField.javaFieldName, javaField.getName(),
                                 ownerStruct, painlessFieldClass, javaField.getModifiers(), javaMethodHandleGetter, javaMethodHandleSetter));
                 ownerStruct.members.put(whitelistField.javaFieldName, painlessField);
             } else if (painlessField.clazz != painlessFieldClass) {
@@ -921,10 +901,10 @@ public final class PainlessLookup {
                 }
             }
 
-            for (Field field : child.members.values()) {
+            for (PainlessField field : child.members.values()) {
                 if (owner.members.get(field.name) == null) {
                     owner.members.put(field.name,
-                        new Field(field.name, field.javaName, owner, field.clazz, field.modifiers, field.getter, field.setter));
+                        new PainlessField(field.name, field.javaName, owner, field.clazz, field.modifiers, field.getter, field.setter));
                 }
             }
         }
@@ -969,7 +949,7 @@ public final class PainlessLookup {
         }
 
         // add all members
-        for (Map.Entry<String, Field> member : struct.members.entrySet()) {
+        for (Map.Entry<String, PainlessField> member : struct.members.entrySet()) {
             struct.getters.put(member.getKey(), member.getValue().getter);
             struct.setters.put(member.getKey(), member.getValue().setter);
         }

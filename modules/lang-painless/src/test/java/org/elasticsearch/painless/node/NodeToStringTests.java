@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookup.Cast;
-import org.elasticsearch.painless.lookup.PainlessLookup.Field;
+import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.lookup.PainlessLookup.Struct;
@@ -459,7 +459,7 @@ public class NodeToStringTests extends ESTestCase {
     public void testPSubField() {
         Location l = new Location(getTestName(), 0);
         Struct s = painlessLookup.getPainlessStructFromJavaClass(Boolean.class);
-        Field f = s.staticMembers.get("TRUE");
+        PainlessField f = s.staticMembers.get("TRUE");
         PSubField node = new PSubField(l, f);
         node.prefix = new EStatic(l, "Boolean");
         assertEquals("(PSubField (EStatic Boolean) TRUE)", node.toString());

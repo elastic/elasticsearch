@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookup.Field;
+import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessLookup.Struct;
 import org.elasticsearch.painless.lookup.PainlessLookup.def;
@@ -69,7 +69,7 @@ public final class PField extends AStoreable {
             sub = new PSubDefField(location, value);
         } else {
             Struct struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
-            Field field = prefix instanceof EStatic ? struct.staticMembers.get(value) : struct.members.get(value);
+            PainlessField field = prefix instanceof EStatic ? struct.staticMembers.get(value) : struct.members.get(value);
 
             if (field != null) {
                 sub = new PSubField(location, field);

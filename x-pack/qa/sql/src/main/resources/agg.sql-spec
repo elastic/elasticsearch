@@ -117,6 +117,9 @@ aggCountAliasWithCastAndFilterMultiGroupBy
 SELECT gender g, languages l, CAST(COUNT(*) AS INT) c FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender, languages ORDER BY gender, languages;
 aggCountWithAliasMultiGroupBy
 SELECT gender g, languages l, COUNT(*) c FROM "test_emp" GROUP BY g, l ORDER BY gender, languages;
+aggCountWithAliasMultiGroupByDifferentOrder
+SELECT gender g, languages l, COUNT(*) c FROM "test_emp" GROUP BY g, l ORDER BY languages ASC, gender DESC;
+
 
 
 // Conditional COUNT

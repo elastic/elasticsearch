@@ -458,7 +458,7 @@ SELECT languages + 1 AS l FROM emp GROUP BY l;
 
 groupByMulti
 // tag::groupByMulti
-SELECT gender AS g, languages + 1 AS l, COUNT(*) AS c FROM emp GROUP BY gender, l;
+SELECT gender g, languages l, COUNT(*) c FROM "emp" GROUP BY g, l ORDER BY languages ASC, gender DESC;
 
        g       |       l       |       c       
 ---------------+---------------+---------------

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.def;
+import org.elasticsearch.painless.lookup.Definition;
+import org.elasticsearch.painless.lookup.Definition.Cast;
+import org.elasticsearch.painless.lookup.Definition.def;
 
 import java.util.Objects;
 

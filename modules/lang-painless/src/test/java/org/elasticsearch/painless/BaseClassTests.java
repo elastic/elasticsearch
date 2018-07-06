@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.elasticsearch.painless.lookup.Definition;
 import org.elasticsearch.painless.spi.Whitelist;
 
 import static java.util.Collections.emptyMap;

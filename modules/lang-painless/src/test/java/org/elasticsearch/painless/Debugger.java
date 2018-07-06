@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.lookup.Definition;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.objectweb.asm.util.Textifier;
 

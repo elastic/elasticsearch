@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.api.Augmentation;
+import org.elasticsearch.painless.lookup.Definition;
 import org.elasticsearch.script.ScriptException;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;

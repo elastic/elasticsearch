@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.painless.lookup.Definition;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;

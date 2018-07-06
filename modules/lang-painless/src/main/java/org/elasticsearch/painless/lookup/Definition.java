@@ -17,8 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.lookup;
 
+import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;

@@ -20,12 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Field;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.Struct;
+import org.elasticsearch.painless.lookup.Definition;
+import org.elasticsearch.painless.lookup.Definition.Cast;
+import org.elasticsearch.painless.lookup.Definition.Field;
+import org.elasticsearch.painless.lookup.Definition.Method;
+import org.elasticsearch.painless.lookup.Definition.MethodKey;
+import org.elasticsearch.painless.lookup.Definition.Struct;
 import org.elasticsearch.painless.FeatureTest;
 import org.elasticsearch.painless.GenericElasticsearchScript;
 import org.elasticsearch.painless.Locals.Variable;

@@ -19,7 +19,8 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.lookup.Definition;
+import org.elasticsearch.painless.lookup.Definition.Method;
 import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodType;

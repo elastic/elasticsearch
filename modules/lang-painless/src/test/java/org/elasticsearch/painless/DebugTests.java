@@ -22,6 +22,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.painless.lookup.Definition;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptException;
 

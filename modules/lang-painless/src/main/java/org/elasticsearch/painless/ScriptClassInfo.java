@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.lookup.Definition;
+
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;

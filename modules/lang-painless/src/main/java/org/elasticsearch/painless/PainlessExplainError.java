@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.api.Debug;
+import org.elasticsearch.painless.lookup.Definition;
 import org.elasticsearch.script.ScriptException;
 
 import java.util.List;

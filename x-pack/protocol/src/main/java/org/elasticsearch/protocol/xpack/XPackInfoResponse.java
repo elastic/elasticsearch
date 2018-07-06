@@ -54,6 +54,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
      * Value of the license's expiration time if it should never expire.
      */
     public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS = Long.MAX_VALUE - TimeUnit.HOURS.toMillis(24 * 365);
+    // TODO move this constant to License.java once we move License.java to the protocol jar
 
     @Nullable private BuildInfo buildInfo;
     @Nullable private LicenseInfo licenseInfo;

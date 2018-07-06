@@ -53,7 +53,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
             License license = licenseService.getLicense();
             if (license != null) {
                 licenseInfo = new LicenseInfo(license.uid(), license.type(), license.operationMode().name().toLowerCase(Locale.ROOT),
-                license.status(), license.expiryDate());
+                        license.status(), license.expiryDate());
             }
         }
 

@@ -30,6 +30,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -259,7 +260,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
-                adminClient().performRequest("DELETE", "*");
+                adminClient().performRequest(new Request("DELETE", "*"));
             } catch (ResponseException e) {
                 // 404 here just means we had no indexes
                 if (e.getResponse().getStatusLine().getStatusCode() != 404) {
@@ -270,7 +271,30 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         // wipe index templates
         if (preserveTemplatesUponCompletion() == false) {
-            adminClient().performRequest("DELETE", "_template/*");
+            if (hasXPack()) {
+                /*
+                 * Delete only templates that xpack doesn't automatically
+                 * recreate. Deleting them doesn't hurt anything, but it
+                 * slows down the test because xpack will just recreate
+                 * them.
+                 */
+                Request request = new Request("GET", "_cat/templates");
+                request.addParameter("h", "name");
+                String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
+                if (false == "".equals(templates)) {
+                    for (String template : templates.split("\n")) {
+                        if (isXPackTemplate(template)) continue;
+                        if ("".equals(template)) {
+                            throw new IllegalStateException("empty template in templates list:\n" + templates);
+                        }
+                        logger.debug("Clearing template [{}]", template);
+                        adminClient().performRequest(new Request("DELETE", "_template/" + template));
+                    }
+                }
+            } else {
+                logger.debug("Clearing all templates");
+                adminClient().performRequest(new Request("DELETE", "_template/*"));
+            }
         }
 
         wipeSnapshots();
@@ -585,4 +609,29 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertNotNull(responseEntity);
         return responseEntity;
     }
+
+    /**
+     * Is this template one that is automatically created by xpack?
+     */
+    private static boolean isXPackTemplate(String name) {
+        if (name.startsWith(".monitoring-")) {
+            return true;
+        }
+        if (name.startsWith(".watch-history-")) {
+            return true;
+        }
+        if (name.startsWith(".ml-")) {
+            return true;
+        }
+        switch (name) {
+        case ".triggered_watches":
+        case ".watches":
+        case "logstash-index-template":
+        case "security_audit_log":
+            return true;
+        default:
+            return false;
+        }
+    }
+
 }

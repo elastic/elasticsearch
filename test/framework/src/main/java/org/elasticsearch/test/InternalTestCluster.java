@@ -1059,7 +1059,9 @@ public final class InternalTestCluster extends TestCluster {
         try {
             if (awaitBusy(() -> {
                 DiscoveryNodes discoveryNodes = client.admin().cluster().prepareState().get().getState().nodes();
-                if (discoveryNodes.getSize() != expectedNodes.size()) {
+                boolean isTribeNode = nodes.values().size() == 1
+                    && nodes.values().iterator().next().node().settings().keySet().stream().anyMatch(s -> s.startsWith("tribe."));
+                if (discoveryNodes.getSize() != expectedNodes.size() && isTribeNode == false) {
                     return false;
                 }
                 for (DiscoveryNode expectedNode : expectedNodes) {

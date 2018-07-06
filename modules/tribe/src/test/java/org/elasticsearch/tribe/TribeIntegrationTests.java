@@ -19,7 +19,6 @@
 
 package org.elasticsearch.tribe;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.client.Client;
@@ -87,7 +86,6 @@ import static org.hamcrest.core.Is.is;
  * Note, when talking to tribe client, no need to set the local flag on master read operations, it
  * does it by default.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31865")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class TribeIntegrationTests extends ESIntegTestCase {
 

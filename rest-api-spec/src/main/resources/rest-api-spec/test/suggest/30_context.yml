@@ -373,6 +373,7 @@ setup:
   - do:
       catch: /Missing mandatory contexts in context query/
       search:
+        allow_partial_search_results: false
         body:
           suggest:
             result:
@@ -383,6 +384,7 @@ setup:
   - do:
       catch: /Missing mandatory contexts in context query/
       search:
+        allow_partial_search_results: false
         body:
           suggest:
             result:
@@ -394,6 +396,7 @@ setup:
   - do:
       catch: /Missing mandatory contexts in context query/
       search:
+        allow_partial_search_results: false
         body:
           suggest:
             result:

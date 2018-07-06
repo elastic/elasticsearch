@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -98,9 +99,9 @@ public class StringProcessor implements Processor {
             return apply.apply(l);
         }
 
-        /*
-         * Overriden to "translate" the function name ("char") into a function name that is not a reserved keyword in java.
-         * Used in Painless scripting.
+        /**
+         * "translate" the function name ("char") into a function name that is not a reserved keyword in java.
+         * Used in {@code InternalSqlScriptUtils#character(Number)}.
          */
         @Override
         public String toString() {

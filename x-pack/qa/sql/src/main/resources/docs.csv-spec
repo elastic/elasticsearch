@@ -221,16 +221,16 @@ SIGNUM          |SCALAR
 SIN             |SCALAR         
 SINH            |SCALAR         
 SQRT            |SCALAR         
-TAN             |SCALAR
-ASCII           |SCALAR
-CHAR            |SCALAR
-BIT_LENGTH      |SCALAR
-CHAR_LENGTH     |SCALAR
-LCASE           |SCALAR
-LENGTH          |SCALAR
-LTRIM           |SCALAR
-RTRIM           |SCALAR
-SPACE           |SCALAR
+TAN             |SCALAR         
+ASCII           |SCALAR         
+CHAR            |SCALAR         
+BIT_LENGTH      |SCALAR         
+CHAR_LENGTH     |SCALAR         
+LCASE           |SCALAR         
+LENGTH          |SCALAR         
+LTRIM           |SCALAR         
+RTRIM           |SCALAR         
+SPACE           |SCALAR         
 UCASE           |SCALAR         
 SCORE           |SCORE   
 

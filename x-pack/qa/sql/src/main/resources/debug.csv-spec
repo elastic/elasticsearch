@@ -18,3 +18,12 @@ Gino                 | Leonhardt            | 607996800000
 //table:s
 //test_emp
 //;
+
+
+spaceFilterWithLengthFunctions
+SELECT SPACE(languages) spaces, languages FROM "test_emp" WHERE LENGTH(SPACE(languages)) = 3;
+
+f:s                  | l:s                  | d:ts
+
+Alain                | Chappelet            | 589420800000        
+;

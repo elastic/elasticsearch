@@ -414,6 +414,9 @@ abstract class QueryTranslator {
                 FieldAttribute fa = (FieldAttribute) e.left();
                 inexact = fa.isInexact();
                 target = nameOf(inexact ? fa : fa.exactAttribute());
+            } else {
+                throw new SqlIllegalArgumentException("Scalar functions ({}) not allowed (yet) as arguments for LIKE", 
+                        Expressions.name(e.left()));
             }
 
             if (e instanceof Like) {

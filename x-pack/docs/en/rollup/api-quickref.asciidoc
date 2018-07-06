@@ -19,7 +19,7 @@ Most {rollup} endpoints have the following base:
 * {ref}/rollup-get-job.html[GET /job]: List jobs
 * {ref}/rollup-get-job.html[GET /job/<job_id+++>+++]: Get job details
 * {ref}/rollup-start-job.html[POST /job/<job_id>/_start]: Start a job
-* {ref}/rollup-stop-job.html[POST /job/<job_id+++>+++]: Stop a job
+* {ref}/rollup-stop-job.html[POST /job/<job_id>/_stop]: Stop a job
 * {ref}/rollup-delete-job.html[DELETE /job/<job_id+++>+++]: Delete a job
 
 [float]

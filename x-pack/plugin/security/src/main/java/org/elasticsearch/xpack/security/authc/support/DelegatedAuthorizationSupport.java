@@ -42,7 +42,8 @@ public class DelegatedAuthorizationSupport {
 
     public void resolve(String username, ActionListener<AuthenticationResult> resultListener) {
         if (hasDelegation() == false) {
-            resultListener.onResponse(AuthenticationResult.unsuccessful("No realms have been configured for delegation", null));
+            resultListener.onResponse(AuthenticationResult.unsuccessful(
+                "No [" + DelegatedAuthorizationSettings.AUTHZ_REALMS.getKey() + "] have been configured", null));
             return;
         }
         ActionListener<Tuple<User, Realm>> userListener = ActionListener.wrap(tuple -> {

@@ -105,7 +105,7 @@ tasks.withType(AbstractArchiveTask) {
 }
 
 task buildIntegTestZip(type: Zip) {
-  with archiveFiles(transportModulesFiles, 'zip', false)
+  with archiveFiles(transportModulesFiles, 'zip', true)
 }
 
 task buildZip(type: Zip) {
@@ -194,7 +194,7 @@ subprojects {
     onlyIf toolExists
     doLast {
       final String licenseFilename
-      if (project.name.contains('oss-')) {
+      if (project.name.contains('oss-') || project.name == 'integ-test-zip') {
         licenseFilename = "APACHE-LICENSE-2.0.txt"
       } else {
         licenseFilename = "ELASTIC-LICENSE.txt"
@@ -324,4 +324,3 @@ configure(subprojects.findAll { it.name.contains('zip') }) {
     }
   }
 }
-

@@ -202,7 +202,7 @@ public final class TimestampFormatFinder {
 
     private static TimestampMatch makeTimestampMatch(CandidateTimestampFormat chosenTimestampFormat, int chosenIndex,
                                                      String preface, String matchedDate, String epilogue) {
-        Tuple<Character, Boolean> fractionalSecondsInterpretation = interpretFractionalSeconds(matchedDate);
+        Tuple<Character, Integer> fractionalSecondsInterpretation = interpretFractionalSeconds(matchedDate);
         List<String> dateFormats = chosenTimestampFormat.dateFormats;
         Pattern simplePattern = chosenTimestampFormat.simplePattern;
         char separator = fractionalSecondsInterpretation.v1();
@@ -214,28 +214,31 @@ public final class TimestampFormatFinder {
                     String.format(Locale.ROOT, "%s%c", (separator == '.') ? "\\" : "", separator)));
             }
         }
-        return new TimestampMatch(chosenIndex, preface, dateFormats, simplePattern, chosenTimestampFormat.standardGrokPatternName, epilogue,
-            fractionalSecondsInterpretation.v2());
+        int numberOfDigitsInFractionalComponent = fractionalSecondsInterpretation.v2();
+        if (numberOfDigitsInFractionalComponent > 3) {
+            String fractionalSecondsFormat = "SSSSSSSSS".substring(0, numberOfDigitsInFractionalComponent);
+            dateFormats = dateFormats.stream().map(dateFormat -> dateFormat.replace("SSS", fractionalSecondsFormat))
+                .collect(Collectors.toList());
+        }
+        return new TimestampMatch(chosenIndex, preface, dateFormats, simplePattern, chosenTimestampFormat.standardGrokPatternName,
+            epilogue);
     }
 
     /**
      * Interpret the fractional seconds component of a date to determine two things:
      * 1. The separator character - one of colon, comma and dot.
-     * 2. Whether the fractional component is smaller than milliseconds.
-     * (Fractional components smaller than milliseconds, for example microseconds or nanoseconds, require
-     * extra processing because Joda cannot parse them.  Digits beyond the third need to be removed prior
-     * to passing the time to Joda for parsing.)
+     * 2. The number of digits in the fractional component.
      * @param date The textual representation of the date for which fractional seconds are to be interpreted.
-     * @return A tuple of (fractional second separator character, is fractional component smaller than milliseconds?).
+     * @return A tuple of (fractional second separator character, number of digits in fractional component).
      */
-    static Tuple<Character, Boolean> interpretFractionalSeconds(String date) {
+    static Tuple<Character, Integer> interpretFractionalSeconds(String date) {
 
         Matcher matcher = FRACTIONAL_SECOND_INTERPRETER.matcher(date);
         if (matcher.find()) {
-            return new Tuple<>(matcher.group(1).charAt(0), matcher.group(2).length() > 3);
+            return new Tuple<>(matcher.group(1).charAt(0), matcher.group(2).length());
         }
 
-        return new Tuple<>(DEFAULT_FRACTIONAL_SECOND_SEPARATOR, false);
+        return new Tuple<>(DEFAULT_FRACTIONAL_SECOND_SEPARATOR, 0);
     }
 
     /**
@@ -274,41 +277,28 @@ public final class TimestampFormatFinder {
          */
         public final String epilogue;
 
-        /**
-         * Did the matched timestamp have more than 3 fractional digits for its second component.
-         */
-        public final boolean hasFractionalComponentSmallerThanMillisecond;
-
         TimestampMatch(int candidateIndex, String preface, String dateFormat, String simpleRegex, String grokPatternName, String epilogue) {
             this(candidateIndex, preface, Collections.singletonList(dateFormat), simpleRegex, grokPatternName, epilogue);
         }
 
         TimestampMatch(int candidateIndex, String preface, String dateFormat, String simpleRegex, String grokPatternName, String epilogue,
                        boolean hasFractionalComponentSmallerThanMillisecond) {
-            this(candidateIndex, preface, Collections.singletonList(dateFormat), simpleRegex, grokPatternName, epilogue,
-                hasFractionalComponentSmallerThanMillisecond);
+            this(candidateIndex, preface, Collections.singletonList(dateFormat), simpleRegex, grokPatternName, epilogue);
         }
 
         TimestampMatch(int candidateIndex, String preface, List<String> dateFormats, String simpleRegex, String grokPatternName,
                        String epilogue) {
-            this(candidateIndex, preface, dateFormats, Pattern.compile(simpleRegex), grokPatternName, epilogue, false);
-        }
-
-        TimestampMatch(int candidateIndex, String preface, List<String> dateFormats, String simpleRegex, String grokPatternName,
-                       String epilogue, boolean hasFractionalComponentSmallerThanMillisecond) {
-            this(candidateIndex, preface, dateFormats, Pattern.compile(simpleRegex), grokPatternName, epilogue,
-                hasFractionalComponentSmallerThanMillisecond);
+            this(candidateIndex, preface, dateFormats, Pattern.compile(simpleRegex), grokPatternName, epilogue);
         }
 
         TimestampMatch(int candidateIndex, String preface, List<String> dateFormats, Pattern simplePattern, String grokPatternName,
-                       String epilogue, boolean hasFractionalComponentSmallerThanMillisecond) {
+                       String epilogue) {
             this.candidateIndex = candidateIndex;
             this.preface = preface;
             this.dateFormats = dateFormats;
             this.simplePattern = simplePattern;
             this.grokPatternName = grokPatternName;
             this.epilogue = epilogue;
-            this.hasFractionalComponentSmallerThanMillisecond = hasFractionalComponentSmallerThanMillisecond;
         }
 
         /**
@@ -322,8 +312,7 @@ public final class TimestampFormatFinder {
 
         @Override
         public int hashCode() {
-            return Objects.hash(candidateIndex, preface, dateFormats, simplePattern.pattern(), grokPatternName, epilogue,
-                hasFractionalComponentSmallerThanMillisecond);
+            return Objects.hash(candidateIndex, preface, dateFormats, simplePattern.pattern(), grokPatternName, epilogue);
         }
 
         @Override
@@ -341,17 +330,15 @@ public final class TimestampFormatFinder {
                 Objects.equals(this.dateFormats, that.dateFormats) &&
                 Objects.equals(this.simplePattern.pattern(), that.simplePattern.pattern()) &&
                 Objects.equals(this.grokPatternName, that.grokPatternName) &&
-                Objects.equals(this.epilogue, that.epilogue) &&
-                this.hasFractionalComponentSmallerThanMillisecond == that.hasFractionalComponentSmallerThanMillisecond;
+                Objects.equals(this.epilogue, that.epilogue);
         }
 
         @Override
         public String toString() {
             return "index = " + candidateIndex + (preface.isEmpty() ? "" : ", preface = '" + preface + "'") +
                 ", date formats = " + dateFormats.stream().collect(Collectors.joining("', '", "[ '", "' ]")) +
-                ", simple pattern = '" + simplePattern.pattern() + "', grok pattern = '" + grokPatternName +
-                (epilogue.isEmpty() ? "" : "', epilogue = '" + epilogue) +
-                "', has fractional component smaller than millisecond = " + hasFractionalComponentSmallerThanMillisecond;
+                ", simple pattern = '" + simplePattern.pattern() + "', grok pattern = '" + grokPatternName + "'" +
+                (epilogue.isEmpty() ? "" : ", epilogue = '" + epilogue + "'");
         }
     }
 

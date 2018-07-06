@@ -213,28 +213,28 @@ public class TimestampFormatFinderTests extends LogConfigCreatorTestCase {
             TimestampFormatFinder.findFirstMatch("Sep  8 11:55:35 dnsserv named[22529]: error (unexpected RCODE REFUSED) resolving " +
                 "'www.elastic.co/A/IN': 95.110.68.206#53"));
 
-        assertEquals(new TimestampMatch(3, "", "YYYY-MM-dd HH:mm:ss.SSS", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}",
+        assertEquals(new TimestampMatch(3, "", "YYYY-MM-dd HH:mm:ss.SSSSSS", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}",
                 "TIMESTAMP_ISO8601",
                 "|INFO    |VirtualServer |1  |client  'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client " +
-                    "'User1'(id:2) in channel '3er Instanz'(id:2)", true),
+                    "'User1'(id:2) in channel '3er Instanz'(id:2)"),
             TimestampFormatFinder.findFirstMatch("2018-01-06 19:22:20.106822|INFO    |VirtualServer |1  |client " +
                 " 'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client 'User1'(id:2) in channel '3er Instanz'(id:2)"));
     }
 
     public void testInterpretFractionalSeconds() {
-        assertEquals(new Tuple<>(',', false), TimestampFormatFinder.interpretFractionalSeconds("Sep  8 11:55:35"));
-        assertEquals(new Tuple<>(',', false), TimestampFormatFinder.interpretFractionalSeconds("29/Jun/2016:12:11:31 +0000"));
-        assertEquals(new Tuple<>('.', true), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06 17:21:25.764368"));
-        assertEquals(new Tuple<>(',', true), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764363438"));
-        assertEquals(new Tuple<>(',', false), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764"));
-        assertEquals(new Tuple<>('.', false), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25.764"));
-        assertEquals(new Tuple<>('.', true), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06 17:21:25.764368Z"));
-        assertEquals(new Tuple<>(',', true), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764363438Z"));
-        assertEquals(new Tuple<>(',', false), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764Z"));
-        assertEquals(new Tuple<>('.', false), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25.764Z"));
-        assertEquals(new Tuple<>('.', true), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06 17:21:25.764368 Z"));
-        assertEquals(new Tuple<>(',', true), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764363438 Z"));
-        assertEquals(new Tuple<>(',', false), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764 Z"));
-        assertEquals(new Tuple<>('.', false), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25.764 Z"));
+        assertEquals(new Tuple<>(',', 0), TimestampFormatFinder.interpretFractionalSeconds("Sep  8 11:55:35"));
+        assertEquals(new Tuple<>(',', 0), TimestampFormatFinder.interpretFractionalSeconds("29/Jun/2016:12:11:31 +0000"));
+        assertEquals(new Tuple<>('.', 6), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06 17:21:25.764368"));
+        assertEquals(new Tuple<>(',', 9), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764363438"));
+        assertEquals(new Tuple<>(',', 3), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764"));
+        assertEquals(new Tuple<>('.', 3), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25.764"));
+        assertEquals(new Tuple<>('.', 6), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06 17:21:25.764368Z"));
+        assertEquals(new Tuple<>(',', 9), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764363438Z"));
+        assertEquals(new Tuple<>(',', 3), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764Z"));
+        assertEquals(new Tuple<>('.', 3), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25.764Z"));
+        assertEquals(new Tuple<>('.', 6), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06 17:21:25.764368 Z"));
+        assertEquals(new Tuple<>(',', 9), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764363438 Z"));
+        assertEquals(new Tuple<>(',', 3), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25,764 Z"));
+        assertEquals(new Tuple<>('.', 3), TimestampFormatFinder.interpretFractionalSeconds("2018-01-06T17:21:25.764 Z"));
     }
 }

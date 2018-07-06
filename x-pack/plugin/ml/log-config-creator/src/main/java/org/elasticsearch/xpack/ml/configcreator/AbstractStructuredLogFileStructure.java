@@ -29,8 +29,7 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
         "      \"" + DEFAULT_TIMESTAMP_FIELD + "\" => %s%s%s \n" +
         "    }\n" +
         "  }\n";
-    private static final String LOGSTASH_DATE_FILTER_TEMPLATE = "%s" +
-        "  date {\n" +
+    private static final String LOGSTASH_DATE_FILTER_TEMPLATE = "  date {\n" +
         "    match => [ %s%s%s, %s ]\n" +
         "%s" +
         "  }\n" +
@@ -102,8 +101,7 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
         String fieldQuote = bestLogstashQuoteFor(timeFieldName);
         String copyFilter = DEFAULT_TIMESTAMP_FIELD.equals(timeFieldName) ? "" :
             String.format(Locale.ROOT, LOGSTASH_DATE_COPY_TEMPLATE, fieldQuote, timeFieldName, fieldQuote);
-        return String.format(Locale.ROOT, LOGSTASH_DATE_FILTER_TEMPLATE,
-            makeLogstashFractionalSecondsGsubFilter(timeFieldName, timestampMatch), fieldQuote, timeFieldName, fieldQuote,
+        return String.format(Locale.ROOT, LOGSTASH_DATE_FILTER_TEMPLATE, fieldQuote, timeFieldName, fieldQuote,
             timestampMatch.dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\"")),
             makeLogstashTimezoneSetting(timestampMatch.hasTimezoneDependentParsing(), isFromFilebeat), copyFilter);
     }

@@ -167,12 +167,14 @@ where it went wrong by running with `-v`.  For example:
 
 ```
 $ ./log-config-creator ~/farequote.csv -v
+Loading Filebeat modules from [/Users/dave/beats/filebeat/module]
 Using character encoding [UTF-8], which matched the input with [15%] confidence - first [8kB] of input was pure ASCII
 Not JSON because there was a parsing exception: [Unrecognized token 'time': was expecting 'null', 'true', 'false' or NaN at [Source: "time,airline,responsetime,sourcetype"; line: 1, column: 5]]
 Not XML because there was a parsing exception: [ParseError at [row,col]:[1,1] Message: Content is not allowed in prolog.]
+Deciding sample is CSV
 First row is unusual based on length test: [33.0] and [count=999, min=36.000000, average=39.648649, max=42.000000]
-First sample timestamp match [Tuple [v1=time, v2=index = 4, preface = '', date formats = [ 'YYYY-MM-dd HH:mm:ssZ' ], simple pattern = '\b\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}', grok pattern = 'TIMESTAMP_ISO8601', epilogue = '', has fractional component smaller than millisecond = false]]
-Guessing timestamp field is [time] with format [index = 4, preface = '', date formats = [ 'YYYY-MM-dd HH:mm:ssZ' ], simple pattern = '\b\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}', grok pattern = 'TIMESTAMP_ISO8601', epilogue = '', has fractional component smaller than millisecond = false]
+First sample timestamp match [Tuple [v1=time, v2=index = 4, date formats = [ 'YYYY-MM-dd HH:mm:ssZ' ], simple pattern = '\b\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}', grok pattern = 'TIMESTAMP_ISO8601']]
+Guessing timestamp field is [time] with format [index = 4, date formats = [ 'YYYY-MM-dd HH:mm:ssZ' ], simple pattern = '\b\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}', grok pattern = 'TIMESTAMP_ISO8601']
 Rejecting type 'long' for field [responsetime] due to parse failure: [For input string: "132.2046"]
 ---
 Wrote config file ./xyz-index-mappings.console

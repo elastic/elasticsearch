@@ -41,7 +41,6 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
     private static final String COMMON_LOGSTASH_FILTERS_TEMPLATE = "  grok {\n" +
         "    match => { \"message\" => %s%s%s }\n" +
         "  }\n" +
-        "%s" +
         "  date {\n" +
         "    match => [ \"%s\", %s ]\n" +
         "    remove_field => [ \"%s\" ]\n" +
@@ -102,7 +101,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "      \"grok\": {\n" +
         "        \"field\": \"message\",\n" +
         "        \"patterns\": [ \"%s\" ]\n" +
-        "      }%s,\n" +
+        "      },\n" +
         "      \"date\": {\n" +
         "        \"field\": \"%s\",\n" +
         "%s" +
@@ -221,12 +220,10 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions,
             makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing));
         String logstashFromFilebeatFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
-            makeLogstashFractionalSecondsGsubFilter(interimTimestampField, bestTimestamp.v1()), interimTimestampField, dateFormatsStr,
-            interimTimestampField, makeLogstashTimezoneSetting(hasTimezoneDependentParsing, true));
+            interimTimestampField, dateFormatsStr, interimTimestampField, makeLogstashTimezoneSetting(hasTimezoneDependentParsing, true));
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatFilters);
         String logstashFromFileFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
-            makeLogstashFractionalSecondsGsubFilter(interimTimestampField, bestTimestamp.v1()), interimTimestampField, dateFormatsStr,
-            interimTimestampField, makeLogstashTimezoneSetting(hasTimezoneDependentParsing, false));
+            interimTimestampField, dateFormatsStr, interimTimestampField, makeLogstashTimezoneSetting(hasTimezoneDependentParsing, false));
         logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(multiLineRegex),
             logstashFromFileFilters, indexName);
         FilebeatModule matchingModule = (filebeatModuleStore != null) ? filebeatModuleStore.findMatchingModule(sampleMessages) : null;
@@ -235,8 +232,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
                 filebeatInputOptions, makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing), typeName);
             String jsonEscapedGrokPattern = grokPattern.replaceAll("([\\\\\"])", "\\\\$1");
             ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_WITHOUT_MODULE_TEMPLATE, typeName,
-                typeName, jsonEscapedGrokPattern,
-                makeIngestPipelineFractionalSecondsGsubFilter(interimTimestampField, bestTimestamp.v1()), interimTimestampField,
+                typeName, jsonEscapedGrokPattern, interimTimestampField,
                 makeIngestPipelineTimezoneSetting(hasTimezoneDependentParsing), dateFormatsStr, interimTimestampField);
         } else {
             String aOrAn = ("aeiou".indexOf(matchingModule.fileType.charAt(0)) >= 0) ? "an" : "a";
@@ -259,7 +255,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
             TimestampMatch match = TimestampFormatFinder.findFirstMatch(sampleLine);
             if (match != null) {
                 TimestampMatch pureMatch = new TimestampMatch(match.candidateIndex, "", match.dateFormats, match.simplePattern,
-                    match.grokPatternName, "", match.hasFractionalComponentSmallerThanMillisecond);
+                    match.grokPatternName, "");
                 timestampMatches.compute(pureMatch, (k, v) -> {
                     if (v == null) {
                         return new Tuple<>(weightForMatch(match.preface), new HashSet<>(Collections.singletonList(match.preface)));

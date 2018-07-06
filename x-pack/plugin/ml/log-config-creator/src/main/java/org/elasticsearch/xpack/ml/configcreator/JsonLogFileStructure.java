@@ -92,7 +92,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
         "output.elasticsearch:\n" +
         "  hosts: [\"http://localhost:9200\"]\n" +
         "  pipeline: \"%s\"\n";
-    private static final String INGEST_PIPELINE_DATE_PROCESSOR_TEMPLATE = "%s,\n" +
+    private static final String INGEST_PIPELINE_DATE_PROCESSOR_TEMPLATE = ",\n" +
         "      \"date\": {\n" +
         "        \"field\": \"%s\",\n" +
         "%s" +
@@ -148,8 +148,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
             logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), true);
             logstashFromFileDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), false);
             String jsonEscapedField = timeField.v1().replaceAll("([\\\\\"])", "\\\\$1").replace("\t", "\\t");
-            ingestPipelineDateProcessor = String.format(Locale.ROOT, INGEST_PIPELINE_DATE_PROCESSOR_TEMPLATE,
-                makeIngestPipelineFractionalSecondsGsubFilter(jsonEscapedField, timeField.v2()), jsonEscapedField,
+            ingestPipelineDateProcessor = String.format(Locale.ROOT, INGEST_PIPELINE_DATE_PROCESSOR_TEMPLATE, jsonEscapedField,
                 makeIngestPipelineTimezoneSetting(hasTimezoneDependentParsing),
                 timeField.v2().dateFormats.stream().collect(Collectors.joining("\", \"", "\"", "\"")));
         }

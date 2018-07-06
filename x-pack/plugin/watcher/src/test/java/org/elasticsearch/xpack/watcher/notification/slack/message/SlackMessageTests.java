@@ -49,7 +49,7 @@ public class SlackMessageTests extends ESTestCase {
         }
         String icon = randomBoolean() ? null : randomAlphaOfLength(10);
         String text = randomBoolean() ? null : randomAlphaOfLength(50);
-        Attachment[] attachments = randomBoolean() ? null : new Attachment[randomIntBetween(0, 2)];
+        Attachment[] attachments = !(randomBoolean() && text == null) ? null : new Attachment[randomIntBetween(0, 2)];
         if (attachments != null) {
             for (int i = 0; i < attachments.length; i++) {
                 String fallback = randomBoolean() ? null : randomAlphaOfLength(10);

@@ -22,8 +22,8 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.lookup.Definition.Cast;
-import org.elasticsearch.painless.lookup.Definition.def;
+import org.elasticsearch.painless.lookup.PainlessLookup.Cast;
+import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;

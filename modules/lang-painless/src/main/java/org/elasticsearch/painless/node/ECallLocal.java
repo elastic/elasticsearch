@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.Definition.Method;
-import org.elasticsearch.painless.lookup.Definition.MethodKey;
+import org.elasticsearch.painless.lookup.PainlessLookup.Method;
+import org.elasticsearch.painless.lookup.PainlessLookup.MethodKey;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;

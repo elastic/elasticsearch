@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.lookup.Definition;
-import org.elasticsearch.painless.lookup.Definition.Method;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.Method;
 import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodType;
@@ -72,15 +72,15 @@ public class FunctionRef {
 
     /**
      * Creates a new FunctionRef, which will resolve {@code type::call} from the whitelist.
-     * @param definition the whitelist against which this script is being compiled
+     * @param painlessLookup the whitelist against which this script is being compiled
      * @param expected functional interface type to implement.
      * @param type the left hand side of a method reference expression
      * @param call the right hand side of a method reference expression
      * @param numCaptures number of captured arguments
      */
-    public FunctionRef(Definition definition, Class<?> expected, String type, String call, int numCaptures) {
-        this(expected, definition.getPainlessStructFromJavaClass(expected).functionalMethod,
-                lookup(definition, expected, type, call, numCaptures > 0), numCaptures);
+    public FunctionRef(PainlessLookup painlessLookup, Class<?> expected, String type, String call, int numCaptures) {
+        this(expected, painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod,
+                lookup(painlessLookup, expected, type, call, numCaptures > 0), numCaptures);
     }
 
     /**
@@ -159,25 +159,25 @@ public class FunctionRef {
     /**
      * Looks up {@code type::call} from the whitelist, and returns a matching method.
      */
-    private static Definition.Method lookup(Definition definition, Class<?> expected,
-                                            String type, String call, boolean receiverCaptured) {
+    private static PainlessLookup.Method lookup(PainlessLookup painlessLookup, Class<?> expected,
+                                                String type, String call, boolean receiverCaptured) {
         // check its really a functional interface
         // for e.g. Comparable
-        Method method = definition.getPainlessStructFromJavaClass(expected).functionalMethod;
+        Method method = painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod;
         if (method == null) {
             throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                               "to [" + Definition.ClassToName(expected) + "], not a functional interface");
+                                               "to [" + PainlessLookup.ClassToName(expected) + "], not a functional interface");
         }
 
         // lookup requested method
-        Definition.Struct struct = definition.getPainlessStructFromJavaClass(definition.getJavaClassFromPainlessType(type));
-        final Definition.Method impl;
+        PainlessLookup.Struct struct = painlessLookup.getPainlessStructFromJavaClass(painlessLookup.getJavaClassFromPainlessType(type));
+        final PainlessLookup.Method impl;
         // ctor ref
         if ("new".equals(call)) {
-            impl = struct.constructors.get(new Definition.MethodKey("<init>", method.arguments.size()));
+            impl = struct.constructors.get(new PainlessLookup.MethodKey("<init>", method.arguments.size()));
         } else {
             // look for a static impl first
-            Definition.Method staticImpl = struct.staticMethods.get(new Definition.MethodKey(call, method.arguments.size()));
+            PainlessLookup.Method staticImpl = struct.staticMethods.get(new PainlessLookup.MethodKey(call, method.arguments.size()));
             if (staticImpl == null) {
                 // otherwise a virtual impl
                 final int arity;
@@ -188,7 +188,7 @@ public class FunctionRef {
                     // receiver passed
                     arity = method.arguments.size() - 1;
                 }
-                impl = struct.methods.get(new Definition.MethodKey(call, arity));
+                impl = struct.methods.get(new PainlessLookup.MethodKey(call, arity));
             } else {
                 impl = staticImpl;
             }

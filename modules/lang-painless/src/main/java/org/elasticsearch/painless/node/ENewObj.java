@@ -19,9 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.Definition;
-import org.elasticsearch.painless.lookup.Definition.Method;
-import org.elasticsearch.painless.lookup.Definition.Struct;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.Method;
+import org.elasticsearch.painless.lookup.PainlessLookup.Struct;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -58,13 +58,13 @@ public final class ENewObj extends AExpression {
     @Override
     void analyze(Locals locals) {
         try {
-            actual = locals.getDefinition().getJavaClassFromPainlessType(this.type);
+            actual = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        Struct struct = locals.getDefinition().getPainlessStructFromJavaClass(actual);
-        constructor = struct.constructors.get(new Definition.MethodKey("<init>", arguments.size()));
+        Struct struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual);
+        constructor = struct.constructors.get(new PainlessLookup.MethodKey("<init>", arguments.size()));
 
         if (constructor != null) {
             Class<?>[] types = new Class<?>[constructor.arguments.size()];

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.Definition;
-import org.elasticsearch.painless.lookup.Definition.Cast;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.Cast;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -63,6 +63,6 @@ final class ECast extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToString(Definition.ClassToName(cast.to), child);
+        return singleLineToString(PainlessLookup.ClassToName(cast.to), child);
     }
 }

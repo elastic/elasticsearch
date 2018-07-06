@@ -21,11 +21,11 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.lookup.Definition;
-import org.elasticsearch.painless.lookup.Definition.Cast;
-import org.elasticsearch.painless.lookup.Definition.Method;
-import org.elasticsearch.painless.lookup.Definition.MethodKey;
-import org.elasticsearch.painless.lookup.Definition.def;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.Cast;
+import org.elasticsearch.painless.lookup.PainlessLookup.Method;
+import org.elasticsearch.painless.lookup.PainlessLookup.MethodKey;
+import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -77,11 +77,11 @@ final class SSubEachIterable extends AStatement {
         if (expression.actual == def.class) {
             method = null;
         } else {
-            method = locals.getDefinition().getPainlessStructFromJavaClass(expression.actual).methods.get(new MethodKey("iterator", 0));
+            method = locals.getPainlessLookup().getPainlessStructFromJavaClass(expression.actual).methods.get(new MethodKey("iterator", 0));
 
             if (method == null) {
                 throw createError(new IllegalArgumentException(
-                    "Unable to create iterator for the type [" + Definition.ClassToName(expression.actual) + "]."));
+                    "Unable to create iterator for the type [" + PainlessLookup.ClassToName(expression.actual) + "]."));
             }
         }
 
@@ -132,6 +132,6 @@ final class SSubEachIterable extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(Definition.ClassToName(variable.clazz), variable.name, expression, block);
+        return singleLineToString(PainlessLookup.ClassToName(variable.clazz), variable.name, expression, block);
     }
 }

@@ -20,8 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.lookup.Definition;
-import org.elasticsearch.painless.lookup.Definition.Cast;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.Cast;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -109,6 +109,6 @@ final class SSubEachArray extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(Definition.ClassToName(variable.clazz), variable.name, expression, block);
+        return singleLineToString(PainlessLookup.ClassToName(variable.clazz), variable.name, expression, block);
     }
 }

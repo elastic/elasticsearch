@@ -19,9 +19,9 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.lookup.Definition;
-import org.elasticsearch.painless.lookup.Definition.Method;
-import org.elasticsearch.painless.lookup.Definition.MethodKey;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.Method;
+import org.elasticsearch.painless.lookup.PainlessLookup.MethodKey;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 
 import java.util.Arrays;
@@ -60,7 +60,7 @@ public final class Locals {
      */
     public static Locals newLambdaScope(Locals programScope, Class<?> returnType, List<Parameter> parameters,
                                         int captureCount, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, programScope.definition, returnType, KEYWORDS);
+        Locals locals = new Locals(programScope, programScope.painlessLookup, returnType, KEYWORDS);
         for (int i = 0; i < parameters.size(); i++) {
             Parameter parameter = parameters.get(i);
             // TODO: allow non-captures to be r/w:
@@ -79,7 +79,7 @@ public final class Locals {
 
     /** Creates a new function scope inside the current scope */
     public static Locals newFunctionScope(Locals programScope, Class<?> returnType, List<Parameter> parameters, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, programScope.definition, returnType, KEYWORDS);
+        Locals locals = new Locals(programScope, programScope.painlessLookup, returnType, KEYWORDS);
         for (Parameter parameter : parameters) {
             locals.addVariable(parameter.location, parameter.clazz, parameter.name, false);
         }
@@ -93,7 +93,7 @@ public final class Locals {
     /** Creates a new main method scope */
     public static Locals newMainMethodScope(ScriptClassInfo scriptClassInfo, Locals programScope, int maxLoopCounter) {
         Locals locals = new Locals(
-            programScope, programScope.definition, scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
+            programScope, programScope.painlessLookup, scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
         // This reference. Internal use only.
         locals.defineVariable(null, Object.class, THIS, true);
 
@@ -110,8 +110,8 @@ public final class Locals {
     }
 
     /** Creates a new program scope: the list of methods. It is the parent for all methods */
-    public static Locals newProgramScope(Definition definition, Collection<Method> methods) {
-        Locals locals = new Locals(null, definition, null, null);
+    public static Locals newProgramScope(PainlessLookup painlessLookup, Collection<Method> methods) {
+        Locals locals = new Locals(null, painlessLookup, null, null);
         for (Method method : methods) {
             locals.addMethod(method);
         }
@@ -180,14 +180,14 @@ public final class Locals {
     }
 
     /** Whitelist against which this script is being compiled. */
-    public Definition getDefinition() {
-        return definition;
+    public PainlessLookup getPainlessLookup() {
+        return painlessLookup;
     }
 
     ///// private impl
 
     /** Whitelist against which this script is being compiled. */
-    private final Definition definition;
+    private final PainlessLookup painlessLookup;
     // parent scope
     private final Locals parent;
     // return type of this scope
@@ -205,15 +205,15 @@ public final class Locals {
      * Create a new Locals
      */
     private Locals(Locals parent) {
-        this(parent, parent.definition, parent.returnType, parent.keywords);
+        this(parent, parent.painlessLookup, parent.returnType, parent.keywords);
     }
 
     /**
      * Create a new Locals with specified return type
      */
-    private Locals(Locals parent, Definition definition, Class<?> returnType, Set<String> keywords) {
+    private Locals(Locals parent, PainlessLookup painlessLookup, Class<?> returnType, Set<String> keywords) {
         this.parent = parent;
-        this.definition = definition;
+        this.painlessLookup = painlessLookup;
         this.returnType = returnType;
         this.keywords = keywords;
         if (parent == null) {
@@ -292,7 +292,7 @@ public final class Locals {
         @Override
         public String toString() {
             StringBuilder b = new StringBuilder();
-            b.append("Variable[type=").append(Definition.ClassToName(clazz));
+            b.append("Variable[type=").append(PainlessLookup.ClassToName(clazz));
             b.append(",name=").append(name);
             b.append(",slot=").append(slot);
             if (readonly) {

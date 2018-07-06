@@ -21,9 +21,9 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
-import org.elasticsearch.painless.lookup.Definition;
-import org.elasticsearch.painless.lookup.Definition.Method;
-import org.elasticsearch.painless.lookup.Definition.MethodKey;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.Method;
+import org.elasticsearch.painless.lookup.PainlessLookup.MethodKey;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -167,11 +167,11 @@ public final class SSource extends AStatement {
         throw new IllegalStateException("Illegal tree structure.");
     }
 
-    public void analyze(Definition definition) {
+    public void analyze(PainlessLookup painlessLookup) {
         Map<MethodKey, Method> methods = new HashMap<>();
 
         for (SFunction function : functions) {
-            function.generateSignature(definition);
+            function.generateSignature(painlessLookup);
 
             MethodKey key = new MethodKey(function.name, function.parameters.size());
 
@@ -180,7 +180,7 @@ public final class SSource extends AStatement {
             }
         }
 
-        analyze(Locals.newProgramScope(definition, methods.values()));
+        analyze(Locals.newProgramScope(painlessLookup, methods.values()));
     }
 
     @Override

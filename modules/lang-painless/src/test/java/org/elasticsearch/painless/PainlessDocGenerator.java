@@ -23,10 +23,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.painless.lookup.Definition;
-import org.elasticsearch.painless.lookup.Definition.Field;
-import org.elasticsearch.painless.lookup.Definition.Method;
-import org.elasticsearch.painless.lookup.Definition.Struct;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.Field;
+import org.elasticsearch.painless.lookup.PainlessLookup.Method;
+import org.elasticsearch.painless.lookup.PainlessLookup.Struct;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.reflect.Modifier;
@@ -45,11 +45,11 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.painless.spi.Whitelist.BASE_WHITELISTS;
 
 /**
- * Generates an API reference from the method and type whitelists in {@link Definition}.
+ * Generates an API reference from the method and type whitelists in {@link PainlessLookup}.
  */
 public class PainlessDocGenerator {
 
-    private static final Definition definition = new Definition(BASE_WHITELISTS);
+    private static final PainlessLookup PAINLESS_LOOKUP = new PainlessLookup(BASE_WHITELISTS);
     private static final Logger logger = ESLoggerFactory.getLogger(PainlessDocGenerator.class);
     private static final Comparator<Field> FIELD_NAME = comparing(f -> f.name);
     private static final Comparator<Method> METHOD_NAME = comparing(m -> m.name);
@@ -68,7 +68,7 @@ public class PainlessDocGenerator {
                 Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false, StandardCharsets.UTF_8.name())) {
             emitGeneratedWarning(indexStream);
-            List<Struct> structs = definition.getStructs().stream().sorted(comparing(t -> t.name)).collect(toList());
+            List<Struct> structs = PAINLESS_LOOKUP.getStructs().stream().sorted(comparing(t -> t.name)).collect(toList());
             for (Struct struct : structs) {
                 if (struct.clazz.isPrimitive()) {
                     // Primitives don't have methods to reference
@@ -238,7 +238,7 @@ public class PainlessDocGenerator {
        an internal link with the text.
      */
     private static void emitType(PrintStream stream, Class<?> clazz) {
-        emitStruct(stream, definition.getPainlessStructFromJavaClass(clazz));
+        emitStruct(stream, PAINLESS_LOOKUP.getPainlessStructFromJavaClass(clazz));
         while ((clazz = clazz.getComponentType()) != null) {
             stream.print("[]");
         }

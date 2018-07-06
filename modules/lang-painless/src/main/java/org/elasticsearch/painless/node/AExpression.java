@@ -20,8 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.lookup.Definition;
-import org.elasticsearch.painless.lookup.Definition.Cast;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.Cast;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 
@@ -157,7 +157,7 @@ public abstract class AExpression extends ANode {
 
                 return ecast;
             } else {
-                if (Definition.isConstantType(expected)) {
+                if (PainlessLookup.isConstantType(expected)) {
                     // For the case where a cast is required, a constant is set,
                     // and the constant can be immediately cast to the expected type.
                     // An EConstant replaces this node with the constant cast appropriately

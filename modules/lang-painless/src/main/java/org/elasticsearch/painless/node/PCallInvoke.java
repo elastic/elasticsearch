@@ -19,11 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.Definition;
-import org.elasticsearch.painless.lookup.Definition.Method;
-import org.elasticsearch.painless.lookup.Definition.MethodKey;
-import org.elasticsearch.painless.lookup.Definition.Struct;
-import org.elasticsearch.painless.lookup.Definition.def;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.Method;
+import org.elasticsearch.painless.lookup.PainlessLookup.MethodKey;
+import org.elasticsearch.painless.lookup.PainlessLookup.Struct;
+import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -71,10 +71,10 @@ public final class PCallInvoke extends AExpression {
             throw createError(new IllegalArgumentException("Illegal call [" + name + "] on array type."));
         }
 
-        Struct struct = locals.getDefinition().getPainlessStructFromJavaClass(prefix.actual);
+        Struct struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
 
         if (prefix.actual.isPrimitive()) {
-            struct = locals.getDefinition().getPainlessStructFromJavaClass(Definition.getBoxedType(prefix.actual));
+            struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(PainlessLookup.getBoxedType(prefix.actual));
         }
 
         MethodKey methodKey = new MethodKey(name, arguments.size());

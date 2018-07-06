@@ -43,7 +43,7 @@ import java.util.regex.Pattern;
  * The entire API for Painless.  Also used as a whitelist for checking for legal
  * methods and fields during at both compile-time and runtime.
  */
-public final class Definition {
+public final class PainlessLookup {
 
     private static final Map<String, Method> methodCache = new HashMap<>();
     private static final Map<String, Field> fieldCache = new HashMap<>();
@@ -528,7 +528,7 @@ public final class Definition {
     private final Map<String, Class<?>> painlessTypesToJavaClasses;
     private final Map<Class<?>, Struct> javaClassesToPainlessStructs;
 
-    public Definition(List<Whitelist> whitelists) {
+    public PainlessLookup(List<Whitelist> whitelists) {
         painlessTypesToJavaClasses = new HashMap<>();
         javaClassesToPainlessStructs = new HashMap<>();
 
@@ -1167,7 +1167,7 @@ public final class Definition {
         }
         // inspect the one method found from the reflection API, it should match the whitelist!
         java.lang.reflect.Method oneMethod = methods.get(0);
-        Method painless = clazz.methods.get(new Definition.MethodKey(oneMethod.getName(), oneMethod.getParameterCount()));
+        Method painless = clazz.methods.get(new PainlessLookup.MethodKey(oneMethod.getName(), oneMethod.getParameterCount()));
         if (painless == null || painless.method.equals(org.objectweb.asm.commons.Method.getMethod(oneMethod)) == false) {
             throw new IllegalArgumentException("Class: " + clazz.name + " is functional but the functional " +
                 "method is not whitelisted!");

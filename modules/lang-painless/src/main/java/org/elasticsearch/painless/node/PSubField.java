@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.Definition;
-import org.elasticsearch.painless.lookup.Definition.Field;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.Field;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -52,7 +52,7 @@ final class PSubField extends AStoreable {
     void analyze(Locals locals) {
          if (write && Modifier.isFinal(field.modifiers)) {
              throw createError(new IllegalArgumentException(
-                 "Cannot write to read-only field [" + field.name + "] for type [" + Definition.ClassToName(field.clazz) + "]."));
+                 "Cannot write to read-only field [" + field.name + "] for type [" + PainlessLookup.ClassToName(field.clazz) + "]."));
          }
 
         actual = field.clazz;

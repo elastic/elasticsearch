@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.lookup.Definition.Cast;
+import org.elasticsearch.painless.lookup.PainlessLookup.Cast;
 
 import org.elasticsearch.test.ESTestCase;
 

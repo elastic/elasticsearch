@@ -20,7 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.api.Debug;
-import org.elasticsearch.painless.lookup.Definition;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.script.ScriptException;
 
 import java.util.List;
@@ -47,7 +47,7 @@ public class PainlessExplainError extends Error {
     /**
      * Headers to be added to the {@link ScriptException} for structured rendering.
      */
-    public Map<String, List<String>> getHeaders(Definition definition) {
+    public Map<String, List<String>> getHeaders(PainlessLookup painlessLookup) {
         Map<String, List<String>> headers = new TreeMap<>();
         String toString = "null";
         String javaClassName = null;
@@ -55,7 +55,7 @@ public class PainlessExplainError extends Error {
         if (objectToExplain != null) {
             toString = objectToExplain.toString();
             javaClassName = objectToExplain.getClass().getName();
-            Definition.Struct struct = definition.getPainlessStructFromJavaClass(objectToExplain.getClass());
+            PainlessLookup.Struct struct = painlessLookup.getPainlessStructFromJavaClass(objectToExplain.getClass());
             if (struct != null) {
                 painlessClassName = struct.name;
             }

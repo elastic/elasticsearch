@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodType;
@@ -174,10 +175,10 @@ public class FunctionRef {
         final PainlessMethod impl;
         // ctor ref
         if ("new".equals(call)) {
-            impl = struct.constructors.get(new PainlessLookup.MethodKey("<init>", method.arguments.size()));
+            impl = struct.constructors.get(new PainlessMethodKey("<init>", method.arguments.size()));
         } else {
             // look for a static impl first
-            PainlessMethod staticImpl = struct.staticMethods.get(new PainlessLookup.MethodKey(call, method.arguments.size()));
+            PainlessMethod staticImpl = struct.staticMethods.get(new PainlessMethodKey(call, method.arguments.size()));
             if (staticImpl == null) {
                 // otherwise a virtual impl
                 final int arity;
@@ -188,7 +189,7 @@ public class FunctionRef {
                     // receiver passed
                     arity = method.arguments.size() - 1;
                 }
-                impl = struct.methods.get(new PainlessLookup.MethodKey(call, arity));
+                impl = struct.methods.get(new PainlessMethodKey(call, arity));
             } else {
                 impl = staticImpl;
             }

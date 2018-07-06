@@ -28,6 +28,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessMethodKey;
 
 import java.util.List;
 import java.util.Map;
@@ -74,15 +75,15 @@ public final class PField extends AStoreable {
                 sub = new PSubField(location, field);
             } else {
                 PainlessMethod getter = struct.methods.get(
-                    new PainlessLookup.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+                    new PainlessMethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
 
                 if (getter == null) {
                     getter = struct.methods.get(
-                        new PainlessLookup.MethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+                        new PainlessMethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
                 }
 
                 PainlessMethod setter = struct.methods.get(
-                    new PainlessLookup.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
+                    new PainlessMethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
                 if (getter != null || setter != null) {
                     sub = new PSubShortcut(location, value, PainlessLookup.ClassToName(prefix.actual), getter, setter);

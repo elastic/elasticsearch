@@ -23,7 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessLookup.MethodKey;
+import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -168,12 +168,12 @@ public final class SSource extends AStatement {
     }
 
     public void analyze(PainlessLookup painlessLookup) {
-        Map<MethodKey, PainlessMethod> methods = new HashMap<>();
+        Map<PainlessMethodKey, PainlessMethod> methods = new HashMap<>();
 
         for (SFunction function : functions) {
             function.generateSignature(painlessLookup);
 
-            MethodKey key = new MethodKey(function.name, function.parameters.size());
+            PainlessMethodKey key = new PainlessMethodKey(function.name, function.parameters.size());
 
             if (methods.put(key, function.method) != null) {
                 throw createError(new IllegalArgumentException("Duplicate functions with name [" + function.name + "]."));

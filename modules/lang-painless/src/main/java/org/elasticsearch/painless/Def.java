@@ -22,6 +22,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessLookup.Struct;
+import org.elasticsearch.painless.lookup.PainlessMethodKey;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
@@ -183,7 +184,7 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
     static PainlessMethod lookupMethodInternal(PainlessLookup painlessLookup, Class<?> receiverClass, String name, int arity) {
-        PainlessLookup.MethodKey key = new PainlessLookup.MethodKey(name, arity);
+        PainlessMethodKey key = new PainlessMethodKey(name, arity);
         // check whitelist for matching method
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
             Struct struct = painlessLookup.getPainlessStructFromJavaClass(clazz);

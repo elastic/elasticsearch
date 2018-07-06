@@ -24,7 +24,7 @@ import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookup.Cast;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessLookup.MethodKey;
+import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -77,7 +77,8 @@ final class SSubEachIterable extends AStatement {
         if (expression.actual == def.class) {
             method = null;
         } else {
-            method = locals.getPainlessLookup().getPainlessStructFromJavaClass(expression.actual).methods.get(new MethodKey("iterator", 0));
+            method = locals.getPainlessLookup().
+                    getPainlessStructFromJavaClass(expression.actual).methods.get(new PainlessMethodKey("iterator", 0));
 
             if (method == null) {
                 throw createError(new IllegalArgumentException(

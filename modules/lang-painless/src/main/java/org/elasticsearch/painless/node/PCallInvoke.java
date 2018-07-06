@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessLookup.MethodKey;
+import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.lookup.PainlessLookup.Struct;
 import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
@@ -77,7 +77,7 @@ public final class PCallInvoke extends AExpression {
             struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(PainlessLookup.getBoxedType(prefix.actual));
         }
 
-        MethodKey methodKey = new MethodKey(name, arguments.size());
+        PainlessMethodKey methodKey = new PainlessMethodKey(name, arguments.size());
         PainlessMethod method = prefix instanceof EStatic ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
 
         if (method != null) {

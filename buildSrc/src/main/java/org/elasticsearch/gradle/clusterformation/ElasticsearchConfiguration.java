@@ -21,6 +21,8 @@ package org.elasticsearch.gradle.clusterformation;
 import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.Version;
 
+import java.io.File;
+
 public interface ElasticsearchConfiguration {
     String getName();
 
@@ -35,6 +37,14 @@ public interface ElasticsearchConfiguration {
     Distribution getDistribution();
 
     void setDistribution(Distribution distribution);
+
+    void setJavaHome(File javaHome);
+
+    File getJavaHome();
+
+    String getHttpSocketURI();
+
+    String getTransportPortURI();
 
     void claim();
 

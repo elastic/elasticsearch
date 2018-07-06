@@ -141,6 +141,7 @@ if (project == rootProject) {
     }
     mavenCentral()
   }
+
   test {
     include "**/*Tests.class"
     exclude "**/*IT.class"

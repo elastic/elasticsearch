@@ -62,9 +62,10 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
     private final File syncDir;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
-
     private Distribution distribution;
     private Version version;
+    private File javaHome;
+
     private volatile Process esProcess;
 
     ElasticsearchNode(String name, GradleServicesAdapter services, File sharedArtifactsDir, File workDirBase) {
@@ -135,6 +136,33 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
     }
 
     @Override
+    public void setJavaHome(File javaHome) {
+        checkNotRunning();
+        Objects.requireNonNull(javaHome, "null javaHome passed to cluster formation");
+        if (javaHome.exists() == false) {
+            throw new ClusterFormationException("java home does not exists `" + javaHome + "`");
+        }
+        this.javaHome = javaHome;
+    }
+
+    @Override
+    public File getJavaHome() {
+        return javaHome;
+    }
+
+    @Override
+    public String getHttpSocketURI() {
+        waitForClusterHealthYellow();
+        return getHttpPortInternal().get(0);
+    }
+
+    @Override
+    public String getTransportPortURI() {
+        waitForClusterHealthYellow();
+        return getTransportPortInternal().get(0);
+    }
+
+    @Override
     public void claim() {
         noOfClaims.incrementAndGet();
     }
@@ -170,7 +198,7 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
 
         logger.info("Running `bin/elasticsearch` in `{}`", getWorkDir());
         if (current().isWindows()) {
-            // TODO
+            // TODO support windows
             logger.lifecycle("Windows is not supported at this time");
         } else {
             try {
@@ -178,24 +206,19 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
                     .command("bin/elasticsearch")
                     .directory(getWorkDir());
                 Map<String, String> environment = processBuilder.environment();
-                // TODO would be better not do depend on the caller env, can be done once we manage java versions
-                // environment.clear();
+                environment.clear();
+                if (javaHome != null) {
+                    environment.put("JAVA_HOME", javaHome.getAbsolutePath());
+                }
                 environment.put("ES_PATH_CONF", getConfigFile().getParentFile().getAbsolutePath());
                 environment.put("ES_JAVA_OPTIONS", "-Xms512m -Xmx512m");
                 // don't buffer all in memory, make sure we don't block on the default pipes
                 processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(getStdErrFile()));
                 processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(getStdoutFile()));
-                //processBuilder.redirectInput(ProcessBuilder.Redirect.DISCARD);
 
                 esProcess = processBuilder.start();
-
-                // TODO make lazy
-                waitForClusterOnline();
             } catch (IOException e) {
                 throw new ClusterFormationException("Failed to start ES process", e);
-            } catch (InterruptedException e) {
-                logger.info("Interrupted while waiting for ES node {}",name, e);
-                Thread.currentThread().interrupt();
             }
         }
     }
@@ -243,12 +266,28 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
         logger.info("Written config file :{}", getConfigFile());
     }
 
-    private void waitForClusterOnline() throws InterruptedException, IOException {
+    private void waitForClusterHealthYellow() {
+        if (started.get() == false) {
+            throw new ClusterFormationException(
+                "`" + name + "` is not started. Clusters are only started at execution time."
+            );
+        }
+        try {
+            doWaitClusterHealthYellow();
+        } catch (InterruptedException e) {
+            logger.info("Interrupted while waiting for ES node {}", name, e);
+            Thread.currentThread().interrupt();
+        } catch (IOException e) {
+            throw new ClusterFormationException("Failed to wait for `" + name + "` to tart up", e);
+        }
+    }
+
+    private void doWaitClusterHealthYellow() throws InterruptedException, IOException {
         long startedAt = System.currentTimeMillis();
 
         waitForCondition(
             startedAt,
-            (node ->  node.getHttpPortsFile().exists()),
+            (node -> node.getHttpPortsFile().exists()),
             () -> "waiting for: " + getHttpPortsFile(),
             NODE_UP_TIMEOUT, NODE_UP_TIMEOUT_UNIT
         );
@@ -256,7 +295,7 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
 
         waitForCondition(
             startedAt,
-            (node ->  node.getTransportPortFile().exists()),
+            (node -> node.getTransportPortFile().exists()),
             () -> " waiting for: " + getTransportPortFile(),
             NODE_UP_TIMEOUT, NODE_UP_TIMEOUT_UNIT
         );
@@ -266,14 +305,14 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
             startedAt,
             node -> {
                 try {
-                    URL url = new URL("http://"+
+                    URL url = new URL("http://" +
                         node.getHttpPortInternal().get(0) + // would be nice to have random picking in the build as well
                         "/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow"
                     );
                     HttpURLConnection con = (HttpURLConnection) url.openConnection();
                     con.setRequestMethod("GET");
-                    con.setConnectTimeout(1000);
-                    con.setReadTimeout(1000);
+                    con.setConnectTimeout(500);
+                    con.setReadTimeout(500);
                     try (BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
                         String response = reader.lines().collect(Collectors.joining("\n"));
                         logger.info("Server responded with:\n{}", response);
@@ -281,17 +320,21 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
                     }
                     return true;
                 } catch (IOException e) {
+                    logger.debug("Connection attempt to ES failed", e);
                     return false;
                 }
             },
             () -> "waiting for cluster health",
             NODE_UP_TIMEOUT, NODE_UP_TIMEOUT_UNIT
         );
-
     }
 
-    private List<String> getTransportPortInternal() throws IOException {
-        return readPortsFile(getTransportPortFile());
+    private List<String> getTransportPortInternal() {
+        try {
+            return readPortsFile(getTransportPortFile());
+        } catch (IOException e) {
+            throw new ClusterFormationException("Failed to read transport ports file", e);
+        }
     }
 
     private List<String> readPortsFile(File file) throws IOException {
@@ -302,8 +345,12 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
         }
     }
 
-    private List<String> getHttpPortInternal() throws IOException {
-        return readPortsFile(getHttpPortsFile());
+    private List<String> getHttpPortInternal()  {
+        try {
+            return readPortsFile(getHttpPortsFile());
+        } catch (IOException e) {
+            throw new ClusterFormationException("Failed to read http ports file", e);
+        }
     }
 
     private void waitForCondition(
@@ -409,10 +456,10 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
     }
 
     private void logFileContents(String description, File from) {
-        logger.error("{} `{}`",description, name);
+        logger.error("{} `{}`", description, name);
         try (BufferedReader reader = new BufferedReader(new FileReader(from))) {
             reader.lines()
-                .map(line -> " [" + name + "] " + line)
+                .map(line -> "    [" + name + "]" + line)
                 .forEach(logger::error);
         } catch (IOException e) {
             throw new ClusterFormationException("Error reading process streams", e);

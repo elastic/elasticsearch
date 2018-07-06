@@ -29,7 +29,7 @@ import java.util.Objects;
  * and run-time.
  *
  * A whitelist consists of several pieces with {@link WhitelistClass}s as the top level.  Each
- * {@link WhitelistClass} will contain zero-to-many {@link Constructor}s, {@link Method}s, and
+ * {@link WhitelistClass} will contain zero-to-many {@link WhitelistConstructor}s, {@link Method}s, and
  * {@link Field}s which are what will be available with a Painless script.  See each individual
  * whitelist object for more detail.
  */
@@ -54,30 +54,6 @@ public final class Whitelist {
 
     public static final List<Whitelist> BASE_WHITELISTS =
         Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Whitelist.class, BASE_WHITELIST_FILES));
-
-    /**
-     * Constructor represents the equivalent of a Java constructor available as a whitelisted class
-     * constructor within Painless.  Constructors for Painless classes may be accessed exactly as
-     * constructors for Java classes are using the 'new' keyword.  Painless classes may have multiple
-     * constructors as long as they comply with arity overloading described for {@link WhitelistClass}.
-     */
-    public static final class Constructor {
-
-        /** Information about where this constructor was whitelisted from.  Can be used for error messages. */
-        public final String origin;
-
-        /**
-         * A {@link List} of {@link String}s that are the Painless type names for the parameters of the
-         * constructor which can be used to look up the Java constructor through reflection.
-         */
-        public final List<String> painlessParameterTypeNames;
-
-        /** Standard constructor. All values must be not {@code null}. */
-        public Constructor(String origin, List<String> painlessParameterTypeNames) {
-            this.origin = Objects.requireNonNull(origin);
-            this.painlessParameterTypeNames = Collections.unmodifiableList(Objects.requireNonNull(painlessParameterTypeNames));
-        }
-    }
 
     /**
      * Method represents the equivalent of a Java method available as a whitelisted class method

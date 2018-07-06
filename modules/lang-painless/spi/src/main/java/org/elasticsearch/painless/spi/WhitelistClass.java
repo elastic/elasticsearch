@@ -51,8 +51,8 @@ public final class WhitelistClass {
      */
     public final boolean onlyFQNJavaClassName;
 
-    /** The {@link List} of whitelisted ({@link Whitelist.Constructor}s) available to this class. */
-    public final List<Whitelist.Constructor> whitelistConstructors;
+    /** The {@link List} of whitelisted ({@link WhitelistConstructor}s) available to this class. */
+    public final List<WhitelistConstructor> whitelistConstructors;
 
     /** The {@link List} of whitelisted ({@link Whitelist.Method}s) available to this class. */
     public final List<Whitelist.Method> whitelistMethods;
@@ -62,7 +62,7 @@ public final class WhitelistClass {
 
     /** Standard constructor. All values must be not {@code null}. */
     public WhitelistClass(String origin, String javaClassName, boolean onlyFQNJavaClassName,
-                          List<Whitelist.Constructor> whitelistConstructors,
+                          List<WhitelistConstructor> whitelistConstructors,
                           List<Whitelist.Method> whitelistMethods,
                           List<Whitelist.Field> whitelistFields) {
         this.origin = Objects.requireNonNull(origin);

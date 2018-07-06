@@ -146,7 +146,7 @@ public final class WhitelistLoader {
                 String whitelistStructOrigin = null;
                 String javaClassName = null;
                 boolean onlyFQNJavaClassName = false;
-                List<Whitelist.Constructor> whitelistConstructors = null;
+                List<WhitelistConstructor> whitelistConstructors = null;
                 List<Whitelist.Method> whitelistMethods = null;
                 List<Whitelist.Field> whitelistFields = null;
 
@@ -232,7 +232,7 @@ public final class WhitelistLoader {
                                 tokens = new String[0];
                             }
 
-                            whitelistConstructors.add(new Whitelist.Constructor(origin, Arrays.asList(tokens)));
+                            whitelistConstructors.add(new WhitelistConstructor(origin, Arrays.asList(tokens)));
 
                         // Handle the case for a method or augmented method definition.
                         // Expects the following format: ID ID? ID '(' ( ID ( ',' ID )* )? ')' '\n'

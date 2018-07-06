@@ -20,11 +20,9 @@
 package org.elasticsearch.test.transport;
 
 import com.carrotsearch.randomizedtesting.SysGlobals;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
@@ -220,17 +218,7 @@ public final class MockTransportService extends TransportService {
         addDelegate(transportAddress, new DelegateTransport(original) {
 
             @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-                throws ConnectTransportException {
-                if (original.nodeConnected(node) == false) {
-                    // connecting to an already connected node is a no-op
-                    throw new ConnectTransportException(node, "DISCONNECT: simulated");
-                }
-            }
-
-            @Override
-            public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+            public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
                 throw new ConnectTransportException(node, "DISCONNECT: simulated");
             }
 
@@ -304,17 +292,7 @@ public final class MockTransportService extends TransportService {
         addDelegate(transportAddress, new DelegateTransport(original) {
 
             @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-                throws ConnectTransportException {
-                if (original.nodeConnected(node) == false) {
-                    // connecting to an already connected node is a no-op
-                    throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
-                }
-            }
-
-            @Override
-            public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+            public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
                 throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
             }
 
@@ -356,36 +334,7 @@ public final class MockTransportService extends TransportService {
             }
 
             @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-                throws ConnectTransportException {
-                if (original.nodeConnected(node)) {
-                    // connecting to an already connected node is a no-op
-                    return;
-                }
-                TimeValue delay = getDelay();
-                if (delay.millis() <= 0) {
-                    original.connectToNode(node, connectionProfile, connectionValidator);
-                    return;
-                }
-
-                // TODO: Replace with proper setting
-                TimeValue connectingTimeout = TcpTransport.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
-                try {
-                    if (delay.millis() < connectingTimeout.millis()) {
-                        Thread.sleep(delay.millis());
-                        original.connectToNode(node, connectionProfile, connectionValidator);
-                    } else {
-                        Thread.sleep(connectingTimeout.millis());
-                        throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
-                    }
-                } catch (InterruptedException e) {
-                    throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
-                }
-            }
-
-            @Override
-            public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+            public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
                 TimeValue delay = getDelay();
                 if (delay.millis() <= 0) {
                     return original.openConnection(node, profile);
@@ -507,29 +456,7 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public boolean nodeConnected(DiscoveryNode node) {
-            return getTransport(node).nodeConnected(node);
-        }
-
-        @Override
-        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-            throws ConnectTransportException {
-            getTransport(node).connectToNode(node, connectionProfile, connectionValidator);
-        }
-
-        @Override
-        public void disconnectFromNode(DiscoveryNode node) {
-            getTransport(node).disconnectFromNode(node);
-        }
-
-        @Override
-        public Connection getConnection(DiscoveryNode node) {
-            return getTransport(node).getConnection(node);
-        }
-
-        @Override
-        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
             return getTransport(node).openConnection(node, profile);
         }
     }
@@ -578,40 +505,12 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public boolean nodeConnected(DiscoveryNode node) {
-            return transport.nodeConnected(node);
-        }
-
-        @Override
-        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-            throws ConnectTransportException {
-            transport.connectToNode(node, connectionProfile, connectionValidator);
-        }
-
-        @Override
-        public void disconnectFromNode(DiscoveryNode node) {
-            transport.disconnectFromNode(node);
-        }
-
-        @Override
         public List<String> getLocalAddresses() {
             return transport.getLocalAddresses();
         }
 
         @Override
-        public Connection getConnection(DiscoveryNode node) {
-            return new FilteredConnection(transport.getConnection(node)) {
-                @Override
-                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                    throws IOException, TransportException {
-                    DelegateTransport.this.sendRequest(connection, requestId, action, request, options);
-                }
-            };
-        }
-
-        @Override
-        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
             return new FilteredConnection(transport.openConnection(node, profile)) {
                 @Override
                 public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)

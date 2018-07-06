@@ -441,13 +441,13 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }
                 };
                 service.addDelegate(seedNode.getAddress(), new MockTransportService.DelegateTransport(service.getOriginalTransport()) {
-                    @Override
-                    public Connection getConnection(DiscoveryNode node) {
-                        if (node == seedNode) {
-                            return seedConnection;
-                        }
-                        return super.getConnection(node);
-                    }
+//                    @Override
+//                    public Connection getConnection(DiscoveryNode node) {
+//                        if (node == seedNode) {
+//                            return seedConnection;
+//                        }
+//                        return super.getConnection(node);
+//                    }
                 });
                 service.start();
                 service.acceptIncomingRequests();
@@ -1289,18 +1289,18 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }
                 };
                 service.addDelegate(connectedNode.getAddress(), new MockTransportService.DelegateTransport(service.getOriginalTransport()) {
-                    @Override
-                    public Connection getConnection(DiscoveryNode node) {
-                        if (node == connectedNode) {
-                            return seedConnection;
-                        }
-                        return super.getConnection(node);
-                    }
+//                    @Override
+//                    public Connection getConnection(DiscoveryNode node) {
+//                        if (node == connectedNode) {
+//                            return seedConnection;
+//                        }
+//                        return super.getConnection(node);
+//                    }
 
-                    @Override
-                    public boolean nodeConnected(DiscoveryNode node) {
-                        return node.equals(connectedNode);
-                    }
+//                    @Override
+//                    public boolean nodeConnected(DiscoveryNode node) {
+//                        return node.equals(connectedNode);
+//                    }
                 });
                 service.start();
                 service.acceptIncomingRequests();

@@ -87,6 +87,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     private final boolean connectToRemoteCluster;
     private final Transport.ResponseHandlers responseHandlers;
     private final TransportInterceptor interceptor;
+    private final ConnectionManager connectionManager;
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
     // do show up, we can print more descriptive information about them
@@ -152,6 +153,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         this.transport = transport;
         this.threadPool = threadPool;
         this.localNodeFactory = localNodeFactory;
+        this.connectionManager = new ConnectionManager(logger);
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         setTracerLogInclude(TRACE_LOG_INCLUDE_SETTING.get(settings));
         setTracerLogExclude(TRACE_LOG_EXCLUDE_SETTING.get(settings));
@@ -305,7 +307,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * Returns <code>true</code> iff the given node is already connected.
      */
     public boolean nodeConnected(DiscoveryNode node) {
-        return isLocalNode(node) || transport.nodeConnected(node);
+        return isLocalNode(node) || connectionManager.nodeConnected(node);
     }
 
     /**
@@ -327,7 +329,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         if (isLocalNode(node)) {
             return;
         }
-        transport.connectToNode(node, connectionProfile, (newConnection, actualProfile) -> {
+        connectionManager.connectToNode(transport, node, connectionProfile, (newConnection, actualProfile) -> {
             // We don't validate cluster names to allow for CCS connections.
             final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true).discoveryNode;
             if (validateConnections && node.equals(remote) == false) {
@@ -462,7 +464,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         if (isLocalNode(node)) {
             return;
         }
-        transport.disconnectFromNode(node);
+        connectionManager.disconnectFromNode(node);
     }
 
     public void addConnectionListener(TransportConnectionListener listener) {
@@ -533,7 +535,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         if (isLocalNode(node)) {
             return localNodeConnection;
         } else {
-            return transport.getConnection(node);
+            return connectionManager.getConnection(node);
         }
     }
 

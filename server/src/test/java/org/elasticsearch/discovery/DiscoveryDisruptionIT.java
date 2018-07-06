@@ -187,7 +187,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
             }
 
             @Override
-            public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+            public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
                 return super.openConnection(node, profile);
             }
 

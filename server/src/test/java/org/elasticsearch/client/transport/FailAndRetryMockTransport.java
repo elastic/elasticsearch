@@ -77,69 +77,70 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
     protected abstract ClusterState getMockClusterState(DiscoveryNode node);
 
+//    @Override
+//    public Connection getConnection(DiscoveryNode node) {
+//        return new Connection() {
+//            @Override
+//            public DiscoveryNode getNode() {
+//                return node;
+//            }
+//
+//            @Override
+//            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+//                throws IOException, TransportException {
+//
+//                //we make sure that nodes get added to the connected ones when calling addTransportAddress, by returning proper nodes info
+//                if (connectMode) {
+//                    if (TransportLivenessAction.NAME.equals(action)) {
+//                        TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
+//                        transportResponseHandler.handleResponse(new LivenessResponse(ClusterName.CLUSTER_NAME_SETTING.
+//                            getDefault(Settings.EMPTY),
+//                            node));
+//                    } else if (ClusterStateAction.NAME.equals(action)) {
+//                        TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
+//                        ClusterState clusterState = getMockClusterState(node);
+//                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L));
+//                    } else {
+//                        throw new UnsupportedOperationException("Mock transport does not understand action " + action);
+//                    }
+//                    return;
+//                }
+//
+//                //once nodes are connected we'll just return errors for each sendRequest call
+//                triedNodes.add(node);
+//
+//                if (random.nextInt(100) > 10) {
+//                    connectTransportExceptions.incrementAndGet();
+//                    throw new ConnectTransportException(node, "node not available");
+//                } else {
+//                    if (random.nextBoolean()) {
+//                        failures.incrementAndGet();
+//                        //throw whatever exception that is not a subclass of ConnectTransportException
+//                        throw new IllegalStateException();
+//                    } else {
+//                        TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
+//                        if (random.nextBoolean()) {
+//                            successes.incrementAndGet();
+//                            transportResponseHandler.handleResponse(newResponse());
+//                        } else {
+//                            failures.incrementAndGet();
+//                            transportResponseHandler.handleException(new TransportException("transport exception"));
+//                        }
+//                    }
+//                }
+//            }
+//
+//            @Override
+//            public void close() {
+//
+//            }
+//        };
+//    }
+
     @Override
-    public Connection getConnection(DiscoveryNode node) {
-        return new Connection() {
-            @Override
-            public DiscoveryNode getNode() {
-                return node;
-            }
-
-            @Override
-            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                throws IOException, TransportException {
-
-                //we make sure that nodes get added to the connected ones when calling addTransportAddress, by returning proper nodes info
-                if (connectMode) {
-                    if (TransportLivenessAction.NAME.equals(action)) {
-                        TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
-                        transportResponseHandler.handleResponse(new LivenessResponse(ClusterName.CLUSTER_NAME_SETTING.
-                            getDefault(Settings.EMPTY),
-                            node));
-                    } else if (ClusterStateAction.NAME.equals(action)) {
-                        TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
-                        ClusterState clusterState = getMockClusterState(node);
-                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L));
-                    } else {
-                        throw new UnsupportedOperationException("Mock transport does not understand action " + action);
-                    }
-                    return;
-                }
-
-                //once nodes are connected we'll just return errors for each sendRequest call
-                triedNodes.add(node);
-
-                if (random.nextInt(100) > 10) {
-                    connectTransportExceptions.incrementAndGet();
-                    throw new ConnectTransportException(node, "node not available");
-                } else {
-                    if (random.nextBoolean()) {
-                        failures.incrementAndGet();
-                        //throw whatever exception that is not a subclass of ConnectTransportException
-                        throw new IllegalStateException();
-                    } else {
-                        TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
-                        if (random.nextBoolean()) {
-                            successes.incrementAndGet();
-                            transportResponseHandler.handleResponse(newResponse());
-                        } else {
-                            failures.incrementAndGet();
-                            transportResponseHandler.handleException(new TransportException("transport exception"));
-                        }
-                    }
-                }
-            }
-
-            @Override
-            public void close() throws IOException {
-
-            }
-        };
-    }
-
-    @Override
-    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
-        return getConnection(node);
+    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
+//        return getConnection(node);
+        return null;
     }
 
     protected abstract Response newResponse();
@@ -173,23 +174,6 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     @Override
     public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean nodeConnected(DiscoveryNode node) {
-        return false;
-    }
-
-    @Override
-    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-        throws ConnectTransportException {
-
-    }
-
-    @Override
-    public void disconnectFromNode(DiscoveryNode node) {
-
     }
 
     @Override

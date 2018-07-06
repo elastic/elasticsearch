@@ -195,7 +195,7 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
         return new Connection() {
             @Override
             public DiscoveryNode getNode() {
@@ -204,13 +204,13 @@ public class CapturingTransport implements Transport {
 
             @Override
             public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                throws IOException, TransportException {
+                throws TransportException {
                 requests.put(requestId, Tuple.tuple(node, action));
                 capturedRequests.add(new CapturedRequest(node, requestId, action, request));
             }
 
             @Override
-            public void close() throws IOException {
+            public void close() {
 
             }
         };
@@ -234,23 +234,6 @@ public class CapturingTransport implements Transport {
     @Override
     public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
         return new TransportAddress[0];
-    }
-
-    @Override
-    public boolean nodeConnected(DiscoveryNode node) {
-        return true;
-    }
-
-    @Override
-    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-        throws ConnectTransportException {
-
-    }
-
-    @Override
-    public void disconnectFromNode(DiscoveryNode node) {
-
     }
 
     @Override
@@ -283,11 +266,7 @@ public class CapturingTransport implements Transport {
     }
 
     public Connection getConnection(DiscoveryNode node) {
-        try {
-            return openConnection(node, null);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return openConnection(node, null);
     }
 
     @Override

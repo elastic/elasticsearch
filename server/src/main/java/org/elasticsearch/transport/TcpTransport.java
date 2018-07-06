@@ -29,7 +29,6 @@ import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -48,7 +47,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.CloseableChannel;
@@ -66,7 +64,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -90,7 +87,6 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -209,12 +205,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final DelegatingTransportConnectionListener transportListener = new DelegatingTransportConnectionListener();
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
-    // node id to actual channel
-    private final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
     private final Set<TcpChannel> acceptedChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    private final KeyedLock<String> connectionLock = new KeyedLock<>();
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     // this lock is here to make sure we close this transport and disconnect all the client nodes
@@ -371,30 +364,30 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         protected void doRunInLifecycle() throws Exception {
-            for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
-                DiscoveryNode node = entry.getKey();
-                NodeChannels channels = entry.getValue();
-                for (TcpChannel channel : channels.getChannels()) {
-                    internalSendMessage(channel, pingHeader, new SendMetricListener(pingHeader.length()) {
-                        @Override
-                        protected void innerInnerOnResponse(Void v) {
-                            successfulPings.inc();
-                        }
-
-                        @Override
-                        protected void innerOnFailure(Exception e) {
-                            if (channel.isOpen()) {
-                                logger.debug(() -> new ParameterizedMessage("[{}] failed to send ping transport message", node), e);
-                                failedPings.inc();
-                            } else {
-                                logger.trace(() ->
-                                    new ParameterizedMessage("[{}] failed to send ping transport message (channel closed)", node), e);
-                            }
-
-                        }
-                    });
-                }
-            }
+//            for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
+//                DiscoveryNode node = entry.getKey();
+//                NodeChannels channels = entry.getValue();
+//                for (TcpChannel channel : channels.getChannels()) {
+//                    internalSendMessage(channel, pingHeader, new SendMetricListener(pingHeader.length()) {
+//                        @Override
+//                        protected void innerInnerOnResponse(Void v) {
+//                            successfulPings.inc();
+//                        }
+//
+//                        @Override
+//                        protected void innerOnFailure(Exception e) {
+//                            if (channel.isOpen()) {
+//                                logger.debug(() -> new ParameterizedMessage("[{}] failed to send ping transport message", node), e);
+//                                failedPings.inc();
+//                            } else {
+//                                logger.trace(() ->
+//                                    new ParameterizedMessage("[{}] failed to send ping transport message (channel closed)", node), e);
+//                            }
+//
+//                        }
+//                    });
+//                }
+//            }
         }
 
         public long getSuccessfulPings() {
@@ -514,73 +507,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion(), (byte) 0);
         }
 
-        boolean isClosed() {
+        @Override
+        public boolean isClosed() {
             return closed.get();
-        }
-    }
-
-    @Override
-    public boolean nodeConnected(DiscoveryNode node) {
-        return connectedNodes.containsKey(node);
-    }
-
-    @Override
-    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-        throws ConnectTransportException {
-        connectionProfile = resolveConnectionProfile(connectionProfile);
-        if (node == null) {
-            throw new ConnectTransportException(null, "can't connect to a null node");
-        }
-        closeLock.readLock().lock(); // ensure we don't open connections while we are closing
-        try {
-            ensureOpen();
-            try (Releasable ignored = connectionLock.acquire(node.getId())) {
-                NodeChannels nodeChannels = connectedNodes.get(node);
-                if (nodeChannels != null) {
-                    return;
-                }
-                boolean success = false;
-                try {
-                    nodeChannels = openConnection(node, connectionProfile);
-                    connectionValidator.accept(nodeChannels, connectionProfile);
-                    // we acquire a connection lock, so no way there is an existing connection
-                    connectedNodes.put(node, nodeChannels);
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("connected to node [{}]", node);
-                    }
-                    try {
-                        transportListener.onNodeConnected(node);
-                    } finally {
-                        if (nodeChannels.isClosed()) {
-                            // we got closed concurrently due to a disconnect or some other event on the channel.
-                            // the close callback will close the NodeChannel instance first and then try to remove
-                            // the connection from the connected nodes. It will NOT acquire the connectionLock for
-                            // the node to prevent any blocking calls on network threads. Yet, we still establish a happens
-                            // before relationship to the connectedNodes.put since we check if we can remove the
-                            // (DiscoveryNode, NodeChannels) tuple from the map after we closed. Here we check if it's closed an if so we
-                            // try to remove it first either way one of the two wins even if the callback has run before we even added the
-                            // tuple to the map since in that case we remove it here again
-                            if (connectedNodes.remove(node, nodeChannels)) {
-                                transportListener.onNodeDisconnected(node);
-                            }
-                            throw new NodeNotConnectedException(node, "connection concurrently closed");
-                        }
-                    }
-                    success = true;
-                } catch (ConnectTransportException e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new ConnectTransportException(node, "general node connection failure", e);
-                } finally {
-                    if (success == false) { // close the connection if there is a failure
-                        logger.trace(() -> new ParameterizedMessage("failed to connect to [{}], cleaning dangling connections", node));
-                        IOUtils.closeWhileHandlingException(nodeChannels);
-                    }
-                }
-            }
-        } finally {
-            closeLock.readLock().unlock();
         }
     }
 
@@ -612,7 +541,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
+    public NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
         if (node == null) {
             throw new ConnectTransportException(null, "can't open connection to a null node");
         }
@@ -672,7 +601,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     // we only need to disconnect from the nodes once since all other channels
                     // will also try to run this we protect it from running multiple times.
                     if (runOnce.compareAndSet(false, true)) {
-                        disconnectFromNodeCloseAndNotify(node, finalNodeChannels);
+                        // TODO: Have lost the removal from connection manager
+                        IOUtils.closeWhileHandlingException(finalNodeChannels);
                     }
                 };
 
@@ -696,46 +626,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
         } finally {
             closeLock.readLock().unlock();
-        }
-    }
-
-    private void disconnectFromNodeCloseAndNotify(DiscoveryNode node, NodeChannels nodeChannels) {
-        assert nodeChannels != null : "nodeChannels must not be null";
-        try {
-            IOUtils.closeWhileHandlingException(nodeChannels);
-        } finally {
-            if (closeLock.readLock().tryLock()) {
-                try {
-                    if (connectedNodes.remove(node, nodeChannels)) {
-                        transportListener.onNodeDisconnected(node);
-                    }
-                } finally {
-                    closeLock.readLock().unlock();
-                }
-            }
-        }
-    }
-
-    @Override
-    public NodeChannels getConnection(DiscoveryNode node) {
-        NodeChannels nodeChannels = connectedNodes.get(node);
-        if (nodeChannels == null) {
-            throw new NodeNotConnectedException(node, "Node not connected");
-        }
-        return nodeChannels;
-    }
-
-    @Override
-    public void disconnectFromNode(DiscoveryNode node) {
-        closeLock.readLock().lock();
-        NodeChannels nodeChannels = null;
-        try (Releasable ignored = connectionLock.acquire(node.getId())) {
-            nodeChannels = connectedNodes.remove(node);
-        } finally {
-            closeLock.readLock().unlock();
-            if (nodeChannels != null) { // if we found it and removed it we close and notify
-                IOUtils.closeWhileHandlingException(nodeChannels, () -> transportListener.onNodeDisconnected(node));
-            }
         }
     }
 
@@ -986,16 +876,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
                 // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
                 // all instances and then clear them maps
-                Iterator<Map.Entry<DiscoveryNode, NodeChannels>> iterator = connectedNodes.entrySet().iterator();
-                while (iterator.hasNext()) {
-                    Map.Entry<DiscoveryNode, NodeChannels> next = iterator.next();
-                    try {
-                        IOUtils.closeWhileHandlingException(next.getValue());
-                        transportListener.onNodeDisconnected(next.getKey());
-                    } finally {
-                        iterator.remove();
-                    }
-                }
+//                Iterator<Map.Entry<DiscoveryNode, NodeChannels>> iterator = connectedNodes.entrySet().iterator();
+//                while (iterator.hasNext()) {
+//                    Map.Entry<DiscoveryNode, NodeChannels> next = iterator.next();
+//                    try {
+//                        IOUtils.closeWhileHandlingException(next.getValue());
+//                        transportListener.onNodeDisconnected(next.getKey());
+//                    } finally {
+//                        iterator.remove();
+//                    }
+//                }
                 stopInternal();
             } finally {
                 closeLock.writeLock().unlock();

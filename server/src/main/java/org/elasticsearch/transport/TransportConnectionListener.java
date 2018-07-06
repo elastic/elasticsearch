@@ -28,6 +28,18 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
  */
 public interface TransportConnectionListener {
 
+    interface NodeConnectionListener {
+        /**
+         * Called once a node connection is opened and registered.
+         */
+        void onNodeConnected(DiscoveryNode node);
+
+        /**
+         * Called once a node connection is closed and unregistered.
+         */
+        void onNodeDisconnected(DiscoveryNode node);
+    }
+
     /**
      * Called once a request is received
      * @param requestId the internal request ID

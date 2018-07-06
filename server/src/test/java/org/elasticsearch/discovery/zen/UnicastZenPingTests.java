@@ -152,14 +152,7 @@ public class UnicastZenPingTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
             networkService,
-            v) {
-            @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-                throws ConnectTransportException {
-                throw new AssertionError("zen pings should never connect to node (got [" + node + "])");
-            }
-        };
+            v);
 
         NetworkHandle handleA = startServices(settings, threadPool, "UZP_A", Version.CURRENT, supplier);
         closeables.push(handleA.transportService);

@@ -70,7 +70,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         for (int i = randomIntBetween(20, 50); i > 0; i--) {
             Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
             nodes.add(new DiscoveryNode("node_" + i, "" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
-                    roles, Version.CURRENT));
+                roles, Version.CURRENT));
         }
         return nodes;
     }
@@ -121,7 +121,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         for (int i = 0; i < 3; i++) {
             // simulate disconnects
             for (DiscoveryNode node : randomSubsetOf(nodes)) {
-                transport.disconnectFromNode(node);
+//                transport.disconnectFromNode(node);
             }
             service.new ConnectionChecker().run();
         }
@@ -175,7 +175,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         Set<DiscoveryNode> connectedNodes = ConcurrentCollections.newConcurrentSet();
         volatile boolean randomConnectionExceptions = false;
         private ResponseHandlers responseHandlers = new ResponseHandlers();
-        private TransportConnectionListener listener = new TransportConnectionListener() {};
+        private TransportConnectionListener listener = new TransportConnectionListener() {
+        };
 
         @Override
         public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
@@ -211,33 +212,54 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             return new TransportAddress[0];
         }
 
-        @Override
-        public boolean nodeConnected(DiscoveryNode node) {
-            return connectedNodes.contains(node);
-        }
+//        @Override
+//        public boolean nodeConnected(DiscoveryNode node) {
+//            return connectedNodes.contains(node);
+//        }
+
+//        @Override
+//        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+//                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+//            throws ConnectTransportException {
+//            if (connectionProfile == null) {
+//                if (connectedNodes.contains(node) == false && randomConnectionExceptions && randomBoolean()) {
+//                    throw new ConnectTransportException(node, "simulated");
+//                }
+//                connectedNodes.add(node);
+//                listener.onNodeConnected(node);
+//            }
+//        }
+//
+//        @Override
+//        public void disconnectFromNode(DiscoveryNode node) {
+//            connectedNodes.remove(node);
+//            listener.onNodeDisconnected(node);
+//        }
+
+//        @Override
+//        public Connection getConnection(DiscoveryNode node) {
+//            return new Connection() {
+//                @Override
+//                public DiscoveryNode getNode() {
+//                    return node;
+//                }
+//
+//                @Override
+//                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+//                    throws TransportException {
+//
+//                }
+//
+//                @Override
+//                public void close() {
+//
+//                }
+//            };
+//        }
 
         @Override
-        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-            throws ConnectTransportException {
-            if (connectionProfile == null) {
-                if (connectedNodes.contains(node) == false && randomConnectionExceptions && randomBoolean()) {
-                    throw new ConnectTransportException(node, "simulated");
-                }
-                connectedNodes.add(node);
-                listener.onNodeConnected(node);
-            }
-        }
-
-        @Override
-        public void disconnectFromNode(DiscoveryNode node) {
-            connectedNodes.remove(node);
-            listener.onNodeDisconnected(node);
-        }
-
-        @Override
-        public Connection getConnection(DiscoveryNode node) {
-            return new Connection() {
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
+            Connection connection = new Connection() {
                 @Override
                 public DiscoveryNode getNode() {
                     return node;
@@ -254,11 +276,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
                 }
             };
-        }
-
-        @Override
-        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-            Connection connection = getConnection(node);
             listener.onConnectionOpened(connection);
             return connection;
         }
@@ -282,13 +299,16 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void start() {}
+        public void start() {
+        }
 
         @Override
-        public void stop() {}
+        public void stop() {
+        }
 
         @Override
-        public void close() {}
+        public void close() {
+        }
 
         @Override
         public TransportStats getStats() {

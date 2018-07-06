@@ -361,18 +361,18 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
                 clientService.addDelegate(remoteService,  new MockTransportService.DelegateTransport(clientService.original()) {
                     @Override
-                    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+                    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
                         MockConnection connection = new MockConnection(super.openConnection(node, profile));
                         establishedConnections.add(connection);
                         return connection;
                     }
 
-                    @Override
-                    public Connection getConnection(DiscoveryNode node) {
-                        MockConnection connection = new MockConnection(super.getConnection(node));
-                        reusedConnections.add(connection);
-                        return connection;
-                    }
+//                    @Override
+//                    public Connection getConnection(DiscoveryNode node) {
+//                        MockConnection connection = new MockConnection(super.getConnection(node));
+//                        reusedConnections.add(connection);
+//                        return connection;
+//                    }
                 });
 
                 clientService.start();
@@ -455,7 +455,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             }
         }
 
-        boolean isClosed() {
+        @Override
+        public boolean isClosed() {
             return closed.get();
         }
     }

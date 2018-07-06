@@ -49,7 +49,7 @@ public abstract class AbstractLogFileStructure {
     private static final String LOGSTASH_ENCODING_TEMPLATE = "      charset => \"%s\"\n";
     private static final String LOGSTASH_MULTILINE_CODEC_TEMPLATE = "    codec => multiline {\n" +
         "%s" +
-        "      pattern => \"%s\"\n" +
+        "      pattern => %s%s%s\n" +
         "      negate => \"true\"\n" +
         "      what => \"previous\"\n" +
         "      auto_flush_interval => 1\n" +
@@ -131,7 +131,7 @@ public abstract class AbstractLogFileStructure {
     }
 
     protected static String bestLogstashQuoteFor(String str) {
-        return (str.indexOf('"') >= 0) ? "'" : "\""; // NB: fails if field name contains both types of quotes
+        return (str.indexOf('"') >= 0) ? "'" : "\""; // NB: fails if string contains both types of quotes
     }
 
     protected String makeFilebeatInputOptions(String multilineRegex, String excludeLinesRegex) {
@@ -164,7 +164,9 @@ public abstract class AbstractLogFileStructure {
             return String.format(Locale.ROOT, LOGSTASH_LINE_CODEC_TEMPLATE, encodingConfig);
         }
 
-        return String.format(Locale.ROOT, LOGSTASH_MULTILINE_CODEC_TEMPLATE, encodingConfig, multilineRegex);
+        String multilineRegexQuote = bestLogstashQuoteFor(multilineRegex);
+        return String.format(Locale.ROOT, LOGSTASH_MULTILINE_CODEC_TEMPLATE, encodingConfig, multilineRegexQuote, multilineRegex,
+            multilineRegexQuote);
     }
 
     protected static String guessScalarMapping(Terminal terminal, String fieldName, Collection<String> fieldValues) {

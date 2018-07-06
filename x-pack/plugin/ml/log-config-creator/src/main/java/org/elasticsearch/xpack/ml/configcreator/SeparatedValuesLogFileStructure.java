@@ -375,12 +375,15 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         String logstashFromFileDateFilter = "";
         if (timeField != null) {
             StringBuilder builder = new StringBuilder("^");
-            for (String column : csvHeader) {
+            // We make the assumption that the timestamp will be on the first line of each record.  Therefore, if the
+            // timestamp is the last column then either our assumption is wrong (and the approach will completely
+            // break down) or else every record is on a single line and there's no point creating a multiline config.
+            // This is why the loop excludes the last column.
+            for (String column : Arrays.asList(csvHeader).subList(0, csvHeader.length - 1)) {
                 if (timeField.v1().equals(column)) {
-                    builder.append(timeField.v2().simplePattern.pattern());
-                    if (builder.substring(0, 3).equals("^\\b")) {
-                        builder.delete(1, 3);
-                    }
+                    builder.append("\"?");
+                    String simpleTimePattern = timeField.v2().simplePattern.pattern();
+                    builder.append(simpleTimePattern.startsWith("\\b") ? simpleTimePattern.substring(2) : simpleTimePattern);
                     timeLineRegex = builder.toString();
                     break;
                 } else {

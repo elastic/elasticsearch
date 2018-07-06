@@ -35,7 +35,7 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
         structure.createConfigs();
         assertThat(structure.getFilebeatToLogstashConfig(), containsString("exclude_lines: ['^\"?time\"?,\"?message\"?']\n"));
         assertThat(structure.getFilebeatToLogstashConfig(),
-            containsString("multiline.pattern: '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
+            containsString("multiline.pattern: '^\"?\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("columns => [ \"time\", \"message\" ]\n"));
         assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
@@ -43,9 +43,9 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
     }
 
     public void testCreateConfigsGivenCsvWithIncompleteLastRecord() throws Exception {
-        String sample = "message,time\n" +
+        String sample = "message,time,count\n" +
             "\"hello\n" +
-            "world\",2018-05-17T13:41:23\n" +
+            "world\",2018-05-17T13:41:23,1\n" +
             "\"hello again\n"; // note that this last record is truncated
         assertTrue(factory.canCreateFromSample(sample));
         String charset = randomFrom(POSSIBLE_CHARSETS);
@@ -58,11 +58,11 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
         } else {
             assertThat(structure.getFilebeatToLogstashConfig(), containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
         }
-        assertThat(structure.getFilebeatToLogstashConfig(), containsString("exclude_lines: ['^\"?message\"?,\"?time\"?']\n"));
+        assertThat(structure.getFilebeatToLogstashConfig(), containsString("exclude_lines: ['^\"?message\"?,\"?time\"?,\"?count\"?']\n"));
         assertThat(structure.getFilebeatToLogstashConfig(),
-            containsString("multiline.pattern: '^.*?,\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
+            containsString("multiline.pattern: '^.*?,\"?\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
-        assertThat(structure.getLogstashFromFilebeatConfig(), containsString("columns => [ \"message\", \"time\" ]\n"));
+        assertThat(structure.getLogstashFromFilebeatConfig(), containsString("columns => [ \"message\", \"time\", \"count\" ]\n"));
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getLogstashFromFileConfig(), not(containsString("charset =>")));
         } else {
@@ -70,6 +70,41 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
         }
         assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"time\", \"ISO8601\" ]\n"));
         assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
+    }
+
+    public void testCreateConfigsGivenCsvWithTimeLastColumn() throws Exception {
+        String sample = "\"pos_id\",\"trip_id\",\"latitude\",\"longitude\",\"altitude\",\"timestamp\"\n" +
+            "\"1\",\"3\",\"4703.7815\",\"1527.4713\",\"359.9\",\"2017-01-19 16:19:04.742113\"\n" +
+            "\"2\",\"3\",\"4703.7815\",\"1527.4714\",\"359.9\",\"2017-01-19 16:19:05.741890\"\n";
+        assertTrue(factory.canCreateFromSample(sample));
+        String charset = randomFrom(POSSIBLE_CHARSETS);
+        String timezone = randomFrom(POSSIBLE_TIMEZONES);
+        SeparatedValuesLogFileStructure structure = (SeparatedValuesLogFileStructure) factory.createFromSample(TEST_FILE_NAME,
+            TEST_INDEX_NAME, "positions", timezone, sample, charset);
+        structure.createConfigs();
+        if (charset.equals(StandardCharsets.UTF_8.name())) {
+            assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
+        } else {
+            assertThat(structure.getFilebeatToLogstashConfig(), containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
+        }
+        assertThat(structure.getFilebeatToLogstashConfig(), containsString("exclude_lines: " +
+            "['^\"?pos_id\"?,\"?trip_id\"?,\"?latitude\"?,\"?longitude\"?,\"?altitude\"?,\"?timestamp\"?']\n"));
+        assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("multiline.pattern:")));
+        assertThat(structure.getLogstashFromFilebeatConfig(),
+            containsString("match => [ \"timestamp\", \"YYYY-MM-dd HH:mm:ss.SSSSSS\" ]\n"));
+        assertThat(structure.getLogstashFromFilebeatConfig(),
+            containsString("columns => [ \"pos_id\", \"trip_id\", \"latitude\", \"longitude\", \"altitude\", \"timestamp\" ]\n"));
+        if (charset.equals(StandardCharsets.UTF_8.name())) {
+            assertThat(structure.getLogstashFromFileConfig(), not(containsString("charset =>")));
+        } else {
+            assertThat(structure.getLogstashFromFileConfig(), containsString("charset => \"" + charset + "\""));
+        }
+        assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"timestamp\", \"YYYY-MM-dd HH:mm:ss.SSSSSS\" ]\n"));
+        if (timezone == null) {
+            assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
+        } else {
+            assertThat(structure.getLogstashFromFileConfig(), containsString("timezone => \"" + timezone + "\"\n"));
+        }
     }
 
     public void testFindHeaderFromSampleGivenHeaderInSample() throws IOException {

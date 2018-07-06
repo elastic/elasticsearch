@@ -687,6 +687,13 @@ public class RestHighLevelClientTests extends ESTestCase {
             "nodes.usage",
             "search_shards",
         };
+        Set<String> deprecatedMethods = new HashSet<>();
+        deprecatedMethods.add("indices.force_merge");
+        deprecatedMethods.add("multi_get");
+        deprecatedMethods.add("multi_search");
+        deprecatedMethods.add("search_scroll");
+
+
         ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("/rest-api-spec/api");
         Set<String> apiSpec = restSpec.getApis().stream().map(ClientYamlSuiteRestApi::getName).collect(Collectors.toSet());
 
@@ -742,7 +749,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 }
 
                 boolean remove = apiSpec.remove(apiName);
-                if (remove == false) {
+                if (remove == false && deprecatedMethods.contains(apiName) == false) {
                     apiNotFound.add(apiName);
                 }
             }

@@ -100,7 +100,7 @@ public class ClientYamlSuiteRestSpec {
             while (e.hasMoreElements()) {
                 JarEntry entry = e.nextElement();
                 if (entry.getName().startsWith( classpathPrefix) && entry.getName().endsWith(".json")) {
-                    parseSpecFile(restApiParser, entry.getName(), restSpec);
+                    parseSpecFile(restApiParser, null/*entry.getName()?*/, restSpec);
                 }
             }
         } else {

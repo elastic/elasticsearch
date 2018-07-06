@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.lookup.PainlessLookup.Cast;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -49,8 +49,8 @@ public final class EAssignment extends AExpression {
     private boolean cat = false;
     private Class<?> promote = null;
     private Class<?> shiftDistance; // for shifts, the RHS is promoted independently
-    private Cast there = null;
-    private Cast back = null;
+    private PainlessCast there = null;
+    private PainlessCast back = null;
 
     public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean pre, boolean post, Operation operation) {
         super(location);

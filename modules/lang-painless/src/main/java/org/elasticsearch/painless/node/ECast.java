@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookup.Cast;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -35,9 +35,9 @@ import java.util.Set;
 final class ECast extends AExpression {
 
     private AExpression child;
-    private final Cast cast;
+    private final PainlessCast cast;
 
-    ECast(Location location, AExpression child, Cast cast) {
+    ECast(Location location, AExpression child, PainlessCast cast) {
         super(location);
 
         this.child = Objects.requireNonNull(child);

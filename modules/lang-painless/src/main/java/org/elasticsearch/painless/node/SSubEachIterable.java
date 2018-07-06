@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookup.Cast;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.lookup.PainlessLookup.def;
@@ -51,7 +51,7 @@ final class SSubEachIterable extends AStatement {
     private final SBlock block;
     private final Variable variable;
 
-    private Cast cast = null;
+    private PainlessCast cast = null;
     private Variable iterator = null;
     private PainlessMethod method = null;
 

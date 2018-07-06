@@ -35,8 +35,8 @@ dependencies {
 
     // security deps
     compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
-    compile 'org.bouncycastle:bcprov-jdk15on:1.58'
-    compile 'org.bouncycastle:bcpkix-jdk15on:1.58'
+    compile 'org.bouncycastle:bcprov-jdk15on:1.59'
+    compile 'org.bouncycastle:bcpkix-jdk15on:1.59'
     compile project(path: ':modules:transport-netty4', configuration: 'runtime')
 
     testCompile 'org.elasticsearch:securemock:1.2'

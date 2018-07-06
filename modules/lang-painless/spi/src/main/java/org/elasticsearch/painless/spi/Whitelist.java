@@ -24,13 +24,14 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Whitelist contains data structures designed to be used to generate a white-list of Java classes,
+ * Whitelist contains data structures designed to be used to generate a whitelist of Java classes,
  * constructors, methods, and fields that can be used within a Painless script at both compile-time
  * and run-time.
  *
- * A white-list consists of several pieces with {@link Struct}s as the top level.  Each {@link Struct}
- * will contain zero-to-many {@link Constructor}s, {@link Method}s, and {@link Field}s which are what
- * will be available with a Painless script.  See each individual white-list object for more detail.
+ * A whitelist consists of several pieces with {@link WhitelistClass}s as the top level.  Each
+ * {@link WhitelistClass} will contain zero-to-many {@link Constructor}s, {@link Method}s, and
+ * {@link Field}s which are what will be available with a Painless script.  See each individual
+ * whitelist object for more detail.
  */
 public final class Whitelist {
 
@@ -55,66 +56,14 @@ public final class Whitelist {
         Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Whitelist.class, BASE_WHITELIST_FILES));
 
     /**
-     * Struct represents the equivalent of a Java class in Painless complete with super classes,
-     * constructors, methods, and fields.  In Painless a class is known as a struct primarily to avoid
-     * naming conflicts internally.  There must be a one-to-one mapping of struct names to Java classes.
-     * Though, since multiple white-lists may be combined into a single white-list for a specific
-     * {@link org.elasticsearch.script.ScriptContext}, as long as multiple structs representing the same
-     * Java class have the same Painless type name and have legal constructor/method overloading they
-     * can be merged together.
-     *
-     * Structs in Painless allow for arity overloading for constructors and methods.  Arity overloading
-     * means that multiple constructors are allowed for a single struct as long as they have a different
-     * number of parameter types, and multiples methods with the same name are allowed for a single struct
-     * as long as they have the same return type and a different number of parameter types.
-     *
-     * Structs will automatically extend other white-listed structs if the Java class they represent is a
-     * subclass of other structs including Java interfaces.
-     */
-    public static final class Struct {
-
-        /** Information about where this struct was white-listed from.  Can be used for error messages. */
-        public final String origin;
-
-        /** The Java class name this struct represents. */
-        public final String javaClassName;
-
-        /**
-         * Allow the Java class name to only be specified as the fully-qualified name.
-         */
-        public final boolean onlyFQNJavaClassName;
-
-        /** The {@link List} of white-listed ({@link Constructor}s) available to this struct. */
-        public final List<Constructor> whitelistConstructors;
-
-        /** The {@link List} of white-listed ({@link Method}s) available to this struct. */
-        public final List<Method> whitelistMethods;
-
-        /** The {@link List} of white-listed ({@link Field}s) available to this struct. */
-        public final List<Field> whitelistFields;
-
-        /** Standard constructor. All values must be not {@code null}. */
-        public Struct(String origin, String javaClassName, boolean onlyFQNJavaClassName,
-                      List<Constructor> whitelistConstructors, List<Method> whitelistMethods, List<Field> whitelistFields) {
-            this.origin = Objects.requireNonNull(origin);
-            this.javaClassName = Objects.requireNonNull(javaClassName);
-            this.onlyFQNJavaClassName = onlyFQNJavaClassName;
-
-            this.whitelistConstructors = Collections.unmodifiableList(Objects.requireNonNull(whitelistConstructors));
-            this.whitelistMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistMethods));
-            this.whitelistFields = Collections.unmodifiableList(Objects.requireNonNull(whitelistFields));
-        }
-    }
-
-    /**
-     * Constructor represents the equivalent of a Java constructor available as a white-listed struct
-     * constructor within Painless.  Constructors for Painless structs may be accessed exactly as
-     * constructors for Java classes are using the 'new' keyword.  Painless structs may have multiple
-     * constructors as long as they comply with arity overloading described for {@link Struct}.
+     * Constructor represents the equivalent of a Java constructor available as a whitelisted class
+     * constructor within Painless.  Constructors for Painless classes may be accessed exactly as
+     * constructors for Java classes are using the 'new' keyword.  Painless classes may have multiple
+     * constructors as long as they comply with arity overloading described for {@link WhitelistClass}.
      */
     public static final class Constructor {
 
-        /** Information about where this constructor was white-listed from.  Can be used for error messages. */
+        /** Information about where this constructor was whitelisted from.  Can be used for error messages. */
         public final String origin;
 
         /**
@@ -131,20 +80,20 @@ public final class Whitelist {
     }
 
     /**
-     * Method represents the equivalent of a Java method available as a white-listed struct method
-     * within Painless.  Methods for Painless structs may be accessed exactly as methods for Java classes
-     * are using the '.' operator on an existing struct variable/field.  Painless structs may have multiple
+     * Method represents the equivalent of a Java method available as a whitelisted class method
+     * within Painless.  Methods for Painless classes may be accessed exactly as methods for Java classes
+     * are using the '.' operator on an existing class variable/field.  Painless classes may have multiple
      * methods with the same name as long as they comply with arity overloading described for {@link Method}.
      *
-     * Structs may also have additional methods that are not part of the Java class the struct represents -
-     * these are known as augmented methods.  An augmented method can be added to a struct as a part of any
+     * Classes may also have additional methods that are not part of the Java class the class represents -
+     * these are known as augmented methods.  An augmented method can be added to a class as a part of any
      * Java class as long as the method is static and the first parameter of the method is the Java class
-     * represented by the struct.  Note that the augmented method's parent Java class does not need to be
-     * white-listed.
+     * represented by the class.  Note that the augmented method's parent Java class does not need to be
+     * whitelisted.
      */
     public static class Method {
 
-        /** Information about where this method was white-listed from.  Can be used for error messages. */
+        /** Information about where this method was whitelisted from.  Can be used for error messages. */
         public final String origin;
 
         /**
@@ -183,13 +132,13 @@ public final class Whitelist {
     }
 
     /**
-     * Field represents the equivalent of a Java field available as a white-listed struct field
-     * within Painless.  Fields for Painless structs may be accessed exactly as fields for Java classes
-     * are using the '.' operator on an existing struct variable/field.
+     * Field represents the equivalent of a Java field available as a whitelisted class field
+     * within Painless.  Fields for Painless classes may be accessed exactly as fields for Java classes
+     * are using the '.' operator on an existing class variable/field.
      */
     public static class Field {
 
-        /** Information about where this method was white-listed from.  Can be used for error messages. */
+        /** Information about where this method was whitelisted from.  Can be used for error messages. */
         public final String origin;
 
         /** The Java field name used to look up the Java field through reflection. */
@@ -206,14 +155,14 @@ public final class Whitelist {
         }
     }
 
-    /** The {@link ClassLoader} used to look up the white-listed Java classes, constructors, methods, and fields. */
+    /** The {@link ClassLoader} used to look up the whitelisted Java classes, constructors, methods, and fields. */
     public final ClassLoader javaClassLoader;
 
-    /** The {@link List} of all the white-listed Painless structs. */
-    public final List<Struct> whitelistStructs;
+    /** The {@link List} of all the whitelisted Painless classes. */
+    public final List<WhitelistClass> whitelistStructs;
 
     /** Standard constructor.  All values must be not {@code null}. */
-    public Whitelist(ClassLoader javaClassLoader, List<Struct> whitelistStructs) {
+    public Whitelist(ClassLoader javaClassLoader, List<WhitelistClass> whitelistStructs) {
         this.javaClassLoader = Objects.requireNonNull(javaClassLoader);
         this.whitelistStructs = Collections.unmodifiableList(Objects.requireNonNull(whitelistStructs));
     }

@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.lookup;
 
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistClass;
 import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodHandle;
@@ -237,7 +238,7 @@ public final class PainlessLookup {
             // first iteration collects all the Painless type names that
             // are used for validation during the second iteration
             for (Whitelist whitelist : whitelists) {
-                for (Whitelist.Struct whitelistStruct : whitelist.whitelistStructs) {
+                for (WhitelistClass whitelistStruct : whitelist.whitelistStructs) {
                     String painlessTypeName = whitelistStruct.javaClassName.replace('$', '.');
                     PainlessClass painlessStruct = javaClassesToPainlessStructs.get(painlessTypesToJavaClasses.get(painlessTypeName));
 
@@ -258,7 +259,7 @@ public final class PainlessLookup {
             // be available in Painless along with validating they exist and all their types have
             // been white-listed during the first iteration
             for (Whitelist whitelist : whitelists) {
-                for (Whitelist.Struct whitelistStruct : whitelist.whitelistStructs) {
+                for (WhitelistClass whitelistStruct : whitelist.whitelistStructs) {
                     String painlessTypeName = whitelistStruct.javaClassName.replace('$', '.');
 
                     for (Whitelist.Constructor whitelistConstructor : whitelistStruct.whitelistConstructors) {
@@ -351,7 +352,7 @@ public final class PainlessLookup {
         }
     }
 
-    private void addStruct(ClassLoader whitelistClassLoader, Whitelist.Struct whitelistStruct) {
+    private void addStruct(ClassLoader whitelistClassLoader, WhitelistClass whitelistStruct) {
         String painlessTypeName = whitelistStruct.javaClassName.replace('$', '.');
         String importedPainlessTypeName = painlessTypeName;
 

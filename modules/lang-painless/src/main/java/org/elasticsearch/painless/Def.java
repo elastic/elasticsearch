@@ -21,7 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessLookup.Struct;
+import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessMethodKey;
 
 import java.lang.invoke.CallSite;
@@ -187,7 +187,7 @@ public final class Def {
         PainlessMethodKey key = new PainlessMethodKey(name, arity);
         // check whitelist for matching method
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            Struct struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
+            PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
 
             if (struct != null) {
                 PainlessMethod method = struct.methods.get(key);
@@ -418,7 +418,7 @@ public final class Def {
     static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            Struct struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
+            PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.getters.get(name);
@@ -489,7 +489,7 @@ public final class Def {
     static MethodHandle lookupSetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            Struct struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
+            PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.setters.get(name);

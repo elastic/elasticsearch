@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessMethodKey;
@@ -171,7 +172,7 @@ public class FunctionRef {
         }
 
         // lookup requested method
-        PainlessLookup.Struct struct = painlessLookup.getPainlessStructFromJavaClass(painlessLookup.getJavaClassFromPainlessType(type));
+        PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(painlessLookup.getJavaClassFromPainlessType(type));
         final PainlessMethod impl;
         // ctor ref
         if ("new".equals(call)) {

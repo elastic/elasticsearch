@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessMethodKey;
-import org.elasticsearch.painless.lookup.PainlessLookup.Struct;
+import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -71,7 +71,7 @@ public final class PCallInvoke extends AExpression {
             throw createError(new IllegalArgumentException("Illegal call [" + name + "] on array type."));
         }
 
-        Struct struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
+        PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
 
         if (prefix.actual.isPrimitive()) {
             struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(PainlessLookup.getBoxedType(prefix.actual));

@@ -23,14 +23,14 @@ import java.lang.invoke.MethodHandle;
 
 public final class PainlessField {
     public final String name;
-    public final PainlessLookup.Struct owner;
+    public final PainlessClass owner;
     public final Class<?> clazz;
     public final String javaName;
     public final int modifiers;
     public final MethodHandle getter;
     public final MethodHandle setter;
 
-    PainlessField(String name, String javaName, PainlessLookup.Struct owner, Class<?> clazz, int modifiers,
+    PainlessField(String name, String javaName, PainlessClass owner, Class<?> clazz, int modifiers,
                   MethodHandle getter, MethodHandle setter) {
         this.name = name;
         this.javaName = javaName;

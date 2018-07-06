@@ -30,7 +30,7 @@ import java.util.List;
 
 public class PainlessMethod {
     public final String name;
-    public final PainlessLookup.Struct owner;
+    public final PainlessClass owner;
     public final Class<?> augmentation;
     public final Class<?> rtn;
     public final List<Class<?>> arguments;
@@ -38,7 +38,7 @@ public class PainlessMethod {
     public final int modifiers;
     public final MethodHandle handle;
 
-    public PainlessMethod(String name, PainlessLookup.Struct owner, Class<?> augmentation, Class<?> rtn, List<Class<?>> arguments,
+    public PainlessMethod(String name, PainlessClass owner, Class<?> augmentation, Class<?> rtn, List<Class<?>> arguments,
                           org.objectweb.asm.commons.Method method, int modifiers, MethodHandle handle) {
         this.name = name;
         this.augmentation = augmentation;

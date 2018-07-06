@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessLookup.Struct;
+import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -35,13 +35,13 @@ import java.util.Set;
  */
 final class PSubMapShortcut extends AStoreable {
 
-    private final Struct struct;
+    private final PainlessClass struct;
     private AExpression index;
 
     private PainlessMethod getter;
     private PainlessMethod setter;
 
-    PSubMapShortcut(Location location, Struct struct, AExpression index) {
+    PSubMapShortcut(Location location, PainlessClass struct, AExpression index) {
         super(location);
 
         this.struct = Objects.requireNonNull(struct);

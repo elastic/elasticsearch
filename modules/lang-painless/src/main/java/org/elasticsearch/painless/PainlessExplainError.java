@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.api.Debug;
+import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.script.ScriptException;
 
@@ -55,7 +56,7 @@ public class PainlessExplainError extends Error {
         if (objectToExplain != null) {
             toString = objectToExplain.toString();
             javaClassName = objectToExplain.getClass().getName();
-            PainlessLookup.Struct struct = painlessLookup.getPainlessStructFromJavaClass(objectToExplain.getClass());
+            PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(objectToExplain.getClass());
             if (struct != null) {
                 painlessClassName = struct.name;
             }

@@ -73,7 +73,9 @@ public final class RemoveProcessor extends AbstractProcessor {
             final List<String> fields = new ArrayList<>();
             final Object field = ConfigurationUtils.readObject(TYPE, processorTag, config, "field");
             if (field instanceof List) {
-                fields.addAll((List) field);
+                @SuppressWarnings("unchecked")
+                List<String> stringList = (List<String>) field;
+                fields.addAll(stringList);
             } else {
                 fields.add((String) field);
             }

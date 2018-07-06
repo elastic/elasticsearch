@@ -49,7 +49,7 @@ public class PutPrivilegesRequestTests extends ESTestCase {
     public void testValidation() {
         // wildcard app name
         final ApplicationPrivilegeDescriptor wildcardApp = descriptor("*", "all", "*");
-        assertValidationFailure(request(wildcardApp), "Application names must match");
+        assertValidationFailure(request(wildcardApp), "Application names may not contain");
 
         // invalid priv names
         final ApplicationPrivilegeDescriptor spaceName = descriptor("app", "r e a d", "read/*");
@@ -68,7 +68,8 @@ public class PutPrivilegesRequestTests extends ESTestCase {
 
         // mixed
         assertValidationFailure(request(wildcardApp, numericName, reservedMetadata, badAction),
-            "Application names must match", "Application privilege names must match", "metadata keys may not start", "must contain one of");
+            "Application names may not contain", "Application privilege names must match", "metadata keys may not start",
+            "must contain one of");
     }
 
     private ApplicationPrivilegeDescriptor descriptor(String application, String name, String... actions) {

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportService;
@@ -94,12 +95,19 @@ public abstract class FaultDetection extends AbstractComponent implements Closea
 
     private class FDConnectionListener implements TransportConnectionListener {
         @Override
-        public void onNodeConnected(DiscoveryNode node) {
-        }
-
-        @Override
         public void onNodeDisconnected(DiscoveryNode node) {
-            handleTransportDisconnect(node);
+            AbstractRunnable runnable = new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("failed to handle transport disconnect for node: {}", node);
+                }
+
+                @Override
+                protected void doRun() {
+                    handleTransportDisconnect(node);
+                }
+            };
+            threadPool.generic().execute(runnable);
         }
     }
 

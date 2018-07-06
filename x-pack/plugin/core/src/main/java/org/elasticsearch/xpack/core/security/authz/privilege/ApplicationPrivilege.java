@@ -29,8 +29,8 @@ import java.util.stream.Collectors;
  */
 public final class ApplicationPrivilege extends Privilege {
 
-    private static final Pattern VALID_APPLICATION = Pattern.compile("^[a-z][A-Za-z0-9_-]{2,}$");
-    private static final Pattern VALID_APPLICATION_OR_WILDCARD = Pattern.compile("^[a-z*][A-Za-z0-9_*-]*");
+    private static final Pattern VALID_APPLICATION_PREFIX = Pattern.compile("^[a-z][A-Za-z0-9]*$");
+    private static final Pattern WHITESPACE = Pattern.compile("[\\v\\h]");
     private static final Pattern VALID_NAME = Pattern.compile("^[a-z][a-zA-Z0-9_.-]*$");
 
     /**
@@ -69,7 +69,7 @@ public final class ApplicationPrivilege extends Privilege {
      * @throws IllegalArgumentException if the name is not valid
      */
     public static void validateApplicationName(String application) {
-        validateApplicationName(application, VALID_APPLICATION);
+        validateApplicationName(application, false);
     }
 
     /**
@@ -78,13 +78,61 @@ public final class ApplicationPrivilege extends Privilege {
      * @throws IllegalArgumentException if the name is not valid
      */
     public static void validateApplicationNameOrWildcard(String application) {
-        validateApplicationName(application, VALID_APPLICATION_OR_WILDCARD);
+        validateApplicationName(application, true);
     }
 
-    private static void validateApplicationName(String application, Pattern pattern) {
-        if (pattern.matcher(application).matches() == false) {
-            throw new IllegalArgumentException("Application names must match the pattern " + pattern.pattern()
-                + " (but was '" + application + "')");
+    /**
+     * Validates that an application name matches the following rules:
+     * - consist of a "prefix", optionally followed by either "-" or "_" and a suffix
+     * - the prefix must begin with a lowercase ASCII letter
+     * - the prefix only contain ASCII letter or digits
+     * - the prefix must be at least 3 characters long
+     * - the suffix must only contain {@link Strings#validFileName valid filename} characters
+     * - no part of the name may contain whitespace
+     * If {@code allowWildcard} is true, then the names that end with a '*', and would match a valid
+     * application name are also accepted.
+     */
+    private static void validateApplicationName(String application, boolean allowWildcard) {
+        if (Strings.isEmpty(application)) {
+            throw new IllegalArgumentException("Application names cannot be blank");
+        }
+        final int asterisk = application.indexOf('*');
+        if (asterisk != -1) {
+            if (allowWildcard == false) {
+                throw new IllegalArgumentException("Application names may not contain '*' (found '" + application + "')");
+            }
+            if(application.equals("*")) {
+                // this is allowed and short-circuiting here makes the later validation simpler
+                return;
+            }
+            if (asterisk != application.length() - 1) {
+                throw new IllegalArgumentException("Application name patterns only support trailing wildcards (found '" + application
+                    + "')");
+            }
+        }
+        if (WHITESPACE.matcher(application).find()) {
+            throw new IllegalArgumentException("Application names may not contain whitespace (found '" + application + "')");
+        }
+
+        final String[] parts = application.split("[_-]", 2);
+        String prefix = parts[0];
+        if (prefix.endsWith("*")) {
+            prefix = prefix.substring(0, prefix.length() - 1);
+        }
+        if (VALID_APPLICATION_PREFIX.matcher(prefix).matches() == false) {
+            throw new IllegalArgumentException("An application name prefix must match the pattern " + VALID_APPLICATION_PREFIX.pattern()
+                + " (found '" + prefix + "')");
+        }
+        if (prefix.length() < 3 && asterisk == -1) {
+            throw new IllegalArgumentException("An application name prefix must be at least 3 characters long (found '" + prefix + "')");
+        }
+
+        if (parts.length > 1) {
+            final String suffix = parts[1];
+            if (Strings.validFileName(suffix) == false) {
+                throw new IllegalArgumentException("An application name suffix may not contain any of the characters '" +
+                    Strings.collectionToDelimitedString(Strings.INVALID_FILENAME_CHARS, "") + "' (found '" + suffix + "')");
+            }
         }
     }
 

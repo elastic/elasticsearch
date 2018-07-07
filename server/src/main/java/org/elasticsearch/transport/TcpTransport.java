@@ -1781,14 +1781,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public void onConnectionOpened(Connection nodeChannels) {
+        public void onConnectionOpened(Transport.Connection nodeChannels) {
             for (TransportConnectionListener listener : listeners) {
                 listener.onConnectionOpened(nodeChannels);
             }
         }
 
         @Override
-        public void onConnectionClosed(Connection nodeChannels) {
+        public void onConnectionClosed(Transport.Connection nodeChannels) {
             for (TransportConnectionListener listener : listeners) {
                 listener.onConnectionClosed(nodeChannels);
             }

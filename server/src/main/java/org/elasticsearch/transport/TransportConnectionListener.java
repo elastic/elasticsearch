@@ -41,7 +41,6 @@ public interface TransportConnectionListener {
     }
 
     interface Connection {
-
         /**
          * Called once a connection was opened
          * @param connection the connection

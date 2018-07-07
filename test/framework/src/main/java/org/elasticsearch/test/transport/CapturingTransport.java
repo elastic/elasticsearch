@@ -21,7 +21,6 @@ package org.elasticsearch.test.transport;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -45,7 +43,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;

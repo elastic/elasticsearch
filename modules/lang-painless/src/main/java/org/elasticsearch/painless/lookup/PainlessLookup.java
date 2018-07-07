@@ -50,13 +50,6 @@ public final class PainlessLookup {
 
     private static final Pattern TYPE_NAME_PATTERN = Pattern.compile("^[_a-zA-Z][._a-zA-Z0-9]*$");
 
-    /** Marker class for def type to be used during type analysis. */
-    public static final class def {
-        private def() {
-
-        }
-    }
-
     public static Class<?> getBoxedType(Class<?> clazz) {
         if (clazz == boolean.class) {
             return Boolean.class;

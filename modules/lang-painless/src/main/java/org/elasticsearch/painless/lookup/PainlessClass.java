@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.lookup;
 
+import org.objectweb.asm.Type;
+
 import java.lang.invoke.MethodHandle;
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,11 +29,11 @@ import java.util.Map;
 public final class PainlessClass {
     public final String name;
     public final Class<?> clazz;
-    public final org.objectweb.asm.Type type;
+    public final Type type;
 
-    public final Map<PainlessMethodKey, PainlessMethod> constructors;
-    public final Map<PainlessMethodKey, PainlessMethod> staticMethods;
-    public final Map<PainlessMethodKey, PainlessMethod> methods;
+    public final Map<String, PainlessMethod> constructors;
+    public final Map<String, PainlessMethod> staticMethods;
+    public final Map<String, PainlessMethod> methods;
 
     public final Map<String, PainlessField> staticMembers;
     public final Map<String, PainlessField> members;
@@ -41,7 +43,7 @@ public final class PainlessClass {
 
     public final PainlessMethod functionalMethod;
 
-    PainlessClass(String name, Class<?> clazz, org.objectweb.asm.Type type) {
+    PainlessClass(String name, Class<?> clazz, Type type) {
         this.name = name;
         this.clazz = clazz;
         this.type = type;
@@ -59,45 +61,25 @@ public final class PainlessClass {
         functionalMethod = null;
     }
 
-    private PainlessClass(PainlessClass struct, PainlessMethod functionalMethod) {
-        name = struct.name;
-        clazz = struct.clazz;
-        type = struct.type;
+    PainlessClass(PainlessClass painlessClass, PainlessMethod functionalMethod) {
+        name = painlessClass.name;
+        clazz = painlessClass.clazz;
+        type = painlessClass.type;
 
-        constructors = Collections.unmodifiableMap(struct.constructors);
-        staticMethods = Collections.unmodifiableMap(struct.staticMethods);
-        methods = Collections.unmodifiableMap(struct.methods);
+        constructors = Collections.unmodifiableMap(painlessClass.constructors);
+        staticMethods = Collections.unmodifiableMap(painlessClass.staticMethods);
+        methods = Collections.unmodifiableMap(painlessClass.methods);
 
-        staticMembers = Collections.unmodifiableMap(struct.staticMembers);
-        members = Collections.unmodifiableMap(struct.members);
+        staticMembers = Collections.unmodifiableMap(painlessClass.staticMembers);
+        members = Collections.unmodifiableMap(painlessClass.members);
 
-        getters = Collections.unmodifiableMap(struct.getters);
-        setters = Collections.unmodifiableMap(struct.setters);
+        getters = Collections.unmodifiableMap(painlessClass.getters);
+        setters = Collections.unmodifiableMap(painlessClass.setters);
 
         this.functionalMethod = functionalMethod;
     }
 
     public PainlessClass freeze(PainlessMethod functionalMethod) {
         return new PainlessClass(this, functionalMethod);
-    }
-
-    @Override
-    public boolean equals(Object object) {
-        if (this == object) {
-            return true;
-        }
-
-        if (object == null || getClass() != object.getClass()) {
-            return false;
-        }
-
-        PainlessClass struct = (PainlessClass)object;
-
-        return name.equals(struct.name);
-    }
-
-    @Override
-    public int hashCode() {
-        return name.hashCode();
     }
 }

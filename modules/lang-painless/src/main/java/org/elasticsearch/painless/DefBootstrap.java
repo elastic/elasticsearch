@@ -25,7 +25,6 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.MutableCallSite;
 import java.lang.invoke.WrongMethodTypeException;
@@ -106,19 +105,20 @@ public final class DefBootstrap {
         static final int MAX_DEPTH = 5;
 
         private final PainlessLookup painlessLookup;
-        private final Lookup lookup;
+        private final MethodHandles.Lookup methodHandlesLookup;
         private final String name;
         private final int flavor;
         private final Object[] args;
         int depth; // pkg-protected for testing
 
-        PIC(PainlessLookup painlessLookup, Lookup lookup, String name, MethodType type, int initialDepth, int flavor, Object[] args) {
+        PIC(PainlessLookup painlessLookup, MethodHandles.Lookup methodHandlesLookup,
+                String name, MethodType type, int initialDepth, int flavor, Object[] args) {
             super(type);
             if (type.parameterType(0) != Object.class) {
                 throw new BootstrapMethodError("The receiver type (1st arg) of invokedynamic descriptor must be Object.");
             }
             this.painlessLookup = painlessLookup;
-            this.lookup = lookup;
+            this.methodHandlesLookup = methodHandlesLookup;
             this.name = name;
             this.flavor = flavor;
             this.args = args;
@@ -145,7 +145,7 @@ public final class DefBootstrap {
         private MethodHandle lookup(int flavor, String name, Class<?> receiver) throws Throwable {
             switch(flavor) {
                 case METHOD_CALL:
-                    return Def.lookupMethod(painlessLookup, lookup, type(), receiver, name, args);
+                    return Def.lookupMethod(painlessLookup, methodHandlesLookup, type(), receiver, name, args);
                 case LOAD:
                     return Def.lookupGetter(painlessLookup, receiver, name);
                 case STORE:
@@ -157,7 +157,7 @@ public final class DefBootstrap {
                 case ITERATOR:
                     return Def.lookupIterator(receiver);
                 case REFERENCE:
-                    return Def.lookupReference(painlessLookup, lookup, (String) args[0], receiver, name);
+                    return Def.lookupReference(painlessLookup, methodHandlesLookup, (String) args[0], receiver, name);
                 case INDEX_NORMALIZE:
                     return Def.lookupIndexNormalize(receiver);
                 default: throw new AssertionError();
@@ -217,17 +217,17 @@ public final class DefBootstrap {
         private static final MethodHandle FALLBACK;
         private static final MethodHandle MEGAMORPHIC_LOOKUP;
         static {
-            final Lookup lookup = MethodHandles.lookup();
-            final Lookup publicLookup = MethodHandles.publicLookup();
+            final MethodHandles.Lookup methodHandlesLookup = MethodHandles.lookup();
+            final MethodHandles.Lookup publicMethodHandlesLookup = MethodHandles.publicLookup();
             try {
-                CHECK_CLASS = lookup.findStatic(lookup.lookupClass(), "checkClass",
-                                              MethodType.methodType(boolean.class, Class.class, Object.class));
-                FALLBACK = lookup.findVirtual(lookup.lookupClass(), "fallback",
+                CHECK_CLASS = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(), "checkClass",
+                        MethodType.methodType(boolean.class, Class.class, Object.class));
+                FALLBACK = methodHandlesLookup.findVirtual(methodHandlesLookup.lookupClass(), "fallback",
                         MethodType.methodType(Object.class, Object[].class));
-                MethodHandle mh = publicLookup.findVirtual(ClassValue.class, "get",
+                MethodHandle mh = publicMethodHandlesLookup.findVirtual(ClassValue.class, "get",
                         MethodType.methodType(Object.class, Class.class));
                 mh = MethodHandles.filterArguments(mh, 1,
-                        publicLookup.findVirtual(Object.class, "getClass", MethodType.methodType(Class.class)));
+                        publicMethodHandlesLookup.findVirtual(Object.class, "getClass", MethodType.methodType(Class.class)));
                 MEGAMORPHIC_LOOKUP = mh.asType(mh.type().changeReturnType(MethodHandle.class));
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
@@ -403,16 +403,16 @@ public final class DefBootstrap {
         private static final MethodHandle CHECK_BOTH;
         private static final MethodHandle FALLBACK;
         static {
-            final Lookup lookup = MethodHandles.lookup();
+            final MethodHandles.Lookup methodHandlesLookup = MethodHandles.lookup();
             try {
-                CHECK_LHS = lookup.findStatic(lookup.lookupClass(), "checkLHS",
-                                              MethodType.methodType(boolean.class, Class.class, Object.class));
-                CHECK_RHS = lookup.findStatic(lookup.lookupClass(), "checkRHS",
-                                              MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
-                CHECK_BOTH = lookup.findStatic(lookup.lookupClass(), "checkBoth",
-                                              MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
-                FALLBACK = lookup.findVirtual(lookup.lookupClass(), "fallback",
-                                              MethodType.methodType(Object.class, Object[].class));
+                CHECK_LHS = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(), "checkLHS",
+                        MethodType.methodType(boolean.class, Class.class, Object.class));
+                CHECK_RHS = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(), "checkRHS",
+                        MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
+                CHECK_BOTH = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(), "checkBoth",
+                        MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
+                FALLBACK = methodHandlesLookup.findVirtual(methodHandlesLookup.lookupClass(), "fallback",
+                        MethodType.methodType(Object.class, Object[].class));
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }
@@ -432,7 +432,7 @@ public final class DefBootstrap {
      * <p>
      * see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
      */
-    public static CallSite bootstrap(PainlessLookup painlessLookup, Lookup lookup, String name,
+    public static CallSite bootstrap(PainlessLookup painlessLookup, MethodHandles.Lookup methodHandlesLookup, String name,
                                      MethodType type, int initialDepth, int flavor, Object... args) {
         // validate arguments
         switch(flavor) {
@@ -452,7 +452,7 @@ public final class DefBootstrap {
                 if (args.length != numLambdas + 1) {
                     throw new BootstrapMethodError("Illegal number of parameters: expected " + numLambdas + " references");
                 }
-                return new PIC(painlessLookup, lookup, name, type, initialDepth, flavor, args);
+                return new PIC(painlessLookup, methodHandlesLookup, name, type, initialDepth, flavor, args);
             case LOAD:
             case STORE:
             case ARRAY_LOAD:
@@ -462,7 +462,7 @@ public final class DefBootstrap {
                 if (args.length > 0) {
                     throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
                 }
-                return new PIC(painlessLookup, lookup, name, type, initialDepth, flavor, args);
+                return new PIC(painlessLookup, methodHandlesLookup, name, type, initialDepth, flavor, args);
             case REFERENCE:
                 if (args.length != 1) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
@@ -470,7 +470,7 @@ public final class DefBootstrap {
                 if (args[0] instanceof String == false) {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
                 }
-                return new PIC(painlessLookup, lookup, name, type, initialDepth, flavor, args);
+                return new PIC(painlessLookup, methodHandlesLookup, name, type, initialDepth, flavor, args);
 
             // operators get monomorphic cache, with a generic impl for a fallback
             case UNARY_OPERATOR:

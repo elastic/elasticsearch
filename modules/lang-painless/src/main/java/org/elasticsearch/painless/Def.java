@@ -27,7 +27,6 @@ import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.util.BitSet;
 import java.util.Collections;
@@ -62,14 +61,15 @@ public final class Def {
      */
     @SuppressWarnings("unused") // getArrayLength() methods are are actually used, javac just does not know :)
     private static final class ArrayLengthHelper {
-        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+        private static final MethodHandles.Lookup PRIVATE_METHOD_HANDLES_LOOKUP = MethodHandles.lookup();
 
         private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
             Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
                 char[].class, float[].class, double[].class, Object[].class)
                 .collect(Collectors.toMap(Function.identity(), type -> {
                     try {
-                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "getArrayLength", MethodType.methodType(int.class, type));
+                        return PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(
+                                PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass(), "getArrayLength", MethodType.methodType(int.class, type));
                     } catch (ReflectiveOperationException e) {
                         throw new AssertionError(e);
                     }
@@ -118,17 +118,17 @@ public final class Def {
     static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
 
     static {
-        final Lookup lookup = MethodHandles.publicLookup();
+        final MethodHandles.Lookup methodHandlesLookup = MethodHandles.publicLookup();
 
         try {
-            MAP_GET  = lookup.findVirtual(Map.class , "get", MethodType.methodType(Object.class, Object.class));
-            MAP_PUT  = lookup.findVirtual(Map.class , "put", MethodType.methodType(Object.class, Object.class, Object.class));
-            LIST_GET = lookup.findVirtual(List.class, "get", MethodType.methodType(Object.class, int.class));
-            LIST_SET = lookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
-            ITERATOR = lookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class));
-            MAP_INDEX_NORMALIZE = lookup.findStatic(Def.class, "mapIndexNormalize",
+            MAP_GET  = methodHandlesLookup.findVirtual(Map.class , "get", MethodType.methodType(Object.class, Object.class));
+            MAP_PUT  = methodHandlesLookup.findVirtual(Map.class , "put", MethodType.methodType(Object.class, Object.class, Object.class));
+            LIST_GET = methodHandlesLookup.findVirtual(List.class, "get", MethodType.methodType(Object.class, int.class));
+            LIST_SET = methodHandlesLookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
+            ITERATOR = methodHandlesLookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class));
+            MAP_INDEX_NORMALIZE = methodHandlesLookup.findStatic(Def.class, "mapIndexNormalize",
                     MethodType.methodType(Object.class, Map.class, Object.class));
-            LIST_INDEX_NORMALIZE = lookup.findStatic(Def.class, "listIndexNormalize",
+            LIST_INDEX_NORMALIZE = methodHandlesLookup.findStatic(Def.class, "listIndexNormalize",
                     MethodType.methodType(int.class, List.class, int.class));
         } catch (final ReflectiveOperationException roe) {
             throw new AssertionError(roe);
@@ -138,7 +138,7 @@ public final class Def {
         // https://bugs.openjdk.java.net/browse/JDK-8156915
         MethodHandle arrayLengthMHFactory;
         try {
-            arrayLengthMHFactory = lookup.findStatic(MethodHandles.class, "arrayLength",
+            arrayLengthMHFactory = methodHandlesLookup.findStatic(MethodHandles.class, "arrayLength",
                 MethodType.methodType(MethodHandle.class, Class.class));
         } catch (final ReflectiveOperationException roe) {
             arrayLengthMHFactory = null;
@@ -223,7 +223,7 @@ public final class Def {
      * Otherwise it returns a handle to the matching method.
      * <p>
      * @param painlessLookup the whitelist
-     * @param lookup caller's lookup
+     * @param methodHandlesLookup caller's lookup
      * @param callSiteType callsite's type
      * @param receiverClass Class of the object to invoke the method on.
      * @param name Name of the method.
@@ -232,7 +232,7 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      * @throws Throwable if a method reference cannot be converted to an functional interface
      */
-    static MethodHandle lookupMethod(PainlessLookup painlessLookup, Lookup lookup, MethodType callSiteType,
+    static MethodHandle lookupMethod(PainlessLookup painlessLookup, MethodHandles.Lookup methodHandlesLookup, MethodType callSiteType,
                                      Class<?> receiverClass, String name, Object args[]) throws Throwable {
          String recipeString = (String) args[0];
          int numArguments = callSiteType.parameterCount();
@@ -286,7 +286,7 @@ public final class Def {
                      // the implementation is strongly typed, now that we know the interface type,
                      // we have everything.
                      filter = lookupReferenceInternal(painlessLookup,
-                                                      lookup,
+                                                      methodHandlesLookup,
                                                       interfaceType,
                                                       type,
                                                       call,
@@ -297,7 +297,7 @@ public final class Def {
                      // this cache). It won't blow up since we never nest here (just references)
                      MethodType nestedType = MethodType.methodType(interfaceType, captures);
                      CallSite nested = DefBootstrap.bootstrap(painlessLookup,
-                                                              lookup,
+                                                              methodHandlesLookup,
                                                               call,
                                                               nestedType,
                                                               0,
@@ -324,7 +324,7 @@ public final class Def {
       * This is just like LambdaMetaFactory, only with a dynamic type. The interface type is known,
       * so we simply need to lookup the matching implementation method based on receiver type.
       */
-    static MethodHandle lookupReference(PainlessLookup painlessLookup, Lookup lookup, String interfaceClass,
+    static MethodHandle lookupReference(PainlessLookup painlessLookup, MethodHandles.Lookup methodHandlesLookup, String interfaceClass,
                                         Class<?> receiverClass, String name) throws Throwable {
          Class<?> interfaceType = painlessLookup.getJavaClassFromPainlessType(interfaceClass);
          PainlessMethod interfaceMethod = painlessLookup.getPainlessStructFromJavaClass(interfaceType).functionalMethod;
@@ -333,12 +333,12 @@ public final class Def {
          }
          int arity = interfaceMethod.arguments.size();
          PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
-        return lookupReferenceInternal(painlessLookup, lookup, interfaceType, implMethod.owner.name,
+        return lookupReferenceInternal(painlessLookup, methodHandlesLookup, interfaceType, implMethod.owner.name,
                 implMethod.name, receiverClass);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
-    private static MethodHandle lookupReferenceInternal(PainlessLookup painlessLookup, Lookup lookup,
+    private static MethodHandle lookupReferenceInternal(PainlessLookup painlessLookup, MethodHandles.Lookup methodHandlesLookup,
                                                         Class<?> clazz, String type, String call, Class<?>... captures)
             throws Throwable {
          final FunctionRef ref;
@@ -352,9 +352,9 @@ public final class Def {
              int arity = interfaceMethod.arguments.size() + captures.length;
              final MethodHandle handle;
              try {
-                 MethodHandle accessor = lookup.findStaticGetter(lookup.lookupClass(),
-                                                                 getUserFunctionHandleFieldName(call, arity),
-                                                                 MethodHandle.class);
+                 MethodHandle accessor = methodHandlesLookup.findStaticGetter(methodHandlesLookup.lookupClass(),
+                                                                              getUserFunctionHandleFieldName(call, arity),
+                                                                              MethodHandle.class);
                  handle = (MethodHandle)accessor.invokeExact();
              } catch (NoSuchFieldException | IllegalAccessException e) {
                  // is it a synthetic method? If we generated the method ourselves, be more helpful. It can only fail
@@ -371,7 +371,7 @@ public final class Def {
              ref = new FunctionRef(painlessLookup, clazz, type, call, captures.length);
          }
          final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
-             lookup,
+             methodHandlesLookup,
              ref.interfaceMethodName,
              ref.factoryMethodType,
              ref.interfaceMethodType,
@@ -594,14 +594,15 @@ public final class Def {
      */
     @SuppressWarnings("unused") // iterator() methods are are actually used, javac just does not know :)
     private static final class ArrayIteratorHelper {
-        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+        private static final MethodHandles.Lookup PRIVATE_METHOD_HANDLES_LOOKUP = MethodHandles.lookup();
 
         private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
             Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
                 char[].class, float[].class, double[].class, Object[].class)
                 .collect(Collectors.toMap(Function.identity(), type -> {
                     try {
-                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "iterator", MethodType.methodType(Iterator.class, type));
+                        return PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(
+                                PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass(), "iterator", MethodType.methodType(Iterator.class, type));
                     } catch (ReflectiveOperationException e) {
                         throw new AssertionError(e);
                     }
@@ -862,14 +863,14 @@ public final class Def {
      */
     @SuppressWarnings("unused") // normalizeIndex() methods are are actually used, javac just does not know :)
     private static final class ArrayIndexNormalizeHelper {
-        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+        private static final MethodHandles.Lookup PRIVATE_METHOD_HANDLES_LOOKUP = MethodHandles.lookup();
 
         private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
             Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
                 char[].class, float[].class, double[].class, Object[].class)
                 .collect(Collectors.toMap(Function.identity(), type -> {
                     try {
-                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "normalizeIndex",
+                        return PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass(), "normalizeIndex",
                                 MethodType.methodType(int.class, type, int.class));
                     } catch (ReflectiveOperationException e) {
                         throw new AssertionError(e);

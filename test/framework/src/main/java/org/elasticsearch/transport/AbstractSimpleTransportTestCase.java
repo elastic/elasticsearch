@@ -128,7 +128,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
         // will not get this callback called on the connections done in this setup
         final CountDownLatch latch = new CountDownLatch(2);
-        TransportConnectionListener waitForConnection = new TransportConnectionListener() {
+        TransportConnectionListener.NodeConnection waitForConnection = new TransportConnectionListener.NodeConnection() {
             @Override
             public void onNodeConnected(DiscoveryNode node) {
                 latch.countDown();
@@ -139,8 +139,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 fail("disconnect should not be called " + node);
             }
         };
-        serviceA.addConnectionListener(waitForConnection);
-        serviceB.addConnectionListener(waitForConnection);
+        serviceA.addNodeConnectionListener(waitForConnection);
+        serviceB.addNodeConnectionListener(waitForConnection);
         int numHandshakes = 1;
         serviceA.connectToNode(nodeB);
         serviceB.connectToNode(nodeA);
@@ -148,8 +148,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertNumHandshakes(numHandshakes, serviceB.getOriginalTransport());
 
         assertThat("failed to wait for all nodes to connect", latch.await(5, TimeUnit.SECONDS), equalTo(true));
-        serviceA.removeConnectionListener(waitForConnection);
-        serviceB.removeConnectionListener(waitForConnection);
+        serviceA.removeNodeConnectionListener(waitForConnection);
+        serviceB.removeNodeConnectionListener(waitForConnection);
     }
 
     private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
@@ -622,7 +622,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testDisconnectListener() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
-        TransportConnectionListener disconnectListener = new TransportConnectionListener() {
+        TransportConnectionListener.NodeConnection disconnectListener = new TransportConnectionListener.NodeConnection() {
             @Override
             public void onNodeConnected(DiscoveryNode node) {
                 fail("node connected should not be called, all connection have been done previously, node: " + node);
@@ -633,7 +633,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 latch.countDown();
             }
         };
-        serviceA.addConnectionListener(disconnectListener);
+        serviceA.addNodeConnectionListener(disconnectListener);
         serviceB.close();
         assertThat(latch.await(5, TimeUnit.SECONDS), equalTo(true));
     }
@@ -1704,7 +1704,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceC.acceptIncomingRequests();
 
         final CountDownLatch latch = new CountDownLatch(4);
-        TransportConnectionListener waitForConnection = new TransportConnectionListener() {
+        TransportConnectionListener.NodeConnection waitForConnection = new TransportConnectionListener.NodeConnection() {
             @Override
             public void onNodeConnected(DiscoveryNode node) {
                 latch.countDown();
@@ -1715,9 +1715,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 fail("disconnect should not be called " + node);
             }
         };
-        serviceA.addConnectionListener(waitForConnection);
-        serviceB.addConnectionListener(waitForConnection);
-        serviceC.addConnectionListener(waitForConnection);
+        serviceA.addNodeConnectionListener(waitForConnection);
+        serviceB.addNodeConnectionListener(waitForConnection);
+        serviceC.addNodeConnectionListener(waitForConnection);
 
         serviceC.connectToNode(nodeA);
         serviceC.connectToNode(nodeB);
@@ -1725,9 +1725,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceB.connectToNode(nodeC);
 
         latch.await();
-        serviceA.removeConnectionListener(waitForConnection);
-        serviceB.removeConnectionListener(waitForConnection);
-        serviceC.removeConnectionListener(waitForConnection);
+        serviceA.removeNodeConnectionListener(waitForConnection);
+        serviceB.removeNodeConnectionListener(waitForConnection);
+        serviceC.removeNodeConnectionListener(waitForConnection);
 
 
         Map<TransportService, DiscoveryNode> toNodeMap = new HashMap<>();

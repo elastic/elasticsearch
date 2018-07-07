@@ -110,6 +110,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             Function.identity(), Property.Dynamic, Property.NodeScope);
 
     private final Logger tracerLog;
+    private final ConnectionProfile defaultConnectionProfile;
 
     volatile String[] tracerLogInclude;
     volatile String[] tracerLogExclude;
@@ -164,6 +165,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         this.connectToRemoteCluster = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
+        defaultConnectionProfile = TcpTransport.buildDefaultConnectionProfile(settings);
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
@@ -234,6 +236,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     @Override
     protected void doStop() {
         try {
+            connectionManager.close();
             transport.stop();
         } finally {
             // in case the transport is not connected to our local node (thus cleaned on node disconnect)
@@ -329,7 +332,9 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         if (isLocalNode(node)) {
             return;
         }
-        connectionManager.connectToNode(node, connectionProfile, (newConnection, actualProfile) -> {
+
+        ConnectionProfile resolvedProfile = TcpTransport.resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
+        connectionManager.connectToNode(node, resolvedProfile, (newConnection, actualProfile) -> {
             // We don't validate cluster names to allow for CCS connections.
             final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true).discoveryNode;
             if (validateConnections && node.equals(remote) == false) {
@@ -465,6 +470,14 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             return;
         }
         connectionManager.disconnectFromNode(node);
+    }
+
+    public void addNodeConnectionListener(NodeConnection listener) {
+        connectionManager.addListener(listener);
+    }
+
+    public void removeNodeConnectionListener(NodeConnection listener) {
+        connectionManager.removeListener(listener);
     }
 
     public void addConnectionListener(TransportConnectionListener listener) {

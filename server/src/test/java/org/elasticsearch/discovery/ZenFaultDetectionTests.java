@@ -96,7 +96,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
         // will not get this callback called on the connections done in this setup
         final CountDownLatch latch = new CountDownLatch(2);
-        TransportConnectionListener waitForConnection = new TransportConnectionListener() {
+        TransportConnectionListener.NodeConnection waitForConnection = new TransportConnectionListener.NodeConnection() {
             @Override
             public void onNodeConnected(DiscoveryNode node) {
                 latch.countDown();
@@ -107,8 +107,8 @@ public class ZenFaultDetectionTests extends ESTestCase {
                 fail("disconnect should not be called " + node);
             }
         };
-        serviceA.addConnectionListener(waitForConnection);
-        serviceB.addConnectionListener(waitForConnection);
+        serviceA.addNodeConnectionListener(waitForConnection);
+        serviceB.addNodeConnectionListener(waitForConnection);
 
         serviceA.connectToNode(nodeB);
         serviceA.connectToNode(nodeA);
@@ -116,8 +116,8 @@ public class ZenFaultDetectionTests extends ESTestCase {
         serviceB.connectToNode(nodeB);
 
         assertThat("failed to wait for all nodes to connect", latch.await(5, TimeUnit.SECONDS), equalTo(true));
-        serviceA.removeConnectionListener(waitForConnection);
-        serviceB.removeConnectionListener(waitForConnection);
+        serviceA.removeNodeConnectionListener(waitForConnection);
+        serviceB.removeNodeConnectionListener(waitForConnection);
     }
 
     @Override

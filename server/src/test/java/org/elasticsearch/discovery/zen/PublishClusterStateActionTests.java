@@ -190,7 +190,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         MockNode node = new MockNode(discoveryNode, service, listener, logger);
         node.action = buildPublishClusterStateAction(settings, service, node);
         final CountDownLatch latch = new CountDownLatch(nodes.size() * 2);
-        TransportConnectionListener waitForConnection = new TransportConnectionListener() {
+        TransportConnectionListener.NodeConnection waitForConnection = new TransportConnectionListener.NodeConnection() {
             @Override
             public void onNodeConnected(DiscoveryNode node) {
                 latch.countDown();
@@ -201,17 +201,17 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 fail("disconnect should not be called " + node);
             }
         };
-        node.service.addConnectionListener(waitForConnection);
+        node.service.addNodeConnectionListener(waitForConnection);
         for (MockNode curNode : nodes.values()) {
-            curNode.service.addConnectionListener(waitForConnection);
+            curNode.service.addNodeConnectionListener(waitForConnection);
             curNode.connectTo(node.discoveryNode);
             node.connectTo(curNode.discoveryNode);
         }
         assertThat("failed to wait for all nodes to connect", latch.await(5, TimeUnit.SECONDS), equalTo(true));
         for (MockNode curNode : nodes.values()) {
-            curNode.service.removeConnectionListener(waitForConnection);
+            curNode.service.removeNodeConnectionListener(waitForConnection);
         }
-        node.service.removeConnectionListener(waitForConnection);
+        node.service.removeNodeConnectionListener(waitForConnection);
         if (nodes.put(name, node) != null) {
             fail("Node with the name " + name + " already exist");
         }

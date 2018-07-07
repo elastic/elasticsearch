@@ -31,7 +31,9 @@ import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
@@ -39,7 +41,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
-public class ConnectionManager {
+public class ConnectionManager implements Closeable {
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = newConcurrentMap();
     private final KeyedLock<String> connectionLock = new KeyedLock<>();
@@ -57,12 +59,16 @@ public class ConnectionManager {
         this.pingSchedule = pingSchedule;
         this.lifecycle.moveToStarted();
 
-        if (pingSchedule.millis() > 0 && transport instanceof TcpTransport) {
+        if (pingSchedule.millis() > 0) {
             threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, new ScheduledPing());
         }
     }
 
-    public void registerListener(TransportConnectionListener.NodeConnectionListener listener) {
+    public void addListener(TransportConnectionListener.NodeConnection listener) {
+        this.connectionListener.listeners.add(listener);
+    }
+
+    public void removeListener(TransportConnectionListener.NodeConnection listener) {
         this.connectionListener.listeners.add(listener);
     }
 
@@ -145,6 +151,26 @@ public class ConnectionManager {
         }
     }
 
+    @Override
+    public void close() {
+        lifecycle.moveToStopped();
+        // TODO: Either add locking externally or in here.
+        // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
+        // all instances and then clear them maps
+        Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
+            try {
+                IOUtils.closeWhileHandlingException(next.getValue());
+                connectionListener.onNodeDisconnected(next.getKey());
+            } finally {
+                iterator.remove();
+            }
+        }
+
+        lifecycle.moveToClosed();
+    }
+
     private class ScheduledPing extends AbstractLifecycleRunnable {
 
         private ScheduledPing() {
@@ -155,9 +181,8 @@ public class ConnectionManager {
         protected void doRunInLifecycle() {
             for (Map.Entry<DiscoveryNode, Transport.Connection> entry : connectedNodes.entrySet()) {
                 Transport.Connection connection = entry.getValue();
-                if (connection instanceof TcpTransport.NodeChannels) {
-                    TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
-                    channels.sendPing();
+                if (connection.supportsPing()) {
+                    connection.sendPing();
                 }
             }
         }
@@ -185,20 +210,20 @@ public class ConnectionManager {
         }
     }
 
-    private static final class DelegatingNodeConnectionListener implements TransportConnectionListener.NodeConnectionListener {
+    private static final class DelegatingNodeConnectionListener implements TransportConnectionListener.NodeConnection {
 
-        private final List<TransportConnectionListener.NodeConnectionListener> listeners = new CopyOnWriteArrayList<>();
+        private final List<TransportConnectionListener.NodeConnection> listeners = new CopyOnWriteArrayList<>();
 
         @Override
         public void onNodeDisconnected(DiscoveryNode key) {
-            for (TransportConnectionListener.NodeConnectionListener listener : listeners) {
+            for (TransportConnectionListener.NodeConnection listener : listeners) {
                 listener.onNodeDisconnected(key);
             }
         }
 
         @Override
         public void onNodeConnected(DiscoveryNode node) {
-            for (TransportConnectionListener.NodeConnectionListener listener : listeners) {
+            for (TransportConnectionListener.NodeConnection listener : listeners) {
                 listener.onNodeConnected(node);
             }
         }

@@ -318,7 +318,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     knownNodes.add(spareNode);
                     CountDownLatch latchDisconnect = new CountDownLatch(1);
                     CountDownLatch latchConnected = new CountDownLatch(1);
-                    service.addConnectionListener(new TransportConnectionListener() {
+                    service.addNodeConnectionListener(new TransportConnectionListener.NodeConnection() {
                         @Override
                         public void onNodeDisconnected(DiscoveryNode node) {
                             if (node.equals(discoverableNode)) {
@@ -645,7 +645,12 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }
 
                     CountDownLatch disconnectedLatch = new CountDownLatch(1);
-                    service.addConnectionListener(new TransportConnectionListener() {
+                    service.addNodeConnectionListener(new TransportConnectionListener.NodeConnection() {
+                        @Override
+                        public void onNodeConnected(DiscoveryNode node) {
+
+                        }
+
                         @Override
                         public void onNodeDisconnected(DiscoveryNode node) {
                             if (node.equals(seedNode)) {

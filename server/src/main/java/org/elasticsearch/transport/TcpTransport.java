@@ -61,9 +61,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -386,7 +384,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             return channels.stream().allMatch(TcpChannel::isOpen);
         }
 
-        void sendPing() {
+        @Override
+        public boolean supportsPing() {
+            return true;
+        }
+
+        @Override
+        public void sendPing() {
             for (TcpChannel channel : channels) {
                 internalSendMessage(channel, pingMessage, new SendMetricListener(pingMessage.length()) {
                     @Override
@@ -820,19 +824,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 CloseableChannel.closeChannels(new ArrayList<>(acceptedChannels), true);
                 acceptedChannels.clear();
 
-
-                // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
-                // all instances and then clear them maps
-//                Iterator<Map.Entry<DiscoveryNode, NodeChannels>> iterator = connectedNodes.entrySet().iterator();
-//                while (iterator.hasNext()) {
-//                    Map.Entry<DiscoveryNode, NodeChannels> next = iterator.next();
-//                    try {
-//                        IOUtils.closeWhileHandlingException(next.getValue());
-//                        transportListener.onNodeDisconnected(next.getKey());
-//                    } finally {
-//                        iterator.remove();
-//                    }
-//                }
                 stopInternal();
             } finally {
                 closeLock.writeLock().unlock();
@@ -1790,23 +1781,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public void onNodeDisconnected(DiscoveryNode key) {
-            for (TransportConnectionListener listener : listeners) {
-                listener.onNodeDisconnected(key);
-            }
-        }
-
-        @Override
         public void onConnectionOpened(Connection nodeChannels) {
             for (TransportConnectionListener listener : listeners) {
                 listener.onConnectionOpened(nodeChannels);
-            }
-        }
-
-        @Override
-        public void onNodeConnected(DiscoveryNode node) {
-            for (TransportConnectionListener listener : listeners) {
-                listener.onNodeConnected(node);
             }
         }
 

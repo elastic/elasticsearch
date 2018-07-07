@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
  */
 public interface TransportConnectionListener {
 
-    interface NodeConnectionListener {
+    interface NodeConnection {
         /**
          * Called once a node connection is opened and registered.
          */
@@ -38,6 +38,21 @@ public interface TransportConnectionListener {
          * Called once a node connection is closed and unregistered.
          */
         void onNodeDisconnected(DiscoveryNode node);
+    }
+
+    interface Connection {
+
+        /**
+         * Called once a connection was opened
+         * @param connection the connection
+         */
+        void onConnectionOpened(Transport.Connection connection);
+
+        /**
+         * Called once a connection ws closed.
+         * @param connection the closed connection
+         */
+        void onConnectionClosed(Transport.Connection connection);
     }
 
     /**
@@ -95,13 +110,4 @@ public interface TransportConnectionListener {
      */
     default void onResponseReceived(long requestId, Transport.ResponseContext context) {}
 
-    /**
-     * Called once a node connection is opened and registered.
-     */
-    default void onNodeConnected(DiscoveryNode node) {}
-
-    /**
-     * Called once a node connection is closed and unregistered.
-     */
-    default void onNodeDisconnected(DiscoveryNode node) {}
 }

@@ -2122,13 +2122,21 @@ public class RequestConvertersTests extends ESTestCase {
         getSnapshotsRequest.snapshots(Arrays.asList(snapshot1, snapshot2).toArray(new String[0]));
         setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
 
-        boolean ignoreUnavailable = randomBoolean();
-        getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
-        expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+        if (randomBoolean()) {
+            boolean ignoreUnavailable = randomBoolean();
+            getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
+            expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+        } else {
+            expectedParams.put("ignore_unavailable", Boolean.FALSE.toString());
+        }
 
-        boolean verbose = randomBoolean();
-        getSnapshotsRequest.verbose(verbose);
-        expectedParams.put("verbose", Boolean.toString(verbose));
+        if (randomBoolean()) {
+            boolean verbose = randomBoolean();
+            getSnapshotsRequest.verbose(verbose);
+            expectedParams.put("verbose", Boolean.toString(verbose));
+        } else {
+            expectedParams.put("verbose", Boolean.TRUE.toString());
+        }
 
         Request request = RequestConverters.getSnapshots(getSnapshotsRequest);
         assertThat(endpoint, equalTo(request.getEndpoint()));

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 
 import java.util.Arrays;
@@ -59,7 +60,7 @@ public final class Locals {
      */
     public static Locals newLambdaScope(Locals programScope, Class<?> returnType, List<Parameter> parameters,
                                         int captureCount, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, programScope.definition, returnType, KEYWORDS);
+        Locals locals = new Locals(programScope, programScope.painlessLookup, returnType, KEYWORDS);
         for (int i = 0; i < parameters.size(); i++) {
             Parameter parameter = parameters.get(i);
             // TODO: allow non-captures to be r/w:
@@ -78,7 +79,7 @@ public final class Locals {
 
     /** Creates a new function scope inside the current scope */
     public static Locals newFunctionScope(Locals programScope, Class<?> returnType, List<Parameter> parameters, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, programScope.definition, returnType, KEYWORDS);
+        Locals locals = new Locals(programScope, programScope.painlessLookup, returnType, KEYWORDS);
         for (Parameter parameter : parameters) {
             locals.addVariable(parameter.location, parameter.clazz, parameter.name, false);
         }
@@ -92,7 +93,7 @@ public final class Locals {
     /** Creates a new main method scope */
     public static Locals newMainMethodScope(ScriptClassInfo scriptClassInfo, Locals programScope, int maxLoopCounter) {
         Locals locals = new Locals(
-            programScope, programScope.definition, scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
+            programScope, programScope.painlessLookup, scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
         // This reference. Internal use only.
         locals.defineVariable(null, Object.class, THIS, true);
 
@@ -109,9 +110,9 @@ public final class Locals {
     }
 
     /** Creates a new program scope: the list of methods. It is the parent for all methods */
-    public static Locals newProgramScope(Definition definition, Collection<Method> methods) {
-        Locals locals = new Locals(null, definition, null, null);
-        for (Method method : methods) {
+    public static Locals newProgramScope(PainlessLookup painlessLookup, Collection<PainlessMethod> methods) {
+        Locals locals = new Locals(null, painlessLookup, null, null);
+        for (PainlessMethod method : methods) {
             locals.addMethod(method);
         }
         return locals;
@@ -142,8 +143,8 @@ public final class Locals {
     }
 
     /** Looks up a method. Returns null if the method does not exist. */
-    public Method getMethod(MethodKey key) {
-        Method method = lookupMethod(key);
+    public PainlessMethod getMethod(PainlessMethodKey key) {
+        PainlessMethod method = lookupMethod(key);
         if (method != null) {
             return method;
         }
@@ -179,14 +180,14 @@ public final class Locals {
     }
 
     /** Whitelist against which this script is being compiled. */
-    public Definition getDefinition() {
-        return definition;
+    public PainlessLookup getPainlessLookup() {
+        return painlessLookup;
     }
 
     ///// private impl
 
     /** Whitelist against which this script is being compiled. */
-    private final Definition definition;
+    private final PainlessLookup painlessLookup;
     // parent scope
     private final Locals parent;
     // return type of this scope
@@ -198,21 +199,21 @@ public final class Locals {
     // variable name -> variable
     private Map<String,Variable> variables;
     // method name+arity -> methods
-    private Map<MethodKey,Method> methods;
+    private Map<PainlessMethodKey,PainlessMethod> methods;
 
     /**
      * Create a new Locals
      */
     private Locals(Locals parent) {
-        this(parent, parent.definition, parent.returnType, parent.keywords);
+        this(parent, parent.painlessLookup, parent.returnType, parent.keywords);
     }
 
     /**
      * Create a new Locals with specified return type
      */
-    private Locals(Locals parent, Definition definition, Class<?> returnType, Set<String> keywords) {
+    private Locals(Locals parent, PainlessLookup painlessLookup, Class<?> returnType, Set<String> keywords) {
         this.parent = parent;
-        this.definition = definition;
+        this.painlessLookup = painlessLookup;
         this.returnType = returnType;
         this.keywords = keywords;
         if (parent == null) {
@@ -236,7 +237,7 @@ public final class Locals {
     }
 
     /** Looks up a method at this scope only. Returns null if the method does not exist. */
-    private Method lookupMethod(MethodKey key) {
+    private PainlessMethod lookupMethod(PainlessMethodKey key) {
         if (methods == null) {
             return null;
         }
@@ -255,11 +256,11 @@ public final class Locals {
         return variable;
     }
 
-    private void addMethod(Method method) {
+    private void addMethod(PainlessMethod method) {
         if (methods == null) {
             methods = new HashMap<>();
         }
-        methods.put(new MethodKey(method.name, method.arguments.size()), method);
+        methods.put(new PainlessMethodKey(method.name, method.arguments.size()), method);
         // TODO: check result
     }
 
@@ -291,7 +292,7 @@ public final class Locals {
         @Override
         public String toString() {
             StringBuilder b = new StringBuilder();
-            b.append("Variable[type=").append(Definition.ClassToName(clazz));
+            b.append("Variable[type=").append(PainlessLookup.ClassToName(clazz));
             b.append(",name=").append(name);
             b.append(",slot=").append(slot);
             if (readonly) {

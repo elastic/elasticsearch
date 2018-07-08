@@ -33,6 +33,12 @@ public final class CcrSettings {
             Setting.boolSetting("index.xpack.ccr.following_index", false, Setting.Property.IndexScope);
 
     /**
+     * An internal setting used to keep track to what leader index a follow index associated. Do not use externally!
+     */
+    public static final Setting<String> CCR_LEADER_INDEX_UUID_SETTING =
+            Setting.simpleString("index.xpack.ccr.leader_index_uuid", Setting.Property.IndexScope);
+
+    /**
      * The settings defined by CCR.
      *
      * @return the settings
@@ -40,7 +46,8 @@ public final class CcrSettings {
     static List<Setting<?>> getSettings() {
         return Arrays.asList(
                 CCR_ENABLED_SETTING,
-                CCR_FOLLOWING_INDEX_SETTING);
+                CCR_FOLLOWING_INDEX_SETTING,
+                CCR_LEADER_INDEX_UUID_SETTING);
     }
 
 }

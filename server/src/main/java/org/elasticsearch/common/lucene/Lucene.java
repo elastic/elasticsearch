@@ -27,7 +27,6 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -45,6 +44,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
@@ -66,6 +66,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
@@ -79,6 +80,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -99,6 +101,9 @@ public class Lucene {
     }
 
     public static final String SOFT_DELETE_FIELD = "__soft_delete";
+    // We can't use hard-deletes with soft-deletes together because we can't exclude hard-deletes from liveDocs
+    // when reading history from Lucene. We use this bitset to exclude rolled_back documents from liveDocs.
+    public static final String ROLLED_BACK_FIELD = "__rolled_back";
 
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
@@ -848,17 +853,21 @@ public class Lucene {
     }
 
     private static final class DirectoryReaderWithAllLiveDocs extends FilterDirectoryReader {
-        static final class SubReaderWithAllLiveDocs extends FilterLeafReader {
-            SubReaderWithAllLiveDocs(LeafReader in) {
+        static final class SubReaderWithLiveDocs extends FilterLeafReader {
+            final Bits liveDocs;
+            final int numDocs;
+            SubReaderWithLiveDocs(LeafReader in, Bits liveDocs, int numDocs) {
                 super(in);
+                this.liveDocs = liveDocs;
+                this.numDocs = numDocs;
             }
             @Override
             public Bits getLiveDocs() {
-                return null;
+                return liveDocs;
             }
             @Override
             public int numDocs() {
-                return maxDoc();
+                return numDocs;
             }
             @Override
             public CacheHelper getCoreCacheHelper() {
@@ -873,7 +882,26 @@ public class Lucene {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader leaf) {
-                    return new SubReaderWithAllLiveDocs(leaf);
+                    try {
+                        if (leaf.getLiveDocs() == null) {
+                            return leaf;
+                        }
+                        DocIdSetIterator rollbackDocs = DocValuesFieldExistsQuery.getDocValuesDocIdSetIterator(ROLLED_BACK_FIELD, leaf);
+                        if (rollbackDocs == null) {
+                            return new SubReaderWithLiveDocs(leaf, null, leaf.maxDoc());
+                        }
+                        int rollbackCount = 0;
+                        FixedBitSet liveDocs = new FixedBitSet(leaf.maxDoc());
+                        liveDocs.set(0, liveDocs.length());
+                        while ((rollbackDocs.nextDoc() != DocIdSetIterator.NO_MORE_DOCS)) {
+                            assert leaf.getLiveDocs().get(rollbackDocs.docID()) == false : "doc is rolled back but not deleted";
+                            liveDocs.clear(rollbackDocs.docID());
+                            rollbackCount++;
+                        }
+                        return new SubReaderWithLiveDocs(leaf, liveDocs, leaf.maxDoc() - rollbackCount);
+                    } catch (IOException ex) {
+                        throw new UncheckedIOException(ex);
+                    }
                 }
             });
         }
@@ -886,12 +914,5 @@ public class Lucene {
         public CacheHelper getReaderCacheHelper() {
             return null; // Modifying liveDocs
         }
-    }
-
-    /**
-     * Returns a numeric docvalues which can be used to soft-delete documents.
-     */
-    public static NumericDocValuesField newSoftDeleteField() {
-        return new NumericDocValuesField(SOFT_DELETE_FIELD, 1);
     }
 }

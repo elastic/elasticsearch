@@ -22,25 +22,38 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -65,12 +78,15 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -88,7 +104,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -149,7 +164,7 @@ public class InternalEngine extends Engine {
     private final CounterMetric numDocDeletes = new CounterMetric();
     private final CounterMetric numDocAppends = new CounterMetric();
     private final CounterMetric numDocUpdates = new CounterMetric();
-    private final NumericDocValuesField softDeleteField = Lucene.newSoftDeleteField();
+    private final NumericDocValuesField softDeleteField = new NumericDocValuesField(Lucene.SOFT_DELETE_FIELD, 1);
     private final boolean softDeleteEnabled;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
@@ -1792,8 +1807,8 @@ public class InternalEngine extends Engine {
     }
 
     // for testing
-    final Collection<DeleteVersionValue> getDeletedTombstones() {
-        return versionMap.getAllTombstones().values();
+    final Map<BytesRef, DeleteVersionValue> getDeletedTombstones() {
+        return new HashMap<>(versionMap.getAllTombstones());
     }
 
     @Override
@@ -2579,6 +2594,165 @@ public class InternalEngine extends Engine {
             if (didRefresh) {
                 refreshedCheckpoint.set(pendingCheckpoint);
             }
+        }
+    }
+
+    @Override
+    public Rollback newRollbackInstance(MapperService mapperService) throws IOException {
+        assert softDeleteEnabled : "rollback requires soft-deletes";
+        return new InternalRollback(mapperService);
+    }
+
+    private final class InternalRollback implements Rollback {
+        final NumericDocValuesField unsoftDeleteField = new NumericDocValuesField(Lucene.SOFT_DELETE_FIELD, null);
+        final NumericDocValuesField rollbackField = new NumericDocValuesField(Lucene.ROLLED_BACK_FIELD, 1);
+        final MapperService mapperService;
+        Engine.Searcher engineSearcher;
+        IndexSearcher searcher;
+
+        InternalRollback(MapperService mapperService) throws IOException {
+            this.mapperService = mapperService;
+            reopenSearcher(false);
+        }
+
+        void reopenSearcher(boolean refresh) throws IOException {
+            Searcher oldSearcher = this.engineSearcher;
+            this.searcher = null;
+            this.engineSearcher = null;
+            IOUtils.close(oldSearcher);
+            if (refresh) {
+                refresh("rollback", SearcherScope.INTERNAL);
+            }
+            this.engineSearcher = acquireSearcher("rollback", SearcherScope.INTERNAL);
+            this.searcher = new IndexSearcher(Lucene.wrapAllDocsLive(this.engineSearcher.getDirectoryReader()));
+            this.searcher.setQueryCache(null);
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(engineSearcher);
+        }
+
+        @Override
+        public Result rollback(Operation newOp) throws IOException {
+            final Result result;
+            try (ReleasableLock ignored = writeLock.acquire()) {
+                if (doRollback(newOp.seqNo(), newOp.primaryTerm())) {
+                    if (newOp instanceof Index) {
+                        result = index((Index) newOp);
+                    } else if (newOp instanceof Delete) {
+                        result = delete((Delete) newOp);
+                    } else if (newOp instanceof NoOp) {
+                        result = noOp((NoOp) newOp);
+                    } else {
+                        throw new IllegalArgumentException("Unknown operation type [" + newOp + "]");
+                    }
+                    reopenSearcher(true);
+                } else {
+                    localCheckpointTracker.markSeqNoAsCompleted(newOp.seqNo());
+                    result = null;
+                }
+            }
+            return result;
+        }
+
+        /** Returns true if there was changes, and false if the colliding op matches the new op. */
+        private boolean doRollback(long seqNo, long newTerm) throws IOException {
+            TopDocs collidingDocs = searcher.search(LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo), 1,
+                new Sort(new SortedNumericSortField(SeqNoFieldMapper.PRIMARY_TERM_NAME, SortField.Type.LONG, true)));
+            if (collidingDocs.totalHits == 0) {
+                // not found actually means rolled back
+                return true;
+            }
+            List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
+            LeafReaderContext collidingSegment = leaves.get(ReaderUtil.subIndex(collidingDocs.scoreDocs[0].doc, leaves));
+            int collidingDocId = collidingDocs.scoreDocs[0].doc - collidingSegment.docBase;
+            long currentTerm = readNumericDV(collidingSegment.reader(), SeqNoFieldMapper.PRIMARY_TERM_NAME, collidingDocId);
+            if (currentTerm == newTerm) {
+                // matches with the existing doc
+                return false;
+            }
+            // Look up the _uid
+            FieldsVisitor fields = new FieldsVisitor(false);
+            collidingSegment.reader().document(collidingDocId, fields);
+            fields.postProcess(mapperService);
+            // delete the current version by marking it as rolled_back
+            while (tryUpdateDocValues(LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo), softDeleteField, rollbackField) == false) {
+                reopenSearcher(true);
+            }
+            if (fields.uid() != null) {
+                BytesRef uid = Uid.encodeId(fields.uid().id());
+                BooleanQuery newerVersionQuery = new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(IdFieldMapper.NAME, uid)), BooleanClause.Occur.FILTER)
+                    .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, seqNo + 1, Long.MAX_VALUE), BooleanClause.Occur.FILTER)
+                    .build();
+                // We should only restore if the current version is the latest copy.
+                if (searcher.count(newerVersionQuery) == 0) {
+                    try (Releasable ignored = versionMap.acquireLock(uid)) {
+                        versionMap.removeTombstoneUnderLock(uid);
+                        restorePreviousVersion(uid, seqNo);
+                    }
+                }
+            }
+            return true;
+        }
+
+        private void restorePreviousVersion(BytesRef uid, long seqNo) throws IOException {
+            BooleanQuery prevVersionQuery = new BooleanQuery.Builder()
+                .add(new TermQuery(new Term(IdFieldMapper.NAME, uid)), BooleanClause.Occur.FILTER)
+                .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, 0, seqNo - 1), BooleanClause.Occur.FILTER)
+                .build();
+            TopDocs prevDocs = searcher.search(prevVersionQuery, 1,
+                new Sort(new SortedNumericSortField(SeqNoFieldMapper.NAME, SortField.Type.LONG, true)));
+            if (prevDocs.totalHits == 0) {
+                return;
+            }
+            List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
+            LeafReaderContext prevSegment = leaves.get(ReaderUtil.subIndex(prevDocs.scoreDocs[0].doc, leaves));
+            int prevSegmentDocId = prevDocs.scoreDocs[0].doc - prevSegment.docBase;
+            long prevSeqNo = readNumericDV(prevSegment.reader(), SeqNoFieldMapper.NAME, prevSegmentDocId);
+            // we should not restore if the previous version was a delete as a delete should always be soft-deleted.
+            // however, we should restore the tombstone of that delete on the version map;
+            NumericDocValues tombstoneDV = prevSegment.reader().getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
+            if (tombstoneDV == null || (tombstoneDV.advanceExact(prevSegmentDocId) == false)) {
+                // restore the previous version by un-deleting it.
+                while (tryUpdateDocValues(LongPoint.newExactQuery(SeqNoFieldMapper.NAME, prevSeqNo), unsoftDeleteField) == false) {
+                    reopenSearcher(true);
+                }
+            } else {
+                long version = readNumericDV(prevSegment.reader(), VersionFieldMapper.NAME, prevSegmentDocId);
+                long primaryTerm = readNumericDV(prevSegment.reader(), SeqNoFieldMapper.PRIMARY_TERM_NAME, prevSegmentDocId);
+                versionMap.putDeleteUnderLock(uid, new DeleteVersionValue(
+                    version, prevSeqNo, primaryTerm, config().getThreadPool().relativeTimeInMillis()));
+            }
+        }
+
+        /** @return false if this method was aborted due to merges, the caller need to refresh an engine, then retry */
+        private boolean tryUpdateDocValues(Query query, NumericDocValuesField... fields) throws IOException {
+            ScoreDoc lastDoc = null;
+            do {
+                TopDocs topDocs = searcher.searchAfter(lastDoc, query, 10);
+                lastDoc = null;
+                DirectoryReader unwrapped = FilterDirectoryReader.unwrap(engineSearcher.getDirectoryReader());
+                for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                    if (indexWriter.tryUpdateDocValue(unwrapped, scoreDoc.doc, fields) == -1) {
+                        return false;
+                    }
+                    lastDoc = scoreDoc;
+                }
+            } while (lastDoc != null);
+            return true;
+        }
+
+        private long readNumericDV(LeafReader leafReader, String field, int docId) throws IOException {
+            NumericDocValues dv = leafReader.getNumericDocValues(field);
+            if (dv == null) {
+                throw new IllegalStateException("missing dv [" + field + "]");
+            }
+            if (dv.advanceExact(docId) == false) {
+                throw new IllegalStateException("doc [" + docId + "] does not exist in [" + field + "] docValues");
+            }
+            return dv.longValue();
         }
     }
 }

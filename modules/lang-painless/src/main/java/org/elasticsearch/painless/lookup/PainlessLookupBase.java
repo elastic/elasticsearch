@@ -29,7 +29,7 @@ public class PainlessLookupBase {
 
     // The following terminology is used for variable names throughout the lookup package:
     //
-    // - javaClass           (Class)         - a java class excluding def and array type java classes
+    // - javaClass           (Class)         - a java class including def and excluding array type java classes
     // - javaClassName       (String)        - the fully qualified java class name for a javaClass
     // - painlessClassName   (String)        - the fully qualified painless name or imported painless name for a painlessClass
     // - anyClassName        (String)        - either a javaClassName or a painlessClassName
@@ -184,5 +184,17 @@ public class PainlessLookupBase {
         }
 
         throw new IllegalArgumentException("painless type [" + painlessTypeName + "] not found");
+    }
+
+    public void validatePainlessType(Class<?> painlessType) {
+        String painlessTypeName = anyTypeNameToPainlessTypeName(painlessType.getName());
+
+        while (painlessType.getComponentType() != null) {
+            painlessType = painlessType.getComponentType();
+        }
+
+        if (javaClassesToPainlessClasses.containsKey(painlessType) == false) {
+            throw new IllegalStateException("painless type [" + painlessTypeName + "] not found");
+        }
     }
 }

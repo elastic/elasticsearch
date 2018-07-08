@@ -123,6 +123,7 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptType;
@@ -150,6 +151,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -2463,6 +2465,37 @@ public class RequestConvertersTests extends ESTestCase {
                 () -> enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), requestContentType), xContentType));
         assertEquals("Mismatching content-type found for request with content-type [" + requestContentType + "], "
                 + "previous requests have content-type [" + xContentType + "]", exception.getMessage());
+    }
+
+    public void testXPackInfo() {
+        XPackInfoRequest infoRequest = new XPackInfoRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        infoRequest.setVerbose(randomBoolean());
+        if (false == infoRequest.isVerbose()) {
+            expectedParams.put("human", "false");
+        }
+        int option = between(0, 2);
+        switch (option) {
+        case 0:
+            infoRequest.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
+            break;
+        case 1:
+            infoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
+            expectedParams.put("categories", "features");
+            break;
+        case 2:
+            infoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES, XPackInfoRequest.Category.BUILD));
+            expectedParams.put("categories", "build,features");
+            break;
+        default:
+            throw new IllegalArgumentException("invalid option [" + option + "]");
+        }
+
+        Request request = RequestConverters.xPackInfo(infoRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack", request.getEndpoint());
+        assertNull(request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
     }
 
     /**

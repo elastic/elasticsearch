@@ -29,7 +29,7 @@ public class PainlessLookupBase {
 
     // The following terminology is used for variable names throughout the lookup package:
     //
-    // - javaClass           (Class)         - a java class including def and exluding array type java classes
+    // - javaClass           (Class)         - a java class excluding def and array type java classes
     // - javaClassName       (String)        - the fully qualified java class name for a javaClass
     // - painlessClassName   (String)        - the fully qualified painless name or imported painless name for a painlessClass
     // - anyClassName        (String)        - either a javaClassName or a painlessClassName
@@ -103,7 +103,7 @@ public class PainlessLookupBase {
         return painlessType;
     }
 
-    public static String anyTypeNametoPainlessTypeName(String anyTypeName) {
+    public static String anyTypeNameToPainlessTypeName(String anyTypeName) {
         if (anyTypeName.startsWith(def.class.getName())) {
             anyTypeName = anyTypeName.replace(def.class.getName(), DEF_PAINLESS_CLASS_NAME);
         }

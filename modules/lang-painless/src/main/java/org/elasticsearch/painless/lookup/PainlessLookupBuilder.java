@@ -105,10 +105,11 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         Objects.requireNonNull(classLoader);
         Objects.requireNonNull(javaClassName);
 
-        String painlessClassName = anyTypeNametoPainlessTypeName(javaClassName);
+        String painlessClassName = anyTypeNameToPainlessTypeName(javaClassName);
+        String importedPainlessClassName = anyTypeNameToPainlessTypeName(javaClassName.substring(javaClassName.lastIndexOf('.') + 1));
 
         if (DEF_PAINLESS_CLASS_NAME.equals(painlessClassName)) {
-            throw new IllegalArgumentException("cannot specify reserved painless class [" + DEF_PAINLESS_CLASS_NAME + "]");
+            throw new IllegalArgumentException("cannot add reserved painless class [" + DEF_PAINLESS_CLASS_NAME + "]");
         }
 
         if (CLASS_NAME_PATTERN.matcher(painlessClassName).matches() == false) {
@@ -140,7 +141,7 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
             }
         }
 
-        addPainlessClass(javaClassName, painlessClassName, javaClass, noImport);
+        addPainlessClass(painlessClassName, importedPainlessClassName, javaClass);
     }
 
     public void addPainlessClass(Class<?> javaClass, boolean noImport) {
@@ -151,19 +152,13 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         }
 
         String javaClassName = javaClass.getName();
-        String painlessClassName = anyTypeNametoPainlessTypeName(javaClassName);
+        String painlessClassName = anyTypeNameToPainlessTypeName(javaClassName);
+        String importedPainlessClassName = anyTypeNameToPainlessTypeName(javaClassName.substring(javaClassName.lastIndexOf('.') + 1));
 
-        addPainlessClass(javaClassName, painlessClassName, javaClass, noImport);
+        addPainlessClass(painlessClassName, importedPainlessClassName, javaClass);
     }
 
-    private void addPainlessClass(String javaClassName, String painlessClassName, Class<?> javaClass, boolean noImport) {
-        String importedPainlessClassName = painlessClassName;
-        int index = javaClassName.lastIndexOf('.');
-
-        if (index != -1) {
-            importedPainlessClassName = anyTypeNametoPainlessTypeName(javaClassName.substring(index + 1));
-        }
-
+    private void addPainlessClass(String painlessClassName, String importedPainlessClassName, Class<?> javaClass, boolean noImport) {
         PainlessClass existingPainlessClassObject = javaClassesToPainlessClasses.get(javaClass);
 
         if (existingPainlessClassObject == null) {
@@ -175,8 +170,8 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
                     "multiple java classes [" + javaClass.getName() + "] and [" + existingPainlessClassObject.clazz.getName() + "]");
         }
 
-        if (painlessClassName.equals(importedPainlessClassName)) {
-            if (noImport == false) {
+        if (painlessClassName.indexOf('.') == -1) {
+            if (importedPainlessClassName == null) {
                 throw new IllegalArgumentException(
                         "must use only_fqn parameter on painless class [" + painlessClassName + "] with no package");
             }
@@ -206,7 +201,7 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         Objects.requireNonNull(javaClassName);
         Objects.requireNonNull(anyTypeNameParameters);
 
-        String painlessClassName = anyTypeNametoPainlessTypeName(javaClassName);
+        String painlessClassName = anyTypeNameToPainlessTypeName(javaClassName);
         Class<?> javaClass = painlessClassNamesToJavaClasses.get(painlessClassName);
 
         if (javaClass == null) {
@@ -223,7 +218,7 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         List<String> painlessTypeNameParameters = new ArrayList<>(parametersSize);
 
         for (String anyTypeNameParameter : anyTypeNameParameters) {
-            String painlessTypeNameParameter = anyTypeNametoPainlessTypeName(anyTypeNameParameter);
+            String painlessTypeNameParameter = anyTypeNameToPainlessTypeName(anyTypeNameParameter);
             painlessTypeNameParameters.add(painlessTypeNameParameter);
         }
 
@@ -254,7 +249,7 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
 
         if (painlessClass == null) {
             String javaClassName = javaClass.getName();
-            String painlessClassName = anyTypeNametoPainlessTypeName(javaClassName);
+            String painlessClassName = anyTypeNameToPainlessTypeName(javaClassName);
 
             throw new IllegalArgumentException("painless class [" + painlessClassName + "] not found");
         }
@@ -271,13 +266,14 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
     }
 
     private void addPainlessConstructor(PainlessClass painlessClass, List<Class<?>> painlessTypeParameters, Class<?>[] javaTypeParameters) {
+        Class<?> javaClass = painlessClass.clazz;
         Constructor<?> javaConstructor;
 
         try {
-            javaConstructor = painlessClass.clazz.getConstructor(javaTypeParameters);
-        } catch (NoSuchMethodException exception) {
-            throw new IllegalArgumentException(
-                    "java constructor [[" + painlessClass.clazz.getName() + "], " + Arrays.asList(javaTypeParameters) + "] not found");
+            javaConstructor = javaClass.getConstructor(javaTypeParameters);
+        } catch (NoSuchMethodException nsme) {
+            throw new IllegalArgumentException("java constructor " +
+                    "[[" + javaClass.getName() + "], " + Arrays.asList(javaTypeParameters) + "] not found", nsme);
         }
 
         int parametersSize = painlessTypeParameters.size();
@@ -289,14 +285,14 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
             MethodHandle methodHandle;
 
             try {
-                methodHandle = MethodHandles.publicLookup().in(painlessClass.clazz).unreflectConstructor(javaConstructor);
-            } catch (IllegalAccessException exception) {
-                throw new IllegalArgumentException(
-                        "java constructor [[" + painlessClass.clazz.getName() + "], " + Arrays.asList(javaTypeParameters) + "] not found");
+                methodHandle = MethodHandles.publicLookup().in(javaClass).unreflectConstructor(javaConstructor);
+            } catch (IllegalAccessException iae) {
+                throw new IllegalArgumentException("java constructor " +
+                        "[[" + javaClass.getName() + "], " + Arrays.asList(javaTypeParameters) + "] not found");
             }
 
             painlessConstructor = painlessMethodCache.computeIfAbsent(
-                    new PainlessMethodCacheKey(painlessClass.clazz, PAINLESS_CONSTRUCTOR_NAME, painlessTypeParameters),
+                    new PainlessMethodCacheKey(javaClass, PAINLESS_CONSTRUCTOR_NAME, painlessTypeParameters),
                     key -> new PainlessMethod(PAINLESS_CONSTRUCTOR_NAME, painlessClass, null, void.class, painlessTypeParameters,
                                               asmConstructor, javaConstructor.getModifiers(), methodHandle)
             );
@@ -317,7 +313,7 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         Objects.requireNonNull(anyTypeReturnName);
         Objects.requireNonNull(anyTypeNameParameters);
 
-        String painlessClassName = anyTypeNametoPainlessTypeName(javaClassName);
+        String painlessClassName = anyTypeNameToPainlessTypeName(javaClassName);
         Class<?> javaClass = painlessClassNamesToJavaClasses.get(painlessClassName);
 
         if (javaClass == null) {
@@ -338,28 +334,29 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         List<String> painlessTypeNameParameters = new ArrayList<>(parametersSize);
 
         for (String anyTypeNameParameter : anyTypeNameParameters) {
-            String painlessTypeNameParameter = anyTypeNametoPainlessTypeName(anyTypeNameParameter);
+            String painlessTypeNameParameter = anyTypeNameToPainlessTypeName(anyTypeNameParameter);
             painlessTypeNameParameters.add(painlessTypeNameParameter);
         }
 
+        javaClass = painlessTypeToJavaType(javaClass);
         Class<?> augmentedJavaClass = null;
 
         if (augmentedJavaClassName != null) {
             try {
                 augmentedJavaClass = Class.forName(augmentedJavaClassName, true, classLoader);
             } catch (ClassNotFoundException cnfe) {
-                throw new IllegalArgumentException("augmented java class [" + augmentedJavaClassName + "] " +
-                    "not found for method [[" + methodName + "], " + painlessTypeNameParameters + "]", cnfe);
+                throw new IllegalArgumentException("augmented java class [" + augmentedJavaClassName + "] not found " +
+                    "for painless method [[" + painlessClassName + "], [" + methodName + "], " + painlessTypeNameParameters + "]", cnfe);
             }
         }
 
         int augmentedParameterOffset = augmentedJavaClass == null ? 0 : 1;
 
         List<Class<?>> painlessParametersTypes = new ArrayList<>(parametersSize);
-        Class<?>[] javaClassParameters = new Class<?>[parametersSize + augmentedParameterOffset];
+        Class<?>[] javaTypeParameters = new Class<?>[parametersSize + augmentedParameterOffset];
 
         if (augmentedJavaClass != null) {
-            javaClassParameters[0] = painlessTypeToJavaType(javaClass);
+            javaTypeParameters[0] = javaClass;
         }
 
         for (int parameterIndex = 0; parameterIndex < parametersSize; ++parameterIndex) {
@@ -369,23 +366,24 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
                 Class<?> painlessTypeParameter = painlessTypeNameToPainlessType(painlessTypeNameParameter);
 
                 painlessParametersTypes.add(painlessTypeParameter);
-                javaClassParameters[parameterIndex + augmentedParameterOffset] = painlessTypeToJavaType(painlessTypeParameter);
+                javaTypeParameters[parameterIndex + augmentedParameterOffset] = painlessTypeToJavaType(painlessTypeParameter);
             } catch (IllegalArgumentException iae) {
-                throw new IllegalArgumentException("struct not defined for method parameter [" + painlessParameterTypeName + "] " +
-                    "with owner struct [" + ownerStructName + "] and method with name [" + whitelistMethod.javaMethodName + "] " +
-                    "and parameters " + whitelistMethod.painlessParameterTypeNames, iae);
+                throw new IllegalArgumentException("painless type [" + painlessTypeNameParameter + "] not found " +
+                    "for painless method [[" + painlessClassName + "], [" + methodName + "], " + painlessTypeNameParameters + "]", iae);
             }
         }
 
-        Class<?> javaImplClass = javaAugmentedClass == null ? ownerStruct.clazz : javaAugmentedClass;
+        if (augmentedJavaClass != null) {
+            javaClass = augmentedJavaClass;
+        }
+
         java.lang.reflect.Method javaMethod;
 
         try {
-            javaMethod = javaImplClass.getMethod(whitelistMethod.javaMethodName, javaClassParameters);
+            javaMethod = javaClass.getMethod(methodName, javaTypeParameters);
         } catch (NoSuchMethodException nsme) {
-            throw new IllegalArgumentException("method with name [" + whitelistMethod.javaMethodName + "] " +
-                "and parameters " + whitelistMethod.painlessParameterTypeNames + " not found for class [" +
-                javaImplClass.getName() + "]", nsme);
+            throw new IllegalArgumentException("java method " +
+                    "[[" + javaClass.getName() + "], [" + methodName + "], " + Arrays.asList(javaTypeParameters) + "] not found", nsme);
         }
 
         Class<?> painlessReturnClass;

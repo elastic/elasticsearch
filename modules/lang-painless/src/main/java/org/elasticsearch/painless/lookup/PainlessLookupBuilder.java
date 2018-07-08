@@ -231,7 +231,7 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         Class<?>[] javaTypeParameters = new Class<?>[parametersSize];
 
         for (int parameterIndex = 0; parameterIndex < parametersSize; ++parameterIndex) {
-            String painlessTypeNameParameter = painlessTypeNameParameters.get(parameterIndex));
+            String painlessTypeNameParameter = painlessTypeNameParameters.get(parameterIndex);
 
             try {
                 Class<?> painlessTypeParameter = painlessTypeNameToPainlessType(painlessTypeNameParameter);
@@ -309,50 +309,67 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         }
     }
 
-    public void addPainlessMethod(ClassLoader classLoader, String javaClassName, WhitelistMethod whitelistMethod) {
-        PainlessClass ownerStruct = javaClassesToPainlessStructs.get(painlessTypesToJavaClasses.get(ownerStructName));
+    public void addPainlessMethod(ClassLoader classLoader, String javaClassName, String augmentedJavaClassName, String methodName,
+                                  String anyTypeReturnName, List<String> anyTypeNameParameters) {
+        Objects.requireNonNull(classLoader);
+        Objects.requireNonNull(javaClassName);
+        Objects.requireNonNull(methodName);
+        Objects.requireNonNull(anyTypeReturnName);
+        Objects.requireNonNull(anyTypeNameParameters);
 
-        if (ownerStruct == null) {
-            throw new IllegalArgumentException("owner struct [" + ownerStructName + "] not defined for method with " +
-                "name [" + whitelistMethod.javaMethodName + "] and parameters " + whitelistMethod.painlessParameterTypeNames);
+        String painlessClassName = anyTypeNametoPainlessTypeName(javaClassName);
+        Class<?> javaClass = painlessClassNamesToJavaClasses.get(painlessClassName);
+
+        if (javaClass == null) {
+            throw new IllegalArgumentException("painless class [" + painlessClassName + "] not found");
         }
 
-        if (TYPE_NAME_PATTERN.matcher(whitelistMethod.javaMethodName).matches() == false) {
-            throw new IllegalArgumentException("invalid method name" +
-                " [" + whitelistMethod.javaMethodName + "] for owner struct [" + ownerStructName + "].");
+        PainlessClass painlessClass = javaClassesToPainlessClasses.get(javaClass);
+
+        if (painlessClass == null) {
+            throw new IllegalArgumentException("painless class [" + painlessClassName + "] not found");
         }
 
-        Class<?> javaAugmentedClass;
+        if (METHOD_NAME_PATTERN.matcher(methodName).matches() == false) {
+            throw new IllegalArgumentException("invalid method name [" + methodName + "] for painless class [" + painlessClassName + "].");
+        }
 
-        if (whitelistMethod.javaAugmentedClassName != null) {
+        int parametersSize = anyTypeNameParameters.size();
+        List<String> painlessTypeNameParameters = new ArrayList<>(parametersSize);
+
+        for (String anyTypeNameParameter : anyTypeNameParameters) {
+            String painlessTypeNameParameter = anyTypeNametoPainlessTypeName(anyTypeNameParameter);
+            painlessTypeNameParameters.add(painlessTypeNameParameter);
+        }
+
+        Class<?> augmentedJavaClass = null;
+
+        if (augmentedJavaClassName != null) {
             try {
-                javaAugmentedClass = Class.forName(whitelistMethod.javaAugmentedClassName, true, whitelistClassLoader);
+                augmentedJavaClass = Class.forName(augmentedJavaClassName, true, classLoader);
             } catch (ClassNotFoundException cnfe) {
-                throw new IllegalArgumentException("augmented class [" + whitelistMethod.javaAugmentedClassName + "] " +
-                    "not found for method with name [" + whitelistMethod.javaMethodName + "] " +
-                    "and parameters " + whitelistMethod.painlessParameterTypeNames, cnfe);
+                throw new IllegalArgumentException("augmented java class [" + augmentedJavaClassName + "] " +
+                    "not found for method [[" + methodName + "], " + painlessTypeNameParameters + "]", cnfe);
             }
-        } else {
-            javaAugmentedClass = null;
         }
 
-        int augmentedOffset = javaAugmentedClass == null ? 0 : 1;
+        int augmentedParameterOffset = augmentedJavaClass == null ? 0 : 1;
 
-        List<Class<?>> painlessParametersTypes = new ArrayList<>(whitelistMethod.painlessParameterTypeNames.size());
-        Class<?>[] javaClassParameters = new Class<?>[whitelistMethod.painlessParameterTypeNames.size() + augmentedOffset];
+        List<Class<?>> painlessParametersTypes = new ArrayList<>(parametersSize);
+        Class<?>[] javaClassParameters = new Class<?>[parametersSize + augmentedParameterOffset];
 
-        if (javaAugmentedClass != null) {
-            javaClassParameters[0] = ownerStruct.clazz;
+        if (augmentedJavaClass != null) {
+            javaClassParameters[0] = painlessTypeToJavaType(javaClass);
         }
 
-        for (int parameterCount = 0; parameterCount < whitelistMethod.painlessParameterTypeNames.size(); ++parameterCount) {
-            String painlessParameterTypeName = whitelistMethod.painlessParameterTypeNames.get(parameterCount);
+        for (int parameterIndex = 0; parameterIndex < parametersSize; ++parameterIndex) {
+            String painlessTypeNameParameter = painlessTypeNameParameters.get(parameterIndex);
 
             try {
-                Class<?> painlessParameterClass = getJavaClassFromPainlessType(painlessParameterTypeName);
+                Class<?> painlessTypeParameter = painlessTypeNameToPainlessType(painlessTypeNameParameter);
 
-                painlessParametersTypes.add(painlessParameterClass);
-                javaClassParameters[parameterCount + augmentedOffset] = defClassToObjectClass(painlessParameterClass);
+                painlessParametersTypes.add(painlessTypeParameter);
+                javaClassParameters[parameterIndex + augmentedParameterOffset] = painlessTypeToJavaType(painlessTypeParameter);
             } catch (IllegalArgumentException iae) {
                 throw new IllegalArgumentException("struct not defined for method parameter [" + painlessParameterTypeName + "] " +
                     "with owner struct [" + ownerStructName + "] and method with name [" + whitelistMethod.javaMethodName + "] " +

@@ -25,6 +25,7 @@ dependencyLicenses {
 
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
+    compile project(':x-pack:protocol')
     compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
     compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
     compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"

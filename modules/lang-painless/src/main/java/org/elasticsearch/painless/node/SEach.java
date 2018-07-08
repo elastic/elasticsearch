@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.def;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -71,7 +71,7 @@ public class SEach extends AStatement {
         Class<?> clazz;
 
         try {
-            clazz = locals.getDefinition().getJavaClassFromPainlessType(this.type);
+            clazz = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
@@ -84,7 +84,8 @@ public class SEach extends AStatement {
         } else if (expression.actual == def.class || Iterable.class.isAssignableFrom(expression.actual)) {
             sub = new SSubEachIterable(location, variable, expression, block);
         } else {
-            throw createError(new IllegalArgumentException("Illegal for each type [" + Definition.ClassToName(expression.actual) + "]."));
+            throw createError(
+                    new IllegalArgumentException("Illegal for each type [" + PainlessLookup.ClassToName(expression.actual) + "]."));
         }
 
         sub.analyze(locals);

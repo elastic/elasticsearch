@@ -19,75 +19,104 @@
 
 package org.elasticsearch.painless.lookup;
 
+import org.objectweb.asm.Type;
+
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-class PainlessLookupBase {
+public class PainlessLookupBase {
 
-    static String buildPainlessMethodKey(String methodName, int methodArity) {
-        return methodName + "/" + methodArity;
-    }
+    // The following terminology is used for variable names throughout the lookup package:
+    //
+    // - javaClass           (Class)         - a java class including def and exluding array type java classes
+    // - javaClassName       (String)        - the fully qualified java class name for a javaClass
+    // - painlessClassName   (String)        - the fully qualified painless name or imported painless name for a painlessClass
+    // - anyClassName        (String)        - either a javaClassName or a painlessClassName
+    // - javaType            (Class)         - a java class excluding def and array type java classes
+    // - painlessType        (Class)         - a java class including def and array type java classes
+    // - javaTypeName        (String)        - the fully qualified java Type name for a javaType
+    // - painlessTypeName    (String)        - the fully qualified painless name or imported painless name for a painlessType
+    // - anyTypeName         (String)        - either a javaTypeName or a painlessTypeName
+    // - painlessClass       (PainlessClass) - a painless class object
+    //
+    // Under ambiguous circumstances most variable names are prefixed with asm, java, or painless.
+    // If the variable name is the same for asm, java, and painless, no prefix is used.
 
-    static Class<?> javaTypeToPainlessType(Class<?> clazz) {
-        if (clazz.isArray()) {
-            Class<?> component = clazz.getComponentType();
-            int dimensions = 1;
+    public static Class<?> javaTypeToPainlessType(Class<?> javaType) {
+        if (javaType.isArray()) {
+            Class<?> javaTypeComponent = javaType.getComponentType();
+            int arrayDimensions = 1;
 
-            while (component.isArray()) {
-                component = component.getComponentType();
-                ++dimensions;
+            while (javaTypeComponent.isArray()) {
+                javaTypeComponent = javaTypeComponent.getComponentType();
+                ++arrayDimensions;
             }
 
-            if (component == Object.class) {
-                char[] braces = new char[dimensions];
-                Arrays.fill(braces, '[');
+            if (javaTypeComponent == Object.class) {
+                char[] asmDescriptorBraces = new char[arrayDimensions];
+                Arrays.fill(asmDescriptorBraces, '[');
 
-                String descriptor = new String(braces) + org.objectweb.asm.Type.getType(def.class).getDescriptor();
-                org.objectweb.asm.Type type = org.objectweb.asm.Type.getType(descriptor);
+                String asmDescriptor = new String(asmDescriptorBraces) + Type.getType(def.class).getDescriptor();
+                Type asmType = Type.getType(asmDescriptor);
 
                 try {
-                    return Class.forName(type.getInternalName().replace('/', '.'));
-                } catch (ClassNotFoundException exception) {
-                    throw new IllegalStateException("internal error", exception);
+                    return Class.forName(asmType.getInternalName().replace('/', '.'));
+                } catch (ClassNotFoundException cnfe) {
+                    throw new IllegalStateException("internal error", cnfe);
                 }
             }
-        } else if (clazz == Object.class) {
+        } else if (javaType == Object.class) {
             return def.class;
         }
 
-        return clazz;
+        return javaType;
     }
 
-    static Class<?> painlessTypeToJavaType(Class<?> clazz) {
-        if (clazz.isArray()) {
-            Class<?> component = clazz.getComponentType();
-            int dimensions = 1;
+    public static Class<?> painlessTypeToJavaType(Class<?> painlessType) {
+        if (painlessType.isArray()) {
+            Class<?> painlessTypeComponent = painlessType.getComponentType();
+            int arrayDimensions = 1;
 
-            while (component.isArray()) {
-                component = component.getComponentType();
-                ++dimensions;
+            while (painlessTypeComponent.isArray()) {
+                painlessTypeComponent = painlessTypeComponent.getComponentType();
+                ++arrayDimensions;
             }
 
-            if (component == def.class) {
-                char[] braces = new char[dimensions];
-                Arrays.fill(braces, '[');
+            if (painlessTypeComponent == def.class) {
+                char[] asmDescriptorBraces = new char[arrayDimensions];
+                Arrays.fill(asmDescriptorBraces, '[');
 
-                String descriptor = new String(braces) + org.objectweb.asm.Type.getType(Object.class).getDescriptor();
-                org.objectweb.asm.Type type = org.objectweb.asm.Type.getType(descriptor);
+                String asmDescriptor = new String(asmDescriptorBraces) + Type.getType(Object.class).getDescriptor();
+                Type asmType = Type.getType(asmDescriptor);
 
                 try {
-                    return Class.forName(type.getInternalName().replace('/', '.'));
+                    return Class.forName(asmType.getInternalName().replace('/', '.'));
                 } catch (ClassNotFoundException exception) {
                     throw new IllegalStateException("internal error", exception);
                 }
             }
-        } else if (clazz == def.class) {
+        } else if (painlessType == def.class) {
             return Object.class;
         }
 
-        return clazz;
+        return painlessType;
     }
+
+    public static String anyTypeNametoPainlessTypeName(String anyTypeName) {
+        if (anyTypeName.startsWith(def.class.getName())) {
+            anyTypeName = anyTypeName.replace(def.class.getName(), DEF_PAINLESS_CLASS_NAME);
+        }
+
+        return anyTypeName.replace('$', '.');
+    }
+
+    public static String buildPainlessMethodKey(String methodName, int methodArity) {
+        return methodName + "/" + methodArity;
+    }
+
+    public static final String DEF_PAINLESS_CLASS_NAME = "def";
+    public static final String PAINLESS_CONSTRUCTOR_NAME = "<init>";
 
     final Map<String, Class<?>> painlessClassNamesToJavaClasses;
     final Map<Class<?>, PainlessClass> javaClassesToPainlessClasses;
@@ -97,7 +126,7 @@ class PainlessLookupBase {
         javaClassesToPainlessClasses = new HashMap<>();
     }
 
-    Class<?> painlessTypeNameToPainlessType(String painlessTypeName) {
+    public Class<?> painlessTypeNameToPainlessType(String painlessTypeName) {
         Class<?> javaClass = painlessClassNamesToJavaClasses.get(painlessTypeName);
 
         if (javaClass != null) {
@@ -108,10 +137,12 @@ class PainlessLookupBase {
         int arrayIndex = painlessTypeName.indexOf('[');
 
         if (arrayIndex != -1) {
-            int length = painlessTypeName.length();
+            int painlessTypeNameLength = painlessTypeName.length();
 
-            while (arrayIndex < length) {
-                if (painlessTypeName.charAt(arrayIndex) == '[' && ++arrayIndex < length && painlessTypeName.charAt(arrayIndex++) == ']') {
+            while (arrayIndex < painlessTypeNameLength) {
+                if (painlessTypeName.charAt(arrayIndex) == '[' &&
+                        ++arrayIndex < painlessTypeNameLength  &&
+                        painlessTypeName.charAt(arrayIndex++) == ']') {
                     ++arrayDimensions;
                 } else {
                     throw new IllegalArgumentException("invalid painless type [" + painlessTypeName + "].");
@@ -121,32 +152,32 @@ class PainlessLookupBase {
             painlessTypeName = painlessTypeName.substring(0, painlessTypeName.indexOf('['));
             javaClass = painlessClassNamesToJavaClasses.get(painlessTypeName);
 
-            char braces[] = new char[arrayDimensions];
-            Arrays.fill(braces, '[');
-            String descriptor = new String(braces);
+            char javaDescriptorBraces[] = new char[arrayDimensions];
+            Arrays.fill(javaDescriptorBraces, '[');
+            String javaDescriptor = new String(javaDescriptorBraces);
 
             if (javaClass == boolean.class) {
-                descriptor += "Z";
+                javaDescriptor += "Z";
             } else if (javaClass == byte.class) {
-                descriptor += "B";
+                javaDescriptor += "B";
             } else if (javaClass == short.class) {
-                descriptor += "S";
+                javaDescriptor += "S";
             } else if (javaClass == char.class) {
-                descriptor += "C";
+                javaDescriptor += "C";
             } else if (javaClass == int.class) {
-                descriptor += "I";
+                javaDescriptor += "I";
             } else if (javaClass == long.class) {
-                descriptor += "J";
+                javaDescriptor += "J";
             } else if (javaClass == float.class) {
-                descriptor += "F";
+                javaDescriptor += "F";
             } else if (javaClass == double.class) {
-                descriptor += "D";
+                javaDescriptor += "D";
             } else {
-                descriptor += "L" + javaClass.getName() + ";";
+                javaDescriptor += "L" + javaClass.getName() + ";";
             }
 
             try {
-                return Class.forName(descriptor);
+                return Class.forName(javaDescriptor);
             } catch (ClassNotFoundException cnfe) {
                 throw new IllegalStateException("painless type [" + painlessTypeName + "] not found", cnfe);
             }

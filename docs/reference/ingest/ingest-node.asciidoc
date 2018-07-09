@@ -1767,8 +1767,9 @@ Removes existing fields. If one field doesn't exist, an exception will be thrown
 .Remove Options
 [options="header"]
 |======
-| Name      | Required  | Default  | Description
-| `field`   | yes       | -        | Fields to be removed
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | Fields to be removed
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
 Here is an example to remove a single field:

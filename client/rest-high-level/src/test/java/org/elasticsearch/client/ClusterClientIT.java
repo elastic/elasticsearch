@@ -22,6 +22,8 @@ package org.elasticsearch.client;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -42,6 +44,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -110,6 +113,46 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(exception.getMessage(), equalTo(
                 "Elasticsearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]"));
+    }
+
+    public void testClusterGetSettings() throws IOException {
+        final String transientSettingKey = RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
+        final int transientSettingValue = 10;
+
+        final String persistentSettingKey = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
+        final String persistentSettingValue = EnableAllocationDecider.Allocation.NONE.name();
+
+        Settings transientSettings =
+            Settings.builder().put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES).build();
+        Settings persistentSettings = Settings.builder().put(persistentSettingKey, persistentSettingValue).build();
+        clusterUpdateSettings(persistentSettings, transientSettings);
+
+        ClusterGetSettingsRequest request = new ClusterGetSettingsRequest();
+        ClusterGetSettingsResponse response = execute(
+            request, highLevelClient().cluster()::getSettings, highLevelClient().cluster()::getSettingsAsync);
+        assertEquals(persistentSettings, response.getPersistentSettings());
+        assertEquals(transientSettings, response.getTransientSettings());
+        assertEquals(0, response.getDefaultSettings().size());
+    }
+
+    public void testClusterGetSettingsWithDefault() throws IOException {
+        final String transientSettingKey = RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
+        final int transientSettingValue = 10;
+
+        final String persistentSettingKey = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
+        final String persistentSettingValue = EnableAllocationDecider.Allocation.NONE.name();
+
+        Settings transientSettings =
+            Settings.builder().put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES).build();
+        Settings persistentSettings = Settings.builder().put(persistentSettingKey, persistentSettingValue).build();
+        clusterUpdateSettings(persistentSettings, transientSettings);
+
+        ClusterGetSettingsRequest request = new ClusterGetSettingsRequest().includeDefaults(true);
+        ClusterGetSettingsResponse response = execute(
+            request, highLevelClient().cluster()::getSettings, highLevelClient().cluster()::getSettingsAsync);
+        assertEquals(persistentSettings, response.getPersistentSettings());
+        assertEquals(transientSettings, response.getTransientSettings());
+        assertThat(response.getDefaultSettings().size(), greaterThan(0));
     }
 
     public void testClusterHealthGreen() throws IOException {

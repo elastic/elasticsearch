@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilterTests;
 
 public class PutFilterActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
-    private final String filterId = randomAlphaOfLengthBetween(1, 20);
+    private final String filterId = MlFilterTests.randomValidFilterId();
 
     @Override
     protected Request createTestInstance() {

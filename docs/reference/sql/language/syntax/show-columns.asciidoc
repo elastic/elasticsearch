@@ -12,3 +12,8 @@ SHOW COLUMNS [ FROM | IN ] ? table
 .Description
 
 List the columns in table and their data type (and other attributes).
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[showColumns]
+----

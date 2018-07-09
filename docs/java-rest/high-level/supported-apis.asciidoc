@@ -32,16 +32,20 @@ The Java High Level REST Client supports the following Search APIs:
 * <<java-rest-high-search-scroll>>
 * <<java-rest-high-clear-scroll>>
 * <<java-rest-high-search-template>>
+* <<java-rest-high-multi-search-template>>
 * <<java-rest-high-multi-search>>
 * <<java-rest-high-field-caps>>
 * <<java-rest-high-rank-eval>>
+* <<java-rest-high-explain>>
 
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
 include::search/multi-search.asciidoc[]
 include::search/search-template.asciidoc[]
+include::search/multi-search-template.asciidoc[]
 include::search/field-caps.asciidoc[]
 include::search/rank-eval.asciidoc[]
+include::search/explain.asciidoc[]
 
 == Miscellaneous APIs
 
@@ -49,9 +53,11 @@ The Java High Level REST Client supports the following Miscellaneous APIs:
 
 * <<java-rest-high-main>>
 * <<java-rest-high-ping>>
+* <<java-rest-high-x-pack-info>>
 
 include::miscellaneous/main.asciidoc[]
 include::miscellaneous/ping.asciidoc[]
+include::miscellaneous/x-pack-info.asciidoc[]
 
 == Indices APIs
 
@@ -74,9 +80,11 @@ Index Management::
 * <<java-rest-high-indices-put-settings>>
 * <<java-rest-high-get-settings>>
 * <<java-rest-high-indices-validate-query>>
+* <<java-rest-high-get-index>>
 
 Mapping Management::
 * <<java-rest-high-put-mapping>>
+* <<java-rest-high-get-mappings>>
 * <<java-rest-high-get-field-mappings>>
 
 Alias Management::
@@ -84,6 +92,7 @@ Alias Management::
 * <<java-rest-high-exists-alias>>
 * <<java-rest-high-get-alias>>
 
+include::indices/analyze.asciidoc[]
 include::indices/create_index.asciidoc[]
 include::indices/delete_index.asciidoc[]
 include::indices/indices_exists.asciidoc[]
@@ -108,15 +117,18 @@ include::indices/get_settings.asciidoc[]
 include::indices/put_template.asciidoc[]
 include::indices/validate_query.asciidoc[]
 include::indices/get_templates.asciidoc[]
+include::indices/get_index.asciidoc[]
 
 == Cluster APIs
 
 The Java High Level REST Client supports the following Cluster APIs:
 
 * <<java-rest-high-cluster-put-settings>>
+* <<java-rest-high-cluster-get-settings>>
 * <<java-rest-high-cluster-health>>
 
 include::cluster/put_settings.asciidoc[]
+include::cluster/get_settings.asciidoc[]
 include::cluster/health.asciidoc[]
 
 == Ingest APIs
@@ -140,12 +152,16 @@ The Java High Level REST Client supports the following Snapshot APIs:
 * <<java-rest-high-snapshot-create-repository>>
 * <<java-rest-high-snapshot-delete-repository>>
 * <<java-rest-high-snapshot-verify-repository>>
+* <<java-rest-high-snapshot-create-snapshot>>
+* <<java-rest-high-snapshot-get-snapshots>>
 * <<java-rest-high-snapshot-delete-snapshot>>
 
 include::snapshot/get_repository.asciidoc[]
 include::snapshot/create_repository.asciidoc[]
 include::snapshot/delete_repository.asciidoc[]
 include::snapshot/verify_repository.asciidoc[]
+include::snapshot/create_snapshot.asciidoc[]
+include::snapshot/get_snapshots.asciidoc[]
 include::snapshot/delete_snapshot.asciidoc[]
 
 == Tasks APIs
@@ -167,4 +183,3 @@ The Java High Level REST Client supports the following Scripts APIs:
 
 include::script/get_script.asciidoc[]
 include::script/delete_script.asciidoc[]
-

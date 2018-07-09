@@ -351,7 +351,7 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if any setting is malformed or if no host is set
      */
     private static HttpHost[] createHosts(final Config config) {
-        final List<String> hosts = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());;
+        final List<String> hosts = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         String configKey = HOST_SETTING.getConcreteSettingForNamespace(config.name()).getKey();
 
         if (hosts.isEmpty()) {
@@ -454,7 +454,7 @@ public class HttpExporter extends Exporter {
             sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
         }
         final CredentialsProvider credentialsProvider = createCredentialsProvider(config);
-        List<String> hostList = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());;
+        List<String> hostList = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         // sending credentials in plaintext!
         if (credentialsProvider != null && hostList.stream().findFirst().orElse("").startsWith("https") == false) {
             logger.warn("exporter [{}] is not using https, but using user authentication with plaintext " +

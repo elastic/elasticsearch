@@ -60,7 +60,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Collections.singletonMap("my_script", script -> {
                 @SuppressWarnings("unchecked")
-                Map<String, Object> ctx = (Map) script.get("ctx");
+                Map<String, Object> ctx = (Map<String, Object>) script.get("ctx");
                 ctx.put("z", 0);
                 return null;
             });

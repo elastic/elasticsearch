@@ -8,12 +8,6 @@ package org.elasticsearch.xpack.sql.action;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction;
-import org.elasticsearch.xpack.sql.plugin.SqlClearCursorRequestBuilder;
-import org.elasticsearch.xpack.sql.plugin.SqlClearCursorResponse;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryRequestBuilder;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;

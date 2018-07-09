@@ -210,16 +210,27 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 for (PersistentTasksCustomMetaData.PersistentTask<?> assignedTask : assignedTasks) {
                     JobTaskState jobTaskState = (JobTaskState) assignedTask.getState();
                     JobState jobState;
-                    if (jobTaskState == null || // executor node didn't have the chance to set job status to OPENING
-                            // previous executor node failed and current executor node didn't have the chance to set job status to OPENING
-                            jobTaskState.isStatusStale(assignedTask)) {
+                    if (jobTaskState == null) {
+                        // executor node didn't have the chance to set job status to OPENING
                         ++numberOfAllocatingJobs;
                         jobState = JobState.OPENING;
                     } else {
                         jobState = jobTaskState.getState();
+                        if (jobTaskState.isStatusStale(assignedTask)) {
+                            if (jobState == JobState.CLOSING) {
+                                // previous executor node failed while the job was closing - it won't
+                                // be reopened, so consider it CLOSED for resource usage purposes
+                                jobState = JobState.CLOSED;
+                            } else if (jobState != JobState.FAILED) {
+                                // previous executor node failed and current executor node didn't
+                                // have the chance to set job status to OPENING
+                                ++numberOfAllocatingJobs;
+                                jobState = JobState.OPENING;
+                            }
+                        }
                     }
-                    // Don't count FAILED jobs, as they don't consume native memory
-                    if (jobState != JobState.FAILED) {
+                    // Don't count CLOSED or FAILED jobs, as they don't consume native memory
+                    if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
                         ++numberOfAssignedJobs;
                         String assignedJobId = ((OpenJobAction.JobParams) assignedTask.getParams()).getJobId();
                         Job assignedJob = mlMetadata.getJobs().get(assignedJobId);

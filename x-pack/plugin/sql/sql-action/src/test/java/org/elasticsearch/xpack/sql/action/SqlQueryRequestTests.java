@@ -110,4 +110,10 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
         mutator.accept(newRequest);
         return newRequest;
     }
+
+    public void testTimeZoneNullException() {
+        final SqlQueryRequest sqlQueryRequest = createTestInstance();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> sqlQueryRequest.timeZone(null));
+        assertEquals("time zone may not be null.", e.getMessage());
+    }
 }

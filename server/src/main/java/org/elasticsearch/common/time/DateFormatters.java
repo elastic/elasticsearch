@@ -130,7 +130,8 @@ public class DateFormatters {
         .append(BASIC_T_TIME_FORMATTER)
         .toFormatter(Locale.ROOT));
 
-    private static final CompoundDateTimeFormatter BASIC_ORDINAL_DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
+    private static final CompoundDateTimeFormatter BASIC_ORDINAL_DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(
+        new DateTimeFormatterBuilder()
         .appendPattern("yyyyDDD")
         .appendLiteral("T")
         .append(BASIC_TIME_NO_MILLIS_FORMATTER)
@@ -145,7 +146,8 @@ public class DateFormatters {
 
     private static final CompoundDateTimeFormatter BASIC_WEEK_DATE = new CompoundDateTimeFormatter(BASIC_WEEK_DATE_FORMATTER);
 
-    private static final CompoundDateTimeFormatter BASIC_WEEK_DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
+    private static final CompoundDateTimeFormatter BASIC_WEEK_DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(
+        new DateTimeFormatterBuilder()
         .append(BASIC_WEEK_DATE_FORMATTER)
         .appendLiteral("T")
         .append(BASIC_TIME_NO_MILLIS_FORMATTER)
@@ -240,8 +242,9 @@ public class DateFormatters {
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
-    private static final CompoundDateTimeFormatter DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(DATE_TIME_NO_MILLIS_FORMATTER, DATE_TIME_NO_MILLIS_1,
-        DATE_TIME_NO_MILLIS_2, DATE_TIME_NO_MILLIS_3, DATE_TIME_NO_MILLIS_4, DATE_TIME_NO_MILLIS_5, DATE_TIME_NO_MILLIS_6);
+    private static final CompoundDateTimeFormatter DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(DATE_TIME_NO_MILLIS_FORMATTER,
+        DATE_TIME_NO_MILLIS_1,  DATE_TIME_NO_MILLIS_2, DATE_TIME_NO_MILLIS_3, DATE_TIME_NO_MILLIS_4, DATE_TIME_NO_MILLIS_5,
+        DATE_TIME_NO_MILLIS_6);
 
     private static final CompoundDateTimeFormatter DATE_TIME = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
         .append(DATE_FORMATTER)
@@ -303,15 +306,18 @@ public class DateFormatters {
         .appendFraction(MILLI_OF_SECOND, 1, 3, true)
         .toFormatter(Locale.ROOT);
 
-    private static final CompoundDateTimeFormatter HOUR_MINUTE_SECOND_MILLIS = new CompoundDateTimeFormatter(HOUR_MINUTE_SECOND_MILLIS_FORMATTER);
+    private static final CompoundDateTimeFormatter HOUR_MINUTE_SECOND_MILLIS =
+        new CompoundDateTimeFormatter(HOUR_MINUTE_SECOND_MILLIS_FORMATTER);
 
-    private static final CompoundDateTimeFormatter DATE_HOUR_MINUTE_SECOND_MILLIS = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
+    private static final CompoundDateTimeFormatter DATE_HOUR_MINUTE_SECOND_MILLIS =
+        new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
         .append(DATE_FORMATTER)
         .appendLiteral("T")
         .append(HOUR_MINUTE_SECOND_MILLIS_FORMATTER)
         .toFormatter(Locale.ROOT));
 
-    private static final CompoundDateTimeFormatter DATE_HOUR_MINUTE_SECOND_FRACTION = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
+    private static final CompoundDateTimeFormatter DATE_HOUR_MINUTE_SECOND_FRACTION =
+        new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
         .append(DATE_FORMATTER)
         .appendLiteral("T")
         .append(HOUR_MINUTE_SECOND_MILLIS_FORMATTER)
@@ -325,7 +331,8 @@ public class DateFormatters {
 
     private static final CompoundDateTimeFormatter ORDINAL_DATE = new CompoundDateTimeFormatter(ORDINAL_DATE_FORMATTER);
 
-    private static final CompoundDateTimeFormatter ORDINAL_DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
+    private static final CompoundDateTimeFormatter ORDINAL_DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(
+        new DateTimeFormatterBuilder()
         .append(ORDINAL_DATE_FORMATTER)
         .appendLiteral('T')
         .append(HOUR_MINUTE_SECOND_FORMATTER)
@@ -431,10 +438,11 @@ public class DateFormatters {
         .append(TIME_ZONE_FORMATTER_WITHOUT_COLON)
         .toFormatter(Locale.ROOT);
 
-    private static final CompoundDateTimeFormatter TIME = new CompoundDateTimeFormatter(TIME_ZONE_ID, TIME_ZONE_WITH_COLON, TIME_ZONE_WITHOUT_COLON);
+    private static final CompoundDateTimeFormatter TIME = new CompoundDateTimeFormatter(TIME_ZONE_ID, TIME_ZONE_WITH_COLON,
+        TIME_ZONE_WITHOUT_COLON);
 
-    private static final CompoundDateTimeFormatter TIME_NO_MILLIS = new CompoundDateTimeFormatter(TIME_NO_MILLIS_FORMATTER_1, TIME_NO_MILLIS_FORMATTER_2,
-        TIME_NO_MILLIS_FORMATTER_3);
+    private static final CompoundDateTimeFormatter TIME_NO_MILLIS =
+        new CompoundDateTimeFormatter(TIME_NO_MILLIS_FORMATTER_1, TIME_NO_MILLIS_FORMATTER_2, TIME_NO_MILLIS_FORMATTER_3);
 
     private static final DateTimeFormatter T_TIME_NO_MILLIS_FORMATTER_1 = new DateTimeFormatterBuilder()
         .appendLiteral("T")
@@ -451,8 +459,8 @@ public class DateFormatters {
         .append(TIME_NO_MILLIS_FORMATTER_3)
         .toFormatter(Locale.ROOT);
 
-    private static final CompoundDateTimeFormatter T_TIME_NO_MILLIS = new CompoundDateTimeFormatter(T_TIME_NO_MILLIS_FORMATTER_1, T_TIME_NO_MILLIS_FORMATTER_2,
-        T_TIME_NO_MILLIS_FORMATTER_3);
+    private static final CompoundDateTimeFormatter T_TIME_NO_MILLIS =
+        new CompoundDateTimeFormatter(T_TIME_NO_MILLIS_FORMATTER_1, T_TIME_NO_MILLIS_FORMATTER_2, T_TIME_NO_MILLIS_FORMATTER_3);
 
     private static final DateTimeFormatter WEEK_DATE_FORMATTER = new DateTimeFormatterBuilder()
         .appendValue(IsoFields.WEEK_BASED_YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
@@ -531,12 +539,14 @@ public class DateFormatters {
 
     private static final CompoundDateTimeFormatter STRICT_BASIC_WEEK_DATE = new CompoundDateTimeFormatter(STRICT_BASIC_WEEK_DATE_FORMATTER);
 
-    private static final CompoundDateTimeFormatter STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
+    private static final CompoundDateTimeFormatter STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(
+        new DateTimeFormatterBuilder()
         .append(STRICT_BASIC_WEEK_DATE_FORMATTER)
         .append(DateTimeFormatter.ofPattern("'T'HHmmssX", Locale.ROOT))
         .toFormatter(Locale.ROOT));
 
-    private static final CompoundDateTimeFormatter STRICT_BASIC_WEEK_DATE_TIME = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
+    private static final CompoundDateTimeFormatter STRICT_BASIC_WEEK_DATE_TIME = new CompoundDateTimeFormatter(
+        new DateTimeFormatterBuilder()
         .append(STRICT_BASIC_WEEK_DATE_FORMATTER)
         .append(DateTimeFormatter.ofPattern("'T'HHmmss.SSSX", Locale.ROOT))
         .toFormatter(Locale.ROOT));
@@ -578,7 +588,8 @@ public class DateFormatters {
         .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
         .toFormatter(Locale.ROOT);
 
-    private static final CompoundDateTimeFormatter STRICT_HOUR_MINUTE_SECOND = new CompoundDateTimeFormatter(STRICT_HOUR_MINUTE_SECOND_FORMATTER);
+    private static final CompoundDateTimeFormatter STRICT_HOUR_MINUTE_SECOND =
+        new CompoundDateTimeFormatter(STRICT_HOUR_MINUTE_SECOND_FORMATTER);
 
     private static final CompoundDateTimeFormatter STRICT_DATE_TIME = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
         .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
@@ -602,7 +613,8 @@ public class DateFormatters {
         .optionalEnd()
         .toFormatter(Locale.ROOT));
 
-    private static final CompoundDateTimeFormatter STRICT_ORDINAL_DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
+    private static final CompoundDateTimeFormatter STRICT_ORDINAL_DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(
+        new DateTimeFormatterBuilder()
         .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
         .appendLiteral('-')
         .appendValue(DAY_OF_YEAR, 3, 3, SignStyle.NOT_NEGATIVE)
@@ -623,11 +635,13 @@ public class DateFormatters {
         .appendFraction(MILLI_OF_SECOND, 1, 3, true)
         .toFormatter(Locale.ROOT);
 
-    private static final CompoundDateTimeFormatter STRICT_HOUR_MINUTE_SECOND_MILLIS = new CompoundDateTimeFormatter(STRICT_HOUR_MINUTE_SECOND_MILLIS_FORMATTER);
+    private static final CompoundDateTimeFormatter STRICT_HOUR_MINUTE_SECOND_MILLIS =
+        new CompoundDateTimeFormatter(STRICT_HOUR_MINUTE_SECOND_MILLIS_FORMATTER);
 
     private static final CompoundDateTimeFormatter STRICT_HOUR_MINUTE_SECOND_FRACTION = STRICT_HOUR_MINUTE_SECOND_MILLIS;
 
-    private static final CompoundDateTimeFormatter STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
+    private static final CompoundDateTimeFormatter STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION = new CompoundDateTimeFormatter(
+        new DateTimeFormatterBuilder()
         .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
         .appendLiteral("T")
         .append(STRICT_HOUR_MINUTE_SECOND_MILLIS_FORMATTER)
@@ -635,9 +649,11 @@ public class DateFormatters {
 
     private static final CompoundDateTimeFormatter STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS = STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION;
 
-    private static final CompoundDateTimeFormatter STRICT_HOUR = new CompoundDateTimeFormatter(DateTimeFormatter.ofPattern("HH", Locale.ROOT));
+    private static final CompoundDateTimeFormatter STRICT_HOUR =
+        new CompoundDateTimeFormatter(DateTimeFormatter.ofPattern("HH", Locale.ROOT));
 
-    private static final CompoundDateTimeFormatter STRICT_HOUR_MINUTE = new CompoundDateTimeFormatter(DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT));
+    private static final CompoundDateTimeFormatter STRICT_HOUR_MINUTE =
+        new CompoundDateTimeFormatter(DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT));
 
     private static final CompoundDateTimeFormatter STRICT_ORDINAL_DATE_TIME = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
         .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
@@ -688,11 +704,13 @@ public class DateFormatters {
         .append(STRICT_TIME_NO_MILLIS_FORMATTER)
         .toFormatter(Locale.ROOT);
 
-    private static final CompoundDateTimeFormatter STRICT_T_TIME_NO_MILLIS = new CompoundDateTimeFormatter(STRICT_T_TIME_NO_MILLIS_FORMATTER);
+    private static final CompoundDateTimeFormatter STRICT_T_TIME_NO_MILLIS =
+        new CompoundDateTimeFormatter(STRICT_T_TIME_NO_MILLIS_FORMATTER);
 
     private static final CompoundDateTimeFormatter STRICT_WEEK_DATE = new CompoundDateTimeFormatter(DateTimeFormatter.ISO_WEEK_DATE);
 
-    private static final CompoundDateTimeFormatter STRICT_WEEK_DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
+    private static final CompoundDateTimeFormatter STRICT_WEEK_DATE_TIME_NO_MILLIS = new CompoundDateTimeFormatter(
+        new DateTimeFormatterBuilder()
         .append(DateTimeFormatter.ISO_WEEK_DATE)
         .append(STRICT_T_TIME_NO_MILLIS_FORMATTER)
         .toFormatter(Locale.ROOT));
@@ -926,7 +944,7 @@ public class DateFormatters {
         }
     }
 
-    public static final ZonedDateTime EPOCH_ZONED_DATE_TIME = Instant.EPOCH.atZone(ZoneOffset.UTC);
+    private static final ZonedDateTime EPOCH_ZONED_DATE_TIME = Instant.EPOCH.atZone(ZoneOffset.UTC);
 
     public static ZonedDateTime toZonedDateTime(TemporalAccessor accessor) {
         return toZonedDateTime(accessor, EPOCH_ZONED_DATE_TIME);

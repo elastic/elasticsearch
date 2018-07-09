@@ -113,7 +113,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             lastRequestedSeqno = maxRequiredSeqno;
         }
 
-        if (numConcurrentReads == 0) {
+        if (numConcurrentReads == 0 && hasReadBudget()) {
+            assert lastRequestedSeqno == globalCheckpoint;
             // We sneak peek if there is any thing new in the leader.
             // If there is we will happily accept
             numConcurrentReads++;
@@ -154,6 +155,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             LOGGER.trace("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numConcurrentWrites, ops.get(0).seqNo(),
                 ops.get(ops.size() - 1).seqNo(), ops.size());
             sendBulkShardOperationsRequest(ops);
+
+            // In case that buffer is higher than max write buffer size then reads may all have been stopped,
+            // this if check makes sure that we start a read when there is budget in case no reads are being performed.
+            if (numConcurrentReads == 0 && hasReadBudget()) {
+                coordinateReads();
+            }
         }
     }
 

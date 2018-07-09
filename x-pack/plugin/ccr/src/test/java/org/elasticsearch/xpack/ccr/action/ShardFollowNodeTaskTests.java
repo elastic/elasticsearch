@@ -37,6 +37,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
     private ShardFollowNodeTask task;
 
+    private AtomicLong leaderGlobalCheckPoint;
     private AtomicLong imdVersion;
     private AtomicInteger mappingUpdateCounter;
 
@@ -84,13 +85,14 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testMappingUpdate() throws Exception {
-        task = createShardFollowTask(1024, 1, 1, 10000, 1024, -1);
+        task = createShardFollowTask(1024, 1, 1, 1000, 1024, -1);
         task.start(-1);
 
         assertBusy(() -> {
             assertThat(task.getStatus().getProcessedGlobalCheckpoint(), greaterThanOrEqualTo(1000L));
         });
         imdVersion.set(2L);
+        leaderGlobalCheckPoint.set(10000L);
         assertBusy(() -> {
             assertThat(task.getStatus().getProcessedGlobalCheckpoint(), equalTo(10000L));
         });
@@ -118,7 +120,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     ShardFollowNodeTask createShardFollowTask(int maxBatchOperationCount, int maxConcurrentReadBatches, int maxConcurrentWriteBathces,
-                                              int leaderGlobalCheckpoint, int bufferWriteLimit, long followGlobalCheckpoint) {
+                                              int globalCheckpoint, int bufferWriteLimit, long followGlobalCheckpoint) {
+        leaderGlobalCheckPoint = new AtomicLong(globalCheckpoint);
         imdVersion = new AtomicLong(1L);
         mappingUpdateCounter = new AtomicInteger(0);
         randomlyTruncateRequests = new AtomicBoolean(false);
@@ -185,21 +188,21 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                 }
 
                 ShardChangesAction.Response response;
-                if (from > leaderGlobalCheckpoint) {
-                    response = new ShardChangesAction.Response(imdVersion.get(), leaderGlobalCheckpoint, new Translog.Operation[0]);
+                if (from > leaderGlobalCheckPoint.get()) {
+                    response = new ShardChangesAction.Response(imdVersion.get(), leaderGlobalCheckPoint.get(), new Translog.Operation[0]);
                 } else {
                     if (randomlyTruncateRequests.get() && maxOperationCount > 10 && truncatedRequests.get() < 5) {
                         truncatedRequests.incrementAndGet();
                         maxOperationCount = maxOperationCount / 2;
                     }
                     List<Translog.Operation> ops = new ArrayList<>();
-                    long maxSeqNo = Math.min(from + maxOperationCount, leaderGlobalCheckpoint);
+                    long maxSeqNo = Math.min(from + maxOperationCount, leaderGlobalCheckPoint.get());
                     for (long seqNo = from; seqNo <= maxSeqNo; seqNo++) {
                         String id = UUIDs.randomBase64UUID();
                         byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
                         ops.add(new Translog.Index("doc", id, seqNo, 0, source));
                     }
-                    response = new ShardChangesAction.Response(imdVersion.get(), leaderGlobalCheckpoint,
+                    response = new ShardChangesAction.Response(imdVersion.get(), leaderGlobalCheckPoint.get(),
                         ops.toArray(new Translog.Operation[0]));
                 }
                 // Emulate network thread and avoid SO:

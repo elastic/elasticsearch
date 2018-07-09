@@ -203,14 +203,26 @@ public class EscapedFunctionsTests extends ESTestCase {
     public void testGUID() {
         Literal l = guidLiteral("12345678-90ab-cdef-0123-456789abcdef");
         assertThat(l.dataType(), is(DataType.KEYWORD));
+
+        l = guidLiteral("12345678-90AB-cdef-0123-456789ABCdef");
+        assertThat(l.dataType(), is(DataType.KEYWORD));
     }
 
-    public void testGUIDValidation() {
+    public void testGUIDValidationHexa() {
         ParsingException ex = expectThrows(ParsingException.class, () -> guidLiteral("12345678-90ab-cdef-0123-456789abcdeH"));
-        assertEquals(
-                "line 1:8: Invalid GUID, expected hexadecimal at offset[35], found [h]",
-                ex.getMessage());
+        assertEquals("line 1:8: Invalid GUID, expected hexadecimal at offset[35], found [H]", ex.getMessage());
     }
+
+    public void testGUIDValidationGroups() {
+        ParsingException ex = expectThrows(ParsingException.class, () -> guidLiteral("12345678A90ab-cdef-0123-456789abcdeH"));
+        assertEquals("line 1:8: Invalid GUID, expected group separator at offset [8], found [A]", ex.getMessage());
+    }
+
+    public void testGUIDValidationLength() {
+        ParsingException ex = expectThrows(ParsingException.class, () -> guidLiteral("12345678A90"));
+        assertEquals("line 1:8: Invalid GUID, too short", ex.getMessage());
+    }
+
 
     public void testLimit() {
         Limit limit = limit(10);

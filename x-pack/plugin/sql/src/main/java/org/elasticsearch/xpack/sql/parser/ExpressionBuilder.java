@@ -615,7 +615,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         for (int pos : separatorPos) {
             if (lowerCase.charAt(pos) != '-') {
                 throw new ParsingException(loc, "{}expected group separator at offset [{}], found [{}]",
-                        errorPrefix, pos, lowerCase.charAt(pos));
+                        errorPrefix, pos, string.charAt(pos));
             }
         }
 
@@ -633,7 +633,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 }
             }
             if (inspect && HEXA.indexOf(lowerCase.charAt(i)) < 0) {
-                throw new ParsingException(loc, "{}expected hexadecimal at offset[{}], found [{}]", errorPrefix, i, lowerCase.charAt(i));
+                throw new ParsingException(loc, "{}expected hexadecimal at offset[{}], found [{}]", errorPrefix, i, string.charAt(i));
             }
         }
 

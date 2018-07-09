@@ -66,6 +66,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
@@ -668,7 +670,7 @@ public class RestHighLevelClient implements Closeable {
                 emptySet());
     }
 
-        
+
     /**
      * Executes a request using the Multi Search Template API.
      *
@@ -678,9 +680,9 @@ public class RestHighLevelClient implements Closeable {
     public final MultiSearchTemplateResponse multiSearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest,
             RequestOptions options) throws IOException {
         return performRequestAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
-                options, MultiSearchTemplateResponse::fromXContext, emptySet());        
-    }   
-    
+                options, MultiSearchTemplateResponse::fromXContext, emptySet());
+    }
+
     /**
      * Asynchronously executes a request using the Multi Search Template API
      *
@@ -692,7 +694,7 @@ public class RestHighLevelClient implements Closeable {
                                           ActionListener<MultiSearchTemplateResponse> listener) {
         performRequestAsyncAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
             options, MultiSearchTemplateResponse::fromXContext, listener, emptySet());
-    }    
+    }
 
     /**
      * Asynchronously executes a request using the Ranking Evaluation API.
@@ -790,6 +792,34 @@ public class RestHighLevelClient implements Closeable {
                                      ActionListener<FieldCapabilitiesResponse> listener) {
         performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
             FieldCapabilitiesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Fetch information about X-Pack from the cluster if it is installed.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public XPackInfoResponse xPackInfo(XPackInfoRequest request, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(request, RequestConverters::xPackInfo, options,
+            XPackInfoResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Fetch information about X-Pack from the cluster if it is installed.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html">
+     * the docs</a> for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void xPackInfoAsync(XPackInfoRequest request, RequestOptions options,
+                                  ActionListener<XPackInfoResponse> listener) {
+        performRequestAsyncAndParseEntity(request, RequestConverters::xPackInfo, options,
+            XPackInfoResponse::fromXContent, listener, emptySet());
     }
 
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,

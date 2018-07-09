@@ -381,17 +381,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             builder.startObject();
             {
                 builder.field(GLOBAL_CHECKPOINT_FIELD.getPreferredName(), globalCheckpoint);
-            }
-            {
                 builder.field(PROCESSED_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), processedGlobalCheckpoint);
-            }
-            {
                 builder.field(LAST_REQUESTED_SEQNO_FIELD.getPreferredName(), lastRequestedSeqno);
-            }
-            {
                 builder.field(NUMBER_OF_CONCURRENT_READS_FIELD.getPreferredName(), numberOfConcurrentReads);
-            }
-            {
                 builder.field(NUMBER_OF_CONCURRENT_WRITES_FIELD.getPreferredName(), numberOfConcurrentWrites);
             }
             builder.endObject();

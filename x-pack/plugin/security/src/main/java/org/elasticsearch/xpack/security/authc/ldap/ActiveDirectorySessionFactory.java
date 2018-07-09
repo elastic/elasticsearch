@@ -63,8 +63,6 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     final DownLevelADAuthenticator downLevelADAuthenticator;
     final UpnADAuthenticator upnADAuthenticator;
 
-    private final int ldapPort;
-
     ActiveDirectorySessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) throws LDAPException {
         super(config, sslService, new ActiveDirectoryGroupsResolver(config.settings()),
                 ActiveDirectorySessionFactorySettings.POOL_ENABLED,
@@ -86,7 +84,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                     + "] setting for active directory");
         }
         String domainDN = buildDnFromDomain(domainName);
-        ldapPort = ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING.get(settings);
+        final int ldapPort = ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING.get(settings);
         final int ldapsPort = ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING.get(settings);
         final int gcLdapPort = ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING.get(settings);
         final int gcLdapsPort = ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING.get(settings);

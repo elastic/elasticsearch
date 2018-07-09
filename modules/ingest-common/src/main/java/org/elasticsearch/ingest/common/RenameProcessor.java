@@ -60,12 +60,12 @@ public final class RenameProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument document) {
-        String source = document.renderTemplate(field);
-        if (document.hasField(source, true) == false) {
+        String path = document.renderTemplate(field);
+        if (document.hasField(path, true) == false) {
             if (ignoreMissing) {
                 return;
             } else {
-                throw new IllegalArgumentException("field [" + source + "] doesn't exist");
+                throw new IllegalArgumentException("field [" + path + "] doesn't exist");
             }
         }
         // We fail here if the target field point to an array slot that is out of range.
@@ -77,13 +77,13 @@ public final class RenameProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + target + "] already exists");
         }
 
-        Object value = document.getFieldValue(source, Object.class);
-        document.removeField(source);
+        Object value = document.getFieldValue(path, Object.class);
+        document.removeField(path);
         try {
             document.setFieldValue(target, value);
         } catch (Exception e) {
             // setting the value back to the original field shouldn't as we just fetched it from that field:
-            document.setFieldValue(source, value);
+            document.setFieldValue(path, value);
             throw e;
         }
     }

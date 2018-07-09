@@ -22,8 +22,10 @@ package org.elasticsearch.painless.lookup;
 import org.objectweb.asm.Type;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class PainlessLookupBase {
 
@@ -43,7 +45,7 @@ public class PainlessLookupBase {
     // Under ambiguous circumstances most variable names are prefixed with asm, java, or painless.
     // If the variable name is the same for asm, java, and painless, no prefix is used.
 
-    public static Class<?> javaTypeToPainlessType(Class<?> javaType) {
+    public static Class<?> javaObjectTypeToPainlessDefType(Class<?> javaType) {
         if (javaType.isArray()) {
             Class<?> javaTypeComponent = javaType.getComponentType();
             int arrayDimensions = 1;
@@ -73,7 +75,7 @@ public class PainlessLookupBase {
         return javaType;
     }
 
-    public static Class<?> painlessTypeToJavaType(Class<?> painlessType) {
+    public static Class<?> painlessDefTypeToJavaObjectType(Class<?> painlessType) {
         if (painlessType.isArray()) {
             Class<?> painlessTypeComponent = painlessType.getComponentType();
             int arrayDimensions = 1;
@@ -111,7 +113,7 @@ public class PainlessLookupBase {
         return methodName + "/" + methodArity;
     }
 
-    public static final String DEF_PAINLESS_CLASS_NAME = "def";
+    public static final String DEF_PAINLESS_CLASS_NAME = def.class.getSimpleName();
     public static final String CONSTRUCTOR_ANY_NAME = "<init>";
 
     final Map<String, Class<?>> painlessClassNamesToJavaClasses;
@@ -120,6 +122,14 @@ public class PainlessLookupBase {
     PainlessLookupBase() {
         painlessClassNamesToJavaClasses = new HashMap<>();
         javaClassesToPainlessClasses = new HashMap<>();
+    }
+
+    PainlessLookupBase(Map<String, Class<?>> painlessClassNamesToJavaClasses, Map<Class<?>, PainlessClass> javaClassesToPainlessClasses) {
+        Objects.requireNonNull(painlessClassNamesToJavaClasses);
+        Objects.requireNonNull(javaClassesToPainlessClasses);
+
+        this.painlessClassNamesToJavaClasses = Collections.unmodifiableMap(painlessClassNamesToJavaClasses);
+        this.javaClassesToPainlessClasses = Collections.unmodifiableMap(javaClassesToPainlessClasses);
     }
 
     public Class<?> painlessTypeNameToPainlessType(String painlessTypeName) {

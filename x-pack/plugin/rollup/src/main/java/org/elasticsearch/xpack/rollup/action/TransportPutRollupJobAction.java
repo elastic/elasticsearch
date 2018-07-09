@@ -9,7 +9,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -130,8 +129,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         String jobMetadata = "\"" + job.getConfig().getId() + "\":" + job.getConfig().toJSONString();
 
         String mapping = Rollup.DYNAMIC_MAPPING_TEMPLATE
-                .replace(Rollup.MAPPING_METADATA_PLACEHOLDER, jobMetadata)
-                .replace(Rollup.ROLLUP_NULL_VALUE_PLACEHOLDER, Rollup.ROLLUP_NULL_VALUE);
+                .replace(Rollup.MAPPING_METADATA_PLACEHOLDER, jobMetadata);
 
         CreateIndexRequest request = new CreateIndexRequest(job.getConfig().getRollupIndex());
         request.mapping(RollupField.TYPE_NAME, mapping, XContentType.JSON);
@@ -180,15 +178,6 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             if (stringVersion == null) {
                 listener.onFailure(new IllegalStateException("Could not determine version of existing rollup metadata for index ["
                     + indexName + "]"));
-                return;
-            }
-            Version parsedVersion = Version.fromString(stringVersion);
-            if (parsedVersion.before(Version.V_6_4_0)) {
-                String msg = "Cannot create rollup job [" + job.getConfig().getId() + "] because the rollup index contains " +
-                    "jobs from pre-6.4.0.  The mappings for these jobs are not compatible with 6.4.0+.  Please specify a new rollup " +
-                    "index.";
-                logger.error(msg);
-                listener.onFailure(new ElasticsearchStatusException(msg, RestStatus.CONFLICT));
                 return;
             }
 

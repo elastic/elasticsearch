@@ -86,13 +86,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final String ROLLUP_TEMPLATE_VERSION_PATTERN =
             Pattern.quote("${rollup.dynamic_template.version}");
 
-    // This is the value in the template that we look for and replace.  Done this way so it can be easily configurable
-    // in the future, rather than hard-coding in the template now
-    public static final String ROLLUP_NULL_VALUE_PLACEHOLDER = "ROLLUP_NULL_VALUE_PLACEHOLDER";
-
-    // This is the actual value that is inserted into the template, which will be used as the `null_value`
-    public static final String ROLLUP_NULL_VALUE = "__ROLLUP_NULL_VALUE_PLACEHOLDER__";
-
     private static final String ROLLUP_TEMPLATE_NAME = "/rollup-dynamic-template.json";
     public static final String DYNAMIC_MAPPING_TEMPLATE = TemplateUtils.loadTemplate(ROLLUP_TEMPLATE_NAME,
             Version.CURRENT.toString(), Rollup.ROLLUP_TEMPLATE_VERSION_PATTERN);

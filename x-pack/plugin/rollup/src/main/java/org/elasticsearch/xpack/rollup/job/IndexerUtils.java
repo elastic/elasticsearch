@@ -83,11 +83,21 @@ class IndexerUtils {
                 doc.put(k + "." + RollupField.TIMESTAMP, v);
                 doc.put(k  + "." + RollupField.INTERVAL, groupConfig.getDateHisto().getInterval());
                 doc.put(k  + "." + DateHistoGroupConfig.TIME_ZONE, groupConfig.getDateHisto().getTimeZone().toString());
-                docID.update(Numbers.longToBytes((Long)v), 0, 8);
+                if (v == null) {
+                    // Arbitrary value to update the doc ID with for nulls
+                    docID.update(19);
+                } else {
+                    docID.update(Numbers.longToBytes((Long)v), 0, 8);
+                }
             } else if (k.endsWith("." + HistogramAggregationBuilder.NAME)) {
                 doc.put(k + "." + RollupField.VALUE, v);
                 doc.put(k + "." + RollupField.INTERVAL, groupConfig.getHisto().getInterval());
-                docID.update(Numbers.doubleToBytes((Double)v), 0, 8);
+                if (v == null) {
+                    // Arbitrary value to update the doc ID with for nulls
+                    docID.update(19);
+                } else {
+                    docID.update(Numbers.doubleToBytes((Double) v), 0, 8);
+                }
             } else if (k.endsWith("." + TermsAggregationBuilder.NAME)) {
                 doc.put(k + "." + RollupField.VALUE, v);
                 if (v == null) {

@@ -1082,7 +1082,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         assertThat(unrolled.toString(), not(equalTo(responses.get(1).toString())));
     }
 
-    public void testStringTermsNullValuePlaceholder() throws IOException {
+    public void testStringTermsNullValue() throws IOException {
         TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms", ValueType.STRING)
             .field("stringField");
 
@@ -1120,8 +1120,6 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             }, nonRollupTerms,
             iw -> {
                 iw.addDocument(stringValueRollupDoc("abc", 3));
-                // off target
-                iw.addDocument(stringValueRollupDoc(Rollup.ROLLUP_NULL_VALUE, 1));
             }, rollupTerms,
             new MappedFieldType[]{nrFTterm}, new MappedFieldType[]{rFTterm, rFTvalue});
 

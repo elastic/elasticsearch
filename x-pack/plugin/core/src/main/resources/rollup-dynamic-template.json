@@ -10,8 +10,7 @@
       "strings": {
         "match_mapping_type": "string",
         "mapping": {
-          "type": "keyword",
-          "null_value": "ROLLUP_NULL_VALUE_PLACEHOLDER"
+          "type": "keyword"
         }
       }
     },

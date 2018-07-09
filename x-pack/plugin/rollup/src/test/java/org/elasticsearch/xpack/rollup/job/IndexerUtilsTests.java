@@ -15,6 +15,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -33,12 +34,12 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
+import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
-import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.joda.time.DateTime;
 import org.mockito.stubbing.Answer;
@@ -51,8 +52,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.mockito.Mockito.mock;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class IndexerUtilsTests extends AggregatorTestCase {
@@ -358,6 +359,36 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(), groupConfig.build(), "foo");
         assertThat(docs.size(), equalTo(1));
         assertThat(docs.get(0).id(), equalTo("1237859798"));
+    }
+
+    public void testNullKeys() {
+        CompositeAggregation composite = mock(CompositeAggregation.class);
+
+        when(composite.getBuckets()).thenAnswer((Answer<List<CompositeAggregation.Bucket>>) invocationOnMock -> {
+            List<CompositeAggregation.Bucket> foos = new ArrayList<>();
+
+            CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
+            LinkedHashMap<String, Object> keys = new LinkedHashMap<>(3);
+            keys.put("foo.date_histogram", null);
+            keys.put("bar.terms", null);
+            keys.put("abc.histogram", null);
+            when(bucket.getKey()).thenReturn(keys);
+
+            Aggregations aggs = new Aggregations(Collections.emptyList());
+            when(bucket.getAggregations()).thenReturn(aggs);
+            when(bucket.getDocCount()).thenReturn(1L);
+
+            foos.add(bucket);
+
+            return foos;
+        });
+
+        GroupConfig.Builder groupConfig = ConfigTestHelpers.getGroupConfig();
+        groupConfig.setHisto(ConfigTestHelpers.getHisto().setFields(Collections.singletonList("abc")).build());
+
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(), groupConfig.build(), "foo");
+        assertThat(docs.size(), equalTo(1));
+        assertFalse(Strings.isNullOrEmpty(docs.get(0).id()));
     }
 
     public void testMissingBuckets() throws IOException {

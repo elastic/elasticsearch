@@ -615,7 +615,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         verificationThreadCheck();
         try {
             if (isReadOnly()) {
+                // TODO: add repository verification for read-only repositories
+
                 // It's readonly - so there is not much we can do here to verify it apart try to create blobStore()
+                // and check that is is accessible on the master
                 blobStore();
                 return null;
             } else {

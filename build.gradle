@@ -125,7 +125,10 @@ Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectE
 allprojects {
   project.ext {
     // for ide hacks...
-    isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
+    isEclipse = System.getProperty("eclipse.launcher") != null ||   // Detects gradle launched from Eclipse's IDE
+            System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
+            gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
+            gradle.startParameter.taskNames.contains('cleanEclipse')
     isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
 
     // for BWC testing
@@ -446,7 +449,7 @@ allprojects {
 
   File licenseHeaderFile;
   String prefix = ':x-pack';
- 
+
   if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     prefix = prefix.replace(':', '_')
   }
@@ -455,7 +458,7 @@ allprojects {
   } else {
       licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/oss-license-header.txt')
   }
-  
+
   String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'
   String licenseHeader = licenseHeaderFile.getText('UTF-8').replace(System.lineSeparator(), lineSeparator)
   task copyEclipseSettings(type: Copy) {

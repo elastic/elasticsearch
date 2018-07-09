@@ -13,11 +13,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.XPackInfoResponse;
+import org.elasticsearch.protocol.license.LicenseStatus;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
-import org.elasticsearch.xpack.core.action.XPackInfoRequest;
 
 import java.util.EnumSet;
 import java.util.Iterator;
@@ -136,7 +137,7 @@ public class MlRemoteLicenseChecker {
 
     static boolean licenseSupportsML(XPackInfoResponse.LicenseInfo licenseInfo) {
         License.OperationMode mode = License.OperationMode.resolve(licenseInfo.getMode());
-        return licenseInfo.getStatus() == License.Status.ACTIVE &&
+        return licenseInfo.getStatus() == LicenseStatus.ACTIVE &&
                 (mode == License.OperationMode.PLATINUM || mode == License.OperationMode.TRIAL);
     }
 
@@ -173,7 +174,7 @@ public class MlRemoteLicenseChecker {
 
     public static String buildErrorMessage(RemoteClusterLicenseInfo clusterLicenseInfo) {
         StringBuilder error = new StringBuilder();
-        if (clusterLicenseInfo.licenseInfo.getStatus() != License.Status.ACTIVE) {
+        if (clusterLicenseInfo.licenseInfo.getStatus() != LicenseStatus.ACTIVE) {
             error.append("The license on cluster [").append(clusterLicenseInfo.clusterName)
                     .append("] is not active. ");
         } else {

@@ -122,7 +122,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
                  */
                 containsNegotiateWithToken =
                         ese.getHeader("WWW-Authenticate").stream()
-                                .anyMatch((s) -> s != null && s.toLowerCase(Locale.ENGLISH).contains("negotiate "));
+                                .anyMatch(s -> s != null && s.toLowerCase(Locale.ROOT).contains("negotiate "));
             } else {
                 containsNegotiateWithToken = false;
             }

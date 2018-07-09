@@ -165,10 +165,15 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         }
         final User user = (userPrincipalNameToUserCache != null) ? userPrincipalNameToUserCache.get(username) : null;
         if (user != null) {
+            /**
+             * TODO: bizybot If authorizing realms configured, resolve user from those
+             * realms and then return.
+             */
             listener.onResponse(AuthenticationResult.success(user));
         } else {
             /**
-             * TODO: bizybot AD/LDAP user lookup if lookup realm configured
+             * TODO: bizybot If authorizing realms configured, resolve user from those
+             * realms, cache it and then return.
              */
             final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(username, null, Collections.emptySet(), null, this.config);
             userRoleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
@@ -185,5 +190,4 @@ public final class KerberosRealm extends Realm implements CachingRealm {
     public void lookupUser(final String username, final ActionListener<User> listener) {
         listener.onResponse(null);
     }
-
 }

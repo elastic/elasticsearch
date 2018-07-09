@@ -58,7 +58,7 @@ public final class XPackClient {
     }
 
     /**
-     * Fetch information about X-Pack from the cluster.
+     * Asynchronously fetch information about X-Pack from the cluster.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html">
      * the docs</a> for more.
      * @param request the request

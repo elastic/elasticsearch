@@ -193,13 +193,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                         maxOperationCount = maxOperationCount / 2;
                     }
                     List<Translog.Operation> ops = new ArrayList<>();
-                    for (int i = 0; i < maxOperationCount; i++) {
-                        long seqNo = from + i;
-                        if (seqNo <= leaderGlobalCheckpoint) {
-                            String id = UUIDs.randomBase64UUID();
-                            byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
-                            ops.add(new Translog.Index("doc", id, seqNo, 0, source));
-                        }
+                    long maxSeqNo = Math.min(from + maxOperationCount, leaderGlobalCheckpoint);
+                    for (long seqNo = from; seqNo <= maxSeqNo; seqNo++) {
+                        String id = UUIDs.randomBase64UUID();
+                        byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
+                        ops.add(new Translog.Index("doc", id, seqNo, 0, source));
                     }
                     response = new ShardChangesAction.Response(imdVersion.get(), leaderGlobalCheckpoint,
                         ops.toArray(new Translog.Operation[0]));

@@ -169,51 +169,51 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         innerSendShardChangesRequest(from, maxOperationCount,
             response -> {
                 retryCounter.set(0);
-                handleReadResponse(from, maxOperationCount, maxRequiredSeqNo, response);
+                handleReadResponse(from, maxRequiredSeqNo, response);
             },
             e -> handleFailure(e, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo)));
     }
 
-    private void handleReadResponse(long from, int maxOperationCount, long maxRequiredSeqNo, ShardChangesAction.Response response) {
+    private void handleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
         maybeUpdateMapping(response.getIndexMetadataVersion(), () -> {
             synchronized (ShardFollowNodeTask.this) {
                 globalCheckpoint = Math.max(globalCheckpoint, response.getGlobalCheckpoint());
-                buffer.addAll(Arrays.asList(response.getOperations()));
-                coordinateWrites();
-
-                Long lastOpSeqNo = null;
-                if (response.getOperations().length != 0) {
-                    lastOpSeqNo = response.getOperations()[response.getOperations().length - 1].seqNo();
-                    assert lastOpSeqNo == Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::seqNo).max().getAsLong();
-                }
-
-                if (lastOpSeqNo != null && lastOpSeqNo < maxRequiredSeqNo) {
-                    long newFrom = lastOpSeqNo + 1;
-                    int newSize = (int) (maxRequiredSeqNo - lastOpSeqNo);
-                    LOGGER.trace("{} received [{}] as last op while [{}] was expected, continue to read [{}/{}]...",
-                        params.getFollowShardId(), lastOpSeqNo, maxRequiredSeqNo, newFrom, maxOperationCount);
-                    sendShardChangesRequest(newFrom, newSize, maxRequiredSeqNo);
-                    return;
-                }
-                // If lastOpSeqNo == null then from must be equal to maxRequiredSeqNo otherwise something went wrong and
-                // we are not getting ops while we really should.
-                // There is one exception why can't fail because of this and that is that we may read from a leader shard
-                // copy with a global checkpoint equal to from and no ops are than being returned. If we can detect this
-                // here or make sure that the shard changes api does not do this (add a flag requireOps and let it fail
-                // so that it can read from another shard copy) then we can add a hard check here.
-
-                numConcurrentReads--;
-                if (response.getOperations().length != 0) {
-                    LOGGER.trace("{} post updating lastRequestedSeqno to [{}]", params.getFollowShardId(), lastRequestedSeqno);
-                    Translog.Operation firstOp = response.getOperations()[0];
-                    lastRequestedSeqno = Math.max(lastRequestedSeqno, lastOpSeqNo);
-                    assert firstOp.seqNo() == from;
-                    coordinateReads();
+                final long newMinRequiredSeqNo;
+                if (response.getOperations().length == 0) {
+                    newMinRequiredSeqNo = from;
                 } else {
-                    LOGGER.trace("{} received no ops, scheduling to coordinate reads", params.getFollowShardId());
-                    scheduler.accept(idleShardChangesRequestDelay, this::coordinateReads);
+                    assert response.getOperations()[0].seqNo() == from :
+                        "first operation is not what we asked for. From is [" + from + "], got " + response.getOperations()[0];
+                    buffer.addAll(Arrays.asList(response.getOperations()));
+                    final long maxSeqNo = response.getOperations()[response.getOperations().length - 1].seqNo();
+                    assert maxSeqNo==
+                        Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::seqNo).max().getAsLong();
+                    newMinRequiredSeqNo = maxSeqNo + 1;
+                    // update last requested seq no as we may have gotten more than we asked for and we don't want to ask it again.
+                    lastRequestedSeqno = Math.max(lastRequestedSeqno, maxSeqNo);
+                    assert lastRequestedSeqno <= globalCheckpoint:
+                        "lastRequestedSeqno [" + lastRequestedSeqno + "] is larger than the global checkpoint [" + globalCheckpoint + "]";
+                    coordinateWrites();
                 }
-                assert numConcurrentReads >= 0;
+
+                if (newMinRequiredSeqNo < maxRequiredSeqNo) {
+                    int newSize = (int) (maxRequiredSeqNo - newMinRequiredSeqNo) + 1;
+                    LOGGER.trace("{} received [{}] ops, still missing [{}/{}], continuing to read...",
+                        params.getFollowShardId(), response.getOperations().length, newMinRequiredSeqNo, maxRequiredSeqNo);
+                    sendShardChangesRequest(newMinRequiredSeqNo, newSize, maxRequiredSeqNo);
+                } else {
+                    // read is completed, decrement
+                    numConcurrentReads--;
+                    if (response.getOperations().length == 0 && globalCheckpoint == lastRequestedSeqno)  {
+                        // we got nothing and we have no reason to believe asking again well get us more, treat shard as idle and delay
+                        // future requests
+                        LOGGER.trace("{} received no ops and no known ops to fetch, scheduling to coordinate reads",
+                            params.getFollowShardId());
+                        scheduler.accept(idleShardChangesRequestDelay, this::coordinateReads);
+                    } else {
+                        coordinateReads();
+                    }
+                }
             }
         });
     }

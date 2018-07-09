@@ -72,45 +72,40 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
 
         private String leaderIndex;
         private String followIndex;
-        private int maxOperationCount;
-        private int maxConcurrentReads;
+        private int maxBatchOperationCount;
+        private int maxConcurrentReadBatches;
         private long maxOperationSizeInBytes;
-        private int maxWriteSize;
-        private int maxConcurrentWrites;
-        private int maxBufferSize;
+        private int maxConcurrentWriteBatches;
+        private int maxWriteBufferSize;
         private TimeValue retryTimeout;
         private TimeValue idleShardRetryDelay;
 
-        public Request(String leaderIndex, String followIndex, int maxOperationCount, int maxConcurrentReads,
-                       long maxOperationSizeInBytes, int maxWriteSize, int maxConcurrentWrites, int maxBufferSize,
+        public Request(String leaderIndex, String followIndex, int maxBatchOperationCount, int maxConcurrentReadBatches,
+                       long maxOperationSizeInBytes, int maxConcurrentWriteBatches, int maxWriteBufferSize,
                        TimeValue retryTimeout, TimeValue idleShardRetryDelay) {
-            if (maxOperationCount < 1) {
-                throw new IllegalArgumentException("maxOperationCount must be larger than 0");
+            if (maxBatchOperationCount < 1) {
+                throw new IllegalArgumentException("maxBatchOperationCount must be larger than 0");
             }
-            if (maxConcurrentReads < 1) {
+            if (maxConcurrentReadBatches < 1) {
                 throw new IllegalArgumentException("concurrent_processors must be larger than 0");
             }
             if (maxOperationSizeInBytes <= 0) {
                 throw new IllegalArgumentException("processor_max_translog_bytes must be larger than 0");
             }
-            if (maxWriteSize < 1) {
-                throw new IllegalArgumentException("maxWriteSize must be larger than 0");
+            if (maxConcurrentWriteBatches < 1) {
+                throw new IllegalArgumentException("maxConcurrentWriteBatches must be larger than 0");
             }
-            if (maxConcurrentWrites < 1) {
-                throw new IllegalArgumentException("maxConcurrentWrites must be larger than 0");
-            }
-            if (maxBufferSize < 1) {
-                throw new IllegalArgumentException("maxBufferSize must be larger than 0");
+            if (maxWriteBufferSize < 1) {
+                throw new IllegalArgumentException("maxWriteBufferSize must be larger than 0");
             }
 
             this.leaderIndex = Objects.requireNonNull(leaderIndex);
             this.followIndex = Objects.requireNonNull(followIndex);
-            this.maxOperationCount = maxOperationCount;
-            this.maxConcurrentReads = maxConcurrentReads;
+            this.maxBatchOperationCount = maxBatchOperationCount;
+            this.maxConcurrentReadBatches = maxConcurrentReadBatches;
             this.maxOperationSizeInBytes = maxOperationSizeInBytes;
-            this.maxWriteSize = maxWriteSize;
-            this.maxConcurrentWrites = maxConcurrentWrites;
-            this.maxBufferSize = maxBufferSize;
+            this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
+            this.maxWriteBufferSize = maxWriteBufferSize;
             this.retryTimeout = retryTimeout;
             this.idleShardRetryDelay = idleShardRetryDelay;
         }
@@ -126,8 +121,8 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             return followIndex;
         }
 
-        public int getMaxOperationCount() {
-            return maxOperationCount;
+        public int getMaxBatchOperationCount() {
+            return maxBatchOperationCount;
         }
 
         @Override
@@ -140,12 +135,11 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             super.readFrom(in);
             leaderIndex = in.readString();
             followIndex = in.readString();
-            maxOperationCount = in.readVInt();
-            maxConcurrentReads = in.readVInt();
+            maxBatchOperationCount = in.readVInt();
+            maxConcurrentReadBatches = in.readVInt();
             maxOperationSizeInBytes = in.readVLong();
-            maxWriteSize = in.readVInt();
-            maxConcurrentWrites = in.readVInt();
-            maxBufferSize = in.readVInt();
+            maxConcurrentWriteBatches = in.readVInt();
+            maxWriteBufferSize = in.readVInt();
             retryTimeout = in.readOptionalTimeValue();
             idleShardRetryDelay = in.readOptionalTimeValue();
         }
@@ -155,12 +149,11 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             super.writeTo(out);
             out.writeString(leaderIndex);
             out.writeString(followIndex);
-            out.writeVInt(maxOperationCount);
-            out.writeVInt(maxConcurrentReads);
+            out.writeVInt(maxBatchOperationCount);
+            out.writeVInt(maxConcurrentReadBatches);
             out.writeVLong(maxOperationSizeInBytes);
-            out.writeVInt(maxWriteSize);
-            out.writeVInt(maxConcurrentWrites);
-            out.writeVInt(maxBufferSize);
+            out.writeVInt(maxConcurrentWriteBatches);
+            out.writeVInt(maxWriteBufferSize);
             out.writeOptionalTimeValue(retryTimeout);
             out.writeOptionalTimeValue(idleShardRetryDelay);
         }
@@ -170,12 +163,11 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return maxOperationCount == request.maxOperationCount &&
-                maxConcurrentReads == request.maxConcurrentReads &&
+            return maxBatchOperationCount == request.maxBatchOperationCount &&
+                maxConcurrentReadBatches == request.maxConcurrentReadBatches &&
                 maxOperationSizeInBytes == request.maxOperationSizeInBytes &&
-                maxWriteSize == request.maxWriteSize &&
-                maxConcurrentWrites == request.maxConcurrentWrites &&
-                maxBufferSize == request.maxBufferSize &&
+                maxConcurrentWriteBatches == request.maxConcurrentWriteBatches &&
+                maxWriteBufferSize == request.maxWriteBufferSize &&
                 Objects.equals(retryTimeout, request.retryTimeout) &&
                 Objects.equals(idleShardRetryDelay, request.idleShardRetryDelay) &&
                 Objects.equals(leaderIndex, request.leaderIndex) &&
@@ -184,8 +176,8 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(leaderIndex, followIndex, maxOperationCount, maxConcurrentReads, maxOperationSizeInBytes,
-                maxWriteSize, maxConcurrentWrites, maxBufferSize, retryTimeout, idleShardRetryDelay);
+            return Objects.hash(leaderIndex, followIndex, maxBatchOperationCount, maxConcurrentReadBatches, maxOperationSizeInBytes,
+                maxConcurrentWriteBatches, maxWriteBufferSize, retryTimeout, idleShardRetryDelay);
         }
     }
 
@@ -292,9 +284,9 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
                 ShardFollowTask shardFollowTask = new ShardFollowTask(clusterNameAlias,
                         new ShardId(followIndexMetadata.getIndex(), shardId),
                         new ShardId(leaderIndexMetadata.getIndex(), shardId),
-                        request.maxOperationCount, request.maxConcurrentReads, request.maxOperationSizeInBytes,
-                        request.maxWriteSize, request.maxConcurrentWrites, request.maxBufferSize, retryTimeout,
-                        idleShardRetryDelay, filteredHeaders);
+                        request.maxBatchOperationCount, request.maxConcurrentReadBatches, request.maxOperationSizeInBytes,
+                        request.maxConcurrentWriteBatches, request.maxWriteBufferSize, retryTimeout, idleShardRetryDelay,
+                        filteredHeaders);
                 persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
                         new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
                             @Override

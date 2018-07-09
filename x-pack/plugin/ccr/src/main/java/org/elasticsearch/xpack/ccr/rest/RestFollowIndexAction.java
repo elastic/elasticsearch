@@ -39,35 +39,31 @@ public class RestFollowIndexAction extends BaseRestHandler {
     }
 
     static Request createRequest(RestRequest restRequest) {
-        int maxOperationCount = ShardFollowNodeTask.DEFAULT_MAX_OPERATION_COUNT;
+        int maxBatchOperationCount = ShardFollowNodeTask.DEFAULT_MAX_BATCH_OPERATION_COUNT;
         if (restRequest.hasParam(ShardFollowTask.MAX_BATCH_OPERATION_COUNT.getPreferredName())) {
-            maxOperationCount = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_BATCH_OPERATION_COUNT.getPreferredName()));
+            maxBatchOperationCount = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_BATCH_OPERATION_COUNT.getPreferredName()));
         }
-        int maxConcurrentReads = ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READS;
-        if (restRequest.hasParam(ShardFollowTask.MAX_CONCURRENT_READS_BATCHES.getPreferredName())) {
-            maxConcurrentReads = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_READS_BATCHES.getPreferredName()));
+        int maxConcurrentReadBatches = ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READ_BATCHES;
+        if (restRequest.hasParam(ShardFollowTask.MAX_CONCURRENT_READ_BATCHES.getPreferredName())) {
+            maxConcurrentReadBatches = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_READ_BATCHES.getPreferredName()));
         }
-        long maxOperationSizeInBytes = ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES;
+        long maxBatchSizeInBytes = ShardFollowNodeTask.DEFAULT_MAX_BATCH_SIZE_IN_BYTES;
         if (restRequest.hasParam(ShardFollowTask.MAX_BATCH_SIZE_IN_BYTES.getPreferredName())) {
-            maxOperationSizeInBytes = Long.valueOf(restRequest.param(ShardFollowTask.MAX_BATCH_SIZE_IN_BYTES.getPreferredName()));
+            maxBatchSizeInBytes = Long.valueOf(restRequest.param(ShardFollowTask.MAX_BATCH_SIZE_IN_BYTES.getPreferredName()));
         }
-        int maxWriteSize = ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE;
-        if (restRequest.hasParam(ShardFollowTask.MAX_WRITE_SIZE.getPreferredName())) {
-            maxWriteSize = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_WRITE_SIZE.getPreferredName()));
+        int maxConcurrentWriteBatches = ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITE_BATCHES;
+        if (restRequest.hasParam(ShardFollowTask.MAX_CONCURRENT_WRITE_BATCHES.getPreferredName())) {
+            maxConcurrentWriteBatches = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_WRITE_BATCHES.getPreferredName()));
         }
-        int maxConcurrentWrites = ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITES;
-        if (restRequest.hasParam(ShardFollowTask.MAX_CONCURRENT_WRITES_BATCHES.getPreferredName())) {
-            maxConcurrentWrites = Integer.valueOf(restRequest.param(ShardFollowTask.MAX_CONCURRENT_WRITES_BATCHES.getPreferredName()));
-        }
-        int maxBufferSize = ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE;
+        int maxWriteBufferSize = ShardFollowNodeTask.DEFAULT_MAX_WRITE_BUFFER_SIZE;
         if (restRequest.hasParam(ShardFollowTask.MAX_WRITE_BUFFER_SIZE.getPreferredName())) {
-            maxBufferSize = Integer.parseInt(restRequest.param(ShardFollowTask.MAX_WRITE_BUFFER_SIZE.getPreferredName()));
+            maxWriteBufferSize = Integer.parseInt(restRequest.param(ShardFollowTask.MAX_WRITE_BUFFER_SIZE.getPreferredName()));
         }
         TimeValue retryTimeout = restRequest.paramAsTime(ShardFollowTask.RETRY_TIMEOUT.getPreferredName(),
             ShardFollowNodeTask.DEFAULT_RETRY_TIMEOUT);
         TimeValue idleShardRetryTimeout = restRequest.paramAsTime(ShardFollowTask.IDLE_SHARD_RETRY_DELAY.getPreferredName(),
             ShardFollowNodeTask.DEFAULT_IDLE_SHARD_RETRY_DELAY);
-        return new Request(restRequest.param("leader_index"), restRequest.param("index"), maxOperationCount, maxConcurrentReads,
-            maxOperationSizeInBytes, maxWriteSize, maxConcurrentWrites, maxBufferSize, retryTimeout, idleShardRetryTimeout);
+        return new Request(restRequest.param("leader_index"), restRequest.param("index"), maxBatchOperationCount, maxConcurrentReadBatches,
+            maxBatchSizeInBytes, maxConcurrentWriteBatches, maxWriteBufferSize, retryTimeout, idleShardRetryTimeout);
     }
 }

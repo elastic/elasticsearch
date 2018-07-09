@@ -50,9 +50,9 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
     public void testDefaults() throws Exception {
         long followGlobalCheckpoint = randomIntBetween(-1, 2048);
-        task = createShardFollowTask(ShardFollowNodeTask.DEFAULT_MAX_OPERATION_COUNT, ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READS,
-            ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE, ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITES, 10000,
-            ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE, followGlobalCheckpoint);
+        task = createShardFollowTask(ShardFollowNodeTask.DEFAULT_MAX_BATCH_OPERATION_COUNT,
+            ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READ_BATCHES, ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITE_BATCHES,
+            10000, ShardFollowNodeTask.DEFAULT_MAX_WRITE_BUFFER_SIZE, followGlobalCheckpoint);
         task.start(followGlobalCheckpoint);
 
         assertBusy(() -> {
@@ -63,8 +63,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
     public void testHitBufferLimit() throws Exception {
         // Setting buffer limit to 100, so that we are sure the limit will be met
-        task = createShardFollowTask(ShardFollowNodeTask.DEFAULT_MAX_OPERATION_COUNT, 3,
-            ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE, 1, 10000, 100, -1);
+        task = createShardFollowTask(ShardFollowNodeTask.DEFAULT_MAX_BATCH_OPERATION_COUNT, 3, 1, 10000, 100, -1);
         task.start(-1);
 
         assertBusy(() -> {
@@ -75,7 +74,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     @TestLogging("org.elasticsearch.xpack.ccr.action:TRACE")
     public void testConcurrentReadsAndWrites() throws Exception {
         long followGlobalCheckpoint = randomIntBetween(-1, 2048);
-        task = createShardFollowTask(randomIntBetween(32, 2048), randomIntBetween(2, 10), randomIntBetween(32, 2048),
+        task = createShardFollowTask(randomIntBetween(32, 2048), randomIntBetween(2, 10),
             randomIntBetween(2, 10), 50000, 10240, followGlobalCheckpoint);
         task.start(followGlobalCheckpoint);
 
@@ -85,7 +84,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testMappingUpdate() throws Exception {
-        task = createShardFollowTask(1024, 1, 1024, 1, 10000, 1024, -1);
+        task = createShardFollowTask(1024, 1, 1, 10000, 1024, -1);
         task.start(-1);
 
         assertBusy(() -> {
@@ -99,7 +98,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testOccasionalApiFailure() throws Exception {
-        task = createShardFollowTask(1024, 1, 1024, 1, 10000, 1024, -1);
+        task = createShardFollowTask(1024, 1, 1, 10000, 1024, -1);
         task.start(-1);
         randomlyFailWithRetryableError.set(true);
         assertBusy(() -> {
@@ -109,7 +108,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testNotAllExpectedOpsReturned() throws Exception {
-        task = createShardFollowTask(1024, 1, 1024, 1, 10000, 1024, -1);
+        task = createShardFollowTask(1024, 1, 1, 10000, 1024, -1);
         task.start(-1);
         randomlyTruncateRequests.set(true);
         assertBusy(() -> {
@@ -118,9 +117,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(truncatedRequests.get(), greaterThan(0));
     }
 
-    ShardFollowNodeTask createShardFollowTask(int maxReadSize, int maxConcurrentReads, int maxWriteSize,
-                                              int maxConcurrentWrites, int leaderGlobalCheckpoint, int bufferLimit,
-                                              long followGlobalCheckpoint) {
+    ShardFollowNodeTask createShardFollowTask(int maxBatchOperationCount, int maxConcurrentReadBatches, int maxConcurrentWriteBathces,
+                                              int leaderGlobalCheckpoint, int bufferWriteLimit, long followGlobalCheckpoint) {
         imdVersion = new AtomicLong(1L);
         mappingUpdateCounter = new AtomicInteger(0);
         randomlyTruncateRequests = new AtomicBoolean(false);
@@ -129,9 +127,9 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         failedRequests = new AtomicInteger(0);
         AtomicBoolean stopped = new AtomicBoolean(false);
         ShardFollowTask params = new ShardFollowTask(null, new ShardId("follow_index", "", 0),
-            new ShardId("leader_index", "", 0), maxReadSize, maxConcurrentReads, ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES,
-            maxWriteSize, maxConcurrentWrites, bufferLimit, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10),
-            Collections.emptyMap());
+            new ShardId("leader_index", "", 0), maxBatchOperationCount, maxConcurrentReadBatches,
+            ShardFollowNodeTask.DEFAULT_MAX_BATCH_SIZE_IN_BYTES, maxConcurrentWriteBathces, bufferWriteLimit,
+            TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10), Collections.emptyMap());
 
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> {
             try {

@@ -42,12 +42,11 @@ import java.util.function.LongConsumer;
  */
 public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
-    public static final int DEFAULT_MAX_OPERATION_COUNT = 1024;
-    public static final int DEFAULT_MAX_WRITE_SIZE = 1024;
-    public static final int DEFAULT_MAX_CONCURRENT_READS = 1;
-    public static final int DEFAULT_MAX_CONCURRENT_WRITES = 1;
-    public static final int DEFAULT_MAX_BUFFER_SIZE = 10240;
-    public static final long DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES = Long.MAX_VALUE;
+    public static final int DEFAULT_MAX_BATCH_OPERATION_COUNT = 1024;
+    public static final int DEFAULT_MAX_CONCURRENT_READ_BATCHES = 1;
+    public static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 1;
+    public static final int DEFAULT_MAX_WRITE_BUFFER_SIZE = 10240;
+    public static final long DEFAULT_MAX_BATCH_SIZE_IN_BYTES = Long.MAX_VALUE;
     private static final int RETRY_LIMIT = 10;
     public static final TimeValue DEFAULT_RETRY_TIMEOUT = new TimeValue(500);
     public static final TimeValue DEFAULT_IDLE_SHARD_RETRY_DELAY = TimeValue.timeValueSeconds(10);
@@ -102,7 +101,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
         LOGGER.trace("{} coordinate reads, lastRequestedSeqno={}, globalCheckpoint={}",
             params.getFollowShardId(), lastRequestedSeqno, globalCheckpoint);
-        final int maxReadSize = params.getMaxReadSize();
+        final int maxReadSize = params.getMaxBatchOperationCount();
         while (hasReadBudget() && lastRequestedSeqno < globalCheckpoint) {
             numConcurrentReads++;
             long from = lastRequestedSeqno + 1;
@@ -124,12 +123,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private boolean hasReadBudget() {
         assert Thread.holdsLock(this);
-        if (numConcurrentReads >= params.getMaxConcurrentReads()) {
+        if (numConcurrentReads >= params.getMaxConcurrentReadBatches()) {
             LOGGER.trace("{} no new reads, maximum number of concurrent reads have been reached [{}]",
                 params.getFollowShardId(), numConcurrentReads);
             return false;
         }
-        if (buffer.size() > params.getMaxBufferSize()) {
+        if (buffer.size() > params.getMaxWriteBufferSize()) {
             LOGGER.trace("{} no new reads, buffer limit has been reached [{}]", params.getFollowShardId(), buffer.size());
             return false;
         }
@@ -138,7 +137,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private synchronized void coordinateWrites() {
         while (hasWriteBudget() && buffer.isEmpty() == false) {
-            Translog.Operation[] ops = new Translog.Operation[Math.min(params.getMaxWriteSize(), buffer.size())];
+            Translog.Operation[] ops = new Translog.Operation[Math.min(params.getMaxBatchOperationCount(), buffer.size())];
             for (int i = 0; i < ops.length; i++) {
                 ops[i] = buffer.remove();
             }
@@ -151,7 +150,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private boolean hasWriteBudget() {
         assert Thread.holdsLock(this);
-        if (numConcurrentWrites >= params.getMaxConcurrentWrites()) {
+        if (numConcurrentWrites >= params.getMaxConcurrentWriteBatches()) {
             LOGGER.trace("{} maximum number of concurrent writes have been reached [{}]",
                 params.getFollowShardId(), numConcurrentWrites);
             return false;

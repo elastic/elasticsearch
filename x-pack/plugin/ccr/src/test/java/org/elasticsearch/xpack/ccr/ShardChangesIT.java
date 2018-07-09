@@ -289,7 +289,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         atLeastDocsIndexed("index1", numDocsIndexed / 3);
 
         final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", maxReadSize,
-            randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(32, 2048), randomIntBetween(2, 10),
+            randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(2, 10),
             randomIntBetween(1024, 10240), TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
         CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
@@ -330,12 +330,12 @@ public class ShardChangesIT extends ESIntegTestCase {
         thread.start();
 
         final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", randomIntBetween(32, 2048),
-            randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(32, 2048), randomIntBetween(2, 10),
-            ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+            randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(2, 10),
+            ShardFollowNodeTask.DEFAULT_MAX_WRITE_BUFFER_SIZE, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
         client().execute(FollowIndexAction.INSTANCE, followRequest).get();
 
-        long maxNumDocsReplicated = Math.min(3000, randomLongBetween(followRequest.getMaxOperationCount(),
-            followRequest.getMaxOperationCount() * 10));
+        long maxNumDocsReplicated = Math.min(3000, randomLongBetween(followRequest.getMaxBatchOperationCount(),
+            followRequest.getMaxBatchOperationCount() * 10));
         long minNumDocsReplicated = maxNumDocsReplicated / 3L;
         logger.info("waiting for at least [{}] documents to be indexed and then stop a random data node", minNumDocsReplicated);
         awaitBusy(() -> {
@@ -440,7 +440,7 @@ public class ShardChangesIT extends ESIntegTestCase {
         }
 
         final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", 1024, 1, 1024,
-            1024, 1, 10240, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+            1, 10240, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
         final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
@@ -643,10 +643,9 @@ public class ShardChangesIT extends ESIntegTestCase {
     }
 
     public static FollowIndexAction.Request createFollowRequest(String leaderIndex, String followIndex) {
-        return new FollowIndexAction.Request(leaderIndex, followIndex, ShardFollowNodeTask.DEFAULT_MAX_OPERATION_COUNT,
-            ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READS, ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES,
-            ShardFollowNodeTask.DEFAULT_MAX_WRITE_SIZE, ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITES,
-            ShardFollowNodeTask.DEFAULT_MAX_BUFFER_SIZE, TimeValue.timeValueMillis(10),
-            TimeValue.timeValueMillis(10));
+        return new FollowIndexAction.Request(leaderIndex, followIndex, ShardFollowNodeTask.DEFAULT_MAX_BATCH_OPERATION_COUNT,
+            ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READ_BATCHES, ShardFollowNodeTask.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
+            ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITE_BATCHES, ShardFollowNodeTask.DEFAULT_MAX_WRITE_BUFFER_SIZE,
+            TimeValue.timeValueMillis(10), TimeValue.timeValueMillis(10));
     }
 }

@@ -56,7 +56,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         private long fromSeqNo;
         private int maxOperationCount;
         private ShardId shardId;
-        private long maxOperationSizeInBytes = ShardFollowNodeTask.DEFAULT_MAX_OPERATIONS_SIZE_IN_BYTES;
+        private long maxOperationSizeInBytes = ShardFollowNodeTask.DEFAULT_MAX_BATCH_SIZE_IN_BYTES;
 
         public Request(ShardId shardId) {
             super(shardId.getIndexName());

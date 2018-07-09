@@ -97,6 +97,8 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
         // accurate than naive summation.
         for (InternalAggregation aggregation : aggregations) {
             InternalWeightedAvg avg = (InternalWeightedAvg) aggregation;
+            // If the weight is Inf or NaN, just add it to the running tally to "convert" to
+            // Inf/NaN.  This keeps the behavior bwc from before kahan summing
             if (Double.isFinite(avg.weight) == false) {
                 weight += avg.weight;
             } else if (Double.isFinite(weight)) {
@@ -105,6 +107,8 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
                 weightCompensation = (newWeight - weight) - corrected;
                 weight = newWeight;
             }
+            // If the avg is Inf or NaN, just add it to the running tally to "convert" to
+            // Inf/NaN.  This keeps the behavior bwc from before kahan summing
             if (Double.isFinite(avg.sum) == false) {
                 sum += avg.sum;
             } else if (Double.isFinite(sum)) {

@@ -68,7 +68,7 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final AuthenticationResult result = future.get();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
         assertThat(result.getUser(), nullValue());
-        assertThat(result.getMessage(), equalTo("No realms have been configured for delegation"));
+        assertThat(result.getMessage(), equalTo("No [authorizing_realms] have been configured"));
     }
 
     public void testMissingRealmInDelegationList() {

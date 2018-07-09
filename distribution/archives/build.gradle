@@ -102,7 +102,7 @@ Closure commonZipConfig = {
 
 task buildIntegTestZip(type: Zip) {
   configure(commonZipConfig)
-  with archiveFiles(transportModulesFiles, 'zip', false)
+  with archiveFiles(transportModulesFiles, 'zip', true)
 }
 
 task buildZip(type: Zip) {
@@ -193,7 +193,7 @@ subprojects {
     onlyIf toolExists
     doLast {
       final String licenseFilename
-      if (project.name.contains('oss-')) {
+      if (project.name.contains('oss-') || project.name == 'integ-test-zip') {
         licenseFilename = "APACHE-LICENSE-2.0.txt"
       } else {
         licenseFilename = "ELASTIC-LICENSE.txt"

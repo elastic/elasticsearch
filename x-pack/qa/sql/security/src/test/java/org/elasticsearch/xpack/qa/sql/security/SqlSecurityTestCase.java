@@ -557,7 +557,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                     Pattern logPattern = Pattern.compile(
                             ("PART PART PART PART origin_type=PART, origin_address=PART, principal=PART, realm=PART, "
                             + "(?:run_as_principal=IGN, )?(?:run_as_realm=IGN, )?(?:run_by_principal=PART, )?(?:run_by_realm=PART, )?"
-                            + "roles=PART, action=\\[(.*?)\\], (?:indices=PART, )?request=PART, opaque_id=PART")
+                            + "roles=PART, action=\\[(.*?)\\], (?:indices=PART, )?request=PART")
                                 .replace(" ", "\\s+").replace("PART", "\\[([^\\]]*)\\]").replace("IGN", "\\[[^\\]]*\\]"));
                     // fail(logPattern.toString());
                     while ((line = logReader.readLine()) != null) {

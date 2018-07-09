@@ -181,10 +181,10 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         if (events.contains(AUTHENTICATION_SUCCESS) && (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), Optional.empty())) == false)) {
             if (includeRequestBody) {
-                logger.info("{}[rest] [authentication_success]\t{}, realm=[{}], uri=[{}], params=[{}], opaque_id=[{}], request_body=[{}]",
+                logger.info("{}[rest] [authentication_success]\t{}, realm=[{}], uri=[{}], params=[{}]{}, request_body=[{}]",
                     localNodeInfo.prefix, principal(user), realm, request.uri(), request.params(), opaqueId(), restRequestContent(request));
             } else {
-                logger.info("{}[rest] [authentication_success]\t{}, realm=[{}], uri=[{}], params=[{}], opaque_id=[{}]",
+                logger.info("{}[rest] [authentication_success]\t{}, realm=[{}], uri=[{}], params=[{}]{}",
                     localNodeInfo.prefix, principal(user), realm, request.uri(), request.params(), opaqueId());
             }
         }
@@ -198,12 +198,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
-                    logger.info("{}[transport] [authentication_success]\t{}, {}, realm=[{}], action=[{}], indices=[{}], request=[{}], " +
-                            "opaque_id=[{}]",
+                    logger.info("{}[transport] [authentication_success]\t{}, {}, realm=[{}], action=[{}], indices=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), principal(user), realm, action,
                             arrayToCommaDelimitedString(indices.get()), message.getClass().getSimpleName(), opaqueId());
                 } else {
-                    logger.info("{}[transport] [authentication_success]\t{}, {}, realm=[{}], action=[{}], request=[{}], opaque_id=[{}]",
+                    logger.info("{}[transport] [authentication_success]\t{}, {}, realm=[{}], action=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), principal(user), realm, action,
                             message.getClass().getSimpleName(), opaqueId());
                 }
@@ -219,11 +218,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
-                    logger.info("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}], request=[{}], opaque_id=[{}]",
+                    logger.info("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), action,
                             arrayToCommaDelimitedString(indices.get()), message.getClass().getSimpleName(), opaqueId());
                 } else {
-                    logger.info("{}[transport] [anonymous_access_denied]\t{}, action=[{}], request=[{}], opaque_id=[{}]",
+                    logger.info("{}[transport] [anonymous_access_denied]\t{}, action=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), action,
                             message.getClass().getSimpleName(), opaqueId());
                 }
@@ -236,10 +235,10 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         if (events.contains(ANONYMOUS_ACCESS_DENIED)
                 && (eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false)) {
             if (includeRequestBody) {
-                logger.info("{}[rest] [anonymous_access_denied]\t{}, uri=[{}], opaque_id=[{}], request_body=[{}]", localNodeInfo.prefix,
+                logger.info("{}[rest] [anonymous_access_denied]\t{}, uri=[{}]{}, request_body=[{}]", localNodeInfo.prefix,
                         hostAttributes(request), request.uri(), opaqueId(), restRequestContent(request));
             } else {
-                logger.info("{}[rest] [anonymous_access_denied]\t{}, uri=[{}], opaque_id=[{}]", localNodeInfo.prefix,
+                logger.info("{}[rest] [anonymous_access_denied]\t{}, uri=[{}]{}", localNodeInfo.prefix,
                         hostAttributes(request), request.uri(), opaqueId());
             }
         }
@@ -253,12 +252,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
-                    logger.info("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}], " +
-                            "opaque_id=[{}]",
+                    logger.info("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), token.principal(), action,
                             arrayToCommaDelimitedString(indices.get()), message.getClass().getSimpleName(), opaqueId());
                 } else {
-                    logger.info("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], request=[{}], opaque_id=[{}]",
+                    logger.info("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), token.principal(), action,
                             message.getClass().getSimpleName(), opaqueId());
                 }
@@ -271,10 +269,10 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         if (events.contains(AUTHENTICATION_FAILED)
                 && (eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false)) {
             if (includeRequestBody) {
-                logger.info("{}[rest] [authentication_failed]\t{}, uri=[{}], opaque_id=[{}], request_body=[{}]", localNodeInfo.prefix,
+                logger.info("{}[rest] [authentication_failed]\t{}, uri=[{}]{}, request_body=[{}]", localNodeInfo.prefix,
                         hostAttributes(request), request.uri(), opaqueId(), restRequestContent(request));
             } else {
-                logger.info("{}[rest] [authentication_failed]\t{}, uri=[{}], opaque_id=[{}]", localNodeInfo.prefix,
+                logger.info("{}[rest] [authentication_failed]\t{}, uri=[{}]{}", localNodeInfo.prefix,
                         hostAttributes(request), request.uri(), opaqueId());
             }
         }
@@ -288,11 +286,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
-                    logger.info("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}], request=[{}], opaque_id=[{}]",
+                    logger.info("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), action,
                             arrayToCommaDelimitedString(indices.get()), message.getClass().getSimpleName(), opaqueId());
                 } else {
-                    logger.info("{}[transport] [authentication_failed]\t{}, action=[{}], request=[{}], opaque_id=[{}]",
+                    logger.info("{}[transport] [authentication_failed]\t{}, action=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), action,
                             message.getClass().getSimpleName(), opaqueId());
                 }
@@ -306,11 +304,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 && (eventFilterPolicyRegistry.ignorePredicate()
                         .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), Optional.empty())) == false)) {
             if (includeRequestBody) {
-                logger.info("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}], opaque_id=[{}], request_body=[{}]",
+                logger.info("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}]{}, request_body=[{}]",
                         localNodeInfo.prefix, hostAttributes(request), token.principal(), request.uri(), opaqueId(),
                         restRequestContent(request));
             } else {
-                logger.info("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}], opaque_id=[{}]",
+                logger.info("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}]{}",
                         localNodeInfo.prefix, hostAttributes(request), token.principal(), request.uri(), opaqueId());
             }
         }
@@ -326,12 +324,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logger.info(
                             "{}[transport] [realm_authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], indices=[{}], "
-                                    + "request=[{}], opaque_id=[{}]",
+                                    + "request=[{}]{}",
                             localNodeInfo.prefix, realm, originAttributes(threadContext, message, localNodeInfo), token.principal(), action,
                             arrayToCommaDelimitedString(indices.get()), message.getClass().getSimpleName(), opaqueId());
                 } else {
-                    logger.info("{}[transport] [realm_authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], request=[{}], "
-                                + "opaque_id=[{}]",
+                    logger.info("{}[transport] [realm_authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], request=[{}]{}",
                             localNodeInfo.prefix, realm, originAttributes(threadContext, message, localNodeInfo), token.principal(), action,
                             message.getClass().getSimpleName(), opaqueId());
                 }
@@ -345,12 +342,12 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 && (eventFilterPolicyRegistry.ignorePredicate()
                         .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty())) == false)) {
             if (includeRequestBody) {
-                logger.info("{}[rest] [realm_authentication_failed]\trealm=[{}], {}, principal=[{}], uri=[{}], opaque_id=[{}], "
+                logger.info("{}[rest] [realm_authentication_failed]\trealm=[{}], {}, principal=[{}], uri=[{}]{}, "
                             + "request_body=[{}]",
                         localNodeInfo.prefix, realm, hostAttributes(request), token.principal(), request.uri(), opaqueId(),
                         restRequestContent(request));
             } else {
-                logger.info("{}[rest] [realm_authentication_failed]\trealm=[{}], {}, principal=[{}], uri=[{}], opaque_id=[{}]",
+                logger.info("{}[rest] [realm_authentication_failed]\trealm=[{}], {}, principal=[{}], uri=[{}]{}",
                         localNodeInfo.prefix, realm, hostAttributes(request), token.principal(), request.uri(), opaqueId());
             }
         }
@@ -366,13 +363,12 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
-                    logger.info("{}[transport] [access_granted]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}], "
-                                + "opaque_id=[{}]",
+                    logger.info("{}[transport] [access_granted]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), subject(authentication),
                             arrayToCommaDelimitedString(roleNames), action, arrayToCommaDelimitedString(indices.get()),
                             message.getClass().getSimpleName(), opaqueId());
                 } else {
-                    logger.info("{}[transport] [access_granted]\t{}, {}, roles=[{}], action=[{}], request=[{}], opaque_id=[{}]",
+                    logger.info("{}[transport] [access_granted]\t{}, {}, roles=[{}], action=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), subject(authentication),
                             arrayToCommaDelimitedString(roleNames), action, message.getClass().getSimpleName(), opaqueId());
                 }
@@ -388,13 +384,12 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
-                    logger.info("{}[transport] [access_denied]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}], "
-                                + "opaque_id=[{}]",
+                    logger.info("{}[transport] [access_denied]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), subject(authentication),
                             arrayToCommaDelimitedString(roleNames), action, arrayToCommaDelimitedString(indices.get()),
                             message.getClass().getSimpleName(), opaqueId());
                 } else {
-                    logger.info("{}[transport] [access_denied]\t{}, {}, roles=[{}], action=[{}], request=[{}], opaque_id=[{}]",
+                    logger.info("{}[transport] [access_denied]\t{}, {}, roles=[{}], action=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), subject(authentication),
                             arrayToCommaDelimitedString(roleNames), action, message.getClass().getSimpleName(), opaqueId());
                 }
@@ -406,10 +401,10 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void tamperedRequest(RestRequest request) {
         if (events.contains(TAMPERED_REQUEST) && (eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false)) {
             if (includeRequestBody) {
-                logger.info("{}[rest] [tampered_request]\t{}, uri=[{}], opaque_id=[{}], request_body=[{}]", localNodeInfo.prefix,
+                logger.info("{}[rest] [tampered_request]\t{}, uri=[{}]{}, request_body=[{}]", localNodeInfo.prefix,
                         hostAttributes(request), request.uri(), opaqueId(), restRequestContent(request));
             } else {
-                logger.info("{}[rest] [tampered_request]\t{}, uri=[{}], opaque_id=[{}]", localNodeInfo.prefix, hostAttributes(request),
+                logger.info("{}[rest] [tampered_request]\t{}, uri=[{}]{}", localNodeInfo.prefix, hostAttributes(request),
                         request.uri(), opaqueId());
             }
         }
@@ -423,11 +418,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
-                    logger.info("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}], request=[{}], opaque_id=[{}]",
+                    logger.info("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), action,
                             arrayToCommaDelimitedString(indices.get()), message.getClass().getSimpleName(), opaqueId());
                 } else {
-                    logger.info("{}[transport] [tampered_request]\t{}, action=[{}], request=[{}], opaque_id=[{}]", localNodeInfo.prefix,
+                    logger.info("{}[transport] [tampered_request]\t{}, action=[{}], request=[{}]{}", localNodeInfo.prefix,
                             originAttributes(threadContext, message, localNodeInfo), action, message.getClass().getSimpleName(),
                             opaqueId());
                 }
@@ -443,11 +438,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.empty(), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
-                    logger.info("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}], request=[{}], opaque_id=[{}]",
+                    logger.info("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, request, localNodeInfo), principal(user), action,
                             arrayToCommaDelimitedString(indices.get()), request.getClass().getSimpleName(), opaqueId());
                 } else {
-                    logger.info("{}[transport] [tampered_request]\t{}, {}, action=[{}], request=[{}], opaque_id=[{}]", localNodeInfo.prefix,
+                    logger.info("{}[transport] [tampered_request]\t{}, {}, action=[{}], request=[{}]{}", localNodeInfo.prefix,
                             originAttributes(threadContext, request, localNodeInfo), principal(user), action,
                             request.getClass().getSimpleName(), opaqueId());
                 }
@@ -458,7 +453,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     @Override
     public void connectionGranted(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
         if (events.contains(CONNECTION_GRANTED) && (eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false)) {
-            logger.info("{}[ip_filter] [connection_granted]\torigin_address=[{}], transport_profile=[{}], rule=[{}], opaque_id=[{}]",
+            logger.info("{}[ip_filter] [connection_granted]\torigin_address=[{}], transport_profile=[{}], rule=[{}]{}",
                     localNodeInfo.prefix, NetworkAddress.format(inetAddress), profile, rule, opaqueId());
         }
     }
@@ -466,7 +461,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     @Override
     public void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
         if (events.contains(CONNECTION_DENIED) && (eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false)) {
-            logger.info("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}], opaque_id=[{}]",
+            logger.info("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}]{}",
                     localNodeInfo.prefix, NetworkAddress.format(inetAddress), profile, rule, opaqueId());
         }
     }
@@ -479,13 +474,12 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
-                    logger.info("{}[transport] [run_as_granted]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}], "
-                                + "opaque_id=[{}]",
+                    logger.info("{}[transport] [run_as_granted]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), runAsSubject(authentication),
                             arrayToCommaDelimitedString(roleNames), action, arrayToCommaDelimitedString(indices.get()),
                             message.getClass().getSimpleName(), opaqueId());
                 } else {
-                    logger.info("{}[transport] [run_as_granted]\t{}, {}, roles=[{}], action=[{}], request=[{}], opaque_id=[{}]",
+                    logger.info("{}[transport] [run_as_granted]\t{}, {}, roles=[{}], action=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), runAsSubject(authentication),
                             arrayToCommaDelimitedString(roleNames), action, message.getClass().getSimpleName(), opaqueId());
                 }
@@ -501,13 +495,12 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
-                    logger.info("{}[transport] [run_as_denied]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}], " +
-                                "opaque_id=[{}]",
+                    logger.info("{}[transport] [run_as_denied]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), runAsSubject(authentication),
                             arrayToCommaDelimitedString(roleNames), action, arrayToCommaDelimitedString(indices.get()),
                             message.getClass().getSimpleName(), opaqueId());
                 } else {
-                    logger.info("{}[transport] [run_as_denied]\t{}, {}, roles=[{}], action=[{}], request=[{}], opaque_id=[{}]",
+                    logger.info("{}[transport] [run_as_denied]\t{}, {}, roles=[{}], action=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), runAsSubject(authentication),
                             arrayToCommaDelimitedString(roleNames), action, message.getClass().getSimpleName(), opaqueId());
                 }
@@ -521,11 +514,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 && (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
                         Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), Optional.empty())) == false)) {
             if (includeRequestBody) {
-                logger.info("{}[rest] [run_as_denied]\t{}, {}, roles=[{}], uri=[{}], request_body=[{}], opaque_id=[{}]",
+                logger.info("{}[rest] [run_as_denied]\t{}, {}, roles=[{}], uri=[{}], request_body=[{}]{}",
                         localNodeInfo.prefix, hostAttributes(request), runAsSubject(authentication),
                         arrayToCommaDelimitedString(roleNames), request.uri(), restRequestContent(request), opaqueId());
             } else {
-                logger.info("{}[rest] [run_as_denied]\t{}, {}, roles=[{}], uri=[{}], opaque_id=[{}]", localNodeInfo.prefix,
+                logger.info("{}[rest] [run_as_denied]\t{}, {}, roles=[{}], uri=[{}]{}", localNodeInfo.prefix,
                         hostAttributes(request), runAsSubject(authentication), arrayToCommaDelimitedString(roleNames), request.uri(),
                         opaqueId());
             }
@@ -570,7 +563,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     private String opaqueId() {
         String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID);
         if (opaqueId != null) {
-            return opaqueId;
+            return ", opaque_id=[" + opaqueId + "]";
         } else {
             return "";
         }

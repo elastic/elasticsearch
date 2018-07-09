@@ -302,7 +302,6 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         /**
          * Aliases to use with this action.
          */
-        @Override
         public AliasActions aliases(String... aliases) {
             if (type == AliasActions.Type.REMOVE_INDEX) {
                 throw new IllegalArgumentException("[aliases] is unsupported for [" + type + "]");
@@ -426,6 +425,11 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         @Override
         public String[] aliases() {
             return aliases;
+        }
+
+        @Override
+        public void replaceAliases(String... aliases) {
+            this.aliases = aliases;
         }
 
         @Override

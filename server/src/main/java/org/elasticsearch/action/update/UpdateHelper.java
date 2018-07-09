@@ -77,7 +77,6 @@ public class UpdateHelper extends AbstractComponent {
      * Prepares an update request by converting it into an index or delete request or an update response (no action, in the event of a
      * noop).
      */
-    @SuppressWarnings("unchecked")
     protected Result prepare(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
         if (getResult.isExists() == false) {
             // If the document didn't exist, execute the update request as an upsert
@@ -108,7 +107,8 @@ public class UpdateHelper extends AbstractComponent {
         ctx = executeScript(script, ctx);
 
         UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, script.getIdOrCode());
-        Map newSource = (Map) ctx.get(ContextFields.SOURCE);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> newSource = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
 
         if (operation != UpdateOpType.CREATE && operation != UpdateOpType.NONE) {
             // Only valid options for an upsert script are "create" (the default) or "none", meaning abort upsert
@@ -248,6 +248,7 @@ public class UpdateHelper extends AbstractComponent {
 
         UpdateOpType operation = UpdateOpType.lenientFromString((String) ctx.get(ContextFields.OP), logger, request.script.getIdOrCode());
 
+        @SuppressWarnings("unchecked")
         final Map<String, Object> updatedSourceAsMap = (Map<String, Object>) ctx.get(ContextFields.SOURCE);
 
         switch (operation) {

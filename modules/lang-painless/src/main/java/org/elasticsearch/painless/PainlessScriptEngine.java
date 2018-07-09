@@ -24,6 +24,7 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
@@ -101,9 +102,9 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
         for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
             if (context.instanceClazz.equals(SearchScript.class) || context.instanceClazz.equals(ExecutableScript.class)) {
-                contextsToCompilers.put(context, new Compiler(GenericElasticsearchScript.class, new Definition(entry.getValue())));
+                contextsToCompilers.put(context, new Compiler(GenericElasticsearchScript.class, new PainlessLookup(entry.getValue())));
             } else {
-                contextsToCompilers.put(context, new Compiler(context.instanceClazz, new Definition(entry.getValue())));
+                contextsToCompilers.put(context, new Compiler(context.instanceClazz, new PainlessLookup(entry.getValue())));
             }
         }
 

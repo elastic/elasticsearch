@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.license.LicenseStatus;
 
 /**
  * Data structure for license. Use {@link Builder} to build a license.
@@ -267,14 +268,14 @@ public class License implements ToXContentObject {
     /**
      * @return the current license's status
      */
-    public Status status() {
+    public LicenseStatus status() {
         long now = System.currentTimeMillis();
         if (issueDate > now) {
-            return Status.INVALID;
+            return LicenseStatus.INVALID;
         } else if (expiryDate < now) {
-            return Status.EXPIRED;
+            return LicenseStatus.EXPIRED;
         }
-        return Status.ACTIVE;
+        return LicenseStatus.ACTIVE;
     }
 
     private void validate() {
@@ -764,41 +765,6 @@ public class License implements ToXContentObject {
                 throw new IllegalStateException("expiryDate has to be set");
             }
             return this;
-        }
-    }
-
-    public enum Status {
-
-        ACTIVE("active"),
-        INVALID("invalid"),
-        EXPIRED("expired");
-
-        private final String label;
-
-        Status(String label) {
-            this.label = label;
-        }
-
-        public String label() {
-            return label;
-        }
-
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(label);
-        }
-
-        public static Status readFrom(StreamInput in) throws IOException {
-            String value = in.readString();
-            switch (value) {
-                case "active":
-                    return ACTIVE;
-                case "invalid":
-                    return INVALID;
-                case "expired":
-                    return EXPIRED;
-                default:
-                    throw new IllegalArgumentException("unknown license status [" + value + "]");
-            }
         }
     }
 

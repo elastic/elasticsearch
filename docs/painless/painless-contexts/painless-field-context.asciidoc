@@ -1,0 +1,31 @@
+[[painless-field-context]]
+=== Field context
+
+Use a Painless script to create a
+{es_version}/search-request-script-fields.html[script field] to return
+a customized value for each document in the results of a query.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`doc` (`Map`, read-only)::
+        Contains the fields of the specified document where each field is a
+        `List` of values.
+
+{es_version}/mapping-source-field.html[`ctx['_source']`] (`Map`)::
+        Contains extracted JSON in a `Map` and `List` structure for the fields
+        existing in a stored document.
+
+`_score` (`double` read-only)::
+        The original score of the specified document.
+
+*Return*
+
+`Object`::
+        The customized value for each document.
+
+*API*
+
+The standard <<painless-api-reference, Painless API>> is available.

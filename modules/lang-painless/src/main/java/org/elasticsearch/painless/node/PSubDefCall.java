@@ -20,8 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.DefBootstrap;
-
-import org.elasticsearch.painless.Definition.def;
+import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;

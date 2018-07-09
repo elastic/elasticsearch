@@ -30,3 +30,4 @@
     - contains:  { nodes.$master.ingest.processors: { type: split } }
     - contains:  { nodes.$master.ingest.processors: { type: trim } }
     - contains:  { nodes.$master.ingest.processors: { type: uppercase } }
+    - contains:  { nodes.$master.ingest.processors: { type: bytes } }

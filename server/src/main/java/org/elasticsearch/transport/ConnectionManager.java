@@ -69,7 +69,7 @@ public class ConnectionManager implements Closeable {
     }
 
     public void removeListener(TransportConnectionListener.NodeConnection listener) {
-        this.connectionListener.listeners.add(listener);
+        this.connectionListener.listeners.remove(listener);
     }
 
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,

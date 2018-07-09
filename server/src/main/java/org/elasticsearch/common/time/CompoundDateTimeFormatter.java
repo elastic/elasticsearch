@@ -31,10 +31,13 @@ import java.util.stream.Stream;
  */
 public class CompoundDateTimeFormatter {
 
-    private DateTimeFormatter printer;
-    private DateTimeFormatter[] parsers;
+    private final DateTimeFormatter printer;
+    private final DateTimeFormatter[] parsers;
 
-    public CompoundDateTimeFormatter(DateTimeFormatter printer, DateTimeFormatter ... parsers) {
+    CompoundDateTimeFormatter(DateTimeFormatter printer, DateTimeFormatter ... parsers) {
+        if (printer == null) {
+            throw new IllegalArgumentException("printer is required for compound date formatter");
+        }
         this.printer = printer;
         if (parsers.length == 0) {
             this.parsers = new DateTimeFormatter[]{printer};
@@ -44,27 +47,37 @@ public class CompoundDateTimeFormatter {
     }
 
     public TemporalAccessor parse(String input) {
+        DateTimeParseException failure = null;
         for (int i = 0; i < parsers.length; i++) {
             try {
                 return parsers[i].parse(input);
-            } catch (DateTimeParseException e) {}
+            } catch (DateTimeParseException e) {
+                if (failure == null) {
+                    failure = e;
+                } else {
+                    failure.addSuppressed(e);
+                }
+            }
         }
+
+        // ensure that all parsers exceptions are returned instead of only the last one
+        throw failure;
     }
 
     public CompoundDateTimeFormatter withZone(ZoneId zoneId) {
-        printer = printer.withZone(zoneId);
+        final DateTimeFormatter printerWithZone = printer.withZone(zoneId);
+        final DateTimeFormatter[] parsersWithZone = new DateTimeFormatter[parsers.length];
         for (int i = 0; i < parsers.length; i++) {
-            parsers[i] = parsers[i].withZone(zoneId);
+            parsersWithZone[i] = parsers[i].withZone(zoneId);
         }
 
-        return this;
+        return new CompoundDateTimeFormatter(printerWithZone, parsersWithZone);
     }
 
     public String format(TemporalAccessor accessor) {
         return printer.format(accessor);
     }
 
-    // for internal use only
     private DateTimeFormatter[] all() {
         return Stream.concat(Arrays.stream(new DateTimeFormatter[] { printer }), Arrays.stream(parsers)).toArray(DateTimeFormatter[]::new);
     }

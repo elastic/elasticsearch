@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.joda;
 
-import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.CompoundDateTimeFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
@@ -363,7 +363,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         FormatDateTimeFormatter jodaFormatter = Joda.forPattern(format);
         DateTime jodaDateTime = jodaFormatter.parser().parseDateTime(input);
 
-        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
+        CompoundDateTimeFormatter javaTimeFormatter = DateFormatters.forPattern(format);
         TemporalAccessor javaTimeAccessor = javaTimeFormatter.parse(input);
         ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(javaTimeAccessor);
 
@@ -385,7 +385,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertJavaTimeParseException(String input, String format, String expectedMessage) {
-        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
+        CompoundDateTimeFormatter javaTimeFormatter = DateFormatters.forPattern(format);
         DateTimeParseException dateTimeParseException = expectThrows(DateTimeParseException.class, () -> javaTimeFormatter.parse(input));
         assertThat(dateTimeParseException.getMessage(), startsWith(expectedMessage));
     }

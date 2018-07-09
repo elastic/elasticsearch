@@ -26,31 +26,32 @@ import java.util.Arrays;
 import java.util.stream.Stream;
 
 /**
- * wrapper class around java.time.DateTimeFormatter that supports multiple formats for easier parsing
+ * wrapper class around java.time.DateTimeFormatter that supports multiple formats for easier parsing,
+ * and one specific format for printing
  */
-public class DateFormatter {
+public class CompoundDateTimeFormatter {
 
     private DateTimeFormatter printer;
     private DateTimeFormatter[] parsers;
 
-    public DateFormatter(DateTimeFormatter printer, DateTimeFormatter ... parsers) {
+    public CompoundDateTimeFormatter(DateTimeFormatter printer, DateTimeFormatter ... parsers) {
         this.printer = printer;
-        this.parsers = parsers;
+        if (parsers.length == 0) {
+            this.parsers = new DateTimeFormatter[]{printer};
+        } else {
+            this.parsers = parsers;
+        }
     }
 
     public TemporalAccessor parse(String input) {
-        if (parsers.length > 0) {
-            for (int i = 0; i < parsers.length; i++) {
-                try {
-                    return parsers[i].parse(input);
-                } catch (DateTimeParseException e) {}
-            }
+        for (int i = 0; i < parsers.length; i++) {
+            try {
+                return parsers[i].parse(input);
+            } catch (DateTimeParseException e) {}
         }
-
-        return printer.parse(input);
     }
 
-    public DateFormatter withZone(ZoneId zoneId) {
+    public CompoundDateTimeFormatter withZone(ZoneId zoneId) {
         printer = printer.withZone(zoneId);
         for (int i = 0; i < parsers.length; i++) {
             parsers[i] = parsers[i].withZone(zoneId);
@@ -68,9 +69,9 @@ public class DateFormatter {
         return Stream.concat(Arrays.stream(new DateTimeFormatter[] { printer }), Arrays.stream(parsers)).toArray(DateTimeFormatter[]::new);
     }
 
-    public static DateFormatter merge(DateFormatter ... dateFormatters) {
-        DateTimeFormatter[] parsers = Arrays.stream(dateFormatters).map(DateFormatter::all)
+    public static CompoundDateTimeFormatter merge(CompoundDateTimeFormatter... dateFormatters) {
+        DateTimeFormatter[] parsers = Arrays.stream(dateFormatters).map(CompoundDateTimeFormatter::all)
             .flatMap(Arrays::stream).toArray(DateTimeFormatter[]::new);
-        return new DateFormatter(dateFormatters[0].printer, parsers);
+        return new CompoundDateTimeFormatter(dateFormatters[0].printer, parsers);
     }
 }

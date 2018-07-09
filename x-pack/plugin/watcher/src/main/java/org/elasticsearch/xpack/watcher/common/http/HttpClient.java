@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 
 import javax.net.ssl.HostnameVerifier;
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -56,9 +57,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class HttpClient extends AbstractComponent {
+public class HttpClient extends AbstractComponent implements Closeable {
 
     private static final String SETTINGS_SSL_PREFIX = "xpack.http.ssl.";
+    // picking a reasonable high value here to allow for setups with lots of watch executions or many http inputs/actions
+    // this is also used as the value per route, if you are connecting to the same endpoint a lot, which is likely, when
+    // you are querying a remote Elasticsearch cluster
+    private static final int MAX_CONNECTIONS = 500;
 
     private final HttpAuthRegistry httpAuthRegistry;
     private final CloseableHttpClient client;
@@ -83,6 +88,10 @@ public class HttpClient extends AbstractComponent {
         HostnameVerifier verifier = isHostnameVerificationEnabled ? new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslSettings), verifier);
         clientBuilder.setSSLSocketFactory(factory);
+
+        clientBuilder.evictExpiredConnections();
+        clientBuilder.setMaxConnPerRoute(MAX_CONNECTIONS);
+        clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
 
         client = clientBuilder.build();
     }
@@ -249,6 +258,11 @@ public class HttpClient extends AbstractComponent {
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e);
         }
+    }
+
+    @Override
+    public void close() throws IOException {
+        client.close();
     }
 
     /**

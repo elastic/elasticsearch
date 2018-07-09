@@ -319,7 +319,8 @@ public class RollupIT extends ESIntegTestCase {
     public void testBig() throws Exception {
 
         client().admin().indices().prepareCreate("test-big")
-                .addMapping("test-big", "{\"test-big\": {\"properties\": {\"timestamp\": {\"type\": \"date\"}, " +
+                .addMapping("test-big", "{\"test-big\": {\"properties\": {" +
+                    "\"timestamp\": {\"type\": \"date\", \"format\": \"strict_date_optional_time\"}," +
                     "\"thefield\": {\"type\": \"integer\"}}}}", XContentType.JSON)
                 .setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -327,8 +328,9 @@ public class RollupIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth("test-big").setWaitForYellowStatus().get();
 
         client().admin().indices().prepareCreate("test-verify")
-                .addMapping("test-big", "{\"test-big\": {\"properties\": {\"timestamp\": {\"type\": \"date\"}, " +
-                        "\"thefield\": {\"type\": \"integer\"}}}}", XContentType.JSON)
+                .addMapping("test-big", "{\"test-big\": {\"properties\": {" +
+                    "\"timestamp\": {\"type\": \"date\", \"format\": \"strict_date_optional_time\"}, " +
+                    "\"thefield\": {\"type\": \"integer\"}}}}", XContentType.JSON)
                 .setSettings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();

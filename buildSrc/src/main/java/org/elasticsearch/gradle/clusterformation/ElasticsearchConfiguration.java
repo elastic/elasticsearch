@@ -93,6 +93,16 @@ public interface ElasticsearchConfiguration {
     String getTransportPortURI();
 
     /**
+     * Return the configuration directory.
+     *
+     * The implementation is free to return a copy rather than the original, so making changes to this configuration
+     * might not cause any effect.
+     *
+     * @return
+     */
+    File getConfDir();
+
+    /**
      * Checks that all mandatory fields are configured
      */
     default void assertValid() {

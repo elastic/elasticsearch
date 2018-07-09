@@ -39,7 +39,7 @@ java.nio.file.Files#createTempFile(java.lang.String,java.lang.String,java.nio.fi
 
 @defaultMessage Don't use java serialization - this can break BWC without noticing it
 java.io.ObjectOutputStream
-java.fix/30904-cluster-formation-part2io.ObjectOutput
+java.io.ObjectOutput
 java.io.ObjectInputStream
 java.io.ObjectInput
 

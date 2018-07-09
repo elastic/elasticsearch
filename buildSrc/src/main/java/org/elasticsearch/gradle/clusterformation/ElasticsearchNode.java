@@ -72,7 +72,13 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
         this.name = name;
         this.services = services;
         this.sharedArtifactsDir = sharedArtifactsDir;
-        this.syncDir = new File(workDirBase, name);
+        this.syncDir = new File(workDirBase, pathSafe(name));
+    }
+
+    private static String pathSafe(String name) {
+        return name
+            .replaceAll("^[\\:#/\\s]+", "")
+            .replaceAll("[\\:#/\\s]+", "-");
     }
 
     private File getWorkDir() {
@@ -165,6 +171,12 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
     }
 
     @Override
+    public File getConfDir() {
+        // TODO return a copy
+        return getConfigFile().getParentFile();
+    }
+
+    @Override
     public void claim() {
         noOfClaims.incrementAndGet();
     }
@@ -237,8 +249,8 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
         getPathData().mkdirs();
         getPathSharedData().mkdirs();
         LinkedHashMap<Object, Object> config = new LinkedHashMap<>();
-        config.put("cluster.name", "cluster-" + name);
-        config.put("node.name", "node-" + name);
+        config.put("cluster.name", "cluster-" + configSafeName(name));
+        config.put("node.name", "node-" + configSafeName(name));
         config.put("path.repo", getPathRepo().getAbsolutePath());
         config.put("path.data", getPathData().getAbsolutePath());
         config.put("path.shared_data", getPathSharedData().getAbsolutePath());
@@ -266,10 +278,16 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
         logger.info("Written config file :{}", getConfigFile());
     }
 
+    private static String configSafeName(String name) {
+        return name
+            .replaceAll("^[:#\\s]+", "")
+            .replaceAll("[:#\\s]", "-");
+    }
+
     private void waitForClusterHealthYellow() {
         if (started.get() == false) {
             throw new ClusterFormationException(
-                "`" + name + "` is not started. Clusters are only started at execution time."
+                "`" + name + "` is not started. Elasticsearch is started at execution time automatically when `clusterFormation.use` is used."
             );
         }
         try {
@@ -277,12 +295,10 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
         } catch (InterruptedException e) {
             logger.info("Interrupted while waiting for ES node {}", name, e);
             Thread.currentThread().interrupt();
-        } catch (IOException e) {
-            throw new ClusterFormationException("Failed to wait for `" + name + "` to tart up", e);
         }
     }
 
-    private void doWaitClusterHealthYellow() throws InterruptedException, IOException {
+    private void doWaitClusterHealthYellow() throws InterruptedException {
         long startedAt = System.currentTimeMillis();
 
         waitForCondition(
@@ -361,11 +377,18 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
     ) throws InterruptedException {
         long thisConditionStartedAt = System.currentTimeMillis();
         boolean conditionMet = false;
-        while (System.currentTimeMillis() - startedAt < TimeUnit.NANOSECONDS.convert(totalWaitTimeout, totalWaitTimeoutUnit)) {
+        while (System.currentTimeMillis() - startedAt < TimeUnit.MILLISECONDS.convert(totalWaitTimeout, totalWaitTimeoutUnit)) {
+            if (esProcess.isAlive() == false) {
+                throw new ClusterFormationException("process was found dead while waiting for elasticsearch to be up.");
+            }
             if (condition.test(this)) {
                 conditionMet = true;
                 break;
             }
+            logger.debug("waiting... {} - {} ({}) < {}",
+                System.currentTimeMillis(), startedAt,System.currentTimeMillis() - startedAt,
+                TimeUnit.MILLISECONDS.convert(totalWaitTimeout, totalWaitTimeoutUnit)
+            );
             Thread.sleep(500);
         }
         if (conditionMet == false) {
@@ -438,8 +461,10 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
             return;
         }
 
-        logProcessInfo("ES Process:", esProcess.info());
-        esProcess.children().forEach(child -> logProcessInfo("Child Process:", child.info()));
+        if (esProcess.isAlive()) {
+            logProcessInfo("Elasticsearch Process:", esProcess.info());
+            esProcess.children().forEach(child -> logProcessInfo("Child Process:", child.info()));
+        }
 
         esProcess.destroy();
         waitForESProcess();
@@ -467,7 +492,7 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
     }
 
     private void logProcessInfo(String prefix, ProcessHandle.Info info) {
-        logger.lifecycle(prefix + " commandLine:`{}` command:`{}` args:`{}`",
+        logger.info(prefix + " commandLine:`{}` command:`{}` args:`{}`",
             info.commandLine().orElse("-"), info.command().orElse("-"),
             Arrays.stream(info.arguments().orElse(new String[]{}))
                 .map(each -> "'" + each + "'")

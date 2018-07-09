@@ -30,8 +30,10 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Sync;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.text.MessageFormat;
+import java.util.Collections;
 import java.util.List;
 
 public class ClusterformationPlugin implements Plugin<Project> {
@@ -77,19 +79,6 @@ public class ClusterformationPlugin implements Plugin<Project> {
             )
         );
 
-        // Have a single common location to set up the required artifacts
-        if (rootProject.getConfigurations().findByName(HELPER_CONFIGURATION_NAME) == null) {
-            Configuration helperConfiguration = rootProject.getConfigurations().create(HELPER_CONFIGURATION_NAME);
-            helperConfiguration.setDescription(
-                "Internal helper configuration used by cluster configuration to download " +
-                "ES distributions and plugins."
-            );
-
-            Sync syncTask = rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, Sync.class);
-            syncTask.from(helperConfiguration);
-            syncTask.into(getArtifactsDir(rootProject));
-        }
-
         // When the project evaluated we know of all tasks that use clusters.
         // Each of these have to depend on the artifacts being synced.
         project.afterEvaluate(ip -> {
@@ -108,36 +97,60 @@ public class ClusterformationPlugin implements Plugin<Project> {
                 rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
             });
             ip.getTasks().forEach( task -> {
-                if (getTaskExtension(task).getClaimedClusters().isEmpty() == false) {
+                if (getClaimedClusters(task).isEmpty() == false) {
                     task.dependsOn(rootProject.getTasks().getByName(SYNC_ARTIFACTS_TASK_NAME));
                 }
             });
         });
 
-        // Make sure we only claim the clusters for the tasks that will actually execute
-        project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
-            taskExecutionGraph.getAllTasks().forEach(task -> {
-                    List<ElasticsearchConfigurationInternal> claimedClusters = getTaskExtension(task).getClaimedClusters();
-                    claimedClusters.forEach(ElasticsearchConfigurationInternal::claim);
-            })
-        );
+        // Have a single common location to set up the required artifacts
+        if (rootProject.getConfigurations().findByName(HELPER_CONFIGURATION_NAME) == null) {
+            Configuration helperConfiguration = rootProject.getConfigurations().create(HELPER_CONFIGURATION_NAME);
+            helperConfiguration.setDescription(
+                "Internal helper configuration used by cluster configuration to download " +
+                    "ES distributions and plugins."
+            );
 
-        // create the listener to start the clusters on-demand and terminate as soon as  no longer claimed.
-        // we need to use a task execution listener, as well as an action listener, so we don't start the task that
-        // claimed it is up to date.
-        project.getGradle().addListener(new ClusterFormationTaskExecutionListener());
+            Sync syncTask = rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, Sync.class);
+            syncTask.from(helperConfiguration);
+            syncTask.into(getArtifactsDir(rootProject));
+
+            // Make sure we only claim the clusters for the tasks that will actually execute
+            // since there's a single task Graph, we only need to do this once even in multi project builds
+            project.getRootProject().getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
+                taskExecutionGraph.getAllTasks().forEach(task -> {
+                    getClaimedClusters(task).forEach(ElasticsearchConfigurationInternal::claim);
+                })
+            );
+
+            // create the listener to start the clusters on-demand and terminate as soon as  no longer claimed.
+            // we need to use a task execution listener, as well as an action listener, so we don't start the task that
+            // claimed it is up to date.
+            project.getGradle().addListener(new ClusterFormationTaskExecutionListener());
+        }
     }
 
     private static File getArtifactsDir(Project project) {
         return new File(project.getRootProject().getBuildDir(), "clusterformation-artifacts");
     }
 
-    public static File getArtifact(File sharedArtifactsDir, Distribution distro, Version version) {
+    static File getArtifact(File sharedArtifactsDir, Distribution distro, Version version) {
         return new File(sharedArtifactsDir, distro.getFileName() + "-" + version + "." + distro.getExtension());
     }
 
-    static ClusterFormationTaskExtension getTaskExtension(Task task) {
-        return task.getExtensions().getByType(ClusterFormationTaskExtension.class);
+    @Nullable
+    static List<ElasticsearchConfigurationInternal> getClaimedClusters(Task task) {
+        ClusterFormationTaskExtension extension = task.getExtensions().findByType(ClusterFormationTaskExtension.class);
+        if (extension == null) {
+            return Collections.emptyList();
+        }
+        return extension.getClaimedClusters();
+    }
+
+    @SuppressWarnings("unchecked")
+    public static NamedDomainObjectContainer<ElasticsearchConfiguration> getNodeExtension(Project project) {
+        return (NamedDomainObjectContainer<ElasticsearchConfiguration>)
+            project.getExtensions().getByName(NODE_EXTENSION_NAME);
     }
 
 }

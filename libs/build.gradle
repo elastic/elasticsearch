@@ -31,7 +31,7 @@ subprojects {
     project.afterEvaluate {
         configurations.all { Configuration conf ->
             dependencies.all { Dependency dep ->
-                Project depProject = dependencyToProject(dep)
+                Project depProject = project.ext.dependencyToProject(dep)
                 if (depProject != null
                         && false == depProject.path.equals(':libs:core')
                         && false == isEclipse 

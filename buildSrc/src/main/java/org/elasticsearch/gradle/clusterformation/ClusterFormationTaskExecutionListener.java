@@ -21,13 +21,9 @@ package org.elasticsearch.gradle.clusterformation;
 import org.gradle.api.Task;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.TaskState;
 
 public class ClusterFormationTaskExecutionListener implements TaskExecutionListener, TaskActionListener {
-
-    private final Logger logger = Logging.getLogger(ClusterFormationTaskExecutionListener.class);
 
     @Override
     public void afterExecute(Task task, TaskState state) {
@@ -39,11 +35,11 @@ public class ClusterFormationTaskExecutionListener implements TaskExecutionListe
             // The downside is that with multi project builds if that other  task is in a different project and executing
             // right now, we will terminate the cluster underneath it.
             // this listener could maintain a task to cluster mapping, but that's overkill for now.
-            ClusterformationPlugin.getTaskExtension(task).getClaimedClusters().forEach(
+            ClusterformationPlugin.getClaimedClusters(task).forEach(
                 ElasticsearchConfigurationInternal::forceStop
             );
         } else {
-            ClusterformationPlugin.getTaskExtension(task).getClaimedClusters().forEach(
+            ClusterformationPlugin.getClaimedClusters(task).forEach(
                 ElasticsearchConfigurationInternal::unClaimAndStop
             );
         }
@@ -52,14 +48,17 @@ public class ClusterFormationTaskExecutionListener implements TaskExecutionListe
     @Override
     public void beforeActions(Task task) {
         // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-        ClusterformationPlugin.getTaskExtension(task).getClaimedClusters().forEach(ElasticsearchConfigurationInternal::start);
+        ClusterformationPlugin.getClaimedClusters(task).forEach(ElasticsearchConfigurationInternal::start);
     }
 
     @Override
     public void beforeExecute(Task task) {
+        // we only really want to start the cluster if there are any actions.
     }
 
     @Override
     public void afterActions(Task task) {
+        // nothing to be done after actions, we do it in after execute since we want to stop even if this task had not
+        // ran any actions
     }
 }

@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.common.util.ArrayUtils;
-
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -34,16 +32,12 @@ public class CompoundDateTimeFormatter {
     final DateTimeFormatter printer;
     final DateTimeFormatter[] parsers;
 
-    CompoundDateTimeFormatter(DateTimeFormatter parserAndPrinter, DateTimeFormatter ... parsers) {
-        if (parserAndPrinter == null) {
-            throw new IllegalArgumentException("printer is required for compound date formatter");
-        }
-        this.printer = parserAndPrinter;
+    CompoundDateTimeFormatter(DateTimeFormatter ... parsers) {
         if (parsers.length == 0) {
-            this.parsers = new DateTimeFormatter[]{parserAndPrinter};
-        } else {
-            this.parsers = ArrayUtils.concat(new DateTimeFormatter[]{parserAndPrinter}, parsers, DateTimeFormatter.class);
+            throw new IllegalArgumentException("at least one date time formatter is required");
         }
+        this.printer = parsers[0];
+        this.parsers = parsers;
     }
 
     public TemporalAccessor parse(String input) {
@@ -65,13 +59,12 @@ public class CompoundDateTimeFormatter {
     }
 
     public CompoundDateTimeFormatter withZone(ZoneId zoneId) {
-        final DateTimeFormatter printerWithZone = printer.withZone(zoneId);
         final DateTimeFormatter[] parsersWithZone = new DateTimeFormatter[parsers.length];
         for (int i = 0; i < parsers.length; i++) {
             parsersWithZone[i] = parsers[i].withZone(zoneId);
         }
 
-        return new CompoundDateTimeFormatter(printerWithZone, parsersWithZone);
+        return new CompoundDateTimeFormatter(parsersWithZone);
     }
 
     public String format(TemporalAccessor accessor) {

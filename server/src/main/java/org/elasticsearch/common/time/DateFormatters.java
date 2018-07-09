@@ -918,14 +918,8 @@ public class DateFormatters {
                 return forPattern(formats[0], locale);
             } else {
                 Collection<DateTimeFormatter> parsers = new LinkedHashSet<>(formats.length);
-                DateTimeFormatter printerAndParser = null;
                 for (int i = 0; i < formats.length; i++) {
                     CompoundDateTimeFormatter dateTimeFormatter = forPattern(formats[i], locale);
-
-                    if (i == 0) {
-                        printerAndParser = dateTimeFormatter.printer;
-                    }
-
                     try {
                         parsers.addAll(Arrays.asList(dateTimeFormatter.parsers));
                     } catch (IllegalArgumentException e) {
@@ -933,7 +927,7 @@ public class DateFormatters {
                     }
                 }
 
-                return new CompoundDateTimeFormatter(printerAndParser, parsers.toArray(new DateTimeFormatter[0]));
+                return new CompoundDateTimeFormatter(parsers.toArray(new DateTimeFormatter[0]));
             }
         } else {
             try {

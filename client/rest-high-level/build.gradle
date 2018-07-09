@@ -34,6 +34,19 @@ publishing {
     }
 }
 
+// We bundle the x-pack:protocol project into the jar.
+configurations {
+    bundled
+}
+sourceSets {
+    main {
+        compileClasspath += configurations.bundled
+    }
+    test {
+        compileClasspath += configurations.bundled
+    }
+}
+
 dependencies {
   compile "org.elasticsearch:elasticsearch:${version}"
   compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
@@ -41,7 +54,12 @@ dependencies {
   compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
   compile "org.elasticsearch.plugin:rank-eval-client:${version}"
   compile "org.elasticsearch.plugin:lang-mustache-client:${version}"
-  compile project(':x-pack:protocol') // TODO bundle into the jar
+  // Eclipse can't comprehend the bundled configuration...
+  if (isEclipse) {
+    compile project(':x-pack:protocol')
+  } else {
+    bundled project(':x-pack:protocol')
+  }
 
   testCompile "org.elasticsearch.client:test:${version}"
   testCompile "org.elasticsearch.test:framework:${version}"
@@ -63,4 +81,33 @@ forbiddenApisMain {
   // specified
   signaturesURLs += [PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
   signaturesURLs += [file('src/main/resources/forbidden/rest-high-level-signatures.txt').toURI().toURL()]
+}
+
+javadoc {
+  // Bundle javadoc from all bundled projects into this project's javadoc
+  configurations.bundled.dependencies.all { Dependency dep ->
+    Project p = dependencyToProject(dep)
+    if (p != null) {
+      evaluationDependsOn(p.path)
+      source += p.sourceSets.main.allJava
+    }
+  }
+}
+jar {
+  from({configurations.bundled.collect { it.isDirectory() ? it : zipTree(it) }}) {
+    exclude 'META-INF/*'
+  }
+}
+/*
+ * Use the jar for testing so we have tests of the bundled jar.
+ */
+test {
+  classpath -= compileJava.outputs.files
+  classpath += jar.outputs.files
+  dependsOn jar
+}
+integTestRunner {
+    classpath -= compileJava.outputs.files
+    classpath += jar.outputs.files
+    dependsOn jar
 }

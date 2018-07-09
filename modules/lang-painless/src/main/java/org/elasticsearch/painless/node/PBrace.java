@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.def;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -63,12 +63,12 @@ public final class PBrace extends AStoreable {
         } else if (prefix.actual == def.class) {
             sub = new PSubDefArray(location, index);
         } else if (Map.class.isAssignableFrom(prefix.actual)) {
-            sub = new PSubMapShortcut(location, locals.getDefinition().ClassToType(prefix.actual).struct, index);
+            sub = new PSubMapShortcut(location, locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual), index);
         } else if (List.class.isAssignableFrom(prefix.actual)) {
-            sub = new PSubListShortcut(location, locals.getDefinition().ClassToType(prefix.actual).struct, index);
+            sub = new PSubListShortcut(location, locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual), index);
         } else {
             throw createError(
-                new IllegalArgumentException("Illegal array access on type [" + Definition.ClassToName(prefix.actual) + "]."));
+                new IllegalArgumentException("Illegal array access on type [" + PainlessLookup.ClassToName(prefix.actual) + "]."));
         }
 
         sub.write = write;

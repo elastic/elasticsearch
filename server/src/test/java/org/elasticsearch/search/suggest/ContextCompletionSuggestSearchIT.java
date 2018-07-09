@@ -19,12 +19,10 @@
 package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -95,7 +93,9 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
+            .contexts(Collections.singletonMap("cat",
+                Collections.singletonList(CategoryQueryContext.builder().setCategory("cat").setPrefix(true).build())));
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
 
@@ -126,7 +126,9 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).regex("sugg.*es");
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).regex("sugg.*es")
+            .contexts(Collections.singletonMap("cat",
+                Collections.singletonList(CategoryQueryContext.builder().setCategory("cat").setPrefix(true).build())));
         assertSuggestions("foo", prefix, "sugg9estion", "sugg8estion", "sugg7estion", "sugg6estion", "sugg5estion");
     }
 
@@ -157,7 +159,9 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg", Fuzziness.ONE);
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg", Fuzziness.ONE)
+            .contexts(Collections.singletonMap("cat",
+                Collections.singletonList(CategoryQueryContext.builder().setCategory("cat").setPrefix(true).build())));
         assertSuggestions("foo", prefix, "sugxgestion9", "sugxgestion8", "sugxgestion7", "sugxgestion6", "sugxgestion5");
     }
 
@@ -236,32 +240,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("foo", prefix, "suggestion8", "suggestion6", "suggestion4", "suggestion9", "suggestion2");
     }
 
-    public void testSingleContextMultipleContexts() throws Exception {
-        CategoryContextMapping contextMapping = ContextBuilder.category("cat").field("cat").build();
-        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
-        final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
-        createIndexAndMapping(mapping);
-        int numDocs = 10;
-        List<String> contexts = Arrays.asList("type1", "type2", "type3", "type4");
-        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-        for (int i = 0; i < numDocs; i++) {
-            XContentBuilder source = jsonBuilder()
-                    .startObject()
-                    .startObject(FIELD)
-                    .field("input", "suggestion" + i)
-                    .field("weight", i + 1)
-                    .endObject()
-                    .field("cat", contexts)
-                    .endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
-                    .setSource(source));
-        }
-        indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-
-        assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
-    }
-
     public void testMultiContextFiltering() throws Exception {
         LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         map.put("cat", ContextBuilder.category("cat").field("cat").build());
@@ -295,14 +273,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         typeFilterSuggest.contexts(Collections.singletonMap("type", Arrays.asList(CategoryQueryContext.builder().setCategory("type2").build(),
                 CategoryQueryContext.builder().setCategory("type1").build())));
         assertSuggestions("foo", typeFilterSuggest, "suggestion9", "suggestion6", "suggestion5", "suggestion2", "suggestion1");
-
-        CompletionSuggestionBuilder multiContextFilterSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-        // query context order should never matter
-        Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
-        contextMap.put("type", Collections.singletonList(CategoryQueryContext.builder().setCategory("type2").build()));
-        contextMap.put("cat", Collections.singletonList(CategoryQueryContext.builder().setCategory("cat2").build()));
-        multiContextFilterSuggest.contexts(contextMap);
-        assertSuggestions("foo", multiContextFilterSuggest, "suggestion6", "suggestion2");
     }
 
     @AwaitsFix(bugUrl = "multiple context boosting is broken, as a suggestion, contexts pair is treated as (num(context) entries)")
@@ -361,36 +331,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("foo", multiContextBoostSuggest, "suggestion9", "suggestion6", "suggestion5", "suggestion2", "suggestion1");
     }
 
-    public void testMissingContextValue() throws Exception {
-        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
-        map.put("cat", ContextBuilder.category("cat").field("cat").build());
-        map.put("type", ContextBuilder.category("type").field("type").build());
-        final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
-        createIndexAndMapping(mapping);
-        int numDocs = 10;
-        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-        for (int i = 0; i < numDocs; i++) {
-            XContentBuilder source = jsonBuilder()
-                    .startObject()
-                    .startObject(FIELD)
-                    .field("input", "suggestion" + i)
-                    .field("weight", i + 1)
-                    .endObject();
-            if (randomBoolean()) {
-                source.field("cat", "cat" + i % 2);
-            }
-            if (randomBoolean()) {
-                source.field("type", "type" + i % 4);
-            }
-            source.endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
-                    .setSource(source));
-        }
-        indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-        assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
-    }
-
     public void testSeveralContexts() throws Exception {
         LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         final int numContexts = randomIntBetween(2, 5);
@@ -417,33 +357,10 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
 
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
+            .contexts(Collections.singletonMap("type0",
+                Collections.singletonList(CategoryQueryContext.builder().setCategory("type").setPrefix(true).build())));
         assertSuggestions("foo", prefix, "suggestion0", "suggestion1", "suggestion2", "suggestion3", "suggestion4");
-    }
-
-    public void testSimpleGeoPrefix() throws Exception {
-        LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
-        map.put("geo", ContextBuilder.geo("geo").build());
-        final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
-        createIndexAndMapping(mapping);
-        int numDocs = 10;
-        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-        for (int i = 0; i < numDocs; i++) {
-            XContentBuilder source = jsonBuilder()
-                    .startObject()
-                    .startObject(FIELD)
-                    .field("input", "suggestion" + i)
-                    .field("weight", i + 1)
-                    .startObject("contexts")
-                    .field("geo", GeoHashUtils.stringEncode(1.2, 1.3))
-                    .endObject()
-                    .endObject().endObject();
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
-                    .setSource(source));
-        }
-        indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-        assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
 
     public void testGeoFiltering() throws Exception {
@@ -468,8 +385,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-        assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
 
         CompletionSuggestionBuilder geoFilteringPrefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
                 .contexts(Collections.singletonMap("geo", Collections.singletonList(
@@ -500,8 +415,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-        assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
 
         GeoQueryContext context1 = GeoQueryContext.builder().setGeoPoint(geoPoints[0]).setBoost(11).build();
         GeoQueryContext context2 = GeoQueryContext.builder().setGeoPoint(geoPoints[1]).build();
@@ -572,8 +485,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
-        assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
 
         CompletionSuggestionBuilder geoNeighbourPrefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
                 .contexts(Collections.singletonMap("geo", Collections.singletonList(GeoQueryContext.builder().setGeoPoint(GeoPoint.fromGeohash(geohash)).build())));
@@ -668,14 +579,9 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
             expected[i] = "suggestion" + (numUnique-1-i);
         }
         indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder completionSuggestionBuilder =
-            SuggestBuilders.completionSuggestion(FIELD).prefix("sugg").skipDuplicates(true).size(numUnique);
-
-        assertSuggestions("suggestions", completionSuggestionBuilder, expected);
-
         Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
         contextMap.put("cat", Arrays.asList(CategoryQueryContext.builder().setCategory("cat0").build()));
-        completionSuggestionBuilder =
+        CompletionSuggestionBuilder completionSuggestionBuilder =
             SuggestBuilders.completionSuggestion(FIELD).prefix("sugg").contexts(contextMap).skipDuplicates(true).size(numUnique);
 
         String[] expectedModulo = Arrays.stream(expected)

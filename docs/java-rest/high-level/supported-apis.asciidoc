@@ -53,9 +53,11 @@ The Java High Level REST Client supports the following Miscellaneous APIs:
 
 * <<java-rest-high-main>>
 * <<java-rest-high-ping>>
+* <<java-rest-high-x-pack-info>>
 
 include::miscellaneous/main.asciidoc[]
 include::miscellaneous/ping.asciidoc[]
+include::miscellaneous/x-pack-info.asciidoc[]
 
 == Indices APIs
 
@@ -78,9 +80,11 @@ Index Management::
 * <<java-rest-high-indices-put-settings>>
 * <<java-rest-high-get-settings>>
 * <<java-rest-high-indices-validate-query>>
+* <<java-rest-high-get-index>>
 
 Mapping Management::
 * <<java-rest-high-put-mapping>>
+* <<java-rest-high-get-mappings>>
 * <<java-rest-high-get-field-mappings>>
 
 Alias Management::
@@ -113,6 +117,7 @@ include::indices/get_settings.asciidoc[]
 include::indices/put_template.asciidoc[]
 include::indices/validate_query.asciidoc[]
 include::indices/get_templates.asciidoc[]
+include::indices/get_index.asciidoc[]
 
 == Cluster APIs
 
@@ -178,4 +183,3 @@ The Java High Level REST Client supports the following Scripts APIs:
 
 include::script/get_script.asciidoc[]
 include::script/delete_script.asciidoc[]
-

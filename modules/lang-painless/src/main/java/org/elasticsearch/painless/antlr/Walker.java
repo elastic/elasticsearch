@@ -29,7 +29,7 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
@@ -174,9 +174,9 @@ import java.util.List;
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     public static SSource buildPainlessTree(ScriptClassInfo mainMethod, MainMethodReserved reserved, String sourceName,
-                                            String sourceText, CompilerSettings settings, Definition definition,
+                                            String sourceText, CompilerSettings settings, PainlessLookup painlessLookup,
                                             Printer debugStream) {
-        return new Walker(mainMethod, reserved, sourceName, sourceText, settings, definition, debugStream).source;
+        return new Walker(mainMethod, reserved, sourceName, sourceText, settings, painlessLookup, debugStream).source;
     }
 
     private final ScriptClassInfo scriptClassInfo;
@@ -185,14 +185,14 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     private final Printer debugStream;
     private final String sourceName;
     private final String sourceText;
-    private final Definition definition;
+    private final PainlessLookup painlessLookup;
 
     private final Deque<Reserved> reserved = new ArrayDeque<>();
     private final Globals globals;
     private int syntheticCounter = 0;
 
     private Walker(ScriptClassInfo scriptClassInfo, MainMethodReserved reserved, String sourceName, String sourceText,
-                   CompilerSettings settings, Definition definition, Printer debugStream) {
+                   CompilerSettings settings, PainlessLookup painlessLookup, Printer debugStream) {
         this.scriptClassInfo = scriptClassInfo;
         this.reserved.push(reserved);
         this.debugStream = debugStream;
@@ -200,13 +200,13 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         this.sourceName = Location.computeSourceName(sourceName);
         this.sourceText = sourceText;
         this.globals = new Globals(new BitSet(sourceText.length()));
-        this.definition = definition;
+        this.painlessLookup = painlessLookup;
         this.source = (SSource)visit(buildAntlrTree(sourceText));
     }
 
     private SourceContext buildAntlrTree(String source) {
         ANTLRInputStream stream = new ANTLRInputStream(source);
-        PainlessLexer lexer = new EnhancedPainlessLexer(stream, sourceName, definition);
+        PainlessLexer lexer = new EnhancedPainlessLexer(stream, sourceName, painlessLookup);
         PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
         ParserErrorStrategy strategy = new ParserErrorStrategy(sourceName);
 

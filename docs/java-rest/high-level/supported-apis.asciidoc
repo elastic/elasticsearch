@@ -53,9 +53,11 @@ The Java High Level REST Client supports the following Miscellaneous APIs:
 
 * <<java-rest-high-main>>
 * <<java-rest-high-ping>>
+* <<java-rest-high-x-pack-info>>
 
 include::miscellaneous/main.asciidoc[]
 include::miscellaneous/ping.asciidoc[]
+include::miscellaneous/x-pack-info.asciidoc[]
 
 == Indices APIs
 
@@ -181,4 +183,3 @@ The Java High Level REST Client supports the following Scripts APIs:
 
 include::script/get_script.asciidoc[]
 include::script/delete_script.asciidoc[]
-

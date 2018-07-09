@@ -456,6 +456,27 @@ SELECT languages + 1 AS l FROM emp GROUP BY l;
 // end::groupByExpression
 ;
 
+groupByMulti
+// tag::groupByMulti
+SELECT gender g, languages l, COUNT(*) c FROM "emp" GROUP BY g, l ORDER BY languages ASC, gender DESC;
+
+       g       |       l       |       c       
+---------------+---------------+---------------
+F              |2              |4              
+F              |3              |8              
+F              |4              |7              
+F              |5              |7              
+F              |6              |11             
+M              |2              |12             
+M              |3              |12             
+M              |4              |15             
+M              |5              |11             
+M              |6              |13       
+
+// end::groupByMulti
+;
+
+
 groupByAndAgg
 // tag::groupByAndAgg
 SELECT gender AS g, COUNT(*) AS c FROM emp GROUP BY gender;

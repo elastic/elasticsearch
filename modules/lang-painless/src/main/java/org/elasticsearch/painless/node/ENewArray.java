@@ -61,7 +61,7 @@ public final class ENewArray extends AExpression {
         Class<?> clazz;
 
         try {
-            clazz = locals.getDefinition().getJavaClassFromPainlessType(this.type);
+            clazz = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }

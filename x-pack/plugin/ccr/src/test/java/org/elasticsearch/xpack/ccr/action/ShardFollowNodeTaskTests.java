@@ -153,7 +153,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             }
 
             @Override
-            protected void innerSendBulkShardOperationsRequest(Translog.Operation[] operations, LongConsumer handler,
+            protected void innerSendBulkShardOperationsRequest(List<Translog.Operation> operations, LongConsumer handler,
                                                                Consumer<Exception> errorHandler) {
                 if (randomlyFailWithRetryableError.get() && readCounter.incrementAndGet() % 5 == 0) {
                     failedRequests.incrementAndGet();

@@ -25,8 +25,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.PriorityQueue;
@@ -138,18 +140,19 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private synchronized void coordinateWrites() {
         while (hasWriteBudget() && buffer.isEmpty() == false) {
             long sumEstimatedSize = 0L;
-            Translog.Operation[] ops = new Translog.Operation[Math.min(params.getMaxBatchOperationCount(), buffer.size())];
-            for (int i = 0; i < ops.length; i++) {
-                ops[i] = buffer.remove();
-                sumEstimatedSize += ops[i].estimateSize();
+            int length = Math.min(params.getMaxBatchOperationCount(), buffer.size());
+            List<Translog.Operation> ops = new ArrayList<>(length);
+            for (int i = 0; i < length; i++) {
+                Translog.Operation op = buffer.remove();
+                ops.add(op);
+                sumEstimatedSize += op.estimateSize();
                 if (sumEstimatedSize > params.getMaxBatchSizeInBytes()) {
-                    ops = Arrays.copyOf(ops, i + 1);
                     break;
                 }
             }
             numConcurrentWrites++;
-            LOGGER.trace("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numConcurrentWrites, ops[0].seqNo(),
-                ops[ops.length - 1].seqNo(), ops.length);
+            LOGGER.trace("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numConcurrentWrites, ops.get(0).seqNo(),
+                ops.get(ops.size() - 1).seqNo(), ops.size());
             sendBulkShardOperationsRequest(ops);
         }
     }
@@ -218,7 +221,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         });
     }
 
-    private void sendBulkShardOperationsRequest(Translog.Operation[] operations) {
+    private void sendBulkShardOperationsRequest(List<Translog.Operation> operations) {
         innerSendBulkShardOperationsRequest(operations,
             followerLocalCheckpoint -> {
                 retryCounter.set(0);
@@ -275,7 +278,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     // These methods are protected for testing purposes:
     protected abstract void updateMapping(LongConsumer handler);
 
-    protected abstract void innerSendBulkShardOperationsRequest(Translog.Operation[] operations, LongConsumer handler,
+    protected abstract void innerSendBulkShardOperationsRequest(List<Translog.Operation> operations, LongConsumer handler,
                                                                 Consumer<Exception> errorHandler);
 
     protected abstract void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,

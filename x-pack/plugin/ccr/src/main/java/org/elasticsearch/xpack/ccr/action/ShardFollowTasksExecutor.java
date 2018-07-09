@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiConsumer;
@@ -118,7 +119,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             }
 
             @Override
-            protected void innerSendBulkShardOperationsRequest(Translog.Operation[] operations, LongConsumer handler,
+            protected void innerSendBulkShardOperationsRequest(List<Translog.Operation> operations, LongConsumer handler,
                                                                Consumer<Exception> errorHandler) {
                 final BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(), operations);
                 followerClient.execute(BulkShardOperationsAction.INSTANCE, request,

@@ -25,7 +25,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class TransportBulkShardOperationsAction
         extends TransportWriteAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
@@ -63,10 +64,10 @@ public class TransportBulkShardOperationsAction
 
     static WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
             final ShardId shardId,
-            final Translog.Operation[] sourceOperations,
+            final List<Translog.Operation> sourceOperations,
             final IndexShard primary,
             final Logger logger) throws IOException {
-        final Translog.Operation[] targetOperations = Arrays.stream(sourceOperations).map(operation -> {
+        final List<Translog.Operation> targetOperations = sourceOperations.stream().map(operation -> {
             final Translog.Operation operationWithPrimaryTerm;
             switch (operation.opType()) {
                 case INDEX:
@@ -101,7 +102,7 @@ public class TransportBulkShardOperationsAction
                     throw new IllegalStateException("unexpected operation type [" + operation.opType() + "]");
             }
             return operationWithPrimaryTerm;
-        }).toArray(Translog.Operation[]::new);
+        }).collect(Collectors.toList());
         final Translog.Location location = applyTranslogOperations(targetOperations, primary, Engine.Operation.Origin.PRIMARY);
         final BulkShardOperationsRequest replicaRequest = new BulkShardOperationsRequest(shardId, targetOperations);
         return new CcrWritePrimaryResult(replicaRequest, location, primary, logger);
@@ -115,7 +116,7 @@ public class TransportBulkShardOperationsAction
     }
 
     private static Translog.Location applyTranslogOperations(
-            final Translog.Operation[] operations, final IndexShard shard, final Engine.Operation.Origin origin) throws IOException {
+            final List<Translog.Operation> operations, final IndexShard shard, final Engine.Operation.Origin origin) throws IOException {
         Translog.Location location = null;
         for (final Translog.Operation operation : operations) {
             final Engine.Result result = shard.applyTranslogOperation(operation, origin);
@@ -123,7 +124,7 @@ public class TransportBulkShardOperationsAction
             assert result.getResultType() == Engine.Result.Type.SUCCESS;
             location = locationToSync(location, result.getTranslogLocation());
         }
-        assert operations.length == 0 || location != null;
+        assert operations.size() == 0 || location != null;
         return location;
     }
 

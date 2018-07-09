@@ -97,12 +97,12 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(new GrokProcessorGetAction.RestAction(settings, restController));
     }
-
+    
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(WATCHDOG_INTERVAL, WATCHDOG_MAX_EXECUTION_TIME);
     }
-
+    
     private static ThreadWatchdog createGrokThreadWatchdog(Processor.Parameters parameters) {
         long intervalMillis = WATCHDOG_INTERVAL.get(parameters.env.settings()).getMillis();
         long maxExecutionTimeMillis = WATCHDOG_MAX_EXECUTION_TIME.get(parameters.env.settings()).getMillis();

@@ -25,6 +25,7 @@ import org.objectweb.asm.commons.Method;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,6 +39,7 @@ import java.util.regex.Pattern;
 public final class PainlessLookupBuilder extends PainlessLookupBase {
 
     private static class PainlessMethodCacheKey {
+
         private final Class<?> javaClass;
         private final String methodName;
         private final List<Class<?>> painlessTypeParameters;
@@ -65,6 +67,7 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
     }
 
     private static class PainlessFieldCacheKey {
+        
         private final Class<?> javaClass;
         private final String fieldName;
         private final Class<?> painlessType;
@@ -233,11 +236,12 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         Objects.requireNonNull(anyTypeNameParameters);
 
         String painlessClassName = anyTypeNameToPainlessTypeName(javaClassName);
-        Class<?> javaClass = painlessClassNamesToJavaClasses.get(painlessClassName);
 
-        if (javaClass == def.class) {
-            throw new IllegalArgumentException("cannot add constructor for reserved painless class [" + DEF_PAINLESS_CLASS_NAME + "]");
+        if (DEF_PAINLESS_CLASS_NAME.equals(painlessClassName)) {
+            throw new IllegalArgumentException("cannot add constructor to reserved painless class [" + DEF_PAINLESS_CLASS_NAME + "]");
         }
+
+        Class<?> javaClass = painlessClassNamesToJavaClasses.get(painlessClassName);
 
         if (javaClass == null) {
             throw new IllegalArgumentException("painless class [" + painlessClassName + "] not found");
@@ -282,7 +286,7 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         Objects.requireNonNull(painlessTypeParameters);
 
         if (javaClass == def.class) {
-            throw new IllegalArgumentException("cannot add constructor for reserved painless class [" + DEF_PAINLESS_CLASS_NAME + "]");
+            throw new IllegalArgumentException("cannot add constructor to reserved painless class [" + DEF_PAINLESS_CLASS_NAME + "]");
         }
 
         String javaClassName = javaClass.getCanonicalName();
@@ -365,11 +369,12 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         Objects.requireNonNull(anyTypeNameParameters);
 
         String painlessClassName = anyTypeNameToPainlessTypeName(javaClassName);
-        Class<?> javaClass = painlessClassNamesToJavaClasses.get(painlessClassName);
 
-        if (javaClass == def.class) {
-            throw new IllegalArgumentException("cannot add method for reserved painless class [" + DEF_PAINLESS_CLASS_NAME + "]");
+        if (DEF_PAINLESS_CLASS_NAME.equals(painlessClassName)) {
+            throw new IllegalArgumentException("cannot add method to reserved painless class [" + DEF_PAINLESS_CLASS_NAME + "]");
         }
+
+        Class<?> javaClass = painlessClassNamesToJavaClasses.get(painlessClassName);
 
         if (javaClass == null) {
             throw new IllegalArgumentException("painless class [" + painlessClassName + "] not found");
@@ -401,7 +406,7 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
                 augmentedJavaClass = Class.forName(augmentedJavaClassName, true, classLoader);
             } catch (ClassNotFoundException cnfe) {
                 throw new IllegalArgumentException("augmented java class [" + augmentedJavaClassName + "] not found for painless method " +
-                    "[[" + painlessClassName + "], [" + methodName + "], " + painlessTypeNameParameters + "]", cnfe);
+                        "[[" + painlessClassName + "], [" + methodName + "], " + painlessTypeNameParameters + "]", cnfe);
             }
         }
 
@@ -450,7 +455,7 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         Objects.requireNonNull(painlessTypeParameters);
 
         if (javaClass == def.class) {
-            throw new IllegalArgumentException("cannot add constructor for reserved painless class [" + DEF_PAINLESS_CLASS_NAME + "]");
+            throw new IllegalArgumentException("cannot add method to reserved painless class [" + DEF_PAINLESS_CLASS_NAME + "]");
         }
 
         String javaClassName = javaClass.getCanonicalName();
@@ -459,6 +464,10 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
 
         if (painlessClass == null) {
             throw new IllegalArgumentException("painless class [" + painlessClassName + "] not found");
+        }
+
+        if (METHOD_NAME_PATTERN.matcher(methodName).matches() == false) {
+            throw new IllegalArgumentException("invalid method name [" + methodName + "] for painless class [" + painlessClassName + "].");
         }
 
         int parametersSize = painlessTypeParameters.size();
@@ -480,14 +489,14 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
             javaTypeParameters[parameterIndex++] = painlessTypeToJavaType(painlessTypeParameter);
         }
 
-        String anyTypeNameParameter = painlessTypeReturn.getCanonicalName();
-        String painlessTypeNameParameter = anyTypeNameToPainlessTypeName(anyTypeNameParameter);
+        String anyTypeNameReturn = painlessTypeReturn.getCanonicalName();
+        String painlessTypeNameReturn = anyTypeNameToPainlessTypeName(anyTypeNameReturn);
 
         try {
             validatePainlessType(painlessTypeReturn);
         } catch (IllegalArgumentException iae) {
-            throw new IllegalArgumentException("painless type [" + painlessTypeNameParameter + "] return not found " +
-                "for painless constructor [[" + painlessClassName + "], " + painlessTypeParameters  + "]", iae);
+            throw new IllegalArgumentException("painless type [" + painlessTypeNameReturn + "] return not found " +
+                    "for painless method [[" + painlessClassName + "], [" + methodName + "], " + painlessTypeParameters  + "]", iae);
         }
 
         addPainlessMethod(javaClass, augmentedJavaClass, painlessClassName, painlessClass, methodName,
@@ -527,8 +536,8 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
                     javaMethodHandle = MethodHandles.publicLookup().in(javaClass).unreflect(javaMethod);
                 } catch (IllegalAccessException iae) {
                     throw new IllegalArgumentException(
-                        "static java method [[" + javaClass.getCanonicalName() + "], [" + methodName + "], " +
-                        anyTypesArrayToCanonicalString(javaTypeParameters, false) + "] reflection object not found", iae);
+                            "static java method [[" + javaClass.getCanonicalName() + "], [" + methodName + "], " +
+                            anyTypesArrayToCanonicalString(javaTypeParameters, false) + "] reflection object not found", iae);
                 }
 
                 painlessMethod = painlessMethodCache.computeIfAbsent(
@@ -540,10 +549,10 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
             } else if ((painlessMethod.name.equals(methodName) && painlessMethod.rtn == painlessTypeReturn &&
                 painlessMethod.arguments.equals(painlessTypeParameters)) == false) {
                 throw new IllegalArgumentException("illegal duplicate static painless methods [" + painlessMethodKey + "] found " +
-                    "[[" + painlessClassName + "], [" + methodName + "], " +
-                    anyTypesListToCanonicalString(painlessTypeParameters, true) + "] and " +
-                    "[[" + painlessClassName + "], [" + painlessMethod.name + "], " +
-                    anyTypesListToCanonicalString(painlessMethod.arguments, true) + "]");
+                        "[[" + painlessClassName + "], [" + methodName + "], " +
+                        anyTypesListToCanonicalString(painlessTypeParameters, true) + "] and " +
+                        "[[" + painlessClassName + "], [" + painlessMethod.name + "], " +
+                        anyTypesListToCanonicalString(painlessMethod.arguments, true) + "]");
             }
         } else {
             PainlessMethod painlessMethod = painlessClass.staticMethods.get(painlessMethodKey);
@@ -572,10 +581,158 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
             } else if ((painlessMethod.name.equals(methodName) && painlessMethod.rtn == painlessTypeReturn &&
                 painlessMethod.arguments.equals(painlessTypeParameters)) == false) {
                 throw new IllegalArgumentException("illegal duplicate painless methods [" + painlessMethodKey + "] found " +
-                    "[[" + painlessClassName + "], [" + methodName + "], " +
-                    anyTypesListToCanonicalString(painlessTypeParameters, true) + "] and " +
-                    "[[" + painlessClassName + "], [" + painlessMethod.name + "], " +
-                    anyTypesListToCanonicalString(painlessMethod.arguments, true) + "]");
+                        "[[" + painlessClassName + "], [" + methodName + "], " +
+                        anyTypesListToCanonicalString(painlessTypeParameters, true) + "] and " +
+                        "[[" + painlessClassName + "], [" + painlessMethod.name + "], " +
+                        anyTypesListToCanonicalString(painlessMethod.arguments, true) + "]");
+            }
+        }
+    }
+
+    private void addPainlessField(String javaClassName, String fieldName, String anyTypeNameField) {
+        Objects.requireNonNull(javaClassName);
+        Objects.requireNonNull(fieldName);
+        Objects.requireNonNull(anyTypeNameField);
+
+        String painlessClassName = anyTypeNameToPainlessTypeName(javaClassName);
+
+        if (DEF_PAINLESS_CLASS_NAME.equals(painlessClassName)) {
+            throw new IllegalArgumentException("cannot add field to reserved painless class [" + DEF_PAINLESS_CLASS_NAME + "]");
+        }
+
+        Class<?> javaClass = painlessClassNamesToJavaClasses.get(painlessClassName);
+
+        if (javaClass == null) {
+            throw new IllegalArgumentException("painless class [" + painlessClassName + "] not found");
+        }
+
+        PainlessClass painlessClass = javaClassesToPainlessClasses.get(javaClass);
+
+        if (painlessClass == null) {
+            throw new IllegalArgumentException("painless class [" + painlessClassName + "] not found");
+        }
+
+        if (FIELD_NAME_PATTERN.matcher(fieldName).matches() == false) {
+            throw new IllegalArgumentException("invalid field name [" + fieldName + "] for painless class [" + painlessClassName + "].");
+        }
+
+        String painlessTypeNameField = anyTypeNameToPainlessTypeName(anyTypeNameField);
+        Class<?> painlessTypeField = painlessTypeNameToPainlessType(painlessTypeNameField);
+
+        if (painlessTypeField == null) {
+            throw new IllegalArgumentException("painless type [" + painlessTypeNameField + "] field not found " +
+                    "for painless field [[" + painlessClassName + "], [" + fieldName + "]");
+        }
+
+        addPainlessField(javaClass, painlessClassName, painlessClass, fieldName, painlessTypeField);
+    }
+
+    public void addPainlessField(Class<?> javaClass, String fieldName, Class<?> painlessTypeField) {
+        Objects.requireNonNull(javaClass);
+        Objects.requireNonNull(fieldName);
+        Objects.requireNonNull(painlessTypeField);
+
+        if (javaClass == def.class) {
+            throw new IllegalArgumentException("cannot add field to reserved painless class [" + DEF_PAINLESS_CLASS_NAME + "]");
+        }
+
+        String javaClassName = javaClass.getCanonicalName();
+        String painlessClassName = anyTypeNameToPainlessTypeName(javaClassName);
+        PainlessClass painlessClass = javaClassesToPainlessClasses.get(javaClass);
+
+        if (painlessClass == null) {
+            throw new IllegalArgumentException("painless class [" + painlessClassName + "] not found");
+        }
+
+        if (FIELD_NAME_PATTERN.matcher(fieldName).matches() == false) {
+            throw new IllegalArgumentException("invalid field name [" + fieldName + "] for painless class [" + painlessClassName + "].");
+        }
+
+        String anyTypeNameField = painlessTypeField.getCanonicalName();
+        String painlessTypeNameField = anyTypeNameToPainlessTypeName(anyTypeNameField);
+
+        try {
+            validatePainlessType(painlessTypeField);
+        } catch (IllegalArgumentException iae) {
+            throw new IllegalArgumentException("painless type [" + painlessTypeNameField + "] field not found " +
+                "for painless field [[" + painlessClassName + "], [" + fieldName + "]", iae);
+        }
+
+        addPainlessField(javaClass, painlessClassName, painlessClass, fieldName, painlessTypeField);
+    }
+
+    private void addPainlessField(
+            Class<?> javaClass, String painlessClassName, PainlessClass painlessClass, String fieldName, Class<?> painlessTypeField) {
+        Field javaField;
+
+        try {
+            javaField = javaClass.getField(fieldName);
+        } catch (NoSuchFieldException nsme) {
+            throw new IllegalArgumentException(
+                    "java field [[" + javaClass.getCanonicalName() + "], [" + fieldName + "], reflection object not found", nsme);
+        }
+
+        String anyTypeNameField = painlessTypeField.getCanonicalName();
+        String painlessTypeNameField = anyTypeNameToPainlessTypeName(anyTypeNameField);
+
+        if (javaField.getType() != painlessTypeToJavaType(painlessTypeField)) {
+            throw new IllegalArgumentException("java type field [" + javaField.getType().getCanonicalName() + "] " +
+                    "does not match the specified java type field [" + painlessTypeField.getCanonicalName() + "] " +
+                    "for java field [[" + javaClass.getCanonicalName() + "], [" + fieldName + "]]");
+        }
+
+        if (Modifier.isStatic(javaField.getModifiers())) {
+            if (Modifier.isFinal(javaField.getModifiers()) == false) {
+                throw new IllegalArgumentException(
+                        "static painless field [[" + painlessClassName + "]. [" + fieldName + "]] must be final");
+            }
+
+            PainlessField painlessField = painlessClass.staticMembers.get(fieldName);
+
+            if (painlessField == null) {
+                painlessField = painlessFieldCache.computeIfAbsent(
+                        new PainlessFieldCacheKey(javaClass, fieldName, painlessTypeField),
+                        key -> new PainlessField(fieldName, javaField.getName(), painlessClass,
+                                                 painlessTypeField, javaField.getModifiers(), null, null));
+
+                painlessClass.staticMembers.put(fieldName, painlessField);
+            } else if (painlessField.clazz != painlessTypeField) {
+                throw new IllegalArgumentException("illegal duplicate static painless fields [" + fieldName + "] found " +
+                        "[[" + painlessClassName + "], [" + fieldName + "], [" + painlessTypeField.getCanonicalName() + "] and " +
+                        "[[" + painlessClassName + "], [" + painlessField.name + "], " + painlessField.javaName + "]");
+            }
+        } else {
+            MethodHandle methodHandleGetter;
+
+            try {
+                methodHandleGetter = MethodHandles.publicLookup().unreflectGetter(javaField);
+            } catch (IllegalAccessException iae) {
+                throw new IllegalArgumentException(
+                        "method handle getter not found for painless field [[" + painlessClassName + "], [" + fieldName + "]]");
+            }
+
+            MethodHandle methodHandleSetter;
+
+            try {
+                methodHandleSetter = MethodHandles.publicLookup().unreflectSetter(javaField);
+            } catch (IllegalAccessException iae) {
+                throw new IllegalArgumentException(
+                        "method handle setter not found for painless field [[" + painlessClassName + "], [" + fieldName + "]]");
+            }
+
+            PainlessField painlessField = painlessClass.members.get(fieldName);
+
+            if (painlessField == null) {
+                painlessField = painlessFieldCache.computeIfAbsent(
+                        new PainlessFieldCacheKey(javaClass, fieldName, painlessTypeField),
+                        key -> new PainlessField(fieldName, javaField.getName(), painlessClass,
+                                                 painlessTypeField, javaField.getModifiers(), methodHandleGetter, methodHandleSetter));
+
+                painlessClass.staticMembers.put(fieldName, painlessField);
+            } else if (painlessField.clazz != painlessTypeField) {
+                throw new IllegalArgumentException("illegal duplicate painless fields [" + fieldName + "] found " +
+                        "[[" + painlessClassName + "], [" + fieldName + "], [" + painlessTypeNameField + "] and " +
+                        "[[" + painlessClassName + "], [" + painlessField.name + "], " + painlessField.javaName + "]");
             }
         }
     }

@@ -261,7 +261,7 @@ type:: The highlighter to use: `unified`, `plain`, or `fvh`. Defaults to
 * <<set-highlighter-type, Set highlighter type>>
 * <<configure-tags, Configure highlighting tags>>
 * <<highlight-source, Highlight source>>
-* <<matched-fields, Combine matches on multiple fields>>
+* <<matched-fields, Combine matches on multiple fields using matched_fields>>
 * <<explicit-field-order, Explicitly order highlighted fields>>
 * <<control-highlighted-frags, Control highlighted fragments>>
 * <<highlight-postings-list, Highlight using the postings list>>

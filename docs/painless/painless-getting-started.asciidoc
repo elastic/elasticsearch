@@ -135,7 +135,7 @@ the document, `doc['field'].value` for this document returns:
 
 IMPORTANT: Starting in 7.0, `doc['field'].value` throws an exception if
 the field is missing in a document. To enable this behavior now,
-set a <<jvm-options,`jvm.option`>>
+set a {ref}/jvm-options.html[`jvm.option`]
 `-Des.scripting.exception_for_missing_value=true` on a node. If you do not enable
 this behavior, a deprecation warning is logged on start up.
 

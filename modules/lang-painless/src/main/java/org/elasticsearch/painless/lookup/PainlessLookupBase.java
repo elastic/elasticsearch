@@ -104,11 +104,7 @@ public class PainlessLookupBase {
     }
 
     public static String anyTypeNameToPainlessTypeName(String anyTypeName) {
-        if (anyTypeName.startsWith(def.class.getName())) {
-            anyTypeName = anyTypeName.replace(def.class.getName(), DEF_PAINLESS_CLASS_NAME);
-        }
-
-        return anyTypeName.replace('$', '.');
+        return anyTypeName.replace(def.class.getName(), DEF_PAINLESS_CLASS_NAME).replace('$', '.');
     }
 
     public static String buildPainlessMethodKey(String methodName, int methodArity) {
@@ -116,7 +112,7 @@ public class PainlessLookupBase {
     }
 
     public static final String DEF_PAINLESS_CLASS_NAME = "def";
-    public static final String PAINLESS_CONSTRUCTOR_NAME = "<init>";
+    public static final String CONSTRUCTOR_ANY_NAME = "<init>";
 
     final Map<String, Class<?>> painlessClassNamesToJavaClasses;
     final Map<Class<?>, PainlessClass> javaClassesToPainlessClasses;

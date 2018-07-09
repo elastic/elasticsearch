@@ -36,6 +36,9 @@ import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.WeekFields;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
@@ -896,16 +899,23 @@ public class DateFormatters {
             if (formats.length == 1) {
                 return forPattern(formats[0], locale);
             } else {
-                CompoundDateTimeFormatter[] formatters = new CompoundDateTimeFormatter[formats.length];
+                Collection<DateTimeFormatter> parsers = new LinkedHashSet<>(formats.length);
+                DateTimeFormatter printerAndParser = null;
                 for (int i = 0; i < formats.length; i++) {
+                    CompoundDateTimeFormatter dateTimeFormatter = forPattern(formats[i], locale);
+
+                    if (i == 0) {
+                        printerAndParser = dateTimeFormatter.printer;
+                    }
+
                     try {
-                        formatters[i] = forPattern(formats[i], locale);
+                        parsers.addAll(Arrays.asList(dateTimeFormatter.parsers));
                     } catch (IllegalArgumentException e) {
                         throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
                     }
                 }
 
-                return CompoundDateTimeFormatter.merge(formatters);
+                return new CompoundDateTimeFormatter(printerAndParser, parsers.toArray(new DateTimeFormatter[0]));
             }
         } else {
             try {

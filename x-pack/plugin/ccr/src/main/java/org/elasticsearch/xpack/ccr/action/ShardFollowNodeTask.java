@@ -137,9 +137,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private synchronized void coordinateWrites() {
         while (hasWriteBudget() && buffer.isEmpty() == false) {
+            long sumEstimatedSize = 0L;
             Translog.Operation[] ops = new Translog.Operation[Math.min(params.getMaxBatchOperationCount(), buffer.size())];
             for (int i = 0; i < ops.length; i++) {
                 ops[i] = buffer.remove();
+                sumEstimatedSize += ops[i].estimateSize();
+                if (sumEstimatedSize > params.getMaxBatchSizeInBytes()) {
+                    ops = Arrays.copyOf(ops, i + 1);
+                    break;
+                }
             }
             numConcurrentWrites++;
             LOGGER.trace("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numConcurrentWrites, ops[0].seqNo(),

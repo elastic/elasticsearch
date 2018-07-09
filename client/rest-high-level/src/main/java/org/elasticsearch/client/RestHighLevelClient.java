@@ -302,7 +302,7 @@ public class RestHighLevelClient implements Closeable {
      * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-api.html">
      * X-Pack APIs on elastic.co</a> for more information.
      */
-    public final XPackClient xPack() {
+    public final XPackClient xpack() {
         return xPackClient;
     }
 

@@ -60,7 +60,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         XPackInfoRequest request = new XPackInfoRequest();
         request.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
         request.setVerbose(true);
-        XPackInfoResponse info = highLevelClient().xPack().info(request, RequestOptions.DEFAULT);
+        XPackInfoResponse info = highLevelClient().xpack().info(request, RequestOptions.DEFAULT);
 
         MainResponse mainResponse = highLevelClient().info(RequestOptions.DEFAULT);
 
@@ -89,7 +89,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testXPackInfoEmptyRequest() throws IOException {
-        XPackInfoResponse info = highLevelClient().xPack().info(new XPackInfoRequest(), RequestOptions.DEFAULT);
+        XPackInfoResponse info = highLevelClient().xpack().info(new XPackInfoRequest(), RequestOptions.DEFAULT);
 
         /*
          * The default in the transport client is non-verbose and returning

@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.function.Function;
@@ -65,7 +64,7 @@ public class StringProcessor implements Processor {
             
             return new String(spaces);
         }),
-        BIT_LENGTH((String s) -> s.getBytes(StandardCharsets.UTF_8).length * 8),
+        BIT_LENGTH((String s) -> UnicodeUtil.calcUTF16toUTF8Length(s, 0, s.length()) * 8),
         CHAR_LENGTH(String::length);
 
         private final Function<Object, Object> apply;

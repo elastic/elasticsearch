@@ -1,11 +1,7 @@
 stringAscii
-// tag::ascii
 SELECT ASCII(first_name) s FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
-// end::ascii
 stringChar
-// tag::char
 SELECT CHAR(emp_no % 10000) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
-// end::char
 
 stringAsciiFilter
 SELECT emp_no, ASCII(first_name) a FROM "test_emp" WHERE ASCII(first_name) < 10010 ORDER BY emp_no;

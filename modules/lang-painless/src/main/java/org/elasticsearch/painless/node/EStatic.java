@@ -48,7 +48,7 @@ public final class EStatic extends AExpression {
     @Override
     void analyze(Locals locals) {
         try {
-            actual = locals.getDefinition().getJavaClassFromPainlessType(type);
+            actual = locals.getPainlessLookup().getJavaClassFromPainlessType(type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
         }

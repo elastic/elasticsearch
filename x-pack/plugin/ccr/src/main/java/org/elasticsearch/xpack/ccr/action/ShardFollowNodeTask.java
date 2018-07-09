@@ -292,40 +292,59 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     @Override
     public Status getStatus() {
-        return new Status(processedGlobalCheckpoint, numConcurrentReads, numConcurrentWrites);
+        return new Status(globalCheckpoint, lastRequestedSeqno, processedGlobalCheckpoint, numConcurrentReads, numConcurrentWrites);
     }
 
     public static class Status implements Task.Status {
 
         public static final String NAME = "shard-follow-node-task-status";
 
-        static final ParseField PROCESSED_GLOBAL_CHECKPOINT_FIELD = new ParseField("processed_global_checkpoint");
+        static final ParseField GLOBAL_CHECKPOINT_FIELD = new ParseField("leader_global_checkpoint");
+        static final ParseField PROCESSED_GLOBAL_CHECKPOINT_FIELD = new ParseField("follower_global_checkpoint");
+        static final ParseField LAST_REQUESTED_SEQNO_FIELD = new ParseField("last_requested_seqno");
         static final ParseField NUMBER_OF_CONCURRENT_READS_FIELD = new ParseField("number_of_concurrent_reads");
         static final ParseField NUMBER_OF_CONCURRENT_WRITES_FIELD = new ParseField("number_of_concurrent_writes");
 
-        static final ConstructingObjectParser<Status, Void> PARSER =
-                new ConstructingObjectParser<>(NAME, args -> new Status((long) args[0], (int) args[1], (int) args[2]));
+        static final ConstructingObjectParser<Status, Void> PARSER = new ConstructingObjectParser<>(NAME,
+            args -> new Status((long) args[0], (long) args[1], (long) args[2], (int) args[3], (int) args[4]));
 
         static {
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), GLOBAL_CHECKPOINT_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_REQUESTED_SEQNO_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), PROCESSED_GLOBAL_CHECKPOINT_FIELD);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_READS_FIELD);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_WRITES_FIELD);
         }
 
+        private final long globalCheckpoint;
+        private final long lastRequestedSeqno;
         private final long processedGlobalCheckpoint;
         private final int numberOfConcurrentReads;
         private final int numberOfConcurrentWrites;
 
-        Status(long processedGlobalCheckpoint, int numberOfConcurrentReads, int numberOfConcurrentWrites) {
+        Status(long globalCheckpoint, long lastRequestedSeqno, long processedGlobalCheckpoint, int numberOfConcurrentReads,
+               int numberOfConcurrentWrites) {
+            this.globalCheckpoint = globalCheckpoint;
+            this.lastRequestedSeqno = lastRequestedSeqno;
             this.processedGlobalCheckpoint = processedGlobalCheckpoint;
             this.numberOfConcurrentReads = numberOfConcurrentReads;
             this.numberOfConcurrentWrites = numberOfConcurrentWrites;
         }
 
         public Status(StreamInput in) throws IOException {
+            this.globalCheckpoint = in.readZLong();
+            this.lastRequestedSeqno = in.readZLong();
             this.processedGlobalCheckpoint = in.readZLong();
             this.numberOfConcurrentReads = in.readVInt();
             this.numberOfConcurrentWrites = in.readVInt();
+        }
+
+        public long getGlobalCheckpoint() {
+            return globalCheckpoint;
+        }
+
+        public long getLastRequestedSeqno() {
+            return lastRequestedSeqno;
         }
 
         public long getProcessedGlobalCheckpoint() {
@@ -347,6 +366,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeZLong(globalCheckpoint);
+            out.writeZLong(lastRequestedSeqno);
             out.writeZLong(processedGlobalCheckpoint);
             out.writeVInt(numberOfConcurrentReads);
             out.writeVInt(numberOfConcurrentWrites);
@@ -356,7 +377,13 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
+                builder.field(GLOBAL_CHECKPOINT_FIELD.getPreferredName(), globalCheckpoint);
+            }
+            {
                 builder.field(PROCESSED_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), processedGlobalCheckpoint);
+            }
+            {
+                builder.field(LAST_REQUESTED_SEQNO_FIELD.getPreferredName(), lastRequestedSeqno);
             }
             {
                 builder.field(NUMBER_OF_CONCURRENT_READS_FIELD.getPreferredName(), numberOfConcurrentReads);
@@ -377,14 +404,17 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status status = (Status) o;
-            return processedGlobalCheckpoint == status.processedGlobalCheckpoint &&
+            return globalCheckpoint == status.globalCheckpoint &&
+                lastRequestedSeqno == status.lastRequestedSeqno &&
+                processedGlobalCheckpoint == status.processedGlobalCheckpoint &&
                 numberOfConcurrentReads == status.numberOfConcurrentReads &&
                 numberOfConcurrentWrites == status.numberOfConcurrentWrites;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(processedGlobalCheckpoint, numberOfConcurrentReads, numberOfConcurrentWrites);
+            return Objects.hash(globalCheckpoint, lastRequestedSeqno, processedGlobalCheckpoint, numberOfConcurrentReads,
+                numberOfConcurrentWrites);
         }
 
         public String toString() {

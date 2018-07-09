@@ -52,10 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
@@ -104,13 +101,8 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     }
 
     @Override
-    protected void afterCreationCheck(Repository repository, boolean verify) {
+    protected void afterCreationCheck(Repository repository) {
         assertThat(repository, instanceOf(S3Repository.class));
-
-        S3Repository s3Repository = (S3Repository) repository;
-
-        assertThat("s3 blob store has to be lazy initialized",
-            s3Repository.getBlobStore(), verify ? is(notNullValue()) : is(nullValue()));
     }
 
     @Override

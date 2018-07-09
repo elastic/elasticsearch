@@ -113,12 +113,6 @@ public class FsRepository extends BlobStoreRepository {
         return new FsBlobStore(settings, locationFile);
     }
 
-    // only use for testing
-    @Override
-    protected BlobStore getBlobStore() {
-        return super.getBlobStore();
-    }
-
     @Override
     protected boolean isCompress() {
         return compress;

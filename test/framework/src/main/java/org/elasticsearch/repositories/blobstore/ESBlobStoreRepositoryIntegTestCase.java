@@ -44,6 +44,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Basic integration tests for blob-based repository validation.
@@ -52,7 +55,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
     protected abstract void createTestRepository(String name, boolean verify);
 
-    protected void afterCreationCheck(Repository repository, boolean verify) {
+    protected void afterCreationCheck(Repository repository) {
 
     }
 
@@ -60,12 +63,17 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         final boolean verify = randomBoolean();
         createTestRepository(name, verify);
 
-        final RepositoriesService repositoriesService =
-            internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
+        final Iterable<RepositoriesService> repositoriesServices =
+            internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class);
 
-        final Repository repository = repositoriesService.repository(name);
+        for (RepositoriesService repositoriesService : repositoriesServices) {
+            final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(name);
 
-        afterCreationCheck(repository, verify);
+            afterCreationCheck(repository);
+            assertThat("blob store has to be lazy initialized",
+                repository.getBlobStore(), verify ? is(notNullValue()) : is(nullValue()));
+        }
+
     }
 
     public void testSnapshotAndRestore() throws Exception {

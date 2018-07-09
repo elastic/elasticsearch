@@ -22,7 +22,6 @@ package org.elasticsearch.repositories.gcs;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -65,7 +64,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
 
     GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
                                         NamedXContentRegistry namedXContentRegistry,
-                                        GoogleCloudStorageService storageService){
+                                        GoogleCloudStorageService storageService) {
         super(metadata, environment.settings(), namedXContentRegistry);
         this.storageService = storageService;
 
@@ -90,12 +89,6 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     @Override
     protected GoogleCloudStorageBlobStore createBlobStore() {
         return new GoogleCloudStorageBlobStore(settings, bucket, clientName, storageService);
-    }
-
-    // only use for testing
-    @Override
-    protected BlobStore getBlobStore() {
-        return super.getBlobStore();
     }
 
     @Override

@@ -91,12 +91,12 @@ public class URLRepository extends BlobStoreRepository {
         basePath = BlobPath.cleanPath();
         url = URL_SETTING.exists(metadata.settings())
             ? URL_SETTING.get(metadata.settings()) : REPOSITORIES_URL_SETTING.get(settings);
-        checkURL(url);
     }
 
     @Override
     protected BlobStore createBlobStore() {
-        return new URLBlobStore(settings, url);
+        URL normalizedURL = checkURL(url);
+        return new URLBlobStore(settings, normalizedURL);
     }
 
     // only use for testing

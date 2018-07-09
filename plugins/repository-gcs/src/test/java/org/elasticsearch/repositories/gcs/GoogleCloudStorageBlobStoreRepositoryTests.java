@@ -36,9 +36,6 @@ import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
 
@@ -66,13 +63,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
     }
 
     @Override
-    protected void afterCreationCheck(Repository repository, boolean verify) {
+    protected void afterCreationCheck(Repository repository) {
         assertThat(repository, instanceOf(GoogleCloudStorageRepository.class));
-
-        GoogleCloudStorageRepository gcsRepository = (GoogleCloudStorageRepository) repository;
-
-        assertThat("gcs blob store has to be lazy initialized",
-            gcsRepository.getBlobStore(), verify ? is(notNullValue()) : is(nullValue()));
     }
 
     @AfterClass

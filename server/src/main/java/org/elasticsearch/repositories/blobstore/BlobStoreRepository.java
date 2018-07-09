@@ -34,6 +34,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -226,9 +227,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final Object lock = new Object();
 
-    private volatile BlobContainer blobContainer;
+    private final SetOnce<BlobContainer> blobContainer = new SetOnce<>();
 
-    private volatile BlobStore blobStore;
+    private final SetOnce<BlobStore> blobStore = new SetOnce<>();
 
     /**
      * Constructs new BlobStoreRepository
@@ -269,7 +270,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     protected void doClose() {
-        BlobStore store = blobStore;
+        BlobStore store = blobStore.get();
         if (store != null) {
             try {
                 store.close();
@@ -281,25 +282,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // package private, only use for testing
     BlobContainer getBlobContainer() {
-        return blobContainer;
+        return blobContainer.get();
     }
 
     // for test purposes only
     protected BlobStore getBlobStore() {
-        return blobStore;
+        return blobStore.get();
     }
 
     /**
      * maintains single lazy instance of {@link BlobContainer}
      */
     protected BlobContainer blobContainer() {
-        BlobContainer blobContainer = this.blobContainer;
+        BlobContainer blobContainer = this.blobContainer.get();
         if (blobContainer == null) {
            synchronized (lock) {
-               blobContainer = this.blobContainer;
+               blobContainer = this.blobContainer.get();
                if (blobContainer == null) {
                    blobContainer = blobStore().blobContainer(basePath());
-                   this.blobContainer = blobContainer;
+                   this.blobContainer.set(blobContainer);
                }
            }
         }
@@ -311,11 +312,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * maintains single lazy instance of {@link BlobStore}
      */
     protected BlobStore blobStore() {
-        BlobStore store = blobStore;
+        BlobStore store = blobStore.get();
         if (store == null) {
             synchronized (lock) {
-                store = blobStore;
+                store = blobStore.get();
                 if (store == null) {
+                    if (lifecycle.started() == false) {
+                        throw new RepositoryException(metadata.name(), "repository is not in started state");
+                    }
                     try {
                         store = createBlobStore();
                     } catch (RepositoryException e) {
@@ -323,7 +327,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     } catch (Exception e) {
                         throw new RepositoryException(metadata.name(), "cannot create blob store" , e);
                     }
-                    blobStore = store;
+                    blobStore.set(store);
                 }
             }
         }

@@ -145,11 +145,23 @@ class S3Repository extends BlobStoreRepository {
 
     private final S3Service service;
 
-    private final BlobPath basePath;
+    private final String bucket;
+
+    private final ByteSizeValue bufferSize;
 
     private final ByteSizeValue chunkSize;
 
     private final boolean compress;
+
+    private final BlobPath basePath;
+
+    private final boolean serverSideEncryption;
+
+    private final String storageClass;
+
+    private final String cannedACL;
+
+    private final String clientName;
 
     /**
      * Constructs an s3 backed repository
@@ -161,12 +173,13 @@ class S3Repository extends BlobStoreRepository {
         super(metadata, settings, namedXContentRegistry);
         this.service = service;
 
-        final String bucket = BUCKET_SETTING.get(metadata.settings());
+        // Parse and validate the user's S3 Storage Class setting
+        this.bucket = BUCKET_SETTING.get(metadata.settings());
         if (bucket == null) {
             throw new RepositoryException(metadata.name(), "No bucket defined for s3 repository");
         }
 
-        final ByteSizeValue bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
+        this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
         this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
         this.compress = COMPRESS_SETTING.get(metadata.settings());
 
@@ -183,6 +196,16 @@ class S3Repository extends BlobStoreRepository {
             this.basePath = BlobPath.cleanPath();
         }
 
+        this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
+
+        this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
+        this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
+        this.clientName = CLIENT_NAME.get(metadata.settings());
+
+        logger.debug("using bucket [{}], chunk_size [{}], server_side_encryption [{}], " +
+                "buffer_size [{}], cannedACL [{}], storageClass [{}]",
+            bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
+
         // (repository settings)
         if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
             overrideCredentialsFromClusterState(service);
@@ -191,20 +214,6 @@ class S3Repository extends BlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        final String bucket = BUCKET_SETTING.get(metadata.settings());
-
-        final boolean serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
-        final ByteSizeValue bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
-
-        // Parse and validate the user's S3 Storage Class setting
-        final String storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
-        final String cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
-        final String clientName = CLIENT_NAME.get(metadata.settings());
-
-        logger.debug("using bucket [{}], chunk_size [{}], server_side_encryption [{}], " +
-                "buffer_size [{}], cannedACL [{}], storageClass [{}]",
-            bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
-
         return new S3BlobStore(settings, service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
     }
 

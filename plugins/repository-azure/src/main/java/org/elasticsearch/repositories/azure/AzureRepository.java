@@ -82,7 +82,7 @@ public class AzureRepository extends BlobStoreRepository {
     private final boolean compress;
     private final Environment environment;
     private final AzureStorageService storageService;
-    private volatile boolean readonly;
+    private final boolean readonly;
 
     public AzureRepository(RepositoryMetaData metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
             AzureStorageService storageService) {
@@ -103,6 +103,15 @@ public class AzureRepository extends BlobStoreRepository {
         } else {
             this.basePath = BlobPath.cleanPath();
         }
+
+        // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
+        // For secondary_only setting, the repository should be read only
+        final LocationMode locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
+        if (Repository.READONLY_SETTING.exists(metadata.settings())) {
+            this.readonly = Repository.READONLY_SETTING.get(metadata.settings());
+        } else {
+            this.readonly = locationMode == LocationMode.SECONDARY_ONLY;
+        }
     }
 
     // only use for testing
@@ -118,19 +127,9 @@ public class AzureRepository extends BlobStoreRepository {
     protected AzureBlobStore createBlobStore() throws URISyntaxException, StorageException {
         final AzureBlobStore blobStore = new AzureBlobStore(metadata, environment.settings(), storageService);
 
-        // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
-        // For secondary_only setting, the repository should be read only
-
-        if (Repository.READONLY_SETTING.exists(metadata.settings())) {
-            this.readonly = Repository.READONLY_SETTING.get(metadata.settings());
-        } else {
-            this.readonly = blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY;
-        }
-
         logger.debug((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
             "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",
             blobStore, chunkSize, compress, basePath));
-
         return blobStore;
     }
 
@@ -171,14 +170,6 @@ public class AzureRepository extends BlobStoreRepository {
 
     @Override
     public boolean isReadOnly() {
-        // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
-        // For secondary_only setting, the repository should be read only
-        if (Repository.READONLY_SETTING.exists(metadata.settings())) {
-            this.readonly = Repository.READONLY_SETTING.get(metadata.settings());
-        } else {
-            // otherwise it's possible obtain actual value only if blobStore is created
-            blobStore();
-        }
         return readonly;
     }
 }

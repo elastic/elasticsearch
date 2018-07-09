@@ -176,12 +176,14 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
     private Repository createRepository() {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        return new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry()) {
+        final FsRepository repository = new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry()) {
             @Override
             protected void verificationThreadCheck() {
                 // eliminate thread name check as we create repo manually
             }
         };
+        repository.start();
+        return repository;
     }
 
     /** Create a {@link Environment} with random path.home and path.repo **/

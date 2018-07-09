@@ -25,9 +25,6 @@ import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCa
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase {
     @Override
@@ -41,12 +38,7 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
     }
 
     @Override
-    protected void afterCreationCheck(Repository repository, boolean verify) {
+    protected void afterCreationCheck(Repository repository) {
         assertThat(repository, instanceOf(FsRepository.class));
-
-        FsRepository fsRepository = (FsRepository) repository;
-
-        assertThat("fs blob store has to be lazy initialized",
-            fsRepository.getBlobStore(), verify ? is(notNullValue()) : is(nullValue()));
     }
 }

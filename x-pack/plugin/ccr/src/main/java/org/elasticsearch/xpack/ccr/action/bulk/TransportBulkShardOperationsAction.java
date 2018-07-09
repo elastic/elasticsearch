@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr.action.bulk;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -141,11 +142,11 @@ public class TransportBulkShardOperationsAction
         }
 
         @Override
-        protected void respondIfPossible(Exception ex) {
-            assert Thread.holdsLock(this);
-            // maybe invoked multiple times, but that is ok as global checkpoint does not go backwards
-            finalResponseIfSuccessful.setGlobalCheckpoint(primary.getGlobalCheckpoint());
-            super.respondIfPossible(ex);
+        public synchronized void respond(ActionListener<BulkShardOperationsResponse> listener) {
+            // Return a fresh global checkpoint after the operations have been replicated for the shard follow task:
+            BulkShardOperationsResponse response = finalResponseIfSuccessful;
+            response.setGlobalCheckpoint(primary.getGlobalCheckpoint());
+            listener.onResponse(response);
         }
 
     }

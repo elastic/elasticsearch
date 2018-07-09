@@ -13,6 +13,8 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -71,9 +73,9 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
     }
 
     public void testNullItems() {
-        NullPointerException ex = expectThrows(NullPointerException.class,
+        Exception ex = expectThrows(IllegalArgumentException.class,
                 () -> MlFilter.builder(randomValidFilterId()).setItems((SortedSet<String>) null).build());
-        assertEquals(MlFilter.ITEMS.getPreferredName() + " must not be null", ex.getMessage());
+        assertEquals("[items] must not be null.", ex.getMessage());
     }
 
     public void testDocumentId() {
@@ -100,6 +102,27 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
     public void testInvalidId() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> MlFilter.builder("Invalid id").build());
         assertThat(e.getMessage(), startsWith("Invalid filter_id; 'Invalid id' can contain lowercase"));
+    }
+
+    public void testTooManyItems() {
+        List<String> items = new ArrayList<>(10001);
+        for (int i = 0; i < 10001; ++i) {
+            items.add("item_" + i);
+        }
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> MlFilter.builder("huge").setItems(items).build());
+        assertThat(e.getMessage(), startsWith("Filter [huge] contains too many items"));
+    }
+
+    public void testGivenItemsAreMaxAllowed() {
+        List<String> items = new ArrayList<>(10000);
+        for (int i = 0; i < 10000; ++i) {
+            items.add("item_" + i);
+        }
+
+        MlFilter hugeFilter = MlFilter.builder("huge").setItems(items).build();
+
+        assertThat(hugeFilter.getItems().size(), equalTo(items.size()));
     }
 
     public void testItemsAreSorted() {

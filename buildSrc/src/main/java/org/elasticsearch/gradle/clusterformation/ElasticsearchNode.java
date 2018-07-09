@@ -233,6 +233,28 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
                 throw new ClusterFormationException("Failed to start ES process", e);
             }
         }
+        registerCleanupHooks();
+    }
+
+    private void registerCleanupHooks() {
+        // The Gradle daemon interrupts all threads from the build, so stop the ES process when that happens
+        new Thread(
+            () -> {
+                while (true) {
+                    try {
+                        Thread.sleep(Long.MAX_VALUE);
+                    } catch (InterruptedException interrupted) {
+                        logger.info("Interrupted, stopping elasticsearch");
+                        doStop();
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
+        ).start();
+        // When the Daemon is not used, or runs into issues, rely on a shutdown hook
+        // When the daemon is used, but does not work correctly and eventually dies off (e.x. due to non interruptable
+        // thread in the build) process will be stopped eventually when the daemon dies.
+        Runtime.getRuntime().addShutdownHook(new Thread(this::doStop));
     }
 
     private File getStdoutFile() {

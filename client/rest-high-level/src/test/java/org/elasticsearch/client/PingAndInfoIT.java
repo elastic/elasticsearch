@@ -21,8 +21,13 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.action.main.MainResponse;
+import org.elasticsearch.protocol.license.LicenseStatus;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Map;
 
 public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
@@ -31,7 +36,6 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertTrue(highLevelClient().ping(RequestOptions.DEFAULT));
     }
 
-    @SuppressWarnings("unchecked")
     public void testInfo() throws IOException {
         MainResponse info = highLevelClient().info(RequestOptions.DEFAULT);
         // compare with what the low level client outputs
@@ -41,6 +45,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
 
         // only check node name existence, might be a different one from what was hit by low level client in multi-node cluster
         assertNotNull(info.getNodeName());
+        @SuppressWarnings("unchecked")
         Map<String, Object> versionMap = (Map<String, Object>) infoAsMap.get("version");
         assertEquals(versionMap.get("build_flavor"), info.getBuild().flavor().displayName());
         assertEquals(versionMap.get("build_type"), info.getBuild().type().displayName());
@@ -51,4 +56,49 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertEquals(versionMap.get("lucene_version"), info.getVersion().luceneVersion.toString());
     }
 
+    public void testXPackInfo() throws IOException {
+        XPackInfoRequest request = new XPackInfoRequest();
+        request.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
+        request.setVerbose(true);
+        XPackInfoResponse info = highLevelClient().xPackInfo(request, RequestOptions.DEFAULT);
+
+        MainResponse mainResponse = highLevelClient().info(RequestOptions.DEFAULT);
+
+        assertEquals(mainResponse.getBuild().shortHash(), info.getBuildInfo().getHash());
+
+        assertEquals("basic", info.getLicenseInfo().getType());
+        assertEquals("basic", info.getLicenseInfo().getMode());
+        assertEquals(LicenseStatus.ACTIVE, info.getLicenseInfo().getStatus());
+
+        FeatureSet graph = info.getFeatureSetsInfo().getFeatureSets().get("graph");
+        assertNotNull(graph.description());
+        assertFalse(graph.available());
+        assertTrue(graph.enabled());
+        assertNull(graph.nativeCodeInfo());
+        FeatureSet monitoring = info.getFeatureSetsInfo().getFeatureSets().get("monitoring");
+        assertNotNull(monitoring.description());
+        assertTrue(monitoring.available());
+        assertTrue(monitoring.enabled());
+        assertNull(monitoring.nativeCodeInfo());
+        FeatureSet ml = info.getFeatureSetsInfo().getFeatureSets().get("ml");
+        assertNotNull(ml.description());
+        assertFalse(ml.available());
+        assertTrue(ml.enabled());
+        assertEquals(mainResponse.getVersion().toString(),
+                ml.nativeCodeInfo().get("version").toString().replace("-SNAPSHOT", ""));
+    }
+
+    public void testXPackInfoEmptyRequest() throws IOException {
+        XPackInfoResponse info = highLevelClient().xPackInfo(new XPackInfoRequest(), RequestOptions.DEFAULT);
+
+        /*
+         * The default in the transport client is non-verbose and returning
+         * no categories which is the opposite of the default when you use
+         * the API over REST. We don't want to break the transport client
+         * even though it doesn't feel like a good default.
+         */
+        assertNull(info.getBuildInfo());
+        assertNull(info.getLicenseInfo());
+        assertNull(info.getFeatureSetsInfo());
+    }
 }

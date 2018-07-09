@@ -223,7 +223,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // Beats management index
-        String index = ".management-beats";
+        final String index = ".management-beats";
         assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(false));
         assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(false));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
@@ -494,11 +494,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testBeatsAdminRole() {
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("beats_admin");
+        final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("beats_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role beatsAdminRole = Role.builder(roleDescriptor, null).build();
+        final Role beatsAdminRole = Role.builder(roleDescriptor, null).build();
         assertThat(beatsAdminRole.cluster().check(ClusterHealthAction.NAME), is(false));
         assertThat(beatsAdminRole.cluster().check(ClusterStateAction.NAME), is(false));
         assertThat(beatsAdminRole.cluster().check(ClusterStatsAction.NAME), is(false));
@@ -512,7 +512,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(beatsAdminRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
             is(false));
 
-        String index = ".management-beats";
+        final String index = ".management-beats";
         logger.info("index name [{}]", index);
         assertThat(beatsAdminRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(true));
         assertThat(beatsAdminRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(true));

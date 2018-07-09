@@ -30,7 +30,9 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -40,6 +42,8 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -87,15 +91,41 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
     public static final String CLIENT_RETRY_TIMEOUT = "client.retry.timeout";
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
+    public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
      */
-    public Map<String, Object> entityAsMap(Response response) throws IOException {
+    public static Map<String, Object> entityAsMap(Response response) throws IOException {
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
-        try (XContentParser parser = createParser(xContentType.xContent(), response.getEntity().getContent())) {
+        // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
+        try (XContentParser parser = xContentType.xContent().createParser(
+                NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                response.getEntity().getContent())) {
             return parser.map();
         }
+    }
+
+    /**
+     * Does the cluster being tested have xpack installed?
+     */
+    public static boolean hasXPack() throws IOException {
+        RestClient client = adminClient();
+        if (client == null) {
+            throw new IllegalStateException("must be called inside of a rest test case test");
+        }
+        Map<?, ?> response = entityAsMap(client.performRequest(new Request("GET", "_nodes/plugins")));
+        Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+        for (Map.Entry<?, ?> node : nodes.entrySet()) {
+            Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
+            for (Object module: (List<?>) nodeInfo.get("modules")) {
+                Map<?, ?> moduleInfo = (Map<?, ?>) module;
+                if (moduleInfo.get("name").toString().startsWith("x-pack-")) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static List<HttpHost> clusterHosts;
@@ -230,7 +260,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
-                adminClient().performRequest("DELETE", "*");
+                adminClient().performRequest(new Request("DELETE", "*"));
             } catch (ResponseException e) {
                 // 404 here just means we had no indexes
                 if (e.getResponse().getStatusLine().getStatusCode() != 404) {
@@ -241,7 +271,30 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         // wipe index templates
         if (preserveTemplatesUponCompletion() == false) {
-            adminClient().performRequest("DELETE", "_template/*");
+            if (hasXPack()) {
+                /*
+                 * Delete only templates that xpack doesn't automatically
+                 * recreate. Deleting them doesn't hurt anything, but it
+                 * slows down the test because xpack will just recreate
+                 * them.
+                 */
+                Request request = new Request("GET", "_cat/templates");
+                request.addParameter("h", "name");
+                String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
+                if (false == "".equals(templates)) {
+                    for (String template : templates.split("\n")) {
+                        if (isXPackTemplate(template)) continue;
+                        if ("".equals(template)) {
+                            throw new IllegalStateException("empty template in templates list:\n" + templates);
+                        }
+                        logger.debug("Clearing template [{}]", template);
+                        adminClient().performRequest(new Request("DELETE", "_template/" + template));
+                    }
+                }
+            } else {
+                logger.debug("Clearing all templates");
+                adminClient().performRequest(new Request("DELETE", "_template/*"));
+            }
         }
 
         wipeSnapshots();
@@ -355,7 +408,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Used to obtain settings for the REST client that is used to send REST requests.
      */
     protected Settings restClientSettings() {
-        return Settings.EMPTY;
+        Settings.Builder builder = Settings.builder();
+        if (System.getProperty("tests.rest.client_path_prefix") != null) {
+            builder.put(CLIENT_PATH_PREFIX, System.getProperty("tests.rest.client_path_prefix"));
+        }
+        return builder.build();
     }
 
     /**
@@ -425,6 +482,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (socketTimeoutString != null) {
             final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
             builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
+        }
+        if (settings.hasValue(CLIENT_PATH_PREFIX)) {
+            builder.setPathPrefix(settings.get(CLIENT_PATH_PREFIX));
         }
     }
 
@@ -549,4 +609,29 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertNotNull(responseEntity);
         return responseEntity;
     }
+
+    /**
+     * Is this template one that is automatically created by xpack?
+     */
+    private static boolean isXPackTemplate(String name) {
+        if (name.startsWith(".monitoring-")) {
+            return true;
+        }
+        if (name.startsWith(".watch-history-")) {
+            return true;
+        }
+        if (name.startsWith(".ml-")) {
+            return true;
+        }
+        switch (name) {
+        case ".triggered_watches":
+        case ".watches":
+        case "logstash-index-template":
+        case "security_audit_log":
+            return true;
+        default:
+            return false;
+        }
+    }
+
 }

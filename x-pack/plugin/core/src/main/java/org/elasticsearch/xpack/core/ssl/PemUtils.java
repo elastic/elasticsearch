@@ -108,7 +108,6 @@ public class PemUtils {
      * Removes the EC Headers that OpenSSL adds to EC private keys as the information in them
      * is redundant
      *
-     * @param bReader
      * @throws IOException if the EC Parameter footer is missing
      */
     private static BufferedReader removeECHeaders(BufferedReader bReader) throws IOException {
@@ -133,7 +132,6 @@ public class PemUtils {
      * Removes the DSA Params Headers that OpenSSL adds to DSA private keys as the information in them
      * is redundant
      *
-     * @param bReader
      * @throws IOException if the EC Parameter footer is missing
      */
     private static BufferedReader removeDsaHeaders(BufferedReader bReader) throws IOException {

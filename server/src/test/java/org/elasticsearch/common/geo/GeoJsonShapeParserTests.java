@@ -19,17 +19,10 @@
 
 package org.elasticsearch.common.geo;
 
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.LineString;
-import org.locationtech.jts.geom.LinearRing;
-import org.locationtech.jts.geom.MultiLineString;
-import org.locationtech.jts.geom.Point;
-import org.locationtech.jts.geom.Polygon;
-
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +34,12 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.LinearRing;
+import org.locationtech.jts.geom.MultiLineString;
+import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.Polygon;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 import org.locationtech.spatial4j.shape.Circle;
 import org.locationtech.spatial4j.shape.Rectangle;
@@ -145,6 +144,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(pointGeoJson);
         parser.nextToken();
         ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+        assertNull(parser.nextToken());
 
         // multi dimension linestring
         XContentBuilder lineGeoJson = XContentFactory.jsonBuilder()
@@ -159,6 +159,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         parser = createParser(lineGeoJson);
         parser.nextToken();
         ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+        assertNull(parser.nextToken());
     }
 
     @Override
@@ -196,6 +197,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(multilinesGeoJson)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
 
         // test #4: "envelope" with empty coordinates
@@ -206,6 +208,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(multilinesGeoJson)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
     }
 
@@ -291,6 +294,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
     }
 
@@ -306,6 +310,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(invalidPoint1)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
 
         // test case 2: create an invalid point object with an empty number of coordinates
@@ -318,6 +323,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(invalidPoint2)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
     }
 
@@ -331,6 +337,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(invalidMultipoint1)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
 
         // test case 2: create an invalid multipoint object with null coordinate
@@ -343,6 +350,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(invalidMultipoint2)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
 
         // test case 3: create a valid formatted multipoint object with invalid number (0) of coordinates
@@ -356,6 +364,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(invalidMultipoint3)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
     }
 
@@ -392,6 +401,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, multiPolygonGeoJson)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, InvalidShapeException.class);
+            assertNull(parser.nextToken());
         }
     }
 
@@ -432,8 +442,9 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, multiPolygonGeoJson)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
-    }
+   }
 
 
     public void testParseOGCPolygonWithoutHoles() throws IOException {
@@ -650,6 +661,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
 
         // test case 2: create an invalid polygon with only 1 point
@@ -664,6 +676,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
 
         // test case 3: create an invalid polygon with 0 points
@@ -678,6 +691,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
 
         // test case 4: create an invalid polygon with null value points
@@ -692,6 +706,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, IllegalArgumentException.class);
+            assertNull(parser.nextToken());
         }
 
         // test case 5: create an invalid polygon with 1 invalid LinearRing
@@ -704,6 +719,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, IllegalArgumentException.class);
+            assertNull(parser.nextToken());
         }
 
         // test case 6: create an invalid polygon with 0 LinearRings
@@ -714,6 +730,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
 
         // test case 7: create an invalid polygon with 0 LinearRings
@@ -726,6 +743,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
     }
 
@@ -794,6 +812,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertValidException(parser, InvalidShapeException.class);
+            assertNull(parser.nextToken());
         }
     }
 
@@ -808,7 +827,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                     .endArray()
                 .endObject();
 
-        ShapeCollection expected = shapeCollection(
+        ShapeCollection<?> expected = shapeCollection(
                 SPATIAL_CONTEXT.makePoint(100, 0),
                 SPATIAL_CONTEXT.makePoint(101, 1.0));
         assertGeometryEquals(expected, multiPointGeoJson);
@@ -931,6 +950,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         assertGeometryEquals(jtsGeom(withHoles), multiPolygonGeoJson);
     }
 
+    @Override
     public void testParseGeometryCollection() throws IOException {
         XContentBuilder geometryCollectionGeoJson = XContentFactory.jsonBuilder()
                 .startObject()
@@ -1163,6 +1183,34 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
             Shape shape = ShapeParser.parse(parser).build();
 
             ElasticsearchGeoAssertions.assertMultiPolygon(shape);
+        }
+    }
+
+    public void testParseInvalidShapes() throws IOException {
+        // single dimensions point
+        XContentBuilder tooLittlePointGeoJson = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("type", "Point")
+            .startArray("coordinates").value(10.0).endArray()
+            .endObject();
+
+        try (XContentParser parser = createParser(tooLittlePointGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
+        }
+
+        // zero dimensions point
+        XContentBuilder emptyPointGeoJson = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("type", "Point")
+            .startObject("coordinates").field("foo", "bar").endObject()
+            .endObject();
+
+        try (XContentParser parser = createParser(emptyPointGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
         }
     }
 }

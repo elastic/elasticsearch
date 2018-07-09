@@ -1,0 +1,26 @@
+[[painless-sort-context]]
+=== Sort context
+
+Use a Painless script to
+{es_version}/search-request-sort.html[sort] the documents in a query.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`doc` (`Map`, read-only)::
+        Contains the fields of the current document where each field is a
+        `List` of values.
+
+`_score` (`double` read-only)::
+        The similarity score of the current document.
+
+*Return*
+
+`double`::
+        The score for the specified document.
+
+*API*
+
+The standard <<painless-api-reference, Painless API>> is available.

@@ -220,7 +220,11 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("my-template")
-                .setContent(BytesReference.bytes(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject()),
+                .setContent(BytesReference.bytes(
+                    jsonBuilder().startObject().startObject("script")
+                        .field("lang", "mustache")
+                        .field("source").value(searchSourceBuilder)
+                        .endObject().endObject()),
                         XContentType.JSON)
                 .get());
 

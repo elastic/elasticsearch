@@ -71,7 +71,9 @@ public class PluginBuildPlugin extends BuildPlugin {
             if (isModule) {
                 project.integTestCluster.module(project)
                 project.tasks.run.clusterConfig.module(project)
-                project.tasks.run.clusterConfig.distribution = 'integ-test-zip'
+                project.tasks.run.clusterConfig.distribution = System.getProperty(
+                        'run.distribution', 'integ-test-zip'
+                )
             } else {
                 project.integTestCluster.plugin(project.path)
                 project.tasks.run.clusterConfig.plugin(project.path)
@@ -111,7 +113,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     private static void createIntegTestTask(Project project) {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.mustRunAfter(project.precommit, project.test)
-        project.integTestCluster.distribution = 'integ-test-zip'
+        project.integTestCluster.distribution = System.getProperty('tests.distribution', 'integ-test-zip')
         project.check.dependsOn(integTest)
     }
 
@@ -157,16 +159,18 @@ public class PluginBuildPlugin extends BuildPlugin {
     /** Adds a task to move jar and associated files to a "-client" name. */
     protected static void addClientJarTask(Project project) {
         Task clientJar = project.tasks.create('clientJar')
-        clientJar.dependsOn(project.jar, 'generatePomFileForClientJarPublication', project.javadocJar, project.sourcesJar)
+        clientJar.dependsOn(project.jar, project.tasks.generatePomFileForClientJarPublication, project.javadocJar, project.sourcesJar)
         clientJar.doFirst {
             Path jarFile = project.jar.outputs.files.singleFile.toPath()
             String clientFileName = jarFile.fileName.toString().replace(project.version, "client-${project.version}")
             Files.copy(jarFile, jarFile.resolveSibling(clientFileName), StandardCopyOption.REPLACE_EXISTING)
 
-            String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
             String clientPomFileName = clientFileName.replace('.jar', '.pom')
-            Files.copy(jarFile.resolveSibling(pomFileName), jarFile.resolveSibling(clientPomFileName),
-                    StandardCopyOption.REPLACE_EXISTING)
+            Files.copy(
+                    project.tasks.generatePomFileForClientJarPublication.outputs.files.singleFile.toPath(),
+                    jarFile.resolveSibling(clientPomFileName),
+                    StandardCopyOption.REPLACE_EXISTING
+            )
 
             String sourcesFileName = jarFile.fileName.toString().replace('.jar', '-sources.jar')
             String clientSourcesFileName = clientFileName.replace('.jar', '-sources.jar')

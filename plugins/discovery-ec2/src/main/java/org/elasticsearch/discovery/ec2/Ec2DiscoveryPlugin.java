@@ -106,6 +106,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         // Register EC2 discovery settings: discovery.ec2
         Ec2ClientSettings.ACCESS_KEY_SETTING,
         Ec2ClientSettings.SECRET_KEY_SETTING,
+        Ec2ClientSettings.SESSION_TOKEN_SETTING,
         Ec2ClientSettings.ENDPOINT_SETTING,
         Ec2ClientSettings.PROTOCOL_SETTING,
         Ec2ClientSettings.PROXY_HOST_SETTING,

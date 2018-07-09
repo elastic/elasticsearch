@@ -21,6 +21,9 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
+import org.apache.http.client.AuthCache;
+import org.apache.http.impl.auth.BasicScheme;
+import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.elasticsearch.client.DeadHostStateTests.ConfigurableTimeSupplier;
 import org.elasticsearch.client.RestClient.NodeTuple;
@@ -35,13 +38,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -141,7 +145,7 @@ public class RestClientTests extends RestClientTestCase {
     }
 
     /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddHeader()}.
+     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests}.
      */
     @Deprecated
     public void testPerformOldStyleAsyncWithNullHeaders() throws Exception {
@@ -219,12 +223,33 @@ public class RestClientTests extends RestClientTestCase {
     }
 
     public void testBuildUriLeavesPathUntouched() {
+        final Map<String, String> emptyMap = Collections.emptyMap();
         {
-            URI uri = RestClient.buildUri("/foo$bar", "/index/type/id", Collections.<String, String>emptyMap());
+            URI uri = RestClient.buildUri("/foo$bar", "/index/type/id", emptyMap);
             assertEquals("/foo$bar/index/type/id", uri.getPath());
         }
         {
-            URI uri = RestClient.buildUri(null, "/foo$bar/ty/pe/i/d", Collections.<String, String>emptyMap());
+            URI uri = RestClient.buildUri("/", "/*", emptyMap);
+            assertEquals("/*", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri("/", "*", emptyMap);
+            assertEquals("/*", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri(null, "*", emptyMap);
+            assertEquals("*", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri("", "*", emptyMap);
+            assertEquals("*", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri(null, "/*", emptyMap);
+            assertEquals("/*", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri(null, "/foo$bar/ty/pe/i/d", emptyMap);
             assertEquals("/foo$bar/ty/pe/i/d", uri.getPath());
         }
         {
@@ -407,8 +432,8 @@ public class RestClientTests extends RestClientTestCase {
              * blacklist time. It'll revive the node that is closest
              * to being revived that the NodeSelector is ok with.
              */
-            assertEquals(singletonList(n1), RestClient.selectHosts(nodeTuple, blacklist, new AtomicInteger(), NodeSelector.ANY));
-            assertEquals(singletonList(n2), RestClient.selectHosts(nodeTuple, blacklist, new AtomicInteger(), not1));
+            assertEquals(singletonList(n1), RestClient.selectNodes(nodeTuple, blacklist, new AtomicInteger(), NodeSelector.ANY));
+            assertEquals(singletonList(n2), RestClient.selectNodes(nodeTuple, blacklist, new AtomicInteger(), not1));
 
             /*
              * Try a NodeSelector that excludes all nodes. This should
@@ -449,23 +474,23 @@ public class RestClientTests extends RestClientTestCase {
             Map<HttpHost, DeadHostState> blacklist, NodeSelector nodeSelector) throws IOException {
         int iterations = 1000;
         AtomicInteger lastNodeIndex = new AtomicInteger(0);
-        assertEquals(expectedNodes, RestClient.selectHosts(nodeTuple, blacklist, lastNodeIndex, nodeSelector));
+        assertEquals(expectedNodes, RestClient.selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector));
         // Calling it again rotates the set of results
         for (int i = 1; i < iterations; i++) {
             Collections.rotate(expectedNodes, 1);
             assertEquals("iteration " + i, expectedNodes,
-                    RestClient.selectHosts(nodeTuple, blacklist, lastNodeIndex, nodeSelector));
+                    RestClient.selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector));
         }
     }
 
     /**
-     * Assert that {@link RestClient#selectHosts} fails on the provided arguments.
+     * Assert that {@link RestClient#selectNodes} fails on the provided arguments.
      * @return the message in the exception thrown by the failure
      */
-    private String assertSelectAllRejected( NodeTuple<List<Node>> nodeTuple,
+    private static String assertSelectAllRejected( NodeTuple<List<Node>> nodeTuple,
             Map<HttpHost, DeadHostState> blacklist, NodeSelector nodeSelector) {
         try {
-            RestClient.selectHosts(nodeTuple, blacklist, new AtomicInteger(0), nodeSelector);
+            RestClient.selectNodes(nodeTuple, blacklist, new AtomicInteger(0), nodeSelector);
             throw new AssertionError("expected selectHosts to fail");
         } catch (IOException e) {
             return e.getMessage();
@@ -478,5 +503,56 @@ public class RestClientTests extends RestClientTestCase {
                 new Header[] {}, nodes, null, null, null);
     }
 
+    public void testRoundRobin() throws IOException {
+        int numNodes = randomIntBetween(2, 10);
+        AuthCache authCache = new BasicAuthCache();
+        List<Node> nodes = new ArrayList<>(numNodes);
+        for (int i = 0; i < numNodes; i++) {
+            Node node = new Node(new HttpHost("localhost", 9200 + i));
+            nodes.add(node);
+            authCache.put(node.getHost(), new BasicScheme());
+        }
+        NodeTuple<List<Node>> nodeTuple = new NodeTuple<>(nodes, authCache);
 
+        //test the transition from negative to positive values
+        AtomicInteger lastNodeIndex = new AtomicInteger(-numNodes);
+        assertNodes(nodeTuple, lastNodeIndex, 50);
+        assertEquals(-numNodes + 50, lastNodeIndex.get());
+
+        //test the highest positive values up to MAX_VALUE
+        lastNodeIndex.set(Integer.MAX_VALUE - numNodes * 10);
+        assertNodes(nodeTuple, lastNodeIndex, numNodes * 10);
+        assertEquals(Integer.MAX_VALUE, lastNodeIndex.get());
+
+        //test the transition from MAX_VALUE to MIN_VALUE
+        //this is the only time where there is most likely going to be a jump from a node
+        //to another one that's not necessarily the next one.
+        assertEquals(Integer.MIN_VALUE, lastNodeIndex.incrementAndGet());
+        assertNodes(nodeTuple, lastNodeIndex, 50);
+        assertEquals(Integer.MIN_VALUE + 50, lastNodeIndex.get());
+    }
+
+    private static void assertNodes(NodeTuple<List<Node>> nodeTuple, AtomicInteger lastNodeIndex, int runs) throws IOException {
+        int distance = lastNodeIndex.get() % nodeTuple.nodes.size();
+        /*
+         * Collections.rotate is not super intuitive: distance 1 means that the last element will become the first and so on,
+         * while distance -1 means that the second element will become the first and so on.
+         */
+        int expectedOffset = distance > 0 ? nodeTuple.nodes.size() - distance : Math.abs(distance);
+        for (int i = 0; i < runs; i++) {
+            Iterable<Node> selectedNodes = RestClient.selectNodes(nodeTuple, Collections.<HttpHost, DeadHostState>emptyMap(),
+                    lastNodeIndex, NodeSelector.ANY);
+            List<Node> expectedNodes = nodeTuple.nodes;
+            int index = 0;
+            for (Node actualNode : selectedNodes) {
+                Node expectedNode = expectedNodes.get((index + expectedOffset) % expectedNodes.size());
+                assertSame(expectedNode, actualNode);
+                index++;
+            }
+            expectedOffset--;
+            if (expectedOffset < 0) {
+                expectedOffset += nodeTuple.nodes.size();
+            }
+        }
+    }
 }

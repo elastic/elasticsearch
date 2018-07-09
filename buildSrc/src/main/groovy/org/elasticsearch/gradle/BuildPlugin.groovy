@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
@@ -58,9 +57,6 @@ import java.time.ZonedDateTime
  */
 class BuildPlugin implements Plugin<Project> {
 
-    static final JavaVersion minimumRuntimeVersion = JavaVersion.VERSION_1_8
-    static final JavaVersion minimumCompilerVersion = JavaVersion.VERSION_1_10
-
     @Override
     void apply(Project project) {
         if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
@@ -95,6 +91,12 @@ class BuildPlugin implements Plugin<Project> {
     /** Performs checks on the build environment and prints information about the build environment. */
     static void globalBuildInfo(Project project) {
         if (project.rootProject.ext.has('buildChecksDone') == false) {
+            JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(
+                    BuildPlugin.class.getClassLoader().getResourceAsStream("minimumRuntimeVersion").text.trim()
+            )
+            JavaVersion minimumCompilerVersion = JavaVersion.toVersion(
+                    BuildPlugin.class.getClassLoader().getResourceAsStream("minimumCompilerVersion").text.trim()
+            )
             String compilerJavaHome = findCompilerJavaHome()
             String runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome)
             File gradleJavaHome = Jvm.current().javaHome
@@ -192,10 +194,12 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.runtimeJavaVersion = runtimeJavaVersionEnum
             project.rootProject.ext.javaVersions = javaVersions
             project.rootProject.ext.buildChecksDone = true
+            project.rootProject.ext.minimumCompilerVersion = minimumCompilerVersion
+            project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
         }
 
-        project.targetCompatibility = minimumRuntimeVersion
-        project.sourceCompatibility = minimumRuntimeVersion
+        project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
+        project.sourceCompatibility = project.rootProject.ext.minimumRuntimeVersion
 
         // set java home for each project, so they dont have to find it in the root project
         project.ext.compilerJavaHome = project.rootProject.ext.compilerJavaHome
@@ -348,7 +352,9 @@ class BuildPlugin implements Plugin<Project> {
                 // just a self contained test-fixture configuration, likely transitive and hellacious
                 return
             }
-            configuration.resolutionStrategy.failOnVersionConflict()
+            configuration.resolutionStrategy {
+                failOnVersionConflict()
+            }
         })
 
         // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
@@ -465,6 +471,24 @@ class BuildPlugin implements Plugin<Project> {
 
     /**Configuration generation of maven poms. */
     public static void configurePomGeneration(Project project) {
+        // Only works with  `enableFeaturePreview('STABLE_PUBLISHING')`
+        // https://github.com/gradle/gradle/issues/5696#issuecomment-396965185
+        project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
+            // The GenerateMavenPom task is aggressive about setting the destination, instead of fighting it,
+            // just make a copy.
+            doLast {
+                project.copy {
+                    from generatePOMTask.destination
+                    into "${project.buildDir}/distributions"
+                    rename { "${project.archivesBaseName}-${project.version}.pom" }
+                }
+            }
+            // build poms with assemble (if the assemble task exists)
+            Task assemble = project.tasks.findByName('assemble')
+            if (assemble) {
+                assemble.dependsOn(generatePOMTask)
+            }
+        }
         project.plugins.withType(MavenPublishPlugin.class).whenPluginAdded {
             project.publishing {
                 publications {
@@ -472,16 +496,6 @@ class BuildPlugin implements Plugin<Project> {
                         // add exclusions to the pom directly, for each of the transitive deps of this project's deps
                         publication.pom.withXml(fixupDependencies(project))
                     }
-                }
-            }
-
-            project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom t ->
-                // place the pom next to the jar it is for
-                t.destination = new File(project.buildDir, "distributions/${project.archivesBaseName}-${project.version}.pom")
-                // build poms with assemble (if the assemble task exists)
-                Task assemble = project.tasks.findByName('assemble')
-                if (assemble) {
-                    assemble.dependsOn(t)
                 }
             }
         }
@@ -625,6 +639,10 @@ class BuildPlugin implements Plugin<Project> {
                         jarTask.manifest.attributes('Change': shortHash)
                     }
                 }
+                // Force manifest entries that change by nature to a constant to be able to compare builds more effectively
+                if (System.properties.getProperty("build.compare_friendly", "false") == "true") {
+                    jarTask.manifest.getAttributes().clear()
+                }
             }
             // add license/notice files
             project.afterEvaluate {
@@ -673,6 +691,7 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
+            systemProperty 'es.scripting.exception_for_missing_value', 'true'
             // TODO: remove setting logging level via system property
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
@@ -741,7 +760,7 @@ class BuildPlugin implements Plugin<Project> {
         project.extensions.add('additionalTest', { String name, Closure config ->
             RandomizedTestingTask additionalTest = project.tasks.create(name, RandomizedTestingTask.class)
             additionalTest.classpath = test.classpath
-            additionalTest.testClassesDir = test.testClassesDir
+            additionalTest.testClassesDirs = test.testClassesDirs
             additionalTest.configure(commonTestConfig(project))
             additionalTest.configure(config)
             additionalTest.dependsOn(project.tasks.testClasses)

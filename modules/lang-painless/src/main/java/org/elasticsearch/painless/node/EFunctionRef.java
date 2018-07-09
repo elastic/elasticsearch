@@ -20,9 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -66,15 +66,15 @@ public final class EFunctionRef extends AExpression implements ILambda {
             try {
                 if ("this".equals(type)) {
                     // user's own function
-                    Method interfaceMethod = locals.getDefinition().ClassToType(expected).struct.functionalMethod;
+                    PainlessMethod interfaceMethod = locals.getPainlessLookup().getPainlessStructFromJavaClass(expected).functionalMethod;
                     if (interfaceMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                           "to [" + Definition.ClassToName(expected) + "], not a functional interface");
+                                                           "to [" + PainlessLookup.ClassToName(expected) + "], not a functional interface");
                     }
-                    Method delegateMethod = locals.getMethod(new MethodKey(call, interfaceMethod.arguments.size()));
+                    PainlessMethod delegateMethod = locals.getMethod(new PainlessMethodKey(call, interfaceMethod.arguments.size()));
                     if (delegateMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                           "to [" + Definition.ClassToName(expected) + "], function not found");
+                                                           "to [" + PainlessLookup.ClassToName(expected) + "], function not found");
                     }
                     ref = new FunctionRef(expected, interfaceMethod, delegateMethod, 0);
 
@@ -90,7 +90,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
                     }
                 } else {
                     // whitelist lookup
-                    ref = new FunctionRef(locals.getDefinition(), expected, type, call, 0);
+                    ref = new FunctionRef(locals.getPainlessLookup(), expected, type, call, 0);
                 }
 
             } catch (IllegalArgumentException e) {

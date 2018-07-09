@@ -31,6 +31,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 
 /**
  * Manages building {@link ScriptService}.
@@ -53,9 +56,18 @@ public class ScriptModule {
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
             TemplateScript.CONTEXT,
-            MovingFunctionScript.CONTEXT
+            MovingFunctionScript.CONTEXT,
+            ScriptedMetricAggContexts.InitScript.CONTEXT,
+            ScriptedMetricAggContexts.MapScript.CONTEXT,
+            ScriptedMetricAggContexts.CombineScript.CONTEXT,
+            ScriptedMetricAggContexts.ReduceScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
+
+    public static final boolean EXCEPTION_FOR_MISSING_VALUE =
+        Booleans.parseBoolean(System.getProperty("es.scripting.exception_for_missing_value", "false"));
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ScriptModule.class));
 
     private final ScriptService scriptService;
 
@@ -80,6 +92,10 @@ public class ScriptModule {
                 }
             }
         }
+        if (EXCEPTION_FOR_MISSING_VALUE == false)
+            DEPRECATION_LOGGER.deprecated("Script: returning default values for missing document values is deprecated. " +
+                    "Set system property '-Des.scripting.exception_for_missing_value=true' " +
+                    "to make behaviour compatible with future major versions.");
         scriptService = new ScriptService(settings, Collections.unmodifiableMap(engines), Collections.unmodifiableMap(contexts));
     }
 

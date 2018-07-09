@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -105,6 +106,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private static List<BlacklistedPathPatternMatcher> blacklistPathMatchers;
     private static ClientYamlTestExecutionContext restTestExecutionContext;
     private static ClientYamlTestExecutionContext adminExecutionContext;
+    private static ClientYamlTestClient clientYamlTestClient;
 
     private final ClientYamlTestCandidate testCandidate;
 
@@ -136,7 +138,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final Version esVersion = versionVersionTuple.v1();
             final Version masterVersion = versionVersionTuple.v2();
             logger.info("initializing client, minimum es version [{}], master version, [{}], hosts {}", esVersion, masterVersion, hosts);
-            final ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
@@ -167,6 +169,18 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final Version masterVersion) {
         return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion,
                 restClientBuilder -> configureClient(restClientBuilder, restClientSettings()));
+    }
+
+    @AfterClass
+    public static void closeClient() throws IOException {
+        try {
+            IOUtils.close(clientYamlTestClient);
+        } finally {
+            blacklistPathMatchers = null;
+            restTestExecutionContext = null;
+            adminExecutionContext = null;
+            clientYamlTestClient = null;
+        }
     }
 
     /**
@@ -264,13 +278,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 throw new IllegalArgumentException(errorMessage.toString());
             }
         }
-    }
-
-    @AfterClass
-    public static void clearStatic() {
-        blacklistPathMatchers = null;
-        restTestExecutionContext = null;
-        adminExecutionContext = null;
     }
 
     private static Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {

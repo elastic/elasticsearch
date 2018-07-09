@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -177,7 +178,6 @@ import java.util.function.Supplier;
 
 public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
 
-    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
     static Optional<String> X_PACK_FEATURE = Optional.of("x-pack");
 
     @Override
@@ -225,7 +225,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
     }
 
     @Override
-    public List<Action> getClientActions() {
+    public List<Action<? extends ActionResponse>> getClientActions() {
         return Arrays.asList(
                 // deprecation
                 DeprecationInfoAction.INSTANCE,

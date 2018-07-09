@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
@@ -122,7 +121,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
                  */
                 containsNegotiateWithToken =
                         ese.getHeader("WWW-Authenticate").stream()
-                                .anyMatch(s -> s != null && s.toLowerCase(Locale.ROOT).contains("negotiate "));
+                                .anyMatch(s -> s != null && s.regionMatches(true, 0, "Negotiate ", 0, "Negotiate ".length()));
             } else {
                 containsNegotiateWithToken = false;
             }

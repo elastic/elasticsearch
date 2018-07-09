@@ -34,10 +34,8 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,24 +50,16 @@ public final class InternalRealms {
     /**
      * The list of all <em>internal</em> realm types, excluding {@link ReservedRealm#TYPE}.
      */
-    private static final Set<String> XPACK_TYPES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE,
-            SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE
-    )));
-
-    /**
-     * The list of all realm types, which are those that have extensive interaction
-     * with third party sources
-     */
-    private static final Set<String> TYPES_DEPEND_ON_THIRD_PARTY_SOURCES =
-            Sets.newHashSet(SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE);
+    private static final Set<String> XPACK_TYPES = Collections
+            .unmodifiableSet(Sets.newHashSet(NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE,
+                    LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE, SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE));
 
     /**
      * The list of all standard realm types, which are those provided by x-pack and do not have extensive
      * interaction with third party sources
      */
-    private static final Set<String> STANDARD_TYPES =
-            Collections.unmodifiableSet(Sets.difference(XPACK_TYPES, TYPES_DEPEND_ON_THIRD_PARTY_SOURCES));
+    private static final Set<String> STANDARD_TYPES = Collections.unmodifiableSet(Sets.newHashSet(NativeRealmSettings.TYPE,
+            FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE));
 
     /**
      * Determines whether <code>type</code> is an internal realm-type that is provided by x-pack,

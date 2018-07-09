@@ -34,6 +34,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.PrimitiveIterator;
+import java.util.Spliterator;
 import java.util.regex.Pattern;
 
 public final class PainlessLookupBuilder extends PainlessLookupBase {
@@ -133,7 +135,8 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
     public PainlessLookupBuilder() {
         super();
 
-        painlessClassNamesToJavaClasses
+        painlessClassNamesToJavaClasses.put(DEF_PAINLESS_CLASS_NAME, def.class);
+        javaClassesToPainlessClasses.put(def.class, new PainlessClass(DEF_PAINLESS_CLASS_NAME, Object.class, Type.getType(Object.class)));
     }
 
     public void addPainlessClass(ClassLoader classLoader, String javaClassName, boolean importPainlessClassName) {
@@ -740,10 +743,9 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
     }
 
     public PainlessLookup build() {
-        String origin = null;
+        copyChildClassesMembersToParentClasses();
 
-        painlessTypesToJavaClasses.put("def", def.class);
-        javaClassesToPainlessStructs.put(def.class, new PainlessClass("def", Object.class, Type.getType(Object.class)));
+        /*String origin = null;
 
         try {
             // first iteration collects all the Painless type names that
@@ -791,12 +793,21 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
             }
         } catch (Exception exception) {
             throw new IllegalArgumentException("error loading whitelist(s) " + origin, exception);
+        }*/
+
+        // precompute runtime classes
+        for (PainlessClass painlessStruct : javaClassesToPainlessStructs.values()) {
+            addRuntimeClass(painlessStruct);
         }
 
-        // goes through each Painless struct and determines the inheritance list,
-        // and then adds all inherited types to the Painless struct's whitelist
-        for (Class<?> javaClass : javaClassesToPainlessStructs.keySet()) {
-            PainlessClass painlessStruct = javaClassesToPainlessStructs.get(javaClass);
+        // copy all structs to make them unmodifiable for outside users:
+        for (Map.Entry<Class<?>,PainlessClass> entry : javaClassesToPainlessStructs.entrySet()) {
+            entry.setValue(entry.getValue().freeze(computeFunctionalInterfaceMethod(entry.getValue())));
+        }
+    }
+
+    private void copyChildClassesMembersToParentClasses() {
+        for (Class<?> parentJavaClass : javaClassesToPainlessClasses.keySet()) {
 
             List<String> painlessSuperStructs = new ArrayList<>();
             Class<?> javaSuperClass = painlessStruct.clazz.getSuperclass();
@@ -851,50 +862,25 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
                 }
             }
         }
-
-        // precompute runtime classes
-        for (PainlessClass painlessStruct : javaClassesToPainlessStructs.values()) {
-            addRuntimeClass(painlessStruct);
-        }
-
-        // copy all structs to make them unmodifiable for outside users:
-        for (Map.Entry<Class<?>,PainlessClass> entry : javaClassesToPainlessStructs.entrySet()) {
-            entry.setValue(entry.getValue().freeze(computeFunctionalInterfaceMethod(entry.getValue())));
-        }
     }
 
-    private void copyStruct(String struct, List<String> children) {
-        final PainlessClass owner = javaClassesToPainlessStructs.get(painlessTypesToJavaClasses.get(struct));
+    private void copyChildClassMembersToParentClass(Class<?> parentJavaClass, Class<?> childJavaClass) {
+        PainlessClass parentPainlessClass = javaClassesToPainlessClasses.get(parentJavaClass);
+        PainlessClass childPainlessClass  = javaClassesToPainlessClasses.get(childJavaClass);
 
-        if (owner == null) {
-            throw new IllegalArgumentException("Owner struct [" + struct + "] not defined for copy.");
-        }
+        Objects.requireNonNull(parentPainlessClass);
+        Objects.requireNonNull(childPainlessClass);
 
-        for (int count = 0; count < children.size(); ++count) {
-            final PainlessClass child = javaClassesToPainlessStructs.get(painlessTypesToJavaClasses.get(children.get(count)));
+            for (Map.Entry<String, PainlessMethod> painlessMethodEntry : childPainlessClass.methods.entrySet()) {
+                String painlessMethodKey = painlessMethodEntry.getKey();
+                PainlessMethod painlessMethod = painlessMethodEntry.getValue();
 
-            if (child == null) {
-                throw new IllegalArgumentException("Child struct [" + children.get(count) + "]" +
-                    " not defined for copy to owner struct [" + owner.name + "].");
-            }
-
-            if (!child.clazz.isAssignableFrom(owner.clazz)) {
-                throw new ClassCastException("Child struct [" + child.name + "]" +
-                    " is not a super type of owner struct [" + owner.name + "] in copy.");
-            }
-
-            for (Map.Entry<PainlessMethodKey,PainlessMethod> kvPair : child.methods.entrySet()) {
-                PainlessMethodKey methodKey = kvPair.getKey();
-                PainlessMethod method = kvPair.getValue();
-                if (owner.methods.get(methodKey) == null) {
-                    // TODO: some of these are no longer valid or outright don't work
-                    // TODO: since classes may not come from the Painless classloader
-                    // TODO: and it was dependent on the order of the extends which
-                    // TODO: which no longer exists since this is generated automatically
+                parentPainlessClass.methods.putIfAbsent(painlessMethodKey, )
+                if (parentPainlessClass.methods.get(painlessMethodKey) == null) {
                     // sanity check, look for missing covariant/generic override
-                    /*if (owner.clazz.isInterface() && child.clazz == Object.class) {
+                    if (parentJavaClass.isInterface() && childJavaClass == Object.class) {
                         // ok
-                    } else if (child.clazz == Spliterator.OfPrimitive.class || child.clazz == PrimitiveIterator.class) {
+                    } else if (childJavaClass == Spliterator.OfPrimitive.class || childJavaClass == PrimitiveIterator.class) {
                         // ok, we rely on generics erasure for these (its guaranteed in the javadocs though!!!!)
                     } else if (Constants.JRE_IS_MINIMUM_JAVA9 && owner.clazz == LocalDate.class) {
                         // ok, java 9 added covariant override for LocalDate.getEra() to return IsoEra:
@@ -933,17 +919,16 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
                             throw new AssertionError(e);
                         }
                     }*/
-                    owner.methods.put(methodKey, method);
+                    parentPainlessClass.methods.put(painlessMethodKey, painlessMethod);
                 }
             }
 
-            for (PainlessField field : child.members.values()) {
+            for (PainlessField field : pain.members.values()) {
                 if (owner.members.get(field.name) == null) {
                     owner.members.put(field.name,
                         new PainlessField(field.name, field.javaName, owner, field.clazz, field.modifiers, field.getter, field.setter));
                 }
             }
-        }
     }
 
     /**

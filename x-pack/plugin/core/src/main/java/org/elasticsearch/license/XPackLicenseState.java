@@ -209,7 +209,7 @@ public class XPackLicenseState {
     private static String[] logstashAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
         switch (newMode) {
             case BASIC:
-                if (!isBasic(currentMode)) {
+                if (isBasic(currentMode) == false) {
                     return new String[] { "Logstash will no longer poll for centrally-managed pipelines" };
                 }
                 break;
@@ -220,7 +220,7 @@ public class XPackLicenseState {
     private static String[] beatsAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
         switch (newMode) {
             case BASIC:
-                if (!isBasic(currentMode)) {
+                if (isBasic(currentMode) == false) {
                     return new String[] { "Beats will no longer poll for centrally-managed configuration" };
                 }
                 break;
@@ -515,7 +515,7 @@ public class XPackLicenseState {
      */
     public boolean isLogstashAllowed() {
         Status localStatus = status;
-        return localStatus.active && !isBasic(localStatus.mode);
+        return localStatus.active && (isBasic(localStatus.mode) == false);
     }
 
     /**
@@ -524,7 +524,7 @@ public class XPackLicenseState {
      */
     public boolean isBeatsAllowed() {
         Status localStatus = status;
-        return localStatus.active && !isBasic(localStatus.mode);
+        return localStatus.active && (isBasic(localStatus.mode) == false);
 
     }
 

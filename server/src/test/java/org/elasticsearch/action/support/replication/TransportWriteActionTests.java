@@ -177,10 +177,17 @@ public class TransportWriteActionTests extends ESTestCase {
         final Consumer<Exception> syncListener = syncListenerRef.get();
         assertThat(syncListener, notNullValue());
 
-        syncListener.accept(new IOException("xxx"));
-
+        final IOException exception = new IOException("xxx");
         CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-        result.respond(listener);
+
+        if (randomBoolean()) {
+            syncListener.accept(exception);
+            result.respond(listener);
+        } else {
+            result.respond(listener);
+            syncListener.accept(exception);
+        }
+
         assertNotNull(listener.failure);
         assertNull(listener.response);
         verify(indexShard, never()).refresh(any());

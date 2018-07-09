@@ -131,7 +131,7 @@ public abstract class TransportWriteAction<
         public final Location location;
         // as AsyncAfterWriteAction could execute on another thread
         volatile boolean finishedAsyncActions;
-        volatile Exception failure;
+        volatile Exception asyncActionFailure;
         volatile ActionListener<Response> listener = null;
 
         public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
@@ -156,14 +156,15 @@ public abstract class TransportWriteAction<
         @Override
         public synchronized void respond(ActionListener<Response> listener) {
             this.listener = listener;
-            respondIfPossible(failure);
+            respondIfPossible();
         }
 
         /**
          * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
          */
-        protected void respondIfPossible(Exception ex) {
+        protected void respondIfPossible() {
             if (finishedAsyncActions && listener != null) {
+                Exception ex = asyncActionFailure;
                 if (ex == null) {
                     super.respond(listener);
                 } else {
@@ -173,16 +174,16 @@ public abstract class TransportWriteAction<
         }
 
         public synchronized void onFailure(Exception exception) {
-            failure = exception;
+            asyncActionFailure = exception;
             finishedAsyncActions = true;
-            respondIfPossible(exception);
+            respondIfPossible();
         }
 
         @Override
         public synchronized void onSuccess(boolean forcedRefresh) {
             finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
             finishedAsyncActions = true;
-            respondIfPossible(null);
+            respondIfPossible();
         }
     }
 
@@ -194,7 +195,7 @@ public abstract class TransportWriteAction<
         public final Location location;
         // as AsyncAfterWriteAction could execute on another thread
         private volatile boolean finishedAsyncActions;
-        private volatile Exception failure;
+        private volatile Exception asyncActionFailure;
         private volatile ActionListener<TransportResponse.Empty> listener;
 
 
@@ -212,14 +213,15 @@ public abstract class TransportWriteAction<
         @Override
         public void respond(ActionListener<TransportResponse.Empty> listener) {
             this.listener = listener;
-            respondIfPossible(failure);
+            respondIfPossible();
         }
 
         /**
          * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
          */
-        protected void respondIfPossible(Exception ex) {
+        protected void respondIfPossible() {
             if (finishedAsyncActions && listener != null) {
+                Exception ex = asyncActionFailure;
                 if (ex == null) {
                     super.respond(listener);
                 } else {
@@ -229,16 +231,16 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void onFailure(Exception ex) {
-            failure = ex;
+        public synchronized void onFailure(Exception ex) {
+            asyncActionFailure = ex;
             finishedAsyncActions = true;
-            respondIfPossible(ex);
+            respondIfPossible();
         }
 
         @Override
         public synchronized void onSuccess(boolean forcedRefresh) {
             finishedAsyncActions = true;
-            respondIfPossible(null);
+            respondIfPossible();
         }
     }
 

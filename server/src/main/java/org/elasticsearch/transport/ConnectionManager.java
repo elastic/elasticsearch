@@ -96,6 +96,7 @@ public class ConnectionManager implements Closeable {
                 try {
                     connectionListener.onNodeConnected(node);
                 } finally {
+                    // TODO: Need to add node disconnect listener
                     if (connection.isClosed()) {
                         // we got closed concurrently due to a disconnect or some other event on the channel.
                         // the close callback will close the NodeChannel instance first and then try to remove

@@ -976,6 +976,7 @@ public final class InternalTestCluster extends TestCluster {
     public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException, InterruptedException {
         super.beforeTest(random, transportClientRatio);
         reset(true);
+        runGc();
     }
 
     private synchronized void reset(boolean wipeData) throws IOException {
@@ -1056,6 +1057,13 @@ public final class InternalTestCluster extends TestCluster {
             validateClusterFormed();
         }
         logger.debug("Cluster is consistent again - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), newSize);
+    }
+
+    private synchronized void runGc() {
+        System.runFinalization();
+        System.gc();
+        System.runFinalization();
+        System.gc();
     }
 
     /** ensure a cluster is formed with all published nodes. */

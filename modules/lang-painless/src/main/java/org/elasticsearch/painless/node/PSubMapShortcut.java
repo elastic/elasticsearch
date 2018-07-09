@@ -19,13 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Struct;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessMethodKey;
 
 import java.util.Objects;
 import java.util.Set;
@@ -35,13 +35,13 @@ import java.util.Set;
  */
 final class PSubMapShortcut extends AStoreable {
 
-    private final Struct struct;
+    private final PainlessClass struct;
     private AExpression index;
 
-    private Method getter;
-    private Method setter;
+    private PainlessMethod getter;
+    private PainlessMethod setter;
 
-    PSubMapShortcut(Location location, Struct struct, AExpression index) {
+    PSubMapShortcut(Location location, PainlessClass struct, AExpression index) {
         super(location);
 
         this.struct = Objects.requireNonNull(struct);
@@ -55,8 +55,8 @@ final class PSubMapShortcut extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        getter = struct.methods.get(new Definition.MethodKey("get", 1));
-        setter = struct.methods.get(new Definition.MethodKey("put", 2));
+        getter = struct.methods.get(new PainlessMethodKey("get", 1));
+        setter = struct.methods.get(new PainlessMethodKey("put", 2));
 
         if (getter != null && (getter.rtn == void.class || getter.arguments.size() != 1)) {
             throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + struct.name + "]."));

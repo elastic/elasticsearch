@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 
-public class BeatsFeatureSetUsage extends XPackFeatureSet.Usage {
+public final class BeatsFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public BeatsFeatureSetUsage(StreamInput in) throws IOException {
         super(in);

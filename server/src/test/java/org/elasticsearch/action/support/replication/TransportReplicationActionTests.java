@@ -600,9 +600,8 @@ public class TransportReplicationActionTests extends ESTestCase {
             }
         };
         TestAction.PrimaryShardReference primary = action.new PrimaryShardReference(shard, releasable);
-        // TODO check if the following two lines are really unused or might have side effects
-        // final Request request = new Request();
-        // Request replicaRequest = (Request) primary.perform(request).replicaRequest;
+        final Request request = new Request();
+        Request replicaRequest = (Request) primary.perform(request).replicaRequest;
 
         final ElasticsearchException exception = new ElasticsearchException("testing");
         primary.failShard("test", exception);
@@ -1159,8 +1158,6 @@ public class TransportReplicationActionTests extends ESTestCase {
             Index index = (Index) invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
             if (state.metaData().hasIndex(index.getName())) {
-                // TODO check if this unused variable can safely be removed
-                // final IndexMetaData indexSafe = state.metaData().getIndexSafe(index);
                 return mockIndexService(clusterService.state().metaData().getIndexSafe(index), clusterService);
             } else {
                 return null;

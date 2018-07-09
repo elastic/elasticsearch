@@ -45,7 +45,7 @@ public abstract class WatchExecutionContext {
     private Transform.Result transformResult;
     private ConcurrentMap<String, ActionWrapperResult> actionsResults = ConcurrentCollections.newConcurrentMap();
     private String nodeId;
-    private String executedBy;
+    private String user;
 
     public WatchExecutionContext(String watchId, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
         this.id = new Wid(watchId, executionTime);
@@ -93,7 +93,7 @@ public abstract class WatchExecutionContext {
                 String header = watch.status().getHeaders().get(AuthenticationField.AUTHENTICATION_KEY);
                 if (header != null) {
                     Authentication auth = Authentication.decode(header);
-                    executedBy = auth.getUser().principal();
+                    user = auth.getUser().principal();
                 }
             }
         }
@@ -151,7 +151,7 @@ public abstract class WatchExecutionContext {
     /**
      * @return The user that executes the watch, which will be stored in the watch history
      */
-    public String getExecutedBy() { return executedBy; }
+    public String getUser() { return user; }
 
     public void start() {
         assert phase == ExecutionPhase.AWAITS_EXECUTION;

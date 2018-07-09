@@ -74,7 +74,7 @@ teardown:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }
-  - match: { watch_record.executed_by: "watcher_manager" }
+  - match: { watch_record.user: "watcher_manager" }
 
 
 
@@ -128,7 +128,7 @@ teardown:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }
-  - match: { watch_record.executed_by: "x_pack_rest_user" }
+  - match: { watch_record.user: "x_pack_rest_user" }
 
 
 ---
@@ -183,7 +183,7 @@ teardown:
   - match: { watch_record.watch_id: "my_watch" }
   # because we are not allowed to read the index, there wont be any data
   - match: { watch_record.state: "execution_not_needed" }
-  - match: { watch_record.executed_by: "watcher_manager" }
+  - match: { watch_record.user: "watcher_manager" }
 
 
 ---
@@ -326,7 +326,7 @@ teardown:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }
-  - match: { watch_record.executed_by: "watcher_manager" }
+  - match: { watch_record.user: "watcher_manager" }
 
   - do:
       get:
@@ -375,7 +375,7 @@ teardown:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }
-  - match: { watch_record.executed_by: "watcher_manager" }
+  - match: { watch_record.user: "watcher_manager" }
 
   - do:
       get:

@@ -120,7 +120,7 @@
         "messages": {
           "type": "text"
         },
-        "executed_by": {
+        "user": {
           "type": "text"
         },
         "exception" : {

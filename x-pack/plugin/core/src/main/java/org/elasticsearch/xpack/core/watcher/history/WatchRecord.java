@@ -43,14 +43,14 @@ public abstract class WatchRecord implements ToXContentObject {
     private static final ParseField METADATA = new ParseField("metadata");
     private static final ParseField EXECUTION_RESULT = new ParseField("result");
     private static final ParseField EXCEPTION = new ParseField("exception");
-    private static final ParseField EXECUTED_BY = new ParseField("executed_by");
+    private static final ParseField USER = new ParseField("user");
 
     protected final Wid id;
     protected final Watch watch;
     private final String nodeId;
     protected final TriggerEvent triggerEvent;
     protected final ExecutionState state;
-    private final String executedBy;
+    private final String user;
 
     // only emitted to xcontent in "debug" mode
     protected final Map<String, Object> vars;
@@ -62,7 +62,7 @@ public abstract class WatchRecord implements ToXContentObject {
 
     private WatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state, Map<String, Object> vars, ExecutableInput input,
                         ExecutableCondition condition, Map<String, Object> metadata, Watch watch, WatchExecutionResult executionResult,
-                        String nodeId, String executedBy) {
+                        String nodeId, String user) {
         this.id = id;
         this.triggerEvent = triggerEvent;
         this.state = state;
@@ -73,7 +73,7 @@ public abstract class WatchRecord implements ToXContentObject {
         this.executionResult = executionResult;
         this.watch = watch;
         this.nodeId = nodeId;
-        this.executedBy = executedBy;
+        this.user = user;
     }
 
     private WatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state, String nodeId) {
@@ -82,7 +82,7 @@ public abstract class WatchRecord implements ToXContentObject {
 
     private WatchRecord(WatchRecord record, ExecutionState state) {
         this(record.id, record.triggerEvent, state, record.vars, record.input, record.condition, record.metadata, record.watch,
-                record.executionResult, record.nodeId, record.executedBy);
+                record.executionResult, record.nodeId, record.user);
     }
 
     private WatchRecord(WatchExecutionContext context, ExecutionState state) {
@@ -91,13 +91,13 @@ public abstract class WatchRecord implements ToXContentObject {
                 context.watch() != null ? context.watch().condition() : null,
                 context.watch() != null ? context.watch().metadata() : null,
                 context.watch(),
-                null, context.getNodeId(), context.getExecutedBy());
+                null, context.getNodeId(), context.getUser());
     }
 
     private WatchRecord(WatchExecutionContext context, WatchExecutionResult executionResult) {
         this(context.id(), context.triggerEvent(), getState(executionResult), context.vars(), context.watch().input(),
                 context.watch().condition(), context.watch().metadata(), context.watch(), executionResult, context.getNodeId(),
-                context.getExecutedBy());
+                context.getUser());
     }
 
     public static ExecutionState getState(WatchExecutionResult executionResult) {
@@ -183,8 +183,8 @@ public abstract class WatchRecord implements ToXContentObject {
         if (executionResult != null) {
             builder.field(EXECUTION_RESULT.getPreferredName(), executionResult, params);
         }
-        if (executedBy != null) {
-            builder.field(EXECUTED_BY.getPreferredName(), executedBy);
+        if (user != null) {
+            builder.field(USER.getPreferredName(), user);
         }
         innerToXContent(builder, params);
         builder.endObject();

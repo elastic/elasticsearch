@@ -23,7 +23,6 @@ public class FollowIndexRequestTests extends AbstractStreamableTestCase<FollowIn
     static FollowIndexAction.Request createTestRequest() {
         return new FollowIndexAction.Request(randomAlphaOfLength(4), randomAlphaOfLength(4), randomIntBetween(1, Integer.MAX_VALUE),
             randomIntBetween(1, Integer.MAX_VALUE), randomNonNegativeLong(), randomIntBetween(1, Integer.MAX_VALUE),
-            randomIntBetween(1, Integer.MAX_VALUE), randomBoolean() ? TimeValue.timeValueMillis(500) : null,
-            randomBoolean() ? TimeValue.timeValueMillis(500) : null);
+            randomIntBetween(1, Integer.MAX_VALUE), TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(500));
     }
 }

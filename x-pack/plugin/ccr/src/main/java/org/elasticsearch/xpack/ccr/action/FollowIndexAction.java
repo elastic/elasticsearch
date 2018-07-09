@@ -106,8 +106,8 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             this.maxOperationSizeInBytes = maxOperationSizeInBytes;
             this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
             this.maxWriteBufferSize = maxWriteBufferSize;
-            this.retryTimeout = retryTimeout;
-            this.idleShardRetryDelay = idleShardRetryDelay;
+            this.retryTimeout = Objects.requireNonNull(retryTimeout);
+            this.idleShardRetryDelay = Objects.requireNonNull(idleShardRetryDelay);
         }
 
         Request() {
@@ -272,21 +272,13 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));for (int i = 0; i < numShards; i++) {
                 final int shardId = i;
                 String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
-                TimeValue retryTimeout = ShardFollowNodeTask.DEFAULT_RETRY_TIMEOUT;
-                if (request.retryTimeout != null) {
-                    retryTimeout = request.retryTimeout;
-                }
-                TimeValue idleShardRetryDelay = ShardFollowNodeTask.DEFAULT_IDLE_SHARD_RETRY_DELAY;
-                if (request.idleShardRetryDelay != null) {
-                    idleShardRetryDelay = request.idleShardRetryDelay;
-                }
 
                 ShardFollowTask shardFollowTask = new ShardFollowTask(clusterNameAlias,
                         new ShardId(followIndexMetadata.getIndex(), shardId),
                         new ShardId(leaderIndexMetadata.getIndex(), shardId),
                         request.maxBatchOperationCount, request.maxConcurrentReadBatches, request.maxOperationSizeInBytes,
-                        request.maxConcurrentWriteBatches, request.maxWriteBufferSize, retryTimeout, idleShardRetryDelay,
-                        filteredHeaders);
+                        request.maxConcurrentWriteBatches, request.maxWriteBufferSize, request.retryTimeout,
+                        request.idleShardRetryDelay, filteredHeaders);
                 persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
                         new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
                             @Override

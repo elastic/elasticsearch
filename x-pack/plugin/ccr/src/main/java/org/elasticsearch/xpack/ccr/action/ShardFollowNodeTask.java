@@ -78,17 +78,17 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         this.idleShardChangesRequestDelay = idleShardChangesRequestDelay;
     }
 
-    void start(long followGlobalCheckpoint) {
-        this.lastRequestedSeqno = followGlobalCheckpoint;
-        this.processedGlobalCheckpoint = followGlobalCheckpoint;
-        this.globalCheckpoint = followGlobalCheckpoint;
+    void start(long followerGlobalCheckpoint) {
+        this.lastRequestedSeqno = followerGlobalCheckpoint;
+        this.processedGlobalCheckpoint = followerGlobalCheckpoint;
+        this.globalCheckpoint = followerGlobalCheckpoint;
 
         // Forcefully updates follower mapping, this gets us the leader imd version and
         // makes sure that leader and follower mapping are identical.
         updateMapping(imdVersion -> {
             currentIndexMetadataVersion = imdVersion;
             LOGGER.info("{} Started to follow leader shard {}, followGlobalCheckPoint={}, indexMetaDataVersion={}",
-                params.getFollowShardId(), params.getLeaderShardId(), followGlobalCheckpoint, imdVersion);
+                params.getFollowShardId(), params.getLeaderShardId(), followerGlobalCheckpoint, imdVersion);
             coordinateReads();
         });
     }
@@ -105,8 +105,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         while (hasReadBudget() && lastRequestedSeqno < globalCheckpoint) {
             numConcurrentReads++;
             long from = lastRequestedSeqno + 1;
-            LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, from, maxReadSize);
             long maxRequiredSeqno = Math.min(globalCheckpoint, from + maxReadSize);
+            LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, maxRequiredSeqno, maxReadSize);
             sendShardChangesRequest(from, maxReadSize, maxRequiredSeqno);
             lastRequestedSeqno = maxRequiredSeqno;
         }
@@ -117,7 +117,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             numConcurrentReads++;
             long from = lastRequestedSeqno + 1;
             LOGGER.trace("{}[{}] peek read [{}]", params.getFollowShardId(), numConcurrentReads, from);
-            sendShardChangesRequest(from, maxReadSize, from);
+            sendShardChangesRequest(from, maxReadSize, lastRequestedSeqno);
         }
     }
 

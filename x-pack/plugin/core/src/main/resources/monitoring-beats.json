@@ -14,6 +14,47 @@
     "doc": {
       "dynamic": false,
       "properties": {
+        "beats_state": {
+          "properties": {
+            "beat": {
+              "properties": {
+                "host": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "keyword"
+                },
+                "type": {
+                  "type": "keyword"
+                },
+                "uuid": {
+                  "type": "keyword"
+                },
+                "version": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "state": {
+              "properties": {
+                "module": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "names": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            },
+            "timestamp": {
+              "format": "date_time",
+              "type": "date"
+            }
+          }
+        },
         "beats_stats": {
           "properties": {
             "beat": {

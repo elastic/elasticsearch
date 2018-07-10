@@ -62,7 +62,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         processors.put(DateProcessor.TYPE, new DateProcessor.Factory(parameters.scriptService));
         processors.put(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService));
         processors.put(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.scriptService));
-        processors.put(RenameProcessor.TYPE, new RenameProcessor.Factory());
+        processors.put(RenameProcessor.TYPE, new RenameProcessor.Factory(parameters.scriptService));
         processors.put(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.scriptService));
         processors.put(SplitProcessor.TYPE, new SplitProcessor.Factory());
         processors.put(JoinProcessor.TYPE, new JoinProcessor.Factory());

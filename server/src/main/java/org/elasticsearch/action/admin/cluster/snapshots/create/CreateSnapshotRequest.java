@@ -430,6 +430,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             builder.endObject();
         }
         builder.field("include_global_state", includeGlobalState);
+        if (indicesOptions != null) {
+            indicesOptions.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
     }

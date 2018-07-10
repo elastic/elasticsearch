@@ -20,14 +20,27 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.IndicesOptions.Option;
+import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent.MapParams;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
@@ -277,7 +290,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(fromMap.allowNoIndices(), allowNoIndices == null ? defaults.allowNoIndices() : allowNoIndices);
     }
 
-    /*public void testToXContent() throws IOException {
+    public void testToXContent() throws IOException {
         Collection<WildcardStates> wildcardStates = randomSubsetOf(Arrays.asList(WildcardStates.values()));
         Collection<Option> options = randomSubsetOf(Arrays.asList(Option.values()));
 
@@ -310,5 +323,5 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(map.get("forbid_aliases_to_multiple_indices"), options.contains(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES));
         assertEquals(map.get("forbid_closed_indices"), options.contains(Option.FORBID_CLOSED_INDICES));
         assertEquals(map.get("ignore_aliases"), options.contains(Option.IGNORE_ALIASES));
-    }*/
+    }
 }

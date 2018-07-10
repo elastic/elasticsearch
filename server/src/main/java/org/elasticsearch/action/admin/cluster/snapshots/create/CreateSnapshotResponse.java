@@ -40,11 +40,11 @@ import java.util.Objects;
  */
 public class CreateSnapshotResponse extends ActionResponse implements ToXContentObject {
 
-    private static final ObjectParser<CreateSnapshotResponse, Void> CREATE_SNAPSHOT_RESPONSE_PARSER =
+    private static final ObjectParser<CreateSnapshotResponse, Void> PARSER =
         new ObjectParser<>(CreateSnapshotResponse.class.getName(), true, CreateSnapshotResponse::new);
 
     static {
-        CREATE_SNAPSHOT_RESPONSE_PARSER.declareObject(CreateSnapshotResponse::setSnapshotInfoFromBuilder,
+        PARSER.declareObject(CreateSnapshotResponse::setSnapshotInfoFromBuilder,
             SnapshotInfo.SNAPSHOT_INFO_PARSER, new ParseField("snapshot"));
     }
 
@@ -112,7 +112,7 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
     }
 
     public static CreateSnapshotResponse fromXContent(XContentParser parser) {
-        return CREATE_SNAPSHOT_RESPONSE_PARSER.apply(parser, null);
+        return PARSER.apply(parser, null);
     }
 
     @Override

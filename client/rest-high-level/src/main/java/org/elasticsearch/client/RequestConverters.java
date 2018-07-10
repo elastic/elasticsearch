@@ -939,7 +939,6 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withMasterTimeout(createSnapshotRequest.masterNodeTimeout());
         params.withWaitForCompletion(createSnapshotRequest.waitForCompletion());
-        params.withIndicesOptions(createSnapshotRequest.indicesOptions());
         request.setEntity(createEntity(createSnapshotRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }

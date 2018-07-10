@@ -2104,8 +2104,6 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("wait_for_completion", waitForCompletion.toString());
         }
 
-        setRandomIndicesOptions(createSnapshotRequest::indicesOptions, createSnapshotRequest::indicesOptions, expectedParams);
-
         Request request = RequestConverters.createSnapshot(createSnapshotRequest);
         assertThat(endpoint, equalTo(request.getEndpoint()));
         assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));

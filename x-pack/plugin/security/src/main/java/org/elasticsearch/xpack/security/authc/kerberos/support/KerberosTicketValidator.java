@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.kerberos.support;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.ietf.jgss.GSSContext;
@@ -63,25 +64,22 @@ public class KerberosTicketValidator {
      * First performs service login using keytab, supports multiple principals in
      * keytab and the principal is selected based on the request.
      * <p>
-     * The GSS security context establishment is handled and if it is established then
-     * returns the Tuple of username and out token for peer reply. It may return
-     * Tuple with null username but with a outToken to be sent to peer for further
-     * negotiation.
+     * The GSS security context establishment state is handled as follows: <br>
+     * If the context is established it will call {@link ActionListener#onResponse}
+     * with a {@link Tuple} of username and outToken for peer reply. <br>
+     * If the context is not established then it will call
+     * {@link ActionListener#onResponse} with a Tuple where username is null but
+     * with a outToken that needs to be sent to peer for further negotiation. <br>
+     * Never calls {@link ActionListener#onResponse} with a {@code null} tuple. <br>
+     * On failure, it will call {@link ActionListener#onFailure(Exception)}
      *
      * @param decodedToken base64 decoded kerberos ticket bytes
      * @param keytabPath Path to Service key tab file containing credentials for ES
      *            service.
      * @param krbDebug if {@code true} enables jaas krb5 login module debug logs.
-     * @return {@link Tuple} of user name {@link GSSContext#getSrcName()} and out
-     *         token base64 encoded if any. When context is not yet established user
-     *         name is {@code null}.
-     * @throws LoginException thrown when service authentication fails
-     *             {@link LoginContext#login()}
-     * @throws GSSException thrown when GSS Context negotiation fails
-     *             {@link GSSException}
      */
-    public Tuple<String, String> validateTicket(final byte[] decodedToken, final Path keytabPath, final boolean krbDebug)
-            throws LoginException, GSSException {
+    public void validateTicket(final byte[] decodedToken, final Path keytabPath, final boolean krbDebug,
+            final ActionListener<Tuple<String, String>> actionListener) {
         final GSSManager gssManager = GSSManager.getInstance();
         GSSContext gssContext = null;
         LoginContext loginContext = null;
@@ -92,15 +90,17 @@ public class KerberosTicketValidator {
             final String base64OutToken = encodeToString(acceptSecContext(decodedToken, gssContext, loginContext.getSubject()));
             LOGGER.trace("validateTicket isGSSContextEstablished = {}, username = {}, outToken = {}", gssContext.isEstablished(),
                     gssContext.getSrcName().toString(), base64OutToken);
-            return new Tuple<>(gssContext.isEstablished() ? gssContext.getSrcName().toString() : null, base64OutToken);
+            actionListener.onResponse(new Tuple<>(gssContext.isEstablished() ? gssContext.getSrcName().toString() : null, base64OutToken));
+        } catch (GSSException e) {
+            actionListener.onFailure(e);
         } catch (PrivilegedActionException pve) {
             if (pve.getCause() instanceof LoginException) {
-                throw (LoginException) pve.getCause();
+                actionListener.onFailure((LoginException) pve.getCause());
             }
             if (pve.getCause() instanceof GSSException) {
-                throw (GSSException) pve.getCause();
+                actionListener.onFailure((GSSException) pve.getCause());
             }
-            throw ExceptionsHelper.convertToRuntime(pve.getException());
+            actionListener.onFailure(pve.getException());
         } finally {
             privilegedLogoutNoThrow(loginContext);
             privilegedDisposeNoThrow(gssContext);
@@ -148,13 +148,11 @@ public class KerberosTicketValidator {
      * @param gssManager {@link GSSManager}
      * @param subject logged in {@link Subject}
      * @return {@link GSSCredential} for particular mechanism
-     * @throws GSSException
      * @throws PrivilegedActionException
      */
-    private static GSSCredential createCredentials(final GSSManager gssManager,
-            final Subject subject) throws GSSException, PrivilegedActionException {
-        return doAsWrapper(subject, (PrivilegedExceptionAction<GSSCredential>) () -> gssManager
-                .createCredential(null, GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.ACCEPT_ONLY));
+    private static GSSCredential createCredentials(final GSSManager gssManager, final Subject subject) throws PrivilegedActionException {
+        return doAsWrapper(subject, (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(null,
+                GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.ACCEPT_ONLY));
     }
 
     /**
@@ -225,8 +223,7 @@ public class KerberosTicketValidator {
      *         closed using {@link LoginContext#logout()} after usage.
      * @throws PrivilegedActionException when privileged action threw exception
      */
-    private static LoginContext serviceLogin(final String keytabFilePath, final boolean krbDebug)
-            throws PrivilegedActionException {
+    private static LoginContext serviceLogin(final String keytabFilePath, final boolean krbDebug) throws PrivilegedActionException {
         return AccessController.doPrivileged((PrivilegedExceptionAction<LoginContext>) () -> {
             final Subject subject = new Subject(false, Collections.emptySet(), Collections.emptySet(), Collections.emptySet());
             final Configuration conf = new KeytabJaasConf(keytabFilePath, krbDebug);
@@ -238,8 +235,8 @@ public class KerberosTicketValidator {
 
     /**
      * Usually we would have a JAAS configuration file for login configuration. As
-     * we have static configuration except debug flag, we are constructing in memory. This
-     * avoid additional configuration required from the user.
+     * we have static configuration except debug flag, we are constructing in
+     * memory. This avoids additional configuration required from the user.
      * <p>
      * As we are using this instead of jaas.conf, this requires refresh of
      * {@link Configuration} and requires appropriate security permissions to do so.

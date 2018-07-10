@@ -93,7 +93,11 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
      * Creates an instance of {@link ElasticsearchSecurityException} with
      * {@link RestStatus#UNAUTHORIZED} status.
      * <p>
-     * Also adds default failure response headers as configured for this {@link DefaultAuthenticationFailureHandler}
+     * Also adds default failure response headers as configured for this
+     * {@link DefaultAuthenticationFailureHandler}
+     * <p>
+     * It may replace existing response headers if the cause is an instance of
+     * {@link ElasticsearchSecurityException}
      *
      * @param message error message
      * @param t cause, if it is an instance of
@@ -105,14 +109,33 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
      */
     private ElasticsearchSecurityException createAuthenticationError(final String message, final Throwable t, final Object... args) {
         final ElasticsearchSecurityException ese;
+        final boolean containsNegotiateWithToken;
         if (t instanceof ElasticsearchSecurityException) {
             assert ((ElasticsearchSecurityException) t).status() == RestStatus.UNAUTHORIZED;
             ese = (ElasticsearchSecurityException) t;
+            if (ese.getHeader("WWW-Authenticate") != null && ese.getHeader("WWW-Authenticate").isEmpty() == false) {
+                /**
+                 * If 'WWW-Authenticate' header is present with 'Negotiate ' then do not
+                 * replace. In case of kerberos spnego mechanism, we use
+                 * 'WWW-Authenticate' header value to communicate outToken to peer.
+                 */
+                containsNegotiateWithToken =
+                        ese.getHeader("WWW-Authenticate").stream()
+                                .anyMatch(s -> s != null && s.regionMatches(true, 0, "Negotiate ", 0, "Negotiate ".length()));
+            } else {
+                containsNegotiateWithToken = false;
+            }
         } else {
             ese = authenticationError(message, t, args);
+            containsNegotiateWithToken = false;
         }
-        // If it is already present then it will replace the existing header.
-        defaultFailureResponseHeaders.entrySet().stream().forEach((e) -> ese.addHeader(e.getKey(), e.getValue()));
+        defaultFailureResponseHeaders.entrySet().stream().forEach((e) -> {
+            if (containsNegotiateWithToken && e.getKey().equalsIgnoreCase("WWW-Authenticate")) {
+                return;
+            }
+            // If it is already present then it will replace the existing header.
+            ese.addHeader(e.getKey(), e.getValue());
+        });
         return ese;
     }
 }

@@ -62,8 +62,6 @@ public class PostCalendarEventActionRequestTests extends AbstractStreamableTestC
 
     public void testParseRequest_throwsIfCalendarIdsAreDifferent() throws IOException {
         PostCalendarEventsAction.Request sourceRequest = createTestInstance("foo");
-        // TODO check if this is supposed to be used somewhere
-        // PostCalendarEventsAction.Request request = new PostCalendarEventsAction.Request("bar", sourceRequest.getScheduledEvents());
 
         StringBuilder requestString = new StringBuilder();
         requestString.append("{\"events\": [");

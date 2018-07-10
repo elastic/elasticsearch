@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -58,13 +58,13 @@ public final class EInstanceof extends AExpression {
 
         // ensure the specified type is part of the definition
         try {
-            clazz = locals.getDefinition().getJavaClassFromPainlessType(this.type);
+            clazz = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         // map to wrapped type for primitive types
-        resolvedType = clazz.isPrimitive() ? Definition.getBoxedType(clazz) : Definition.defClassToObjectClass(clazz);
+        resolvedType = clazz.isPrimitive() ? PainlessLookup.getBoxedType(clazz) : PainlessLookup.defClassToObjectClass(clazz);
 
         // analyze and cast the expression
         expression.analyze(locals);
@@ -75,7 +75,7 @@ public final class EInstanceof extends AExpression {
         primitiveExpression = expression.actual.isPrimitive();
         // map to wrapped type for primitive types
         expressionType = expression.actual.isPrimitive() ?
-            Definition.getBoxedType(expression.actual) : Definition.defClassToObjectClass(clazz);
+            PainlessLookup.getBoxedType(expression.actual) : PainlessLookup.defClassToObjectClass(clazz);
 
         actual = boolean.class;
     }

@@ -30,7 +30,6 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -59,8 +58,23 @@ import java.util.Set;
  */
 public class SSLService extends AbstractComponent {
 
+    /**
+     * This is a mapping from "context name" (in general use, the name of a setting key)
+     * to a configuration.
+     * This allows us to easily answer the question "What is the configuration for ssl in realm XYZ?"
+     * Multiple "context names" may map to the same configuration (either by object-identity or by object-equality).
+     * For example "xpack.http.ssl" may exist as a name in this map and have the global ssl configuration as a value
+     */
     private final Map<String, SSLConfiguration> sslConfigurations;
+
+    /**
+     * A mapping from a SSLConfiguration to a pre-built context.
+     * <p>
+     * This is managed separately to the {@link #sslConfigurations} map, so that a single configuration (by object equality)
+     * always maps to the same {@link SSLContextHolder}, even if it is being used within a different context-name.
+     */
     private final Map<SSLConfiguration, SSLContextHolder> sslContexts;
+
     private final SSLConfiguration globalSSLConfiguration;
     private final SetOnce<SSLConfiguration> transportSSLConfiguration = new SetOnce<>();
     private final Environment env;
@@ -423,9 +437,13 @@ public class SSLService extends AbstractComponent {
         sslSettingsMap.putAll(getMonitoringExporterSettings(settings));
 
         sslSettingsMap.forEach((key, sslSettings) -> {
-            final SSLConfiguration configuration = new SSLConfiguration(sslSettings, globalSSLConfiguration);
-            storeSSlConfiguration(key, configuration);
-            sslContextHolders.computeIfAbsent(configuration, this::createSslContext);
+            if (sslSettings.isEmpty()) {
+                storeSslConfiguration(key, globalSSLConfiguration);
+            } else {
+                final SSLConfiguration configuration = new SSLConfiguration(sslSettings, globalSSLConfiguration);
+                storeSslConfiguration(key, configuration);
+                sslContextHolders.computeIfAbsent(configuration, this::createSslContext);
+            }
         });
 
         // transport is special because we want to use a auto-generated key when there isn't one
@@ -436,14 +454,14 @@ public class SSLService extends AbstractComponent {
         sslContextHolders.computeIfAbsent(transportSSLConfiguration, this::createSslContext);
         profileSettings.forEach((key, profileSetting) -> {
             final SSLConfiguration configuration = new SSLConfiguration(profileSetting, transportSSLConfiguration);
-            storeSSlConfiguration(key, configuration);
+            storeSslConfiguration(key, configuration);
             sslContextHolders.computeIfAbsent(configuration, this::createSslContext);
         });
 
         return Collections.unmodifiableMap(sslContextHolders);
     }
 
-    private void storeSSlConfiguration(String key, SSLConfiguration configuration) {
+    private void storeSslConfiguration(String key, SSLConfiguration configuration) {
         if (key.endsWith(".")) {
             key = key.substring(0, key.length() - 1);
         }
@@ -625,9 +643,8 @@ public class SSLService extends AbstractComponent {
         Settings realmsSettings = settings.getByPrefix(prefix);
         for (String name : realmsSettings.names()) {
             Settings realmSSLSettings = realmsSettings.getAsSettings(name).getByPrefix("ssl.");
-            if (realmSSLSettings.isEmpty() == false) {
-                sslSettings.put(prefix + name + ".ssl", realmSSLSettings);
-            }
+            // Put this even if empty, so that the name will be mapped to the global SSL configuration
+            sslSettings.put(prefix + name + ".ssl", realmSSLSettings);
         }
         return sslSettings;
     }
@@ -666,9 +683,8 @@ public class SSLService extends AbstractComponent {
         Map<String, Settings> exportersSettings = settings.getGroups("xpack.monitoring.exporters.");
         for (Entry<String, Settings> entry : exportersSettings.entrySet()) {
             Settings exporterSSLSettings = entry.getValue().getByPrefix("ssl.");
-            if (exporterSSLSettings.isEmpty() == false) {
-                sslSettings.put("xpack.monitoring.exporters." + entry.getKey() + ".ssl", exporterSSLSettings);
-            }
+            // Put this even if empty, so that the name will be mapped to the global SSL configuration
+            sslSettings.put("xpack.monitoring.exporters." + entry.getKey() + ".ssl", exporterSSLSettings);
         }
         return sslSettings;
     }
@@ -679,7 +695,7 @@ public class SSLService extends AbstractComponent {
         }
         final SSLConfiguration configuration = sslConfigurations.get(contextName);
         if (configuration == null && logger.isTraceEnabled()) {
-            logger.trace("Cannot find SSL configuration for context {}. Known contexts are: {}", contextName,
+            logger.warn("Cannot find SSL configuration for context {}. Known contexts are: {}", contextName,
                 Strings.collectionToCommaDelimitedString(sslConfigurations.keySet()));
         }
         return configuration;

@@ -480,46 +480,39 @@ public class SSLServiceTests extends ESTestCase {
         sslContext.init(null, null, null);
         final String[] cipherSuites = sslContext.getSupportedSSLParameters().getCipherSuites();
 
-        final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
-        secureSettings.setString("xpack.http.ssl.keystore.secure_password", "testnode");
-        secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "testnode");
-        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
-        secureSettings.setString("transport.profiles.prof1.xpack.security.ssl.keystore.secure_password", "testnode");
-        secureSettings.setString("transport.profiles.prof2.xpack.security.ssl.keystore.secure_password", "testnode");
-        secureSettings.setString("transport.profiles.prof3.xpack.security.ssl.keystore.secure_password", "testnode");
-        secureSettings.setString("xpack.security.authc.realms.realm1.ssl.keystore.secure_password", "testnode");
-        secureSettings.setString("xpack.security.authc.realms.realm2.ssl.keystore.secure_password", "testnode");
-        secureSettings.setString("xpack.monitoring.exporters.mon1.ssl.keystore.secure_password", "testnode");
-        secureSettings.setString("xpack.monitoring.exporters.mon2.ssl.keystore.secure_password", "testnode");
+        final String[] settingPrefix = {
+            "xpack.ssl",
+            "xpack.http.ssl",
+            "xpack.security.http.ssl",
+            "xpack.security.transport.ssl",
+            "transport.profiles.prof1.xpack.security.ssl",
+            "transport.profiles.prof2.xpack.security.ssl",
+            "transport.profiles.prof3.xpack.security.ssl",
+            "xpack.security.authc.realms.realm1.ssl",
+            "xpack.security.authc.realms.realm2.ssl",
+            "xpack.monitoring.exporters.mon1.ssl",
+            "xpack.monitoring.exporters.mon2.ssl"
+        };
 
-        // Here we use a different ciphers for each context, to we can check that the returned SSLConfiguration matches the
+        assumeTrue("Not enough cipher suites are available to support this test", cipherSuites.length >= settingPrefix.length);
+
+        // Here we use a different ciphers for each context, so we can check that the returned SSLConfiguration matches the
         // provided settings
         final Iterator<String> cipher = Arrays.asList(cipherSuites).iterator();
 
-        final Settings settings = Settings.builder()
-            .put("xpack.ssl.keystore.path", testnodeStore)
-            .putList("xpack.ssl.cipher_suites", cipher.next())
-            .put("xpack.http.ssl.keystore.path", testnodeStore)
-            .putList("xpack.http.ssl.cipher_suites", cipher.next())
-            .put("xpack.security.http.ssl.keystore.path", testnodeStore)
-            .putList("xpack.security.http.ssl.cipher_suites", cipher.next())
-            .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
-            .putList("xpack.security.transport.ssl.cipher_suites", cipher.next())
-            .put("transport.profiles.prof1.xpack.security.ssl.keystore.path", testnodeStore)
-            .putList("transport.profiles.prof1.xpack.security.ssl.cipher_suites", cipher.next())
-            .put("transport.profiles.prof2.xpack.security.ssl.keystore.path", testnodeStore)
-            .putList("transport.profiles.prof2.xpack.security.ssl.cipher_suites", cipher.next())
-            .put("transport.profiles.prof3.xpack.security.ssl.keystore.path", testnodeStore)
-            .putList("transport.profiles.prof3.xpack.security.ssl.cipher_suites", cipher.next())
-            .put("xpack.security.authc.realms.realm1.ssl.keystore.path", testnodeStore)
-            .putList("xpack.security.authc.realms.realm1.ssl.cipher_suites", cipher.next())
-            .put("xpack.security.authc.realms.realm2.ssl.keystore.path", testnodeStore)
-            .putList("xpack.security.authc.realms.realm2.ssl.cipher_suites", cipher.next())
-            .put("xpack.monitoring.exporters.mon1.ssl.keystore.path", testnodeStore)
-            .putList("xpack.monitoring.exporters.mon1.ssl.cipher_suites", cipher.next())
-            .put("xpack.monitoring.exporters.mon2.ssl.keystore.path", testnodeStore)
-            .putList("xpack.monitoring.exporters.mon2.ssl.cipher_suites", cipher.next())
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        final Settings.Builder builder = Settings.builder();
+        for (String prefix : settingPrefix) {
+            secureSettings.setString(prefix + ".keystore.secure_password", "testnode");
+            builder.put(prefix + ".keystore.path", testnodeStore)
+                .putList(prefix + ".cipher_suites", cipher.next());
+        }
+
+        final Settings settings = builder
+            // Add a realm without SSL settings. This context name should be mapped to the global configuration
+            .put("xpack.security.authc.realms.realm3.type", "file")
+            // Add an exporter without SSL settings. This context name should be mapped to the global configuration
+            .put("xpack.monitoring.exporters.mon3.type", "http")
             .setSecureSettings(secureSettings)
             .build();
         SSLService sslService = new SSLService(settings, env);
@@ -538,7 +531,16 @@ public class SSLServiceTests extends ESTestCase {
             final StoreKeyConfig keyConfig = (StoreKeyConfig) configuration.keyConfig();
             assertThat("KeyStore Path for " + name, keyConfig.keyStorePath, equalTo(testnodeStore.toString()));
             assertThat("Cipher for " + name, configuration.cipherSuites(), contains(cipherSuites[i]));
+            assertThat("Configuration for " + name + ".", sslService.getSSLConfiguration(name + "."), sameInstance(configuration));
         }
+
+        // These contexts have no SSL settings, but for convenience we want those components to be able to access their context
+        // by name, and get back the global configuration
+        final SSLConfiguration realm3Config = sslService.getSSLConfiguration("xpack.security.authc.realms.realm3.ssl");
+        final SSLConfiguration mon3Config = sslService.getSSLConfiguration("xpack.monitoring.exporters.mon3.ssl.");
+        final SSLConfiguration global = sslService.getSSLConfiguration("_global");
+        assertThat(realm3Config, sameInstance(global));
+        assertThat(mon3Config, sameInstance(global));
     }
 
     public void testReadCertificateInformation () throws Exception {

@@ -14,6 +14,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ccr.ShardChangesIT;
 
 import java.io.IOException;
 
@@ -22,10 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FollowIndexActionTests extends ESTestCase {
 
     public void testValidation() throws IOException {
-        FollowIndexAction.Request request = new FollowIndexAction.Request();
-        request.setLeaderIndex("index1");
-        request.setFollowIndex("index2");
-
+        FollowIndexAction.Request request = ShardChangesIT.createFollowRequest("index1", "index2");
         {
             // should fail, because leader index does not exist
             Exception e = expectThrows(IllegalArgumentException.class, () -> FollowIndexAction.validate(request, null, null, null));
@@ -130,7 +128,7 @@ public class FollowIndexActionTests extends ESTestCase {
             FollowIndexAction.validate(request, leaderIMD, followIMD, mapperService);
         }
     }
-    
+
     private static IndexMetaData createIMD(String index, int numShards, Tuple<?, ?>... settings) throws IOException {
         return createIMD(index, State.OPEN, "{\"properties\": {}}", numShards, settings);
     }

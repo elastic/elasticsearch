@@ -9,13 +9,20 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -24,6 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
@@ -37,6 +45,7 @@ import org.elasticsearch.xpack.ccr.action.UnfollowIndexAction;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -45,10 +54,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -90,8 +103,8 @@ public class ShardChangesIT extends ESIntegTestCase {
     // this emulates what the CCR persistent task will do for pulling
     public void testGetOperationsBasedOnGlobalSequenceId() throws Exception {
         client().admin().indices().prepareCreate("index")
-                .setSettings(Settings.builder().put("index.number_of_shards", 1))
-                .get();
+            .setSettings(Settings.builder().put("index.number_of_shards", 1))
+            .get();
 
         client().prepareIndex("index", "doc", "1").setSource("{}", XContentType.JSON).get();
         client().prepareIndex("index", "doc", "2").setSource("{}", XContentType.JSON).get();
@@ -102,8 +115,8 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertThat(globalCheckPoint, equalTo(2L));
 
         ShardChangesAction.Request request = new ShardChangesAction.Request(shardStats.getShardRouting().shardId());
-        request.setMinSeqNo(0L);
-        request.setMaxSeqNo(globalCheckPoint);
+        request.setFromSeqNo(0L);
+        request.setMaxOperationCount(3);
         ShardChangesAction.Response response = client().execute(ShardChangesAction.INSTANCE, request).get();
         assertThat(response.getOperations().length, equalTo(3));
         Translog.Index operation = (Translog.Index) response.getOperations()[0];
@@ -127,8 +140,8 @@ public class ShardChangesIT extends ESIntegTestCase {
         assertThat(globalCheckPoint, equalTo(5L));
 
         request = new ShardChangesAction.Request(shardStats.getShardRouting().shardId());
-        request.setMinSeqNo(3L);
-        request.setMaxSeqNo(globalCheckPoint);
+        request.setFromSeqNo(3L);
+        request.setMaxOperationCount(3);
         response = client().execute(ShardChangesAction.INSTANCE, request).get();
         assertThat(response.getOperations().length, equalTo(3));
         operation = (Translog.Index) response.getOperations()[0];
@@ -147,16 +160,12 @@ public class ShardChangesIT extends ESIntegTestCase {
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards,
-            Collections.singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
-        ensureGreen("index1");
+        ensureYellow("index1");
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
-        followRequest.setLeaderIndex("index1");
-        followRequest.setFollowIndex("index2");
-
-        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request();
-        createAndFollowRequest.setFollowRequest(followRequest);
+        final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
+        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         final int firstBatchNumDocs = randomIntBetween(2, 64);
@@ -209,16 +218,12 @@ public class ShardChangesIT extends ESIntegTestCase {
 
     public void testSyncMappings() throws Exception {
         final String leaderIndexSettings = getIndexSettings(2,
-            Collections.singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
-        ensureGreen("index1");
+        ensureYellow("index1");
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
-        followRequest.setLeaderIndex("index1");
-        followRequest.setFollowIndex("index2");
-
-        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request();
-        createAndFollowRequest.setFollowRequest(followRequest);
+        final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
+        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
         client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
@@ -229,7 +234,7 @@ public class ShardChangesIT extends ESIntegTestCase {
 
         assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits, equalTo(firstBatchNumDocs)));
         MappingMetaData mappingMetaData = client().admin().indices().prepareGetMappings("index2").get().getMappings()
-                .get("index2").get("doc");
+            .get("index2").get("doc");
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("integer"));
         assertThat(XContentMapValues.extractValue("properties.k", mappingMetaData.sourceAsMap()), nullValue());
 
@@ -240,48 +245,136 @@ public class ShardChangesIT extends ESIntegTestCase {
         }
 
         assertBusy(() -> assertThat(client().prepareSearch("index2").get().getHits().totalHits,
-                equalTo(firstBatchNumDocs + secondBatchNumDocs)));
+            equalTo(firstBatchNumDocs + secondBatchNumDocs)));
         mappingMetaData = client().admin().indices().prepareGetMappings("index2").get().getMappings()
-                .get("index2").get("doc");
+            .get("index2").get("doc");
         assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("integer"));
         assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetaData.sourceAsMap()), equalTo("long"));
+        unfollowIndex("index2");
+    }
 
-        final UnfollowIndexAction.Request unfollowRequest = new UnfollowIndexAction.Request();
-        unfollowRequest.setFollowIndex("index2");
-        client().execute(UnfollowIndexAction.INSTANCE, unfollowRequest).get();
+    public void testFollowIndex_backlog() throws Exception {
+        String leaderIndexSettings = getIndexSettings(3, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+        BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {}
 
-        assertBusy(() -> {
-            final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            assertThat(tasks.tasks().size(), equalTo(0));
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {}
 
-            ListTasksRequest listTasksRequest = new ListTasksRequest();
-            listTasksRequest.setDetailed(true);
-            ListTasksResponse listTasksResponse = client().admin().cluster().listTasks(listTasksRequest).get();
-            int numNodeTasks = 0;
-            for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
-                if (taskInfo.getAction().startsWith(ListTasksAction.NAME) == false) {
-                    numNodeTasks++;
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
+        };
+        BulkProcessor bulkProcessor = BulkProcessor.builder(client(), listener)
+            .setBulkActions(100)
+            .setConcurrentRequests(4)
+            .build();
+        AtomicBoolean run = new AtomicBoolean(true);
+        Thread thread = new Thread(() -> {
+            int counter = 0;
+            while (run.get()) {
+                final String source = String.format(Locale.ROOT, "{\"f\":%d}", counter++);
+                IndexRequest indexRequest = new IndexRequest("index1", "doc")
+                    .source(source, XContentType.JSON)
+                    .timeout(TimeValue.timeValueSeconds(1));
+                bulkProcessor.add(indexRequest);
+            }
+        });
+        thread.start();
+
+        // Waiting for some document being index before following the index:
+        int maxReadSize = randomIntBetween(128, 2048);
+        long numDocsIndexed = Math.min(3000 * 2, randomLongBetween(maxReadSize, maxReadSize * 10));
+        atLeastDocsIndexed("index1", numDocsIndexed / 3);
+
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", maxReadSize,
+            randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(2, 10),
+            randomIntBetween(1024, 10240), TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+        CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
+        client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
+
+        atLeastDocsIndexed("index1", numDocsIndexed);
+        run.set(false);
+        thread.join();
+        assertThat(bulkProcessor.awaitClose(1L, TimeUnit.MINUTES), is(true));
+
+        assertSameDocCount("index1", "index2");
+        unfollowIndex("index2");
+    }
+
+    public void testFollowIndexAndCloseNode() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        String leaderIndexSettings = getIndexSettings(3, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+
+        String followerIndexSettings = getIndexSettings(3, singletonMap(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("index2").setSource(followerIndexSettings, XContentType.JSON));
+        ensureGreen("index1", "index2");
+
+        AtomicBoolean run = new AtomicBoolean(true);
+        Thread thread = new Thread(() -> {
+            int counter = 0;
+            while (run.get()) {
+                final String source = String.format(Locale.ROOT, "{\"f\":%d}", counter++);
+                try {
+                    client().prepareIndex("index1", "doc")
+                        .setSource(source, XContentType.JSON)
+                        .setTimeout(TimeValue.timeValueSeconds(1))
+                        .get();
+                } catch (Exception e) {
+                    logger.error("Error while indexing into leader index", e);
                 }
             }
-            assertThat(numNodeTasks, equalTo(0));
         });
+        thread.start();
+
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", randomIntBetween(32, 2048),
+            randomIntBetween(2, 10), Long.MAX_VALUE, randomIntBetween(2, 10),
+            ShardFollowNodeTask.DEFAULT_MAX_WRITE_BUFFER_SIZE, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+        client().execute(FollowIndexAction.INSTANCE, followRequest).get();
+
+        long maxNumDocsReplicated = Math.min(3000, randomLongBetween(followRequest.getMaxBatchOperationCount(),
+            followRequest.getMaxBatchOperationCount() * 10));
+        long minNumDocsReplicated = maxNumDocsReplicated / 3L;
+        logger.info("waiting for at least [{}] documents to be indexed and then stop a random data node", minNumDocsReplicated);
+        awaitBusy(() -> {
+            SearchRequest request = new SearchRequest("index2");
+            request.source(new SearchSourceBuilder().size(0));
+            SearchResponse response = client().search(request).actionGet();
+            if (response.getHits().getTotalHits() >= minNumDocsReplicated) {
+                try {
+                    internalCluster().stopRandomNonMasterNode();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                return true;
+            } else {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS);
+
+        logger.info("waiting for at least [{}] documents to be indexed", maxNumDocsReplicated);
+        atLeastDocsIndexed("index2", maxNumDocsReplicated);
+        run.set(false);
+        thread.join();
+
+        assertSameDocCount("index1", "index2");
+        unfollowIndex("index2");
     }
 
     public void testFollowIndexWithNestedField() throws Exception {
         final String leaderIndexSettings =
-            getIndexSettingsWithNestedMapping(1, Collections.singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+            getIndexSettingsWithNestedMapping(1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
 
         final String followerIndexSettings =
-            getIndexSettingsWithNestedMapping(1, Collections.singletonMap(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
+            getIndexSettingsWithNestedMapping(1, singletonMap(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
         assertAcked(client().admin().indices().prepareCreate("index2").setSource(followerIndexSettings, XContentType.JSON));
 
         ensureGreen("index1", "index2");
 
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
-        followRequest.setLeaderIndex("index1");
-        followRequest.setFollowIndex("index2");
+        final FollowIndexAction.Request followRequest = createFollowRequest("index1", "index2");
         client().execute(FollowIndexAction.INSTANCE, followRequest).get();
 
         final int numDocs = randomIntBetween(2, 64);
@@ -311,16 +404,7 @@ public class ShardChangesIT extends ESIntegTestCase {
                     equalTo(Collections.singletonList(value)));
             });
         }
-
-        final UnfollowIndexAction.Request unfollowRequest = new UnfollowIndexAction.Request();
-        unfollowRequest.setFollowIndex("index2");
-        client().execute(UnfollowIndexAction.INSTANCE, unfollowRequest).get();
-
-        assertBusy(() -> {
-            final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            assertThat(tasks.tasks().size(), equalTo(0));
-        });
+        unfollowIndex("index2");
     }
 
     public void testUnfollowNonExistingIndex() {
@@ -332,19 +416,48 @@ public class ShardChangesIT extends ESIntegTestCase {
     public void testFollowNonExistentIndex() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test-leader").get());
         assertAcked(client().admin().indices().prepareCreate("test-follower").get());
-        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request();
         // Leader index does not exist.
-        followRequest.setLeaderIndex("non-existent-leader");
-        followRequest.setFollowIndex("test-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest).actionGet());
+        FollowIndexAction.Request followRequest1 = createFollowRequest("non-existent-leader", "test-follower");
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest1).actionGet());
         // Follower index does not exist.
-        followRequest.setLeaderIndex("test-leader");
-        followRequest.setFollowIndex("non-existent-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest).actionGet());
+        FollowIndexAction.Request followRequest2 = createFollowRequest("non-test-leader", "non-existent-follower");
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest2).actionGet());
         // Both indices do not exist.
-        followRequest.setLeaderIndex("non-existent-leader");
-        followRequest.setFollowIndex("non-existent-follower");
-        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest).actionGet());
+        FollowIndexAction.Request followRequest3 = createFollowRequest("non-existent-leader", "non-existent-follower");
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowIndexAction.INSTANCE, followRequest3).actionGet());
+    }
+
+    public void testFollowIndex_lowMaxTranslogBytes() throws Exception {
+        final String leaderIndexSettings = getIndexSettings(1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureYellow("index1");
+
+        final int numDocs = 1024;
+        logger.info("Indexing [{}] docs", numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            client().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+        }
+
+        final FollowIndexAction.Request followRequest = new FollowIndexAction.Request("index1", "index2", 1024, 1, 1024,
+            1, 10240, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10));
+        final CreateAndFollowIndexAction.Request createAndFollowRequest = new CreateAndFollowIndexAction.Request(followRequest);
+        client().execute(CreateAndFollowIndexAction.INSTANCE, createAndFollowRequest).get();
+
+        final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
+        final ShardStats[] firstBatchShardStats = client().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
+        for (final ShardStats shardStats : firstBatchShardStats) {
+            if (shardStats.getShardRouting().primary()) {
+                long value = shardStats.getStats().getIndexing().getTotal().getIndexCount() - 1;
+                firstBatchNumDocsPerShard.put(shardStats.getShardRouting().shardId(), value);
+            }
+        }
+
+        assertBusy(assertTask(1, firstBatchNumDocsPerShard));
+        for (int i = 0; i < numDocs; i++) {
+            assertBusy(assertExpectedDocumentRunnable(i));
+        }
+        unfollowIndex("index2");
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {
@@ -362,7 +475,7 @@ public class ShardChangesIT extends ESIntegTestCase {
             List<TaskInfo> taskInfos = listTasksResponse.getTasks();
             assertThat(taskInfos.size(), equalTo(numberOfPrimaryShards));
             Collection<PersistentTasksCustomMetaData.PersistentTask<?>> shardFollowTasks =
-                    taskMetadata.findTasks(ShardFollowTask.NAME, Objects::nonNull);
+                taskMetadata.findTasks(ShardFollowTask.NAME, Objects::nonNull);
             for (PersistentTasksCustomMetaData.PersistentTask<?> shardFollowTask : shardFollowTasks) {
                 final ShardFollowTask shardFollowTaskParams = (ShardFollowTask) shardFollowTask.getParams();
                 TaskInfo taskInfo = null;
@@ -376,9 +489,9 @@ public class ShardChangesIT extends ESIntegTestCase {
                 assertThat(taskInfo, notNullValue());
                 ShardFollowNodeTask.Status status = (ShardFollowNodeTask.Status) taskInfo.getStatus();
                 assertThat(status, notNullValue());
-                assertThat(
-                        status.getProcessedGlobalCheckpoint(),
-                        equalTo(numDocsPerShard.get(shardFollowTaskParams.getLeaderShardId())));
+                assertThat("incorrect global checkpoint " + shardFollowTaskParams,
+                    status.getFollowerGlobalCheckpoint(),
+                    equalTo(numDocsPerShard.get(shardFollowTaskParams.getLeaderShardId())));
             }
         };
     }
@@ -422,6 +535,7 @@ public class ShardChangesIT extends ESIntegTestCase {
                 builder.startObject("settings");
                 {
                     builder.field("index.number_of_shards", numberOfPrimaryShards);
+                    builder.field("index.number_of_replicas", 1);
                     for (final Map.Entry<String, String> additionalSetting : additionalIndexSettings.entrySet()) {
                         builder.field(additionalSetting.getKey(), additionalSetting.getValue());
                     }
@@ -501,5 +615,37 @@ public class ShardChangesIT extends ESIntegTestCase {
             settings = BytesReference.bytes(builder).utf8ToString();
         }
         return settings;
+    }
+
+    private void atLeastDocsIndexed(String index, long numDocsReplicated) throws InterruptedException {
+        logger.info("waiting for at least [{}] documents to be indexed into index [{}]", numDocsReplicated, index);
+        awaitBusy(() -> {
+            refresh(index);
+            SearchRequest request = new SearchRequest(index);
+            request.source(new SearchSourceBuilder().size(0));
+            SearchResponse response = client().search(request).actionGet();
+            return response.getHits().getTotalHits() >= numDocsReplicated;
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private void assertSameDocCount(String index1, String index2) throws Exception {
+        refresh(index1);
+        SearchRequest request1 = new SearchRequest(index1);
+        request1.source(new SearchSourceBuilder().size(0));
+        SearchResponse response1 = client().search(request1).actionGet();
+        assertBusy(() -> {
+            refresh(index2);
+            SearchRequest request2 = new SearchRequest(index2);
+            request2.source(new SearchSourceBuilder().size(0));
+            SearchResponse response2 = client().search(request2).actionGet();
+            assertThat(response2.getHits().getTotalHits(), equalTo(response1.getHits().getTotalHits()));
+        });
+    }
+
+    public static FollowIndexAction.Request createFollowRequest(String leaderIndex, String followIndex) {
+        return new FollowIndexAction.Request(leaderIndex, followIndex, ShardFollowNodeTask.DEFAULT_MAX_BATCH_OPERATION_COUNT,
+            ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READ_BATCHES, ShardFollowNodeTask.DEFAULT_MAX_BATCH_SIZE_IN_BYTES,
+            ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITE_BATCHES, ShardFollowNodeTask.DEFAULT_MAX_WRITE_BUFFER_SIZE,
+            TimeValue.timeValueMillis(10), TimeValue.timeValueMillis(10));
     }
 }

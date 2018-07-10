@@ -16,8 +16,8 @@ public class ShardChangesRequestTests extends AbstractStreamableTestCase<ShardCh
     @Override
     protected ShardChangesAction.Request createTestInstance() {
         ShardChangesAction.Request request = new ShardChangesAction.Request(new ShardId("_index", "_indexUUID", 0));
-        request.setMaxSeqNo(randomNonNegativeLong());
-        request.setMinSeqNo(randomNonNegativeLong());
+        request.setMaxOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+        request.setFromSeqNo(randomNonNegativeLong());
         return request;
     }
 
@@ -28,13 +28,14 @@ public class ShardChangesRequestTests extends AbstractStreamableTestCase<ShardCh
 
     public void testValidate() {
         ShardChangesAction.Request request = new ShardChangesAction.Request(new ShardId("_index", "_indexUUID", 0));
-        request.setMinSeqNo(-1);
-        assertThat(request.validate().getMessage(), containsString("minSeqNo [-1] cannot be lower than 0"));
+        request.setFromSeqNo(-1);
+        assertThat(request.validate().getMessage(), containsString("fromSeqNo [-1] cannot be lower than 0"));
 
-        request.setMinSeqNo(4);
-        assertThat(request.validate().getMessage(), containsString("minSeqNo [4] cannot be larger than maxSeqNo [0]"));
+        request.setFromSeqNo(0);
+        request.setMaxOperationCount(-1);
+        assertThat(request.validate().getMessage(), containsString("maxOperationCount [-1] cannot be lower than 0"));
 
-        request.setMaxSeqNo(8);
+        request.setMaxOperationCount(8);
         assertThat(request.validate(), nullValue());
     }
 }

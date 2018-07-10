@@ -141,14 +141,14 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private void rangeCheck(Translog.Operation op) {
         if (op == null) {
             if (lastSeenSeqNo < toSeqNo) {
-                throw new IllegalStateException("Not all operations between min_seqno [" + fromSeqNo + "] " +
-                    "and max_seqno [" + toSeqNo + "] found; prematurely terminated last_seen_seqno [" + lastSeenSeqNo + "]");
+                throw new IllegalStateException("Not all operations between from_seqno [" + fromSeqNo + "] " +
+                    "and to_seqno [" + toSeqNo + "] found; prematurely terminated last_seen_seqno [" + lastSeenSeqNo + "]");
             }
         } else {
             final long expectedSeqNo = lastSeenSeqNo + 1;
             if (op.seqNo() != expectedSeqNo) {
-                throw new IllegalStateException("Not all operations between min_seqno [" + fromSeqNo + "] " +
-                    "and max_seqno [" + toSeqNo + "] found; expected seqno [" + expectedSeqNo + "]; found [" + op + "]");
+                throw new IllegalStateException("Not all operations between from_seqno [" + fromSeqNo + "] " +
+                    "and to_seqno [" + toSeqNo + "] found; expected seqno [" + expectedSeqNo + "]; found [" + op + "]");
             }
         }
     }

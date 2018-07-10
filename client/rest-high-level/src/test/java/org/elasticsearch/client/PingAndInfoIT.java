@@ -21,10 +21,10 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.action.main.MainResponse;
-import org.elasticsearch.protocol.license.LicenseStatus;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
+import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -60,7 +60,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         XPackInfoRequest request = new XPackInfoRequest();
         request.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
         request.setVerbose(true);
-        XPackInfoResponse info = highLevelClient().xPackInfo(request, RequestOptions.DEFAULT);
+        XPackInfoResponse info = highLevelClient().xpack().info(request, RequestOptions.DEFAULT);
 
         MainResponse mainResponse = highLevelClient().info(RequestOptions.DEFAULT);
 
@@ -89,7 +89,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testXPackInfoEmptyRequest() throws IOException {
-        XPackInfoResponse info = highLevelClient().xPackInfo(new XPackInfoRequest(), RequestOptions.DEFAULT);
+        XPackInfoResponse info = highLevelClient().xpack().info(new XPackInfoRequest(), RequestOptions.DEFAULT);
 
         /*
          * The default in the transport client is non-verbose and returning

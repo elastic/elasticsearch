@@ -31,7 +31,7 @@ public abstract class NotificationService<Account> extends AbstractComponent {
     public NotificationService(Settings settings, String type,
                                ClusterSettings clusterSettings, List<Setting<?>> pluginSettings) {
         this(settings, type);
-        clusterSettings.addSettingsUpdateConsumer(this::setAccountSetting, pluginSettings);
+        clusterSettings.addSettingsUpdateConsumer(this::reload, pluginSettings);
     }
 
     // Used for testing only

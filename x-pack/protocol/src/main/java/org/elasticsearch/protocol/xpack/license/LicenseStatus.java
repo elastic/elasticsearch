@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.license;
+package org.elasticsearch.protocol.xpack.license;
 
 import java.io.IOException;
 

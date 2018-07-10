@@ -112,11 +112,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveAggsInHaving()
                 //new ImplicitCasting()
                 );
-        // TODO: this might be removed since the deduplication happens already in ResolveFunctions
-        @SuppressWarnings("unused")
-        Batch deduplication = new Batch("Deduplication",
-                new PruneDuplicateFunctions());
-
         return Arrays.asList(substitution, resolution);
     }
 

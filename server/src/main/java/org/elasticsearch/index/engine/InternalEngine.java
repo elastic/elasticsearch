@@ -2598,12 +2598,12 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Rollback newRollbackInstance(MapperService mapperService) throws IOException {
+    public Rollbacker newRollbackInstance(MapperService mapperService) throws IOException {
         assert softDeleteEnabled : "rollback requires soft-deletes";
         return new InternalRollback(mapperService);
     }
 
-    private final class InternalRollback implements Rollback {
+    private final class InternalRollback implements Rollbacker {
         final NumericDocValuesField unsoftDeleteField = new NumericDocValuesField(Lucene.SOFT_DELETE_FIELD, null);
         final NumericDocValuesField rollbackField = new NumericDocValuesField(Lucene.ROLLED_BACK_FIELD, 1);
         final MapperService mapperService;

@@ -5101,9 +5101,9 @@ public class InternalEngineTests extends EngineTestCase {
             replicaEngine.getLocalCheckpointTracker().resetCheckpoint(startRollbackSeqNo);
             replicaEngine.rollTranslogGeneration();
             replicaEngine.refresh("test");
-            try (Engine.Rollback rollback = replicaEngine.newRollbackInstance(mapperService)) {
+            try (Engine.Rollbacker rollbacker = replicaEngine.newRollbackInstance(mapperService)) {
                 for (Engine.Operation op : resyncOps) {
-                    rollback.rollback(op);
+                    rollbacker.rollback(op);
                     assertThat(engine.getVersionMapSize(), equalTo(0));
                 }
             }

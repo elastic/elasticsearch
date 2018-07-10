@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fields;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -342,7 +343,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(2).getFields().get("sNum1").getValues().get(0), equalTo(6.0));
     }
 
-    public void testUidBasedScriptFields() throws Exception {
+    public void testIdBasedScriptFields() throws Exception {
         prepareCreate("test").addMapping("type1", "num1", "type=long").execute().actionGet();
 
         int numDocs = randomIntBetween(1, 30);
@@ -354,23 +355,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         indexRandom(true, indexRequestBuilders);
 
         SearchResponse response = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort("num1", SortOrder.ASC)
-                .setSize(numDocs)
-                .addScriptField("uid", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._uid.value", Collections.emptyMap()))
-                .get();
-
-        assertNoFailures(response);
-
-        assertThat(response.getHits().getTotalHits(), equalTo((long)numDocs));
-        for (int i = 0; i < numDocs; i++) {
-            assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
-            Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
-            assertThat(fields, equalTo(singleton("uid")));
-            assertThat(response.getHits().getAt(i).getFields().get("uid").getValue(), equalTo("type1#" + Integer.toString(i)));
-        }
-
-        response = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
@@ -410,7 +394,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
                 .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", Collections.emptyMap()))
-                .addScriptField("uid", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._uid.value", Collections.emptyMap()))
                 .addScriptField("type",
                     new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", Collections.emptyMap()))
                 .get();
@@ -421,8 +404,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
-            assertThat(fields, equalTo(newHashSet("uid", "type", "id")));
-            assertThat(response.getHits().getAt(i).getFields().get("uid").getValue(), equalTo("type1#" + Integer.toString(i)));
+            assertThat(fields, equalTo(newHashSet("type", "id")));
             assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("type1"));
             assertThat(response.getHits().getAt(i).getFields().get("id").getValue(), equalTo(Integer.toString(i)));
         }
@@ -719,7 +701,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(fields.get("test_field").getValue(), equalTo("foobar"));
     }
 
-    public void testFieldsPulledFromFieldData() throws Exception {
+    public void testDocValueFields() throws Exception {
         createIndex("test");
 
         String mapping = Strings
@@ -763,6 +745,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                                     .endObject()
                                     .startObject("binary_field")
                                         .field("type", "binary")
+                                        .field("doc_values", true) // off by default on binary fields
                                     .endObject()
                                     .startObject("ip_field")
                                         .field("type", "ip")
@@ -785,6 +768,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .field("double_field", 6.0d)
                 .field("date_field", Joda.forPattern("dateOptionalTime").printer().print(date))
                 .field("boolean_field", true)
+                .field("binary_field", new byte[] {42, 100})
                 .field("ip_field", "::1")
                 .endObject()).execute().actionGet();
 
@@ -801,6 +785,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .addDocValueField("double_field")
                 .addDocValueField("date_field")
                 .addDocValueField("boolean_field")
+                .addDocValueField("binary_field")
                 .addDocValueField("ip_field");
         SearchResponse searchResponse = builder.execute().actionGet();
 
@@ -809,7 +794,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         Set<String> fields = new HashSet<>(searchResponse.getHits().getAt(0).getFields().keySet());
         assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
                 "float_field", "double_field", "date_field", "boolean_field", "text_field", "keyword_field",
-                "ip_field")));
+                "binary_field", "ip_field")));
 
         assertThat(searchResponse.getHits().getAt(0).getFields().get("byte_field").getValue().toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("short_field").getValue().toString(), equalTo("2"));
@@ -821,7 +806,70 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(),
+                equalTo(new BytesRef(new byte[] {42, 100})));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
+
+        builder = client().prepareSearch().setQuery(matchAllQuery())
+                .addDocValueField("text_field", "use_field_mapping")
+                .addDocValueField("keyword_field", "use_field_mapping")
+                .addDocValueField("byte_field", "use_field_mapping")
+                .addDocValueField("short_field", "use_field_mapping")
+                .addDocValueField("integer_field", "use_field_mapping")
+                .addDocValueField("long_field", "use_field_mapping")
+                .addDocValueField("float_field", "use_field_mapping")
+                .addDocValueField("double_field", "use_field_mapping")
+                .addDocValueField("date_field", "use_field_mapping")
+                .addDocValueField("boolean_field", "use_field_mapping")
+                .addDocValueField("binary_field", "use_field_mapping")
+                .addDocValueField("ip_field", "use_field_mapping");
+        searchResponse = builder.execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        fields = new HashSet<>(searchResponse.getHits().getAt(0).getFields().keySet());
+        assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
+                "float_field", "double_field", "date_field", "boolean_field", "text_field", "keyword_field",
+                "binary_field", "ip_field")));
+
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("byte_field").getValue().toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("short_field").getValue().toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("integer_field").getValue(), equalTo((Object) 3L));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo((Object) 4L));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
+                equalTo(Joda.forPattern("dateOptionalTime").printer().print(date)));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
+
+        builder = client().prepareSearch().setQuery(matchAllQuery())
+                .addDocValueField("byte_field", "#.0")
+                .addDocValueField("short_field", "#.0")
+                .addDocValueField("integer_field", "#.0")
+                .addDocValueField("long_field", "#.0")
+                .addDocValueField("float_field", "#.0")
+                .addDocValueField("double_field", "#.0")
+                .addDocValueField("date_field", "epoch_millis");
+        searchResponse = builder.execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        fields = new HashSet<>(searchResponse.getHits().getAt(0).getFields().keySet());
+        assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
+                "float_field", "double_field", "date_field")));
+
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("byte_field").getValue(), equalTo("1.0"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("short_field").getValue(), equalTo("2.0"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("integer_field").getValue(), equalTo("3.0"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo("4.0"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo("5.0"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo("6.0"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
+                equalTo(Joda.forPattern("epoch_millis").printer().print(date)));
     }
 
     public void testScriptFields() throws Exception {

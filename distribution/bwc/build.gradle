@@ -17,12 +17,15 @@
  * under the License.
  */
 
+
+
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 
-import java.util.regex.Matcher
+import java.nio.charset.StandardCharsets
 
+import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
 /**
  * This is a dummy project which does a local checkout of the previous
  * wire compat version's branch, and builds a snapshot. This allows backcompat
@@ -54,6 +57,16 @@ subprojects {
 
   final String remote = System.getProperty("tests.bwc.remote", "elastic")
 
+  final boolean gitFetchLatest
+  final String gitFetchLatestProperty = System.getProperty("tests.bwc.git_fetch_latest", "true")
+  if ("true".equals(gitFetchLatestProperty)) {
+    gitFetchLatest = true
+  } else if ("false".equals(gitFetchLatestProperty)) {
+    gitFetchLatest = false
+  } else {
+    throw new GradleException("tests.bwc.git_fetch_latest must be [true] or [false] but was [" + gitFetchLatestProperty + "]")
+  }
+
   task createClone(type: LoggedExec) {
     onlyIf { checkoutDir.exists() == false }
     commandLine = ['git', 'clone', rootDir, checkoutDir]
@@ -83,7 +96,7 @@ subprojects {
   }
 
   task fetchLatest(type: LoggedExec) {
-    onlyIf { project.gradle.startParameter.isOffline() == false }
+    onlyIf { project.gradle.startParameter.isOffline() == false && gitFetchLatest }
     dependsOn addRemote
     workingDir = checkoutDir
     commandLine = ['git', 'fetch', '--all']
@@ -120,26 +133,34 @@ subprojects {
     }
   }
 
-  String debDir = 'distribution/packages/deb'
-  String rpmDir = 'distribution/packages/rpm'  
-  String zipDir = 'distribution/archives/zip'
-  if (bwcVersion.before('6.3.0')) {
-    debDir = 'distribution/deb'
-    rpmDir = 'distribution/rpm'
-    zipDir = 'distribution/zip'
+  List<File> artifactFiles = []
+  List<String> projectDirs = []
+  for (String project : ['zip', 'deb', 'rpm']) {
+    String baseDir = "distribution"
+    if (bwcVersion.onOrAfter('6.3.0')) {
+      baseDir += project == 'zip' ? '/archives' : '/packages'
+      // add oss variant first
+      projectDirs.add("${baseDir}/oss-${project}")
+      artifactFiles.add(file("${checkoutDir}/${baseDir}/oss-${project}/build/distributions/elasticsearch-oss-${bwcVersion}.${project}"))
+    }
+    projectDirs.add("${baseDir}/${project}")
+    artifactFiles.add(file("${checkoutDir}/${baseDir}/${project}/build/distributions/elasticsearch-${bwcVersion}.${project}"))
   }
-  File bwcDeb = file("${checkoutDir}/${debDir}/build/distributions/elasticsearch-${bwcVersion}.deb")
-  File bwcRpm = file("${checkoutDir}/${rpmDir}/build/distributions/elasticsearch-${bwcVersion}.rpm")
-  File bwcZip = file("${checkoutDir}/${zipDir}/build/distributions/elasticsearch-${bwcVersion}.zip")
+
   task buildBwcVersion(type: Exec) {
     dependsOn checkoutBwcBranch, writeBuildMetadata
+    // send RUNTIME_JAVA_HOME so the build doesn't fails on newer version the branch doesn't know about
+    environment('RUNTIME_JAVA_HOME', getJavaHome(it, rootProject.ext.minimumRuntimeVersion.getMajorVersion() as int))
     workingDir = checkoutDir
-    if (project.rootProject.ext.runtimeJavaVersion == JavaVersion.VERSION_1_8 && ["5.6", "6.0", "6.1"].contains(bwcBranch)) {
-      /*
-       * If runtime Java home is set to JDK 8 and we are building branches that are officially built with JDK 8, push this to JAVA_HOME for
-       * these builds.
-       */
-      environment('JAVA_HOME', System.getenv('RUNTIME_JAVA_HOME'))
+    // we are building branches that are officially built with JDK 8, push JAVA8_HOME to JAVA_HOME for these builds
+    if (["5.6", "6.0", "6.1"].contains(bwcBranch)) {
+      environment('JAVA_HOME', getJavaHome(it, 8))
+    } else if ("6.2".equals(bwcBranch)) {
+      environment('JAVA_HOME', getJavaHome(it, 9))
+    } else if (["6.3", "6.x"].contains(bwcBranch)) {
+      environment('JAVA_HOME', getJavaHome(it, 10))
+    } else {
+      environment('JAVA_HOME', project.compilerJavaHome)
     }
     if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       executable 'cmd'
@@ -147,7 +168,10 @@ subprojects {
     } else {
       executable new File(checkoutDir, 'gradlew').toString()
     }
-    args ":${debDir.replace('/', ':')}:assemble", ":${rpmDir.replace('/', ':')}:assemble", ":${zipDir.replace('/', ':')}:assemble", "-Dbuild.snapshot=true"
+    for (String dir : projectDirs) {
+      args ":${dir.replace('/', ':')}:assemble"
+    }
+    args "-Dbuild.snapshot=true"
     final LogLevel logLevel = gradle.startParameter.logLevel
     if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
       args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"
@@ -159,8 +183,10 @@ subprojects {
     } else if (showStacktraceName.equals("ALWAYS_FULL")) {
       args "--full-stacktrace"
     }
+    standardOutput = new IndentingOutputStream(System.out)
+    errorOutput = new IndentingOutputStream(System.err)
     doLast {
-      List missing = [bwcDeb, bwcRpm, bwcZip].grep { file ->
+      List missing = artifactFiles.grep { file ->
         false == file.exists()
       }
       if (false == missing.empty) {
@@ -171,8 +197,34 @@ subprojects {
   }
 
   artifacts {
-    'default' file: bwcDeb, name: 'elasticsearch', type: 'deb', builtBy: buildBwcVersion
-    'default' file: bwcRpm, name: 'elasticsearch', type: 'rpm', builtBy: buildBwcVersion
-    'default' file: bwcZip, name: 'elasticsearch', type: 'zip', builtBy: buildBwcVersion
+    for (File artifactFile : artifactFiles) {
+      String artifactName = artifactFile.name.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
+      String suffix = artifactFile.toString()[-3..-1]
+      'default' file: artifactFile, name: artifactName, type: suffix, builtBy: buildBwcVersion
+    }
+  }
+}
+
+class IndentingOutputStream extends OutputStream {
+
+  public static final byte[] INDENT = "  [bwc] ".getBytes(StandardCharsets.UTF_8)
+  private final OutputStream delegate
+
+  public IndentingOutputStream(OutputStream delegate) {
+      this.delegate = delegate
+  }
+
+  @Override
+  public void write(int b) {
+    write([b] as int[], 0, 1)
+  }
+
+  public void write(int[] bytes, int offset, int length) {
+    for (int i = 0; i < bytes.length; i++) {
+      delegate.write(bytes[i])
+      if (bytes[i] == '\n') {
+        delegate.write(INDENT)
+      }
+    }
   }
 }

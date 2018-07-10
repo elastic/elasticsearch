@@ -112,7 +112,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * Adds <tt>count</tt> buckets to the global count for the request and fails if this number is greater than
+     * Adds {@code count} buckets to the global count for the request and fails if this number is greater than
      * the maximum number of buckets allowed in a response
      */
     protected final void consumeBucketsAndMaybeBreak(int count) {

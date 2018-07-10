@@ -67,7 +67,7 @@ public class RepositoryBlocksIT extends ESIntegTestCase {
         try {
             setClusterReadOnly(true);
             VerifyRepositoryResponse response = client().admin().cluster().prepareVerifyRepository("test-repo-blocks").execute().actionGet();
-            assertThat(response.getNodes().length, equalTo(cluster().numDataAndMasterNodes()));
+            assertThat(response.getNodes().size(), equalTo(cluster().numDataAndMasterNodes()));
         } finally {
             setClusterReadOnly(false);
         }

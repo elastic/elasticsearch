@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -170,14 +169,10 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             } else {
                 DEPRECATION_LOGGER.deprecated(
                         "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
-                if (context.getIndexSettings().isSingleType()) {
-                    fieldType = context.getMapperService().fullName(IdFieldMapper.NAME);
-                } else {
-                    fieldType = context.getMapperService().fullName(UidFieldMapper.NAME);
-                }
+                fieldType = context.getMapperService().fullName(IdFieldMapper.NAME);
             }
             if (fieldType == null) {
-                if (context.getMapperService().types().isEmpty()) {
+                if (context.getMapperService().documentMapper() == null) {
                     // no mappings: the index is empty anyway
                     return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
                 }

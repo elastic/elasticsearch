@@ -29,6 +29,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -85,7 +87,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("foo").field("type", "text").endObject()
                         .startObject("bar").field("type", "integer").endObject()
-                        .startObject("baz").field("type", "text").field("analyzer", "snowball").endObject()
+                        .startObject("baz").field("type", "text").field("analyzer", "standard").endObject()
                         .startObject("pin").startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
@@ -329,5 +331,22 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             assertThat(response.getQueryExplanation().get(i).getExplanation(), matchers.get(i));
             assertThat(response.isValid(), equalTo(true));
         }
+    }
+
+    public void testExplainTermsQueryWithLookup() throws Exception {
+        client().admin().indices().prepareCreate("twitter")
+            .addMapping("_doc", "user", "type=integer", "followers", "type=integer")
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2)).get();
+        client().prepareIndex("twitter", "_doc", "1")
+            .setSource("followers", new int[] {1, 2, 3}).get();
+        refresh();
+
+        TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "_doc", "1", "followers"));
+        ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("twitter")
+            .setTypes("_doc")
+            .setQuery(termsLookupQuery)
+            .setExplain(true)
+            .execute().actionGet();
+        assertThat(response.isValid(), is(true));
     }
 }

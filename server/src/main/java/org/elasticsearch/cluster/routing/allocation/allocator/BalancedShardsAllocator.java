@@ -173,7 +173,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
      * <p>
      * Each of these properties are expressed as factor such that the properties factor defines the relative importance of the property for the
      * weight function. For example if the weight function should calculate the weights only based on a global (shard) balance the index balance
-     * can be set to <tt>0.0</tt> and will in turn have no effect on the distribution.
+     * can be set to {@code 0.0} and will in turn have no effect on the distribution.
      * </p>
      * The weight per index is calculated based on the following formula:
      * <ul>
@@ -476,9 +476,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * {@link WeightFunction}. This weight is calculated per index to
          * distribute shards evenly per index. The balancer tries to relocate
          * shards only if the delta exceeds the threshold. In the default case
-         * the threshold is set to <tt>1.0</tt> to enforce gaining relocation
+         * the threshold is set to {@code 1.0} to enforce gaining relocation
          * only, or in other words relocations that move the weight delta closer
-         * to <tt>0.0</tt>
+         * to {@code 0.0}
          */
         private void balanceByWeights() {
             final AllocationDeciders deciders = allocation.deciders();

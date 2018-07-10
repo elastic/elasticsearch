@@ -1,6 +1,6 @@
-# Integration tests for Azure Repository component
+# Integration tests for repository-azure
 #
-"Azure Repository loaded":
+"Plugin repository-azure is loaded":
     - do:
         cluster.state: {}
 
@@ -10,4 +10,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: repository-azure  }
+    - contains:  { nodes.$master.plugins: { name: repository-azure } }

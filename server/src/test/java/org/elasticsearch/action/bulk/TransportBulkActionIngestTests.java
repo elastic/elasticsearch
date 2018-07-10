@@ -84,7 +84,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     @Captor
     ArgumentCaptor<TransportResponseHandler<BulkResponse>> remoteResponseHandler;
     @Captor
-    ArgumentCaptor<Iterable<DocWriteRequest>> bulkDocsItr;
+    ArgumentCaptor<Iterable<DocWriteRequest<?>>> bulkDocsItr;
 
     /** The actual action we want to test, with real indexing mocked */
     TestTransportBulkAction action;
@@ -124,7 +124,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             super(Settings.EMPTY, IndexAction.NAME, TransportBulkActionIngestTests.this.transportService,
                     TransportBulkActionIngestTests.this.clusterService,
                     null, null, null, new ActionFilters(Collections.emptySet()), null,
-                    IndexRequest::new, IndexRequest::new, ThreadPool.Names.INDEX, bulkAction, null);
+                    IndexRequest::new, IndexRequest::new, ThreadPool.Names.WRITE, bulkAction, null);
         }
 
         @Override
@@ -225,7 +225,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertTrue(failureCalled.get());
 
         // now check success
-        Iterator<DocWriteRequest> req = bulkDocsItr.getValue().iterator();
+        Iterator<DocWriteRequest<?>> req = bulkDocsItr.getValue().iterator();
         failureHandler.getValue().accept((IndexRequest)req.next(), exception); // have an exception for our one index request
         indexRequest2.setPipeline(null); // this is done by the real pipeline execution service when processing
         completionHandler.getValue().accept(null);

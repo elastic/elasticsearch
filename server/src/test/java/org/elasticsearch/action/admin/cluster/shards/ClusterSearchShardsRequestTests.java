@@ -62,7 +62,7 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
                 in.setVersion(version);
                 ClusterSearchShardsRequest deserialized = new ClusterSearchShardsRequest(in);
                 assertArrayEquals(request.indices(), deserialized.indices());
-                assertSame(request.indicesOptions(), deserialized.indicesOptions());
+                assertEquals(request.indicesOptions(), deserialized.indicesOptions());
                 assertEquals(request.routing(), deserialized.routing());
                 assertEquals(request.preference(), deserialized.preference());
             }

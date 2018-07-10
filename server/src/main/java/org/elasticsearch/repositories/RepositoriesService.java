@@ -114,7 +114,8 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                 RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
                 if (repositories == null) {
                     logger.info("put repository [{}]", request.name);
-                    repositories = new RepositoriesMetaData(new RepositoryMetaData(request.name, request.type, request.settings));
+                    repositories = new RepositoriesMetaData(
+                        Collections.singletonList(new RepositoryMetaData(request.name, request.type, request.settings)));
                 } else {
                     boolean found = false;
                     List<RepositoryMetaData> repositoriesMetaData = new ArrayList<>(repositories.repositories().size() + 1);
@@ -133,7 +134,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                     } else {
                         logger.info("update repository [{}]", request.name);
                     }
-                    repositories = new RepositoriesMetaData(repositoriesMetaData.toArray(new RepositoryMetaData[repositoriesMetaData.size()]));
+                    repositories = new RepositoriesMetaData(repositoriesMetaData);
                 }
                 mdBuilder.putCustom(RepositoriesMetaData.TYPE, repositories);
                 return ClusterState.builder(currentState).metaData(mdBuilder).build();
@@ -185,7 +186,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                         }
                     }
                     if (changed) {
-                        repositories = new RepositoriesMetaData(repositoriesMetaData.toArray(new RepositoryMetaData[repositoriesMetaData.size()]));
+                        repositories = new RepositoriesMetaData(repositoriesMetaData);
                         mdBuilder.putCustom(RepositoriesMetaData.TYPE, repositories);
                         return ClusterState.builder(currentState).metaData(mdBuilder).build();
                     }
@@ -348,7 +349,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         Repository previous = repositories.get(repositoryMetaData.name());
         if (previous != null) {
             RepositoryMetaData previousMetadata = previous.getMetadata();
-            if (!previousMetadata.type().equals(repositoryMetaData.type()) && previousMetadata.settings().equals(repositoryMetaData.settings())) {
+            if (previousMetadata.equals(repositoryMetaData)) {
                 // Previous version is the same as this one - ignore it
                 return false;
             }

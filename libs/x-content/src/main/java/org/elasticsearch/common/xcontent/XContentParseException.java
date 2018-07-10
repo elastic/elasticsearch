@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.Nullable;
+
 import java.util.Optional;
 
 /**
@@ -37,6 +39,11 @@ public class XContentParseException extends IllegalArgumentException {
         this.location = Optional.ofNullable(location);
     }
 
+    public XContentParseException(XContentLocation location, String message, Exception cause) {
+        super(message, cause);
+        this.location = Optional.ofNullable(location);
+    }
+
     public int getLineNumber() {
         return location.map(l -> l.lineNumber).orElse(-1);
     }
@@ -45,8 +52,14 @@ public class XContentParseException extends IllegalArgumentException {
         return location.map(l -> l.columnNumber).orElse(-1);
     }
 
+    @Nullable
+    public XContentLocation getLocation() {
+        return location.orElse(null);
+    }
+
     @Override
     public String getMessage() {
         return location.map(l -> "[" + l.toString() + "] ").orElse("") + super.getMessage();
     }
+
 }

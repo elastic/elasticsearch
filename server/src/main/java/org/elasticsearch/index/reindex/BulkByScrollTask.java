@@ -317,10 +317,10 @@ public class BulkByScrollTask extends CancellableTask {
             noops = in.readVLong();
             bulkRetries = in.readVLong();
             searchRetries = in.readVLong();
-            throttled = new TimeValue(in);
+            throttled = in.readTimeValue();
             requestsPerSecond = in.readFloat();
             reasonCancelled = in.readOptionalString();
-            throttledUntil = new TimeValue(in);
+            throttledUntil = in.readTimeValue();
             if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
                 sliceStatuses = in.readList(stream -> stream.readOptionalWriteable(StatusOrException::new));
             } else {
@@ -342,10 +342,10 @@ public class BulkByScrollTask extends CancellableTask {
             out.writeVLong(noops);
             out.writeVLong(bulkRetries);
             out.writeVLong(searchRetries);
-            throttled.writeTo(out);
+            out.writeTimeValue(throttled);
             out.writeFloat(requestsPerSecond);
             out.writeOptionalString(reasonCancelled);
-            throttledUntil.writeTo(out);
+            out.writeTimeValue(throttledUntil);
             if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
                 out.writeVInt(sliceStatuses.size());
                 for (StatusOrException sliceStatus : sliceStatuses) {

@@ -28,9 +28,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -213,6 +214,10 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    public static TaskInfo fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
     public static final ConstructingObjectParser<TaskInfo, Void> PARSER = new ConstructingObjectParser<>(
             "task_info", true, a -> {
                 int i = 0;
@@ -242,7 +247,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         PARSER.declareString(constructorArg(), new ParseField("type"));
         PARSER.declareString(constructorArg(), new ParseField("action"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
-        PARSER.declareRawObject(optionalConstructorArg(), new ParseField("status"));
+        ObjectParserHelper<TaskInfo, Void> parserHelper = new ObjectParserHelper<>();
+        parserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("status"));
         PARSER.declareLong(constructorArg(), new ParseField("start_time_in_millis"));
         PARSER.declareLong(constructorArg(), new ParseField("running_time_in_nanos"));
         PARSER.declareBoolean(constructorArg(), new ParseField("cancellable"));
@@ -252,7 +258,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true, true);
     }
 
     // Implements equals and hashCode for testing

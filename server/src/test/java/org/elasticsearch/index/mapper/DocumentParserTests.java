@@ -152,10 +152,6 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     }
 
     public void testNestedHaveIdAndTypeFields() throws Exception {
-        DocumentMapperParser mapperParser1 = createIndex("index1", Settings.builder()
-            .put("index.version.created", Version.V_5_6_0) // allows for multiple types
-            .build()
-        ).mapperService().documentMapperParser();
         DocumentMapperParser mapperParser2 = createIndex("index2").mapperService().documentMapperParser();
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties");
@@ -180,8 +176,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             mapping.endObject();
         }
         mapping.endObject().endObject().endObject();
-        DocumentMapper mapper1 = mapperParser1.parse("type", new CompressedXContent(Strings.toString(mapping)));
-        DocumentMapper mapper2 = mapperParser2.parse("type", new CompressedXContent(Strings.toString(mapping)));
+        DocumentMapper mapper = mapperParser2.parse("type", new CompressedXContent(Strings.toString(mapping)));
 
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject();
         {
@@ -196,31 +191,10 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         }
         doc.endObject();
 
-        // Verify in the case where multiple types are allowed that the _uid field is added to nested documents:
-        ParsedDocument result = mapper1.parse(SourceToParse.source("index1", "type", "1", BytesReference.bytes(doc), XContentType.JSON));
-        assertEquals(2, result.docs().size());
-        // Nested document:
-        assertNull(result.docs().get(0).getField(IdFieldMapper.NAME));
-        assertNotNull(result.docs().get(0).getField(UidFieldMapper.NAME));
-        assertEquals("type#1", result.docs().get(0).getField(UidFieldMapper.NAME).stringValue());
-        assertEquals(UidFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(UidFieldMapper.NAME).fieldType());
-        assertNotNull(result.docs().get(0).getField(TypeFieldMapper.NAME));
-        assertEquals("__foo", result.docs().get(0).getField(TypeFieldMapper.NAME).stringValue());
-        assertEquals("value1", result.docs().get(0).getField("foo.bar").binaryValue().utf8ToString());
-        // Root document:
-        assertNull(result.docs().get(1).getField(IdFieldMapper.NAME));
-        assertNotNull(result.docs().get(1).getField(UidFieldMapper.NAME));
-        assertEquals("type#1", result.docs().get(1).getField(UidFieldMapper.NAME).stringValue());
-        assertEquals(UidFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(UidFieldMapper.NAME).fieldType());
-        assertNotNull(result.docs().get(1).getField(TypeFieldMapper.NAME));
-        assertEquals("type", result.docs().get(1).getField(TypeFieldMapper.NAME).stringValue());
-        assertEquals("value2", result.docs().get(1).getField("baz").binaryValue().utf8ToString());
-
         // Verify in the case where only a single type is allowed that the _id field is added to nested documents:
-        result = mapper2.parse(SourceToParse.source("index2", "type", "1", BytesReference.bytes(doc), XContentType.JSON));
+        ParsedDocument result = mapper.parse(SourceToParse.source("index2", "type", "1", BytesReference.bytes(doc), XContentType.JSON));
         assertEquals(2, result.docs().size());
         // Nested document:
-        assertNull(result.docs().get(0).getField(UidFieldMapper.NAME));
         assertNotNull(result.docs().get(0).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(0).getField(IdFieldMapper.NAME).binaryValue());
         assertEquals(IdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
@@ -228,7 +202,6 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertEquals("__foo", result.docs().get(0).getField(TypeFieldMapper.NAME).stringValue());
         assertEquals("value1", result.docs().get(0).getField("foo.bar").binaryValue().utf8ToString());
         // Root document:
-        assertNull(result.docs().get(1).getField(UidFieldMapper.NAME));
         assertNotNull(result.docs().get(1).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(1).getField(IdFieldMapper.NAME).binaryValue());
         assertEquals(IdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());

@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -156,10 +157,10 @@ public class NumberFieldMapper extends FieldMapper {
                     builder.nullValue(type.parse(propNode, false));
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
-                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name,"ignore_malformed", propNode, parserContext));
+                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + ".ignore_malformed"));
                     iterator.remove();
                 } else if (propName.equals("coerce")) {
-                    builder.coerce(TypeParsers.nodeBooleanValue(name, "coerce", propNode, parserContext));
+                    builder.coerce(XContentMapValues.nodeBooleanValue(propNode, name + ".coerce"));
                     iterator.remove();
                 }
             }
@@ -845,7 +846,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     public static final class NumberFieldType extends SimpleMappedFieldType {
 
-        NumberType type;
+        private final NumberType type;
 
         public NumberFieldType(NumberType type) {
             super();
@@ -855,7 +856,7 @@ public class NumberFieldMapper extends FieldMapper {
             setOmitNorms(true);
         }
 
-        NumberFieldType(NumberFieldType other) {
+        private NumberFieldType(NumberFieldType other) {
             super(other);
             this.type = other.type;
         }
@@ -935,6 +936,20 @@ public class NumberFieldMapper extends FieldMapper {
                 return new DocValueFormat.Decimal(format);
             }
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (super.equals(o) == false) {
+                return false;
+            }
+            NumberFieldType that = (NumberFieldType) o;
+            return type == that.type;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), type);
+        }
     }
 
     private Explicit<Boolean> ignoreMalformed;
@@ -989,6 +1004,7 @@ public class NumberFieldMapper extends FieldMapper {
                 numericValue = fieldType().type.parse(parser, coerce.value());
             } catch (IllegalArgumentException e) {
                 if (ignoreMalformed.value()) {
+                    context.addIgnoredField(fieldType.name());
                     return;
                 } else {
                     throw e;

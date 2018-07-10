@@ -145,8 +145,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     /**
-     * Sets the value when a field is missing in a doc. Can also be set to <tt>_last</tt> or
-     * <tt>_first</tt> to sort missing last or first respectively.
+     * Sets the value when a field is missing in a doc. Can also be set to {@code _last} or
+     * {@code _first} to sort missing last or first respectively.
      */
     public FieldSortBuilder missing(Object missing) {
         this.missing = missing;
@@ -162,7 +162,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Set the type to use in case the current field is not mapped in an index.
      * Specifying a type tells Elasticsearch what type the sort values should
      * have, which is important for cross-index search, if there are sort fields
-     * that exist on some indices only. If the unmapped type is <tt>null</tt>
+     * that exist on some indices only. If the unmapped type is {@code null}
      * then query execution will fail if one or more indices don't have a
      * mapping for the current field.
      */

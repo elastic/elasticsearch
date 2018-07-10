@@ -45,6 +45,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final String providedName;
     private Index recoverFrom;
     private ResizeType resizeType;
+    private boolean copySettings;
 
     private IndexMetaData.State state = IndexMetaData.State.OPEN;
 
@@ -112,6 +113,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
+    public CreateIndexClusterStateUpdateRequest copySettings(final boolean copySettings) {
+        this.copySettings = copySettings;
+        return this;
+    }
+
     public TransportMessage originalMessage() {
         return originalMessage;
     }
@@ -170,4 +176,9 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     public ResizeType resizeType() {
         return resizeType;
     }
+
+    public boolean copySettings() {
+        return copySettings;
+    }
+
 }

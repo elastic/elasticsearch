@@ -394,10 +394,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             throw new IndexShardNotRecoveringException(shardId, indexShard().state());
         }
         for (Translog.Operation operation : operations) {
-            Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY, update -> {
+            Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);
+            if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 throw new MapperException("mapping updates are not allowed [" + operation + "]");
-            });
-            assert result.hasFailure() == false : "unexpected failure while replicating translog entry: " + result.getFailure();
+            }
+            assert result.getFailure() == null: "unexpected failure while replicating translog entry: " + result.getFailure();
             ExceptionsHelper.reThrowIfNotNull(result.getFailure());
         }
         // update stats only after all operations completed (to ensure that mapping updates don't mess with stats)
@@ -441,8 +442,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 store.ensureIndexHasHistoryUUID();
             }
             // TODO: Assign the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
-            final String translogUUID =
-                Translog.createEmptyTranslog(indexShard.shardPath().resolveTranslog(), SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
+            final String translogUUID = Translog.createEmptyTranslog(
+                indexShard.shardPath().resolveTranslog(), SequenceNumbers.UNASSIGNED_SEQ_NO, shardId, indexShard.getPrimaryTerm());
             store.associateIndexWithNewTranslog(translogUUID);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.

@@ -77,6 +77,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -93,6 +94,7 @@ import org.elasticsearch.script.StoredScriptsIT;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
+import java.io.IOException;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -1243,30 +1245,44 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("compress", false)
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
-        createIndex("test-idx-1", "test-idx-2");
+        final String[] indices = {"test-idx-1", "test-idx-2"};
+        createIndex(indices);
         logger.info("--> indexing some data");
         indexRandom(true,
                 client().prepareIndex("test-idx-1", "_doc").setSource("foo", "bar"),
                 client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"));
 
         logger.info("--> creating snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).setIndices("test-idx-*").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
+            .setWaitForCompletion(true).setIndices(indices).get();
+        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+
+        RepositoriesService service = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
+        Repository repository = service.repository("test-repo");
+
+        final Map<String, IndexId> indexIds = repository.getRepositoryData().getIndices();
+        final Path indicesPath = repo.resolve("indices");
 
         logger.info("--> delete index metadata and shard metadata");
-        Path indices = repo.resolve("indices");
-        Path testIndex1 = indices.resolve("test-idx-1");
-        Path testIndex2 = indices.resolve("test-idx-2");
-        Path testIndex2Shard0 = testIndex2.resolve("0");
-        IOUtils.deleteFilesIgnoringExceptions(testIndex1.resolve("snapshot-test-snap-1"));
-        IOUtils.deleteFilesIgnoringExceptions(testIndex2Shard0.resolve("snapshot-test-snap-1"));
+        for (String index : indices) {
+            Path shardZero = indicesPath.resolve(indexIds.get(index).getId()).resolve("0");
+            if (randomBoolean()) {
+                Files.delete(shardZero.resolve("index-0"));
+            }
+            Files.delete(shardZero.resolve("snap-" + snapshotInfo.snapshotId().getUUID() + ".dat"));
+        }
 
         logger.info("--> delete snapshot");
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
         assertThrows(client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"), SnapshotMissingException.class);
+
+        for (String index : indices) {
+            assertTrue(Files.notExists(indicesPath.resolve(indexIds.get(index).getId())));
+        }
     }
 
     public void testDeleteSnapshotWithMissingMetadata() throws Exception {
@@ -1420,9 +1436,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> deleting shard level index file");
         try (Stream<Path> files = Files.list(repo.resolve("indices"))) {
-            files.forEach(indexPath ->
-                IOUtils.deleteFilesIgnoringExceptions(indexPath.resolve("0").resolve("index-0"))
-            );
+            files.forEach(indexPath -> {
+                try {
+                    Files.delete(indexPath.resolve("0").resolve("index-0"));
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to delete expected file", e);
+                }
+            });
         }
 
         logger.info("--> creating another snapshot");
@@ -1498,9 +1518,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         ensureGreen();
 
         assertAcked(client.admin().indices().prepareAliases()
-                        .addAlias("test-idx-1", "alias-1")
-                        .addAlias("test-idx-2", "alias-2")
-                        .addAlias("test-idx-3", "alias-3")
+                        .addAlias("test-idx-1", "alias-1", false)
+                        .addAlias("test-idx-2", "alias-2", false)
+                        .addAlias("test-idx-3", "alias-3", false)
         );
 
         logger.info("--> indexing some data");
@@ -2047,7 +2067,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test").get().getSnapshots().get(0);
             List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
             for (SnapshotIndexShardStatus status : shards) {
-                assertThat(status.getStats().getProcessedFiles(), greaterThan(1));
+                assertThat(status.getStats().getProcessedFileCount(), greaterThan(1));
             }
         }
 
@@ -2059,7 +2079,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-1").get().getSnapshots().get(0);
             List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
             for (SnapshotIndexShardStatus status : shards) {
-                assertThat(status.getStats().getProcessedFiles(), equalTo(0));
+                assertThat(status.getStats().getProcessedFileCount(), equalTo(0));
             }
         }
 
@@ -2072,7 +2092,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-2").get().getSnapshots().get(0);
             List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
             for (SnapshotIndexShardStatus status : shards) {
-                assertThat(status.getStats().getProcessedFiles(), equalTo(2)); // we flush before the snapshot such that we have to process the segments_N files plus the .del file
+                assertThat(status.getStats().getProcessedFileCount(), equalTo(2)); // we flush before the snapshot such that we have to process the segments_N files plus the .del file
             }
         }
     }
@@ -3084,7 +3104,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                     .put("location", repoPath)
                     .put("random_control_io_exception_rate", randomIntBetween(5, 20) / 100f)
                     // test that we can take a snapshot after a failed one, even if a partial index-N was written
-                    .put("atomic_move", false)
+                    .put("allow_atomic_operations", false)
                     .put("random", randomAlphaOfLength(10))));
 
         logger.info("--> indexing some data");
@@ -3315,7 +3335,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final Index index = resolveIndex(indexName);
         final IndexShard primary = internalCluster().getInstance(IndicesService.class, dataNode).getShardOrNull(new ShardId(index, 0));
         // create a gap in the sequence numbers
-        getEngineFromShard(primary).getLocalCheckpointTracker().generateSeqNo();
+        EngineTestCase.generateNewSeqNo(getEngineFromShard(primary));
 
         for (int i = 5; i < 10; i++) {
             index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);

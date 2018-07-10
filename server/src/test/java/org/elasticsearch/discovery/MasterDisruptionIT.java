@@ -20,6 +20,10 @@
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,14 +34,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.LongGCDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
+import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
@@ -446,6 +453,56 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // the unresponsive partition causes recoveries to only time out after 15m (default) and these will cause
         // the test to fail due to unfreed resources
         ensureStableCluster(2, nonIsolatedNode);
+
+    }
+
+    @TestLogging(
+        "_root:DEBUG,"
+            + "org.elasticsearch.action.bulk:TRACE,"
+            + "org.elasticsearch.action.get:TRACE,"
+            + "org.elasticsearch.cluster.service:TRACE,"
+            + "org.elasticsearch.discovery:TRACE,"
+            + "org.elasticsearch.indices.cluster:TRACE,"
+            + "org.elasticsearch.indices.recovery:TRACE,"
+            + "org.elasticsearch.index.seqno:TRACE,"
+            + "org.elasticsearch.index.shard:TRACE")
+    public void testMappingTimeout() throws Exception {
+        startCluster(3);
+        createIndex("test", Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 1)
+            .put("index.routing.allocation.exclude._name", internalCluster().getMasterName())
+        .build());
+
+        // create one field
+        index("test", "doc", "1", "{ \"f\": 1 }");
+
+        ensureGreen();
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+            Settings.builder().put("indices.mapping.dynamic_timeout", "1ms")));
+
+        ServiceDisruptionScheme disruption = new BlockMasterServiceOnMaster(random());
+        setDisruptionScheme(disruption);
+
+        disruption.startDisrupting();
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        bulk.add(client().prepareIndex("test", "doc", "2").setSource("{ \"f\": 1 }", XContentType.JSON));
+        bulk.add(client().prepareIndex("test", "doc", "3").setSource("{ \"g\": 1 }", XContentType.JSON));
+        bulk.add(client().prepareIndex("test", "doc", "4").setSource("{ \"f\": 1 }", XContentType.JSON));
+        BulkResponse bulkResponse = bulk.get();
+        assertTrue(bulkResponse.hasFailures());
+
+        disruption.stopDisrupting();
+
+        assertBusy(() -> {
+            IndicesStatsResponse stats = client().admin().indices().prepareStats("test").clear().get();
+            for (ShardStats shardStats : stats.getShards()) {
+                assertThat(shardStats.getShardRouting().toString(),
+                    shardStats.getSeqNoStats().getGlobalCheckpoint(), equalTo(shardStats.getSeqNoStats().getLocalCheckpoint()));
+            }
+        });
 
     }
 

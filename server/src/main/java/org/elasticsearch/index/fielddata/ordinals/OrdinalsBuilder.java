@@ -38,7 +38,7 @@ import java.util.Arrays;
 
 /**
  * Simple class to build document ID &lt;-&gt; ordinal mapping. Note: Ordinals are
- * <tt>1</tt> based monotonically increasing positive integers. <tt>0</tt>
+ * {@code 1} based monotonically increasing positive integers. {@code 0}
  * donates the missing value in this context.
  */
 public final class OrdinalsBuilder implements Closeable {
@@ -318,7 +318,7 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * Returns the current ordinal or <tt>0</tt> if this build has not been advanced via
+     * Returns the current ordinal or {@code 0} if this build has not been advanced via
      * {@link #nextOrdinal()}.
      */
     public long currentOrdinal() {
@@ -423,7 +423,7 @@ public final class OrdinalsBuilder implements Closeable {
      * This method iterates all terms in the given {@link TermsEnum} and
      * associates each terms ordinal with the terms documents. The caller must
      * exhaust the returned {@link BytesRefIterator} which returns all values
-     * where the first returned value is associated with the ordinal <tt>1</tt>
+     * where the first returned value is associated with the ordinal {@code 1}
      * etc.
      */
     public BytesRefIterator buildFromTerms(final TermsEnum termsEnum) throws IOException {

@@ -78,7 +78,7 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
 
         @Override
         public String getKeyAsString() {
-            return format.format(term);
+            return format.format(term).toString();
         }
 
         @Override

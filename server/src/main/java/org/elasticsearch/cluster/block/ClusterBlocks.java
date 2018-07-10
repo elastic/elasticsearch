@@ -104,7 +104,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     }
 
     /**
-     * Returns <tt>true</tt> if one of the global blocks as its disable state persistence flag set.
+     * Returns {@code true} if one of the global blocks as its disable state persistence flag set.
      */
     public boolean disableStatePersistence() {
         for (ClusterBlock clusterBlock : global) {

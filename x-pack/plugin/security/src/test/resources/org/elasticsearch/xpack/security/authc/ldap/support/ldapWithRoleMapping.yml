@@ -1,0 +1,10 @@
+# This LDAP connection does group lookup by attribute with group to role mapping
+ldap:
+  urls: # these connections are not round-robin, but primary, secondary, etc.  When the first fails the second is attempted
+    - ldap://ldap.example.com:1389
+  userDnTemplate: "cn={0},ou=people,o=superheros"
+
+  # dnToRoleMapping as true means that group will be mapped to
+  #   local ES roles using
+  dnToRoleMapping: true
+  #roleMappingFile: /etc/es/role_mapping.yaml

@@ -74,6 +74,8 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
                 assertEquals(deserializedRequest.searchType(), shardSearchTransportRequest.searchType());
                 assertEquals(deserializedRequest.shardId(), shardSearchTransportRequest.shardId());
                 assertEquals(deserializedRequest.numberOfShards(), shardSearchTransportRequest.numberOfShards());
+                assertEquals(deserializedRequest.indexRoutings(), shardSearchTransportRequest.indexRoutings());
+                assertEquals(deserializedRequest.preference(), shardSearchTransportRequest.preference());
                 assertEquals(deserializedRequest.cacheKey(), shardSearchTransportRequest.cacheKey());
                 assertNotSame(deserializedRequest, shardSearchTransportRequest);
                 assertEquals(deserializedRequest.getAliasFilter(), shardSearchTransportRequest.getAliasFilter());
@@ -92,8 +94,10 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         } else {
             filteringAliases = new AliasFilter(null, Strings.EMPTY_ARRAY);
         }
+        final String[] routings = generateRandomStringArray(5, 10, false, true);
         return new ShardSearchTransportRequest(new OriginalIndices(searchRequest), searchRequest, shardId,
-                randomIntBetween(1, 100), filteringAliases, randomBoolean() ? 1.0f : randomFloat(), Math.abs(randomLong()), null);
+            randomIntBetween(1, 100), filteringAliases, randomBoolean() ? 1.0f : randomFloat(),
+            Math.abs(randomLong()), null, routings);
     }
 
     public void testFilteringAliases() throws Exception {

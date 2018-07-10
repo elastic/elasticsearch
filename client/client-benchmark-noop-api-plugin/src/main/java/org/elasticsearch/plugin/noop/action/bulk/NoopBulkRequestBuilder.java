@@ -35,7 +35,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 
-public class NoopBulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse, NoopBulkRequestBuilder>
+public class NoopBulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse>
         implements WriteRequestBuilder<NoopBulkRequestBuilder> {
 
     public NoopBulkRequestBuilder(ElasticsearchClient client, NoopBulkAction action) {
@@ -129,7 +129,8 @@ public class NoopBulkRequestBuilder extends ActionRequestBuilder<BulkRequest, Bu
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately.
+     * Defaults to {@code 1m}.
      */
     public final NoopBulkRequestBuilder setTimeout(TimeValue timeout) {
         request.timeout(timeout);
@@ -137,7 +138,8 @@ public class NoopBulkRequestBuilder extends ActionRequestBuilder<BulkRequest, Bu
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately.
+     * Defaults to {@code 1m}.
      */
     public final NoopBulkRequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);
@@ -151,4 +153,3 @@ public class NoopBulkRequestBuilder extends ActionRequestBuilder<BulkRequest, Bu
         return request.numberOfActions();
     }
 }
-

@@ -277,7 +277,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * Iterates through the list of indices and selects the effective list of filtering aliases for the
      * given index.
      * <p>Only aliases with filters are returned. If the indices list contains a non-filtering reference to
-     * the index itself - null is returned. Returns <tt>null</tt> if no filtering is required.
+     * the index itself - null is returned. Returns {@code null} if no filtering is required.
      */
     public String[] filteringAliases(ClusterState state, String index, String... expressions) {
         return indexAliases(state, index, AliasMetaData::filteringRequired, false, expressions);
@@ -286,7 +286,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     /**
      * Iterates through the list of indices and selects the effective list of required aliases for the given index.
      * <p>Only aliases where the given predicate tests successfully are returned. If the indices list contains a non-required reference to
-     * the index itself - null is returned. Returns <tt>null</tt> if no filtering is required.
+     * the index itself - null is returned. Returns {@code null} if no filtering is required.
      */
     public String[] indexAliases(ClusterState state, String index, Predicate<AliasMetaData> requiredAlias, boolean skipIdentity,
                                  String... expressions) {

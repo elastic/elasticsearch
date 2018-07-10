@@ -18,15 +18,14 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -36,11 +35,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -54,6 +54,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
@@ -77,9 +78,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     /**
      * The name of a node attribute to select nodes that should be connected to in the remote cluster.
-     * For instance a node can be configured with <tt>node.attr.gateway: true</tt> in order to be eligible as a gateway node between
-     * clusters. In that case <tt>search.remote.node.attr: gateway</tt> can be used to filter out other nodes in the remote cluster.
-     * The value of the setting is expected to be a boolean, <tt>true</tt> for nodes that can become gateways, <tt>false</tt> otherwise.
+     * For instance a node can be configured with {@code node.attr.gateway: true} in order to be eligible as a gateway node between
+     * clusters. In that case {@code search.remote.node.attr: gateway} can be used to filter out other nodes in the remote cluster.
+     * The value of the setting is expected to be a boolean, {@code true} for nodes that can become gateways, {@code false} otherwise.
      */
     public static final Setting<String> REMOTE_NODE_ATTRIBUTE = Setting.simpleString("search.remote.node.attr",
         Setting.Property.NodeScope);
@@ -95,6 +96,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE =
             Setting.affixKeySetting("search.remote.", "skip_unavailable",
                     key -> boolSetting(key, false, Setting.Property.NodeScope, Setting.Property.Dynamic), REMOTE_CLUSTERS_SEEDS);
+
+    private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
+            && (node.isMasterNode() == false  || node.isDataNode() || node.isIngestNode());
 
     private final TransportService transportService;
     private final int numRemoteConnections;
@@ -120,13 +124,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             connectionListener.onResponse(null);
         } else {
             CountDown countDown = new CountDown(seeds.size());
-            Predicate<DiscoveryNode> nodePredicate = (node) -> Version.CURRENT.isCompatible(node.getVersion());
-            if (REMOTE_NODE_ATTRIBUTE.exists(settings)) {
-                // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for
-                // cross cluster search
-                String attribute = REMOTE_NODE_ATTRIBUTE.get(settings);
-                nodePredicate = nodePredicate.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
-            }
             remoteClusters.putAll(this.remoteClusters);
             for (Map.Entry<String, List<DiscoveryNode>> entry : seeds.entrySet()) {
                 RemoteClusterConnection remote = this.remoteClusters.get(entry.getKey());
@@ -142,7 +139,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
                 if (remote == null) { // this is a new cluster we have to add a new representation
                     remote = new RemoteClusterConnection(settings, entry.getKey(), entry.getValue(), transportService, numRemoteConnections,
-                        nodePredicate);
+                        getNodePredicate(settings));
                     remoteClusters.put(entry.getKey(), remote);
                 }
 
@@ -165,6 +162,15 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             }
         }
         this.remoteClusters = Collections.unmodifiableMap(remoteClusters);
+    }
+
+    static Predicate<DiscoveryNode> getNodePredicate(Settings settings) {
+        if (REMOTE_NODE_ATTRIBUTE.exists(settings)) {
+            // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for cross cluster search
+            String attribute = REMOTE_NODE_ATTRIBUTE.get(settings);
+            return DEFAULT_NODE_PREDICATE.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
+        }
+        return DEFAULT_NODE_PREDICATE;
     }
 
     /**
@@ -209,7 +215,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                                     ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
         final Map<String, ClusterSearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
-        final AtomicReference<TransportException> transportException = new AtomicReference<>();
+        final AtomicReference<RemoteTransportException> transportException = new AtomicReference<>();
         for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterName = entry.getKey();
             RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterName);
@@ -226,7 +232,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     public void onResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
                         searchShardsResponses.put(clusterName, clusterSearchShardsResponse);
                         if (responsesCountDown.countDown()) {
-                            TransportException exception = transportException.get();
+                            RemoteTransportException exception = transportException.get();
                             if (exception == null) {
                                 listener.onResponse(searchShardsResponses);
                             } else {
@@ -237,8 +243,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
                     @Override
                     public void onFailure(Exception e) {
-                        TransportException exception = new TransportException("unable to communicate with remote cluster [" +
-                                clusterName + "]", e);
+                        RemoteTransportException exception = new RemoteTransportException("error while communicating with remote cluster ["
+                                + clusterName + "]", e);
                         if (transportException.compareAndSet(null, exception) == false) {
                             exception = transportException.accumulateAndGet(exception, (previous, current) -> {
                                 current.addSuppressed(previous);
@@ -346,17 +352,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         IOUtils.close(remoteClusters.values());
     }
 
-    public void getRemoteConnectionInfos(ActionListener<Collection<RemoteConnectionInfo>> listener) {
-        final Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
-        if (remoteClusters.isEmpty()) {
-            listener.onResponse(Collections.emptyList());
-        } else {
-            final GroupedActionListener<RemoteConnectionInfo> actionListener = new GroupedActionListener<>(listener,
-                remoteClusters.size(), Collections.emptyList());
-            for (RemoteClusterConnection connection : remoteClusters.values()) {
-                connection.getConnectionInfo(actionListener);
-            }
-        }
+    public Stream<RemoteConnectionInfo> getRemoteConnectionInfos() {
+        return remoteClusters.values().stream().map(RemoteClusterConnection::getConnectionInfo);
     }
 
     /**
@@ -397,5 +394,19 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 }
             });
         }
+    }
+
+    /**
+     * Returns a client to the remote cluster if the given cluster alias exists.
+     * @param threadPool the {@link ThreadPool} for the client
+     * @param clusterAlias the cluster alias the remote cluster is registered under
+     *
+     * @throws IllegalArgumentException if the given clusterAlias doesn't exist
+     */
+    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
+        if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
+            throw new IllegalArgumentException("unknown cluster alias [" + clusterAlias + "]");
+        }
+        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);
     }
 }

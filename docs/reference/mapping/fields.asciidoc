@@ -13,10 +13,6 @@ can be customised when a mapping type is created.
 
     The index to which the document belongs.
 
-<<mapping-uid-field,`_uid`>>::
-
-    A composite field consisting of the `_type` and the `_id`.
-
 <<mapping-type-field,`_type`>>::
 
     The document's <<mapping-type,mapping type>>.
@@ -44,6 +40,11 @@ can be customised when a mapping type is created.
 
     All fields in the document which contain non-null values.
 
+<<mapping-ignored-field,`_ignored`>>::
+
+    All fields in the document that have been ignored at index time because of
+    <<ignore-malformed,`ignore_malformed`>>.
+
 [float]
 === Routing meta-field
 
@@ -61,6 +62,8 @@ can be customised when a mapping type is created.
 
 include::fields/field-names-field.asciidoc[]
 
+include::fields/ignored-field.asciidoc[]
+
 include::fields/id-field.asciidoc[]
 
 include::fields/index-field.asciidoc[]
@@ -72,6 +75,4 @@ include::fields/routing-field.asciidoc[]
 include::fields/source-field.asciidoc[]
 
 include::fields/type-field.asciidoc[]
-
-include::fields/uid-field.asciidoc[]
 

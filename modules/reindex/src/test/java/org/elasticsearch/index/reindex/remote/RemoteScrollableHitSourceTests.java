@@ -207,7 +207,6 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
             assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
             assertEquals("testrouting", r.getHits().get(0).getRouting());
-            assertEquals("testparent", r.getHits().get(0).getParent());
             called.set(true);
         });
         assertTrue(called.get());
@@ -222,7 +221,6 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
             assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
             assertEquals("testrouting", r.getHits().get(0).getRouting());
-            assertEquals("testparent", r.getHits().get(0).getParent());
             called.set(true);
         });
         assertTrue(called.get());

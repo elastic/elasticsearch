@@ -27,7 +27,7 @@ public class ArrayUtils {
     private ArrayUtils() {}
 
     /**
-     * Return the index of <code>value</code> in <code>array</code>, or <tt>-1</tt> if there is no such index.
+     * Return the index of <code>value</code> in <code>array</code>, or {@code -1} if there is no such index.
      * If there are several values that are within <code>tolerance</code> or less of <code>value</code>, this method will return the
      * index of the closest value. In case of several values being as close ot <code>value</code>, there is no guarantee which index
      * will be returned.

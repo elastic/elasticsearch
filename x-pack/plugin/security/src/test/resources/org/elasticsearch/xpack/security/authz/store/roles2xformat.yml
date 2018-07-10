@@ -1,0 +1,11 @@
+role1:
+  indices:
+    - names:
+        - 'test'
+      privileges:
+        - READ
+      query:
+        match_all:
+      fields:
+        - foo
+        - boo

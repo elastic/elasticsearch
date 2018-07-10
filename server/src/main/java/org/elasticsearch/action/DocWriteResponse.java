@@ -75,7 +75,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
         Result(int op) {
             this.op = (byte) op;
-            this.lowercase = this.toString().toLowerCase(Locale.ENGLISH);
+            this.lowercase = this.name().toLowerCase(Locale.ROOT);
         }
 
         public byte getOp() {
@@ -295,9 +295,11 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
-        builder.field(_INDEX, shardId.getIndexName())
-                .field(_TYPE, type)
-                .field(_ID, id)
+        builder.field(_INDEX, shardId.getIndexName());
+        if (params.paramAsBoolean("include_type_name", true)) {
+            builder.field(_TYPE, type);
+        }
+        builder.field(_ID, id)
                 .field(_VERSION, version)
                 .field(RESULT, getResult().getLowercase());
         if (forcedRefresh) {

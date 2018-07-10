@@ -722,10 +722,24 @@ public class SettingTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("properties cannot be null for setting"));
     }
 
-    public void testRejectConflictProperties() {
+    public void testRejectConflictingDynamicAndFinalProperties() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> Setting.simpleString("foo.bar", Property.Final, Property.Dynamic));
         assertThat(ex.getMessage(), containsString("final setting [foo.bar] cannot be dynamic"));
+    }
+
+    public void testRejectNonIndexScopedNotCopyableOnResizeSetting() {
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> Setting.simpleString("foo.bar", Property.NotCopyableOnResize));
+        assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [NotCopyableOnResize]")));
+    }
+
+    public void testRejectNonIndexScopedIndexInternalSetting() {
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> Setting.simpleString("foo.bar", Property.InternalIndex));
+        assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [InternalIndex]")));
     }
 
     public void testTimeValue() {

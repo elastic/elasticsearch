@@ -1,0 +1,95 @@
+[[schedule-daily]]
+==== Daily Schedule
+
+A <<trigger-schedule, `schedule`>> that triggers at a particular time
+every day. To use the `daily` schedule, you specify the time of day (or times)
+when you want the scheduler to start the watch execution with the `at` attribute.
+
+Times are specified in the form `HH:mm` on a 24-hour clock. You can also use the
+reserved values `midnight` and `noon` for `00:00` and `12:00`, and
+<<specifying-times-using-objects, specify times using objects>>.
+
+NOTE: If you don't specify the `at` attribute for a `daily` schedule, it defaults
+      to firing once daily at midnight, `00:00`.
+
+===== Configuring a Daily Schedule
+
+To configure a once a day schedule, you specify a single time with the `at`
+attribute. For example, the following `daily` schedule triggers once every
+day at 5:00 PM:
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "daily" : { "at" : "17:00" }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+===== Configuring a Multiple Times Daily Schedule
+
+To configure a `daily` schedule that triggers at multiple times during the day,
+you specify an array of times. For example, the following `daily` schedule
+triggers at `00:00`, `12:00`, and `17:00` every day.
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "daily" : { "at" : [ "midnight", "noon", "17:00" ] }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+[[specifying-times-using-objects]]
+===== Specifying Times Using Objects
+
+In addition to using the `HH:mm` string syntax to specify times, you can specify
+a time as an object that has `hour` and `minute` attributes.
+
+For example, the following `daily` schedule triggers once every day at 5:00 PM:
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "daily" : {
+        "at" {
+          "hour" : 17,
+          "minute" : 0
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+To specify multiple times using the object notation, you specify multiple hours
+or minutes as an array. For example, following `daily` schedule triggers at
+`00:00`, `00:30`, `12:00`, `12:30`, `17:00` and `17:30` every day:
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "daily" : {
+        "at" {
+          "hour" : [ 0, 12, 17 ],
+          "minute" : [0, 30]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

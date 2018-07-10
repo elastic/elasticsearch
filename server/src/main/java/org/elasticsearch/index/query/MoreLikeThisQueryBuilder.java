@@ -24,7 +24,6 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -52,10 +51,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -70,7 +69,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
 
 /**
  * A more like this query that finds documents that are "like" the provided set of document(s).
@@ -595,7 +593,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Sets the maximum number of query terms that will be included in any generated query.
-     * Defaults to <tt>25</tt>.
+     * Defaults to {@code 25}.
      */
     public MoreLikeThisQueryBuilder maxQueryTerms(int maxQueryTerms) {
         this.maxQueryTerms = maxQueryTerms;
@@ -608,7 +606,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * The frequency below which terms will be ignored in the source doc. The default
-     * frequency is <tt>2</tt>.
+     * frequency is {@code 2}.
      */
     public MoreLikeThisQueryBuilder minTermFreq(int minTermFreq) {
         this.minTermFreq = minTermFreq;
@@ -621,7 +619,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Sets the frequency at which words will be ignored which do not occur in at least this
-     * many docs. Defaults to <tt>5</tt>.
+     * many docs. Defaults to {@code 5}.
      */
     public MoreLikeThisQueryBuilder minDocFreq(int minDocFreq) {
         this.minDocFreq = minDocFreq;
@@ -647,7 +645,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Sets the minimum word length below which words will be ignored. Defaults
-     * to <tt>0</tt>.
+     * to {@code 0}.
      */
     public MoreLikeThisQueryBuilder minWordLength(int minWordLength) {
         this.minWordLength = minWordLength;
@@ -660,7 +658,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Sets the maximum word length above which words will be ignored. Defaults to
-     * unbounded (<tt>0</tt>).
+     * unbounded ({@code 0}).
      */
     public MoreLikeThisQueryBuilder maxWordLength(int maxWordLength) {
         this.maxWordLength = maxWordLength;
@@ -709,7 +707,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     /**
      * Number of terms that must match the generated query expressed in the
-     * common syntax for minimum should match. Defaults to <tt>30%</tt>.
+     * common syntax for minimum should match. Defaults to {@code 30%}.
      *
      * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
      */
@@ -726,7 +724,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     /**
-     * Sets the boost factor to use when boosting terms. Defaults to <tt>0</tt> (deactivated).
+     * Sets the boost factor to use when boosting terms. Defaults to {@code 0} (deactivated).
      */
     public MoreLikeThisQueryBuilder boostTerms(float boostTerms) {
         this.boostTerms = boostTerms;
@@ -738,7 +736,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     /**
-     * Whether to include the input documents. Defaults to <tt>false</tt>
+     * Whether to include the input documents. Defaults to {@code false}
      */
     public MoreLikeThisQueryBuilder include(boolean include) {
         this.include = include;
@@ -1132,21 +1130,21 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, QueryShardContext context) {
-        MappedFieldType uidField = context.fieldMapper(UidFieldMapper.NAME);
-        if (uidField == null) {
+        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
+        if (idField == null) {
             // no mappings, nothing to exclude
             return;
         }
         // artificial docs get assigned a random id and should be disregarded
-        List<BytesRef> uids = new ArrayList<>();
+        List<String> ids = new ArrayList<>();
         for (Item item : likeItems) {
             if (item.doc() != null) {
                 continue;
             }
-            uids.add(createUidAsBytes(item.type(), item.id()));
+            ids.add(item.id());
         }
-        if (!uids.isEmpty()) {
-            Query query = uidField.termsQuery(uids, context);
+        if (!ids.isEmpty()) {
+            Query query = idField.termsQuery(ids, context);
             boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
         }
     }

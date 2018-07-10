@@ -56,13 +56,6 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-request-flat-settings]
---------------------------------------------------
-<1> Wether the updated settings returned in the `ClusterUpdateSettings` should
-be in a flat format
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for the all the nodes to acknowledge the settings were applied

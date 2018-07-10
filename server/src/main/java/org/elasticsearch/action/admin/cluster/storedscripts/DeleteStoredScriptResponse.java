@@ -20,10 +20,7 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 public class DeleteStoredScriptResponse extends AcknowledgedResponse {
 
@@ -34,15 +31,7 @@ public class DeleteStoredScriptResponse extends AcknowledgedResponse {
         super(acknowledged);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        readAcknowledged(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        writeAcknowledged(out);
+    public static DeleteStoredScriptResponse fromXContent(XContentParser parser) {
+        return new DeleteStoredScriptResponse(parseAcknowledged(parser));
     }
 }

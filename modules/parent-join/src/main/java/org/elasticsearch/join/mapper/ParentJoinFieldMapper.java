@@ -96,10 +96,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             throw new IllegalStateException("cannot create join field [" + name + "] " +
                 "for the partitioned index " + "[" + settings.getIndex().getName() + "]");
         }
-        if (settings.isSingleType() == false) {
-            throw new IllegalStateException("cannot create join field [" + name + "] " +
-                "on multi-types index [" + settings.getIndex().getName() + "]");
-        }
     }
 
     private static void checkObjectOrNested(ContentPath path, String name) {

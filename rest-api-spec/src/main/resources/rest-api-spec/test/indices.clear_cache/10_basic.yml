@@ -5,10 +5,6 @@
 
 ---
 "clear_cache with request set to false":
-  - skip:
-      version: " - 5.3.99"
-      reason: this name was added in 5.4
-
   - do:
       indices.clear_cache:
         request: false

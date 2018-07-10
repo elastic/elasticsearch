@@ -237,8 +237,6 @@ public class TermVectorsUnitTests extends ESTestCase {
             request.payloads(random().nextBoolean());
             request.positions(random().nextBoolean());
             request.termStatistics(random().nextBoolean());
-            String parent = random().nextBoolean() ? "someParent" : null;
-            request.parent(parent);
             String pref = random().nextBoolean() ? "somePreference" : null;
             request.preference(pref);
             request.doc(new BytesArray("{}"), randomBoolean(), XContentType.JSON);
@@ -282,7 +280,6 @@ public class TermVectorsUnitTests extends ESTestCase {
             assertTrue(request.payloads());
             assertFalse(request.positions());
             assertTrue(request.termStatistics());
-            assertNull(request.parent());
             assertEquals("somePreference", request.preference());
             assertEquals("{}", request.doc().utf8ToString());
             assertEquals(XContentType.JSON, request.xContentType());

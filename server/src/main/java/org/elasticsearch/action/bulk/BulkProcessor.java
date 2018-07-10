@@ -100,7 +100,7 @@ public class BulkProcessor implements Closeable {
         /**
          * Sets the number of concurrent requests allowed to be executed. A value of 0 means that only a single
          * request will be allowed to be executed. A value of 1 means 1 concurrent request is allowed to be executed
-         * while accumulating new bulk requests. Defaults to <tt>1</tt>.
+         * while accumulating new bulk requests. Defaults to {@code 1}.
          */
         public Builder setConcurrentRequests(int concurrentRequests) {
             this.concurrentRequests = concurrentRequests;
@@ -109,7 +109,7 @@ public class BulkProcessor implements Closeable {
 
         /**
          * Sets when to flush a new bulk request based on the number of actions currently added. Defaults to
-         * <tt>1000</tt>. Can be set to <tt>-1</tt> to disable it.
+         * {@code 1000}. Can be set to {@code -1} to disable it.
          */
         public Builder setBulkActions(int bulkActions) {
             this.bulkActions = bulkActions;
@@ -118,7 +118,7 @@ public class BulkProcessor implements Closeable {
 
         /**
          * Sets when to flush a new bulk request based on the size of actions currently added. Defaults to
-         * <tt>5mb</tt>. Can be set to <tt>-1</tt> to disable it.
+         * {@code 5mb}. Can be set to {@code -1} to disable it.
          */
         public Builder setBulkSize(ByteSizeValue bulkSize) {
             this.bulkSize = bulkSize;
@@ -129,7 +129,7 @@ public class BulkProcessor implements Closeable {
          * Sets a flush interval flushing *any* bulk actions pending if the interval passes. Defaults to not set.
          * <p>
          * Note, both {@link #setBulkActions(int)} and {@link #setBulkSize(org.elasticsearch.common.unit.ByteSizeValue)}
-         * can be set to <tt>-1</tt> with the flush interval set allowing for complete async processing of bulk actions.
+         * can be set to {@code -1} with the flush interval set allowing for complete async processing of bulk actions.
          */
         public Builder setFlushInterval(TimeValue flushInterval) {
             this.flushInterval = flushInterval;
@@ -248,24 +248,24 @@ public class BulkProcessor implements Closeable {
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      */
     public BulkProcessor add(IndexRequest request) {
-        return add((DocWriteRequest) request);
+        return add((DocWriteRequest<?>) request);
     }
 
     /**
      * Adds an {@link DeleteRequest} to the list of actions to execute.
      */
     public BulkProcessor add(DeleteRequest request) {
-        return add((DocWriteRequest) request);
+        return add((DocWriteRequest<?>) request);
     }
 
     /**
      * Adds either a delete or an index request.
      */
-    public BulkProcessor add(DocWriteRequest request) {
+    public BulkProcessor add(DocWriteRequest<?> request) {
         return add(request, null);
     }
 
-    public BulkProcessor add(DocWriteRequest request, @Nullable Object payload) {
+    public BulkProcessor add(DocWriteRequest<?> request, @Nullable Object payload) {
         internalAdd(request, payload);
         return this;
     }
@@ -280,7 +280,7 @@ public class BulkProcessor implements Closeable {
         }
     }
 
-    private synchronized void internalAdd(DocWriteRequest request, @Nullable Object payload) {
+    private synchronized void internalAdd(DocWriteRequest<?> request, @Nullable Object payload) {
         ensureOpen();
         bulkRequest.add(request, payload);
         executeIfNeeded();
@@ -299,7 +299,7 @@ public class BulkProcessor implements Closeable {
      */
     public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
                                           @Nullable String defaultPipeline, @Nullable Object payload, XContentType xContentType) throws Exception {
-        bulkRequest.add(data, defaultIndex, defaultType, null, null, null, defaultPipeline, payload, true, xContentType);
+        bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline, payload, true, xContentType);
         executeIfNeeded();
         return this;
     }

@@ -24,9 +24,14 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
@@ -36,6 +41,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 public class GeoUtils {
 
@@ -352,6 +358,55 @@ public class GeoUtils {
     }
 
     /**
+     * Parses the value as a geopoint. The following types of values are supported:
+     * <p>
+     * Object: has to contain either lat and lon or geohash fields
+     * <p>
+     * String: expected to be in "latitude, longitude" format or a geohash
+     * <p>
+     * Array: two or more elements, the first element is longitude, the second is latitude, the rest is ignored if ignoreZValue is true
+     */
+    public static GeoPoint parseGeoPoint(Object value, final boolean ignoreZValue) throws ElasticsearchParseException {
+        try {
+            XContentBuilder content = JsonXContent.contentBuilder();
+            content.startObject();
+            content.field("null_value", value);
+            content.endObject();
+
+            try (InputStream stream = BytesReference.bytes(content).streamInput();
+                 XContentParser parser = JsonXContent.jsonXContent.createParser(
+                     NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                parser.nextToken(); // start object
+                parser.nextToken(); // field name
+                parser.nextToken(); // field value
+                return parseGeoPoint(parser, new GeoPoint(), ignoreZValue);
+            }
+
+        } catch (IOException ex) {
+            throw new ElasticsearchParseException("error parsing geopoint", ex);
+        }
+    }
+
+    /**
+     * Represents the point of the geohash cell that should be used as the value of geohash
+     */
+    public enum EffectivePoint {
+        TOP_LEFT,
+        TOP_RIGHT,
+        BOTTOM_LEFT,
+        BOTTOM_RIGHT
+    }
+
+    /**
+     * Parse a geopoint represented as an object, string or an array. If the geopoint is represented as a geohash,
+     * the left bottom corner of the geohash cell is used as the geopoint coordinates.GeoBoundingBoxQueryBuilder.java
+     */
+    public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point, final boolean ignoreZValue)
+            throws IOException, ElasticsearchParseException {
+        return parseGeoPoint(parser, point, ignoreZValue, EffectivePoint.BOTTOM_LEFT);
+    }
+
+    /**
      * Parse a {@link GeoPoint} with a {@link XContentParser}. A geopoint has one of the following forms:
      *
      * <ul>
@@ -365,7 +420,7 @@ public class GeoUtils {
      * @param point A {@link GeoPoint} that will be reset by the values parsed
      * @return new {@link GeoPoint} parsed from the parse
      */
-    public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point, final boolean ignoreZValue)
+    public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point, final boolean ignoreZValue, EffectivePoint effectivePoint)
             throws IOException, ElasticsearchParseException {
         double lat = Double.NaN;
         double lon = Double.NaN;
@@ -422,7 +477,7 @@ public class GeoUtils {
                 if(!Double.isNaN(lat) || !Double.isNaN(lon)) {
                     throw new ElasticsearchParseException("field must be either lat/lon or geohash");
                 } else {
-                    return point.resetFromGeoHash(geohash);
+                    return parseGeoHash(point, geohash, effectivePoint);
                 }
             } else if (numberFormatException != null) {
                 throw new ElasticsearchParseException("[{}] and [{}] must be valid double values", numberFormatException, LATITUDE,
@@ -453,9 +508,33 @@ public class GeoUtils {
             }
             return point.reset(lat, lon);
         } else if(parser.currentToken() == Token.VALUE_STRING) {
-            return point.resetFromString(parser.text(), ignoreZValue);
+            String val = parser.text();
+            if (val.contains(",")) {
+                return point.resetFromString(val, ignoreZValue);
+            } else {
+                return parseGeoHash(point, val, effectivePoint);
+            }
+
         } else {
             throw new ElasticsearchParseException("geo_point expected");
+        }
+    }
+
+    private static GeoPoint parseGeoHash(GeoPoint point, String geohash, EffectivePoint effectivePoint) {
+        if (effectivePoint == EffectivePoint.BOTTOM_LEFT) {
+            return point.resetFromGeoHash(geohash);
+        } else {
+            Rectangle rectangle = GeoHashUtils.bbox(geohash);
+            switch (effectivePoint) {
+                case TOP_LEFT:
+                    return point.reset(rectangle.maxLat, rectangle.minLon);
+                case TOP_RIGHT:
+                    return point.reset(rectangle.maxLat, rectangle.maxLon);
+                case BOTTOM_RIGHT:
+                    return point.reset(rectangle.minLat, rectangle.maxLon);
+                default:
+                    throw new IllegalArgumentException("Unsupported effective point " + effectivePoint);
+            }
         }
     }
 

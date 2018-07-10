@@ -19,7 +19,6 @@
 package org.elasticsearch.join.aggregations;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -68,20 +67,12 @@ public class ChildrenIT extends ParentChildTestCase {
     @Before
     public void setupCluster() throws Exception {
         categoryToControl.clear();
-        if (legacy()) {
-            assertAcked(
-                prepareCreate("test")
-                    .addMapping("article", "category", "type=keyword")
-                    .addMapping("comment", "_parent", "type=article", "commenter", "type=keyword")
-            );
-        } else {
-            assertAcked(
-                prepareCreate("test")
-                    .addMapping("doc",
-                        addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "article", "comment"),
-                            "commenter", "keyword", "category", "keyword"))
-            );
-        }
+        assertAcked(
+            prepareCreate("test")
+                .addMapping("doc",
+                    addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "article", "comment"),
+                        "commenter", "keyword", "category", "keyword"))
+        );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         String[] uniqueCategories = new String[randomIntBetween(1, 25)];
@@ -189,7 +180,7 @@ public class ChildrenIT extends ParentChildTestCase {
                 .setQuery(matchQuery("randomized", false))
                 .addAggregation(
                         terms("category").field("category").size(10000).subAggregation(
-                        children("to_comment", "comment").subAggregation(topHits("top_comments").sort("_uid", SortOrder.ASC))
+                        children("to_comment", "comment").subAggregation(topHits("top_comments").sort("_id", SortOrder.ASC))
                         )
                 ).get();
         assertSearchResponse(searchResponse);
@@ -244,20 +235,12 @@ public class ChildrenIT extends ParentChildTestCase {
 
     public void testWithDeletes() throws Exception {
         String indexName = "xyz";
-        if (legacy()) {
-            assertAcked(
-                    prepareCreate(indexName)
-                            .addMapping("parent")
-                            .addMapping("child", "_parent", "type=parent", "count", "type=long")
-            );
-        } else {
-            assertAcked(
-                    prepareCreate(indexName)
-                        .addMapping("doc",
-                            addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"),
-                                "name", "keyword"))
-            );
-        }
+        assertAcked(
+                prepareCreate(indexName)
+                    .addMapping("doc",
+                        addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"),
+                            "name", "keyword"))
+        );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest(indexName, "parent", "1", null));
@@ -286,19 +269,11 @@ public class ChildrenIT extends ParentChildTestCase {
              * the updates cause that.
              */
             UpdateResponse updateResponse;
-            if (legacy()) {
-                updateResponse = client().prepareUpdate(indexName, "child", idToUpdate)
-                        .setParent("1")
-                        .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
-                        .setDetectNoop(false)
-                        .get();
-            } else {
-                updateResponse = client().prepareUpdate(indexName, "doc", idToUpdate)
-                        .setRouting("1")
-                        .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
-                        .setDetectNoop(false)
-                        .get();
-            }
+            updateResponse = client().prepareUpdate(indexName, "doc", idToUpdate)
+                    .setRouting("1")
+                    .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
+                    .setDetectNoop(false)
+                    .get();
             assertThat(updateResponse.getVersion(), greaterThan(1L));
             refresh();
         }
@@ -320,26 +295,15 @@ public class ChildrenIT extends ParentChildTestCase {
         String indexName = "prodcatalog";
         String masterType = "masterprod";
         String childType = "variantsku";
-        if (legacy()) {
-            assertAcked(
-                    prepareCreate(indexName)
-                            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put("index.version.created", Version.V_5_6_0)) // multi type
-                            .addMapping(masterType, "brand", "type=text", "name", "type=keyword", "material", "type=text")
-                            .addMapping(childType, "_parent", "type=masterprod", "color", "type=keyword", "size", "type=keyword")
-            );
-        } else {
-            assertAcked(
-                    prepareCreate(indexName)
-                        .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .addMapping("doc",
-                            addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
-                                masterType, childType),
-                                "brand", "text", "name", "keyword", "material", "text", "color", "keyword", "size", "keyword"))
-            );
-        }
+        assertAcked(
+                prepareCreate(indexName)
+                    .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                    .addMapping("doc",
+                        addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                            masterType, childType),
+                            "brand", "text", "name", "keyword", "material", "text", "color", "keyword", "size", "keyword"))
+        );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest(indexName, masterType, "1", null, "brand", "Levis", "name",
@@ -396,25 +360,13 @@ public class ChildrenIT extends ParentChildTestCase {
         String grandParentType = "continent";
         String parentType = "country";
         String childType = "city";
-        if (legacy()) {
-            assertAcked(
-                    prepareCreate(indexName)
-                            .setSettings(Settings.builder()
-                                .put("index.version.created", Version.V_5_6_0) // multi type
-                            ).addMapping(grandParentType, "name", "type=keyword")
-                            .addMapping(parentType, "_parent", "type=" + grandParentType)
-                            .addMapping(childType, "_parent", "type=" + parentType)
-
-            );
-        } else {
-            assertAcked(
-                    prepareCreate(indexName)
-                        .addMapping("doc",
-                            addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
-                                grandParentType, parentType, parentType, childType),
-                                "name", "keyword"))
-            );
-        }
+        assertAcked(
+                prepareCreate(indexName)
+                    .addMapping("doc",
+                        addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                            grandParentType, parentType, parentType, childType),
+                            "name", "keyword"))
+        );
 
         createIndexRequest(indexName, grandParentType, "1", null, "name", "europe").get();
         createIndexRequest(indexName, parentType, "2", "1", "name", "belgium").get();
@@ -451,21 +403,13 @@ public class ChildrenIT extends ParentChildTestCase {
 
         // Before we only evaluated segments that yielded matches in 'towns' and 'parent_names' aggs, which caused
         // us to miss to evaluate child docs in segments we didn't have parent matches for.
-        if (legacy()) {
-            assertAcked(
-                    prepareCreate("index")
-                            .addMapping("parentType", "name", "type=keyword", "town", "type=keyword")
-                            .addMapping("childType", "_parent", "type=parentType", "name", "type=keyword", "age", "type=integer")
-            );
-        } else {
-            assertAcked(
-                    prepareCreate("index")
-                        .addMapping("doc",
-                            addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
-                                "parentType", "childType"),
-                                "name", "keyword", "town", "keyword", "age", "integer"))
-            );
-        }
+        assertAcked(
+                prepareCreate("index")
+                    .addMapping("doc",
+                        addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                            "parentType", "childType"),
+                            "name", "keyword", "town", "keyword", "age", "integer"))
+        );
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("index", "parentType", "1", null, "name", "Bob", "town", "Memphis"));
         requests.add(createIndexRequest("index", "parentType", "2", null, "name", "Alice", "town", "Chicago"));

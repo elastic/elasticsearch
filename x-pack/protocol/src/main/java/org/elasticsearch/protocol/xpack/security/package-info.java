@@ -21,4 +21,4 @@
  * Request and Response objects for the default distribution's Security
  * APIs.
  */
-package org.elasticsearch.protocol.security;
+package org.elasticsearch.protocol.xpack.security;

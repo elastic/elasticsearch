@@ -19,9 +19,6 @@
 
 package org.elasticsearch.test.rest;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -34,11 +31,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-
-import static java.util.Collections.emptyMap;
 
 /**
  * Tests that wait for refresh is fired if the index is closed.

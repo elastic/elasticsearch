@@ -193,8 +193,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 }
             }
 
-            Collection<IndexMetaData> resolvedIndices = aliasOrIndex.getIndices();
-
             if (aliasOrIndex.isAlias() && context.isResolveToWriteIndex()) {
                 AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
                 IndexMetaData writeIndex = alias.getWriteIndex();
@@ -209,17 +207,17 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 }
                 concreteIndices.add(writeIndex.getIndex());
             } else {
-                if (resolvedIndices.size() > 1 && !options.allowAliasesToMultipleIndices()) {
-                    String[] indexNames = new String[resolvedIndices.size()];
+                if (aliasOrIndex.getIndices().size() > 1 && !options.allowAliasesToMultipleIndices()) {
+                    String[] indexNames = new String[aliasOrIndex.getIndices().size()];
                     int i = 0;
-                    for (IndexMetaData indexMetaData : resolvedIndices) {
+                    for (IndexMetaData indexMetaData : aliasOrIndex.getIndices()) {
                         indexNames[i++] = indexMetaData.getIndex().getName();
                     }
                     throw new IllegalArgumentException("Alias [" + expression + "] has more than one indices associated with it [" +
                         Arrays.toString(indexNames) + "], can't execute a single index op");
                 }
 
-                for (IndexMetaData index : resolvedIndices) {
+                for (IndexMetaData index : aliasOrIndex.getIndices()) {
                     if (index.getState() == IndexMetaData.State.CLOSE) {
                         if (failClosed) {
                             throw new IndexClosedException(index.getIndex());

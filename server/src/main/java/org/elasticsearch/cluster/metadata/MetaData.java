@@ -38,7 +38,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
@@ -62,6 +61,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -472,8 +472,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     /**
-     * Returns indexing routing for the given index. If <code>aliasOrIndex</code> points to
-     * multiple indices and any of those indices define index routing, an exception is thrown.
+     * Returns indexing routing for the given index.
      */
     // TODO: This can be moved to IndexNameExpressionResolver too, but this means that we will support wildcards and other expressions
     // in the index,bulk,update and delete apis.
@@ -487,34 +486,32 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return routing;
         }
         AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
-
-        List<String> indexReferencesWithRouting = new ArrayList<>();
-        for (Tuple<String, AliasMetaData> tuple : alias.getConcreteIndexAndAliasMetaDatas()) {
-            if (tuple.v2().indexRouting() != null) {
-                indexReferencesWithRouting.add(tuple.v1());
-            }
-        }
-
-        if (indexReferencesWithRouting.isEmpty()) {
-            return routing;
-        }
-
         if (result.getIndices().size() > 1) {
-            throw new IllegalArgumentException("Alias [" + alias.getAliasName() + "] references multiple indices and provides an index" +
-                " routing for index [" + Strings.collectionToDelimitedString(indexReferencesWithRouting, ",") + "]");
+            rejectSingleIndexOperation(aliasOrIndex, result);
         }
-
         AliasMetaData aliasMd = alias.getFirstAliasMetaData();
-        if (aliasMd.indexRouting().indexOf(',') != -1) {
-            throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
-        }
-        if (routing != null) {
-            if (!routing.equals(aliasMd.indexRouting())) {
-                throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
+        if (aliasMd.indexRouting() != null) {
+            if (aliasMd.indexRouting().indexOf(',') != -1) {
+                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
             }
+            if (routing != null) {
+                if (!routing.equals(aliasMd.indexRouting())) {
+                    throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
+                }
+            }
+            // Alias routing overrides the parent routing (if any).
+            return aliasMd.indexRouting();
         }
-        // Alias routing overrides the parent routing (if any).
-        return aliasMd.indexRouting();
+        return routing;
+    }
+
+    private void rejectSingleIndexOperation(String aliasOrIndex, AliasOrIndex result) {
+        String[] indexNames = new String[result.getIndices().size()];
+        int i = 0;
+        for (IndexMetaData indexMetaData : result.getIndices()) {
+            indexNames[i++] = indexMetaData.getIndex().getName();
+        }
+        throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexNames) + "], can't execute a single index op");
     }
 
     public boolean hasIndex(String index) {

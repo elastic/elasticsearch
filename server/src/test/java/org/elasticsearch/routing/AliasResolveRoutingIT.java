@@ -98,20 +98,6 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         } catch (IllegalArgumentException ex) {
             // Expected
         }
-
-        // test alias pointing to multiple indices safely
-        client().admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("test2").alias("alias")
-            .writeIndex(randomFrom(false, true, null))).get();
-        String routing = clusterService().state().metaData().resolveIndexRouting("1", "alias");
-        assertThat(routing, equalTo("1"));
-
-        // test alias pointing to multiple indices with one routing value specified
-        client().admin().indices().prepareAliases().addAliasAction(
-            AliasActions.add().index("test2").alias("alias").indexRouting("exists")).get();
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> clusterService().state().metaData().resolveIndexRouting("1", "alias"));
-        assertThat(exception.getMessage(),
-            equalTo("Alias [alias] references multiple indices and provides an index routing for index [test2]"));
     }
 
     public void testResolveSearchRouting() {

@@ -125,6 +125,14 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(exception.getMessage(),
             equalTo("Alias [alias1] points to multiple indices with none set as a write-index [is_write_index=true]"));
 
+        logger.info("--> remove aliasing index [test_x] with [alias1]");
+        assertAcked(admin().indices().prepareAliases().removeAlias("test_x", "alias1"));
+
+        logger.info("--> indexing against [alias1], should work now");
+        indexResponse = client().index(indexRequest("alias1").type("type1").id("1")
+            .source(source("1", "test"), XContentType.JSON)).actionGet();
+        assertThat(indexResponse.getIndex(), equalTo("test"));
+
         logger.info("--> add index [test_x] with [alias1] as write-index");
         assertAcked(admin().indices().prepareAliases().addAlias("test_x", "alias1", true));
 

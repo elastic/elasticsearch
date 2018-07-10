@@ -221,7 +221,7 @@ public class XPackLicenseState {
         switch (newMode) {
             case BASIC:
                 if (isBasic(currentMode) == false) {
-                    return new String[] { "Beats will no longer poll for centrally-managed configuration" };
+                    return new String[] { "Beats will no longer be able to use centrally-managed configuration" };
                 }
                 break;
         }

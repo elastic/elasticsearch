@@ -271,7 +271,10 @@ if (useFixture && minioDistribution) {
   integTestMinioRunner.dependsOn(startMinio)
   integTestMinioRunner.finalizedBy(stopMinio)
   // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
-  integTestMinioRunner.systemProperty 'tests.rest.blacklist', 'repository_s3/30_repository_temporary_credentials/*'
+  integTestMinioRunner.systemProperty 'tests.rest.blacklist', [
+          'repository_s3/30_repository_temporary_credentials/*',
+          'repository_s3/40_repository_ec2_credentials/*'
+        ].join(",")
 
   project.check.dependsOn(integTestMinio)
 }

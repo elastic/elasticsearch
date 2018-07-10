@@ -31,6 +31,7 @@ import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * This context should implement the specific logic for a channel. When a channel receives a notification
@@ -47,20 +48,29 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     protected final InboundChannelBuffer channelBuffer;
     protected final AtomicBoolean isClosing = new AtomicBoolean(false);
     private final ReadWriteHandler readWriteHandler;
+    private final Predicate<NioSocketChannel> allowChannelPredicate;
     private final NioSelector selector;
     private final CompletableContext<Void> connectContext = new CompletableContext<>();
     private final LinkedList<FlushOperation> pendingFlushes = new LinkedList<>();
     private boolean ioException;
     private boolean peerClosed;
+    private boolean closeNow;
     private Exception connectException;
 
     protected SocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
                                    ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
+        this(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, (c) -> true);
+    }
+
+    protected SocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
+                                   ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer,
+                                   Predicate<NioSocketChannel> allowChannelPredicate) {
         super(channel.getRawChannel(), exceptionHandler);
         this.selector = selector;
         this.channel = channel;
         this.readWriteHandler = readWriteHandler;
         this.channelBuffer = channelBuffer;
+        this.allowChannelPredicate = allowChannelPredicate;
     }
 
     @Override
@@ -159,6 +169,14 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     protected FlushOperation getPendingFlush() {
         return pendingFlushes.peekFirst();
+    }
+
+    @Override
+    protected void register() throws IOException {
+        super.register();
+        if (allowChannelPredicate.test(channel)) {
+            closeNow = true;
+        }
     }
 
     @Override

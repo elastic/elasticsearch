@@ -55,7 +55,6 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
  */
 public class SecurityNioTransport extends NioTransport {
 
-    private final SSLConfiguration sslConfiguration;
     private final IPFilter authenticator;
     private final SSLService sslService;
     private final Map<String, SSLConfiguration> profileConfiguration;
@@ -70,7 +69,6 @@ public class SecurityNioTransport extends NioTransport {
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
         if (sslEnabled) {
-            this.sslConfiguration = sslService.sslConfiguration(transportSSLSettings, Settings.EMPTY);
             Map<String, Settings> profileSettingsMap = settings.getGroups("transport.profiles.", true);
             Map<String, SSLConfiguration> profileConfiguration = new HashMap<>(profileSettingsMap.size() + 1);
             for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
@@ -81,7 +79,7 @@ public class SecurityNioTransport extends NioTransport {
             }
 
             if (profileConfiguration.containsKey(TcpTransport.DEFAULT_PROFILE) == false) {
-                profileConfiguration.put(TcpTransport.DEFAULT_PROFILE, sslConfiguration);
+                profileConfiguration.put(TcpTransport.DEFAULT_PROFILE, sslService.sslConfiguration(transportSSLSettings, Settings.EMPTY));
             }
 
             this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);

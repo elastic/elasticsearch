@@ -104,6 +104,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -115,8 +116,10 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.StringJoiner;
+import java.util.stream.Collectors;
 
 final class RequestConverters {
     static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
@@ -834,6 +837,22 @@ final class RequestConverters {
         return request;
     }
 
+    static Request getIndex(GetIndexRequest getIndexRequest) {
+        String[] indices = getIndexRequest.indices() == null ? Strings.EMPTY_ARRAY : getIndexRequest.indices();
+
+        String endpoint = endpoint(indices);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params params = new Params(request);
+        params.withIndicesOptions(getIndexRequest.indicesOptions());
+        params.withLocal(getIndexRequest.local());
+        params.withIncludeDefaults(getIndexRequest.includeDefaults());
+        params.withHuman(getIndexRequest.humanReadable());
+        params.withMasterTimeout(getIndexRequest.masterNodeTimeout());
+
+        return request;
+    }
+
     static Request indicesExist(GetIndexRequest getIndexRequest) {
         // this can be called with no indices as argument by transport client, not via REST though
         if (getIndexRequest.indices() == null || getIndexRequest.indices().length == 0) {
@@ -1047,6 +1066,19 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withTimeout(deleteStoredScriptRequest.timeout());
         params.withMasterTimeout(deleteStoredScriptRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request xPackInfo(XPackInfoRequest infoRequest) {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");
+        if (false == infoRequest.isVerbose()) {
+            request.addParameter("human", "false");
+        }
+        if (false == infoRequest.getCategories().equals(EnumSet.allOf(XPackInfoRequest.Category.class))) {
+            request.addParameter("categories", infoRequest.getCategories().stream()
+                    .map(c -> c.toString().toLowerCase(Locale.ROOT))
+                    .collect(Collectors.joining(",")));
+        }
         return request;
     }
 

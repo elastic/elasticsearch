@@ -7,3 +7,4 @@
 
 ES_BUILD_JAVA:
   - java10
+  - java11

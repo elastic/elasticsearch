@@ -10,10 +10,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.license.XPackInfoResponse;
-import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
+import org.elasticsearch.protocol.license.LicenseStatus;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 
@@ -52,15 +55,15 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             featureSets.add(fs);
         }
 
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null, Collections.emptySet());
+        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         TransportXPackInfoAction action = new TransportXPackInfoAction(Settings.EMPTY, transportService,
             mock(ActionFilters.class), licenseService, featureSets);
 
         License license = mock(License.class);
         long expiryDate = randomLong();
         when(license.expiryDate()).thenReturn(expiryDate);
-        License.Status status = randomFrom(License.Status.values());
+        LicenseStatus status = randomFrom(LicenseStatus.values());
         when(license.status()).thenReturn(status);
         String type = randomAlphaOfLength(10);
         when(license.type()).thenReturn(type);

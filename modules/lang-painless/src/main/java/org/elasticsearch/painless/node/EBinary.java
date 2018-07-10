@@ -21,8 +21,8 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.def;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -106,7 +106,7 @@ public final class EBinary extends AExpression {
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply multiply [*] to types " +
-                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
+                "[" + PainlessLookup.ClassToName(left.actual) + "] and [" + PainlessLookup.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;
@@ -148,7 +148,7 @@ public final class EBinary extends AExpression {
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply divide [/] to types " +
-                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
+                "[" + PainlessLookup.ClassToName(left.actual) + "] and [" + PainlessLookup.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;
@@ -195,7 +195,7 @@ public final class EBinary extends AExpression {
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply remainder [%] to types " +
-                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
+                "[" + PainlessLookup.ClassToName(left.actual) + "] and [" + PainlessLookup.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;
@@ -242,7 +242,7 @@ public final class EBinary extends AExpression {
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply add [+] to types " +
-                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
+                "[" + PainlessLookup.ClassToName(left.actual) + "] and [" + PainlessLookup.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;
@@ -300,7 +300,7 @@ public final class EBinary extends AExpression {
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply subtract [-] to types " +
-                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
+                "[" + PainlessLookup.ClassToName(left.actual) + "] and [" + PainlessLookup.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;
@@ -358,7 +358,7 @@ public final class EBinary extends AExpression {
 
         if (lhspromote == null || rhspromote == null) {
             throw createError(new ClassCastException("Cannot apply left shift [<<] to types " +
-                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
+                "[" + PainlessLookup.ClassToName(left.actual) + "] and [" + PainlessLookup.ClassToName(right.actual) + "]."));
         }
 
         actual = promote = lhspromote;
@@ -405,7 +405,7 @@ public final class EBinary extends AExpression {
 
         if (lhspromote == null || rhspromote == null) {
             throw createError(new ClassCastException("Cannot apply right shift [>>] to types " +
-                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
+                "[" + PainlessLookup.ClassToName(left.actual) + "] and [" + PainlessLookup.ClassToName(right.actual) + "]."));
         }
 
         actual = promote = lhspromote;
@@ -455,7 +455,7 @@ public final class EBinary extends AExpression {
 
         if (lhspromote == null || rhspromote == null) {
             throw createError(new ClassCastException("Cannot apply unsigned shift [>>>] to types " +
-                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
+                "[" + PainlessLookup.ClassToName(left.actual) + "] and [" + PainlessLookup.ClassToName(right.actual) + "]."));
         }
 
         if (lhspromote == def.class || rhspromote == def.class) {
@@ -498,7 +498,7 @@ public final class EBinary extends AExpression {
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply and [&] to types " +
-                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
+                "[" + PainlessLookup.ClassToName(left.actual) + "] and [" + PainlessLookup.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;
@@ -537,7 +537,7 @@ public final class EBinary extends AExpression {
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply xor [^] to types " +
-                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
+                "[" + PainlessLookup.ClassToName(left.actual) + "] and [" + PainlessLookup.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;
@@ -577,7 +577,7 @@ public final class EBinary extends AExpression {
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply or [|] to types " +
-                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
+                "[" + PainlessLookup.ClassToName(left.actual) + "] and [" + PainlessLookup.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;

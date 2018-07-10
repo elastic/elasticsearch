@@ -18,12 +18,14 @@
  */
 
 
+
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 
-import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
+import java.nio.charset.StandardCharsets
 
+import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
 /**
  * This is a dummy project which does a local checkout of the previous
  * wire compat version's branch, and builds a snapshot. This allows backcompat
@@ -147,12 +149,16 @@ subprojects {
 
   task buildBwcVersion(type: Exec) {
     dependsOn checkoutBwcBranch, writeBuildMetadata
+    // send RUNTIME_JAVA_HOME so the build doesn't fails on newer version the branch doesn't know about
+    environment('RUNTIME_JAVA_HOME', getJavaHome(it, rootProject.ext.minimumRuntimeVersion.getMajorVersion() as int))
     workingDir = checkoutDir
+    // we are building branches that are officially built with JDK 8, push JAVA8_HOME to JAVA_HOME for these builds
     if (["5.6", "6.0", "6.1"].contains(bwcBranch)) {
-      // we are building branches that are officially built with JDK 8, push JAVA8_HOME to JAVA_HOME for these builds
       environment('JAVA_HOME', getJavaHome(it, 8))
     } else if ("6.2".equals(bwcBranch)) {
       environment('JAVA_HOME', getJavaHome(it, 9))
+    } else if (["6.3", "6.x"].contains(bwcBranch)) {
+      environment('JAVA_HOME', getJavaHome(it, 10))
     } else {
       environment('JAVA_HOME', project.compilerJavaHome)
     }
@@ -177,6 +183,8 @@ subprojects {
     } else if (showStacktraceName.equals("ALWAYS_FULL")) {
       args "--full-stacktrace"
     }
+    standardOutput = new IndentingOutputStream(System.out)
+    errorOutput = new IndentingOutputStream(System.err)
     doLast {
       List missing = artifactFiles.grep { file ->
         false == file.exists()
@@ -193,6 +201,30 @@ subprojects {
       String artifactName = artifactFile.name.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
       String suffix = artifactFile.toString()[-3..-1]
       'default' file: artifactFile, name: artifactName, type: suffix, builtBy: buildBwcVersion
+    }
+  }
+}
+
+class IndentingOutputStream extends OutputStream {
+
+  public static final byte[] INDENT = "  [bwc] ".getBytes(StandardCharsets.UTF_8)
+  private final OutputStream delegate
+
+  public IndentingOutputStream(OutputStream delegate) {
+      this.delegate = delegate
+  }
+
+  @Override
+  public void write(int b) {
+    write([b] as int[], 0, 1)
+  }
+
+  public void write(int[] bytes, int offset, int length) {
+    for (int i = 0; i < bytes.length; i++) {
+      delegate.write(bytes[i])
+      if (bytes[i] == '\n') {
+        delegate.write(INDENT)
+      }
     }
   }
 }

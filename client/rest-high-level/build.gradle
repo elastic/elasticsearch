@@ -18,7 +18,8 @@
  */
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.artifacts.ResolvedDependency
+import org.gradle.api.XmlProvider
+import org.gradle.api.publish.maven.MavenPublication
 
 buildscript {
   repositories {
@@ -42,8 +43,29 @@ archivesBaseName = 'elasticsearch-rest-high-level-client'
 
 publishing {
   publications {
-    nebula {
+    println("ASDFA now!")
+    nebula(MavenPublication) {
+      artifact shadowJar
       artifactId = archivesBaseName
+      /*
+       * Configure the pom to include the "shadow" as compile dependencies
+       * because that is how we're using them but remove all other dependencies
+       * because they've been shaded into the jar.
+       */
+      pom.withXml { XmlProvider xml ->
+        Node root = xml.asNode()
+        root.remove(root.dependencies)
+        Node dependenciesNode = root.appendNode('dependencies')
+        project.configurations.shadow.allDependencies.each {
+          if (false == it instanceof SelfResolvingDependency) {
+            Node dependencyNode = dependenciesNode.appendNode('dependency')
+            dependencyNode.appendNode('groupId', it.group)
+            dependencyNode.appendNode('artifactId', it.name)
+            dependencyNode.appendNode('version', it.version)
+            dependencyNode.appendNode('scope', 'compile')
+          }
+        }
+      }
     }
   }
 }
@@ -105,10 +127,6 @@ shadowJar {
 
 // We don't need normal jar, we use shadow jar instead
 jar.enabled = false
-
-artifacts  {
-  archives shadowJar
-}
 assemble.dependsOn shadowJar
 
 javadoc {

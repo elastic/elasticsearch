@@ -5,15 +5,19 @@ plugins {
 elasticsearchNodes {
     myTestCluster {
         distribution = 'ZIP'
-        version = '6.2.0'
+        version = '6.3.0'
     }
 }
 
-//allprojects {
-    repositories {
-        mavenCentral()
+repositories {
+    maven {
+        url "https://artifacts.elastic.co/maven"
     }
-//}
+    maven {
+        url "https://snapshots.elastic.co/maven"
+    }
+}
+
 
 task user1 {
     clusterFormation.use elasticsearchNodes.myTestCluster

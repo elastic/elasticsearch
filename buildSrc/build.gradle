@@ -48,7 +48,9 @@ if (JavaVersion.current() < JavaVersion.VERSION_1_9) {
 if (project == rootProject) {
   // change the build dir used during build init, so that doing a clean
   // won't wipe out the buildscript jar
-  buildDir = 'build-bootstrap'
+  if ((System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')) == false) {
+    buildDir = 'build-bootstrap'
+  }
 }
 
 // Make sure :buildSrc: doesn't generate classes incompatible with RUNTIME_JAVA_HOME

@@ -209,30 +209,32 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
         writeConfigFile();
 
         logger.info("Running `bin/elasticsearch` in `{}`", getWorkDir());
+        final ProcessBuilder processBuilder = new ProcessBuilder();
         if (current().isWindows()) {
-            // TODO support windows
-            logger.lifecycle("Windows is not supported at this time");
+            processBuilder.command("cmd.exe", "/C", "bin\\elasticsearch.bat");
         } else {
-            try {
-                ProcessBuilder processBuilder = new ProcessBuilder()
-                    .command("bin/elasticsearch")
-                    .directory(getWorkDir());
-                Map<String, String> environment = processBuilder.environment();
-                environment.clear();
-                if (javaHome != null) {
-                    environment.put("JAVA_HOME", javaHome.getAbsolutePath());
-                }
-                environment.put("ES_PATH_CONF", getConfigFile().getParentFile().getAbsolutePath());
-                environment.put("ES_JAVA_OPTIONS", "-Xms512m -Xmx512m");
-                // don't buffer all in memory, make sure we don't block on the default pipes
-                processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(getStdErrFile()));
-                processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(getStdoutFile()));
-
-                esProcess = processBuilder.start();
-            } catch (IOException e) {
-                throw new ClusterFormationException("Failed to start ES process", e);
-            }
+            processBuilder.command("bin/elasticsearch");
         }
+        try {
+            processBuilder.directory(getWorkDir());
+            Map<String, String> environment = processBuilder.environment();
+            environment.clear();
+            if (javaHome != null) {
+                environment.put("JAVA_HOME", javaHome.getAbsolutePath());
+            } else if (System.getenv().get("JAVA_HOME") != null) {
+                environment.put("JAVA_HOME", System.getenv().get("JAVA_HOME"));
+            }
+            environment.put("ES_PATH_CONF", getConfigFile().getParentFile().getAbsolutePath());
+            environment.put("ES_JAVA_OPTIONS", "-Xms512m -Xmx512m");
+
+            // don't buffer all in memory, make sure we don't block on the default pipes
+            processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(getStdErrFile()));
+            processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(getStdoutFile()));
+            esProcess = processBuilder.start();
+        } catch (IOException e) {
+            throw new ClusterFormationException("Failed to start ES process", e);
+        }
+
         registerCleanupHooks();
     }
 
@@ -309,7 +311,8 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
     private void waitForClusterHealthYellow() {
         if (started.get() == false) {
             throw new ClusterFormationException(
-                "`" + name + "` is not started. Elasticsearch is started at execution time automatically when `clusterFormation.use` is used."
+                "`" + name + "` is not started. " +
+                    "Elasticsearch is started at execution time automatically when `clusterFormation.use` is used."
             );
         }
         try {
@@ -383,7 +386,7 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
         }
     }
 
-    private List<String> getHttpPortInternal()  {
+    private List<String> getHttpPortInternal() {
         try {
             return readPortsFile(getHttpPortsFile());
         } catch (IOException e) {
@@ -408,7 +411,7 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
                 break;
             }
             logger.debug("waiting... {} - {} ({}) < {}",
-                System.currentTimeMillis(), startedAt,System.currentTimeMillis() - startedAt,
+                System.currentTimeMillis(), startedAt, System.currentTimeMillis() - startedAt,
                 TimeUnit.MILLISECONDS.convert(totalWaitTimeout, totalWaitTimeoutUnit)
             );
             Thread.sleep(500);
@@ -479,10 +482,6 @@ class ElasticsearchNode implements ElasticsearchConfigurationInternal {
     }
 
     private void doStop() {
-        if (current().isWindows()) {
-            return;
-        }
-
         if (esProcess.isAlive()) {
             logProcessInfo("Elasticsearch Process:", esProcess.info());
             esProcess.children().forEach(child -> logProcessInfo("Child Process:", child.info()));

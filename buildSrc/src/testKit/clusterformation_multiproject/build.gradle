@@ -4,14 +4,19 @@ plugins {
 
 allprojects {
     repositories {
-        mavenCentral()
+        maven {
+            url "https://artifacts.elastic.co/maven"
+        }
+        maven {
+            url "https://snapshots.elastic.co/maven"
+        }
     }
 }
 
 elasticsearchNodes {
     myTestCluster {
         distribution = 'ZIP'
-        version = '6.2.0'
+        version = '6.3.0'
     }
 }
 

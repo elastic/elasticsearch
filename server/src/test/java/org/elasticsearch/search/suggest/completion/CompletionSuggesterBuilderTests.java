@@ -48,7 +48,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     private static final Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
     private static String categoryContextName;
     private static String geoQueryContextName;
-    private static List<ContextMapping> contextMappings = new ArrayList<>();
+    private static List<ContextMapping<?>> contextMappings = new ArrayList<>();
 
     @Override
     protected CompletionSuggestionBuilder randomSuggestionBuilder() {

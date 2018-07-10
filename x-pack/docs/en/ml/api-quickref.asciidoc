@@ -1,5 +1,6 @@
+[role="xpack"]
 [[ml-api-quickref]]
-== API Quick Reference
+== API quick reference
 
 All {ml} endpoints have the following base:
 
@@ -7,6 +8,7 @@ All {ml} endpoints have the following base:
 ----
 /_xpack/ml/
 ----
+// NOTCONSOLE
 
 The main {ml} resources can be accessed with a variety of endpoints:
 

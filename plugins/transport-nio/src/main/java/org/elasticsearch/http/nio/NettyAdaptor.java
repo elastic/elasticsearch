@@ -29,6 +29,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.nio.FlushOperation;
+import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.WriteOperation;
 
 import java.nio.ByteBuffer;
@@ -53,12 +54,7 @@ public class NettyAdaptor implements AutoCloseable {
                 try {
                     ByteBuf message = (ByteBuf) msg;
                     promise.addListener((f) -> message.release());
-                    NettyListener listener;
-                    if (promise instanceof NettyListener) {
-                        listener = (NettyListener) promise;
-                    } else {
-                        listener = new NettyListener(promise);
-                    }
+                    NettyListener listener = NettyListener.fromChannelPromise(promise);
                     flushOperations.add(new FlushOperation(message.nioBuffers(), listener));
                 } catch (Exception e) {
                     promise.setFailure(e);
@@ -102,23 +98,19 @@ public class NettyAdaptor implements AutoCloseable {
         return byteBuf.readerIndex() - initialReaderIndex;
     }
 
+    public int read(InboundChannelBuffer.Page[] pages) {
+        ByteBuf byteBuf = PagedByteBuf.byteBufFromPages(pages);
+        int readableBytes = byteBuf.readableBytes();
+        nettyChannel.writeInbound(byteBuf);
+        return readableBytes;
+    }
+
     public Object pollInboundMessage() {
         return nettyChannel.readInbound();
     }
 
     public void write(WriteOperation writeOperation) {
-        ChannelPromise channelPromise = nettyChannel.newPromise();
-        channelPromise.addListener(f -> {
-            BiConsumer<Void, Throwable> consumer = writeOperation.getListener();
-            if (f.cause() == null) {
-                consumer.accept(null, null);
-            } else {
-                ExceptionsHelper.dieOnError(f.cause());
-                consumer.accept(null, f.cause());
-            }
-        });
-
-        nettyChannel.writeAndFlush(writeOperation.getObject(), new NettyListener(channelPromise));
+        nettyChannel.writeAndFlush(writeOperation.getObject(), NettyListener.fromBiConsumer(writeOperation.getListener(), nettyChannel));
     }
 
     public FlushOperation pollOutboundOperation() {

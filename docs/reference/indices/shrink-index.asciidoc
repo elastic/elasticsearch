@@ -62,7 +62,7 @@ the following request:
 
 [source,js]
 --------------------------------------------------
-POST my_source_index/_shrink/my_target_index?copy_settings=true
+POST my_source_index/_shrink/my_target_index
 {
   "settings": {
     "index.routing.allocation.require._name": null, <1>
@@ -106,7 +106,7 @@ and accepts `settings` and `aliases` parameters for the target index:
 
 [source,js]
 --------------------------------------------------
-POST my_source_index/_shrink/my_target_index?copy_settings=true
+POST my_source_index/_shrink/my_target_index
 {
   "settings": {
     "index.number_of_replicas": 1,
@@ -129,16 +129,6 @@ POST my_source_index/_shrink/my_target_index?copy_settings=true
 
 
 NOTE: Mappings may not be specified in the `_shrink` request.
-
-NOTE: By default, with the exception of `index.analysis`, `index.similarity`,
-and `index.sort` settings, index settings on the source index are not copied
-during a shrink operation. With the exception of non-copyable settings, settings
-from the source index can be copied to the target index by adding the URL
-parameter `copy_settings=true` to the request. Note that `copy_settings` can not
-be set to `false`. The parameter `copy_settings` will be removed in 8.0.0
-
-deprecated[6.4.0, not copying settings is deprecated, copying settings will be
-the default behavior in 7.x]
 
 [float]
 === Monitoring the shrink process

@@ -109,6 +109,12 @@ GET _search
 --------------------------------------------------
 // CONSOLE 
 
+Note that if the date misses some of the year, month and day coordinates, the
+missing parts are filled with the start of
+https://en.wikipedia.org/wiki/Unix_time[unix time], which is January 1st, 1970.
+This means, that when e.g. specifying `dd` as the format, a value like `"gte" : 10`
+will translate to `1970-01-10T00:00:00.000Z`.
+
 ===== Time zone in range queries
 
 Dates can be converted from another timezone to UTC either by specifying the

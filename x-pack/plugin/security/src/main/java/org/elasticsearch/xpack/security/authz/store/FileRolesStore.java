@@ -87,7 +87,7 @@ public class FileRolesStore extends AbstractComponent {
     }
 
     public Map<String, Object> usageStats() {
-        Map<String, Object> usageStats = new HashMap<>();
+        Map<String, Object> usageStats = new HashMap<>(3);
         usageStats.put("size", permissions.size());
 
         boolean dls = false;

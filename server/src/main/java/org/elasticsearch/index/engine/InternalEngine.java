@@ -65,6 +65,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
@@ -72,8 +73,10 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -421,10 +424,15 @@ public class InternalEngine extends Engine {
         return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier, engineConfig.getPrimaryTermSupplier());
     }
 
-    @Override
+    // Package private for testing purposes only
     Translog getTranslog() {
         ensureOpen();
         return translog;
+    }
+
+    @Override
+    public boolean isTranslogSyncNeeded() {
+        return getTranslog().syncNeeded();
     }
 
     @Override
@@ -440,6 +448,31 @@ public class InternalEngine extends Engine {
     public void syncTranslog() throws IOException {
         translog.sync();
         revisitIndexDeletionPolicyOnTranslogSynced();
+    }
+
+    @Override
+    public Closeable acquireTranslogRetentionLock() {
+        return getTranslog().acquireRetentionLock();
+    }
+
+    @Override
+    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
+        return getTranslog().newSnapshotFromMinSeqNo(minSeqNo);
+    }
+
+    @Override
+    public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
+        return getTranslog().estimateTotalOperationsFromMinSeq(minSeqNo);
+    }
+
+    @Override
+    public TranslogStats getTranslogStats() {
+        return getTranslog().stats();
+    }
+
+    @Override
+    public Translog.Location getTranslogLastWriteLocation() {
+        return getTranslog().getLastWriteLocation();
     }
 
     private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
@@ -1552,7 +1585,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void trimTranslog() throws EngineException {
+    public void trimUnreferencedTranslogFiles() throws EngineException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             translog.trimUnreferencedReaders();
@@ -1566,6 +1599,29 @@ public class InternalEngine extends Engine {
                 e.addSuppressed(inner);
             }
             throw new EngineException(shardId, "failed to trim translog", e);
+        }
+    }
+
+    @Override
+    public boolean shouldRollTranslogGeneration() {
+        return getTranslog().shouldRollGeneration();
+    }
+
+    @Override
+    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            translog.trimOperations(belowTerm, aboveSeqNo);
+        } catch (AlreadyClosedException e) {
+            failOnTragicEvent(e);
+            throw e;
+        } catch (Exception e) {
+            try {
+                failEngine("translog operations trimming failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new EngineException(shardId, "failed to trim translog operations", e);
         }
     }
 
@@ -2167,8 +2223,34 @@ public class InternalEngine extends Engine {
         return mergeScheduler.stats();
     }
 
-    public final LocalCheckpointTracker getLocalCheckpointTracker() {
+    // Used only for testing! Package private to prevent anyone else from using it
+    LocalCheckpointTracker getLocalCheckpointTracker() {
         return localCheckpointTracker;
+    }
+
+    @Override
+    public long getLastSyncedGlobalCheckpoint() {
+        return getTranslog().getLastSyncedGlobalCheckpoint();
+    }
+
+    @Override
+    public long getLocalCheckpoint() {
+        return localCheckpointTracker.getCheckpoint();
+    }
+
+    @Override
+    public void waitForOpsToComplete(long seqNo) throws InterruptedException {
+        localCheckpointTracker.waitForOpsToComplete(seqNo);
+    }
+
+    @Override
+    public void resetLocalCheckpoint(long localCheckpoint) {
+        localCheckpointTracker.resetCheckpoint(localCheckpoint);
+    }
+
+    @Override
+    public SeqNoStats getSeqNoStats(long globalCheckpoint) {
+        return localCheckpointTracker.getStats(globalCheckpoint);
     }
 
     /**

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -15,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription.DataFormat;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
@@ -256,7 +254,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
             } else if (randomBoolean()) {
                 format = DataDescription.EPOCH_MS;
             } else {
-                format = "yyy.MM.dd G 'at' HH:mm:ss z";
+                format = "yyyy-MM-dd HH:mm:ss.SSS";
             }
             dataDescription.setTimeFormat(format);
         }

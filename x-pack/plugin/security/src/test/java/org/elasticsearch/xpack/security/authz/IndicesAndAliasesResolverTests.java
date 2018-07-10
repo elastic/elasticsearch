@@ -39,10 +39,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -149,7 +151,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices(authorizedIndices).privileges("all").build() }, null));
         roleMap.put("dash", new RoleDescriptor("dash", null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices(dashIndices).privileges("all").build() }, null));
-        roleMap.put("test", new RoleDescriptor("role", new String[] { "monitor" }, null, null));
+        roleMap.put("test", new RoleDescriptor("test", new String[] { "monitor" }, null, null));
+        roleMap.put("alias_read_write", new RoleDescriptor("alias_read_write", null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("barbaz", "foofoobar").privileges("read", "write").build() },
+            null));
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         doAnswer((i) -> {
@@ -651,7 +656,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.addAliasAction(AliasActions.add().alias("alias2").index("bar*"));
         request.addAliasAction(AliasActions.add().alias("alias3").index("non_matching_*"));
         //if a single operation contains wildcards and ends up being resolved to no indices, it makes the whole request fail
-        expectThrows(IndexNotFoundException.class, 
+        expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME)));
     }
 
@@ -1180,10 +1185,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertNoIndices(request, resolveIndices(request,
                     buildAuthorizedIndices(userNoIndices, IndicesExistsAction.NAME)));
         }
-        
+
         {
             IndicesExistsRequest request = new IndicesExistsRequest("does_not_exist");
-            
+
             assertNoIndices(request, resolveIndices(request,
                     buildAuthorizedIndices(user, IndicesExistsAction.NAME)));
         }
@@ -1228,7 +1233,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
             assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_INDEX_NAME)));
         }
-        
+
         {
             IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
             aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias1").index("*"));
@@ -1315,6 +1320,21 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder("foo", "foofoo"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("<datetime-{now/M}>"));
+    }
+
+    public void testDynamicPutMappingRequestFromAlias() {
+        PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index("foofoo", UUIDs.base64UUID()));
+        User user = new User("alias-writer", "alias_read_write");
+        AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, PutMappingAction.NAME);
+
+        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices, metaData);
+        assertEquals("barbaz", putMappingIndexOrAlias);
+
+        // multiple indices map to an alias so we can only return the concrete index
+        final String index = randomFrom("foo", "foobar");
+        request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
+        putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices, metaData);
+        assertEquals(index, putMappingIndexOrAlias);
     }
 
     // TODO with the removal of DeleteByQuery is there another way to test resolving a write action?

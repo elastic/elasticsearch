@@ -171,8 +171,6 @@ public final class InternalTestCluster extends TestCluster {
     static final int DEFAULT_MIN_NUM_CLIENT_NODES = 0;
     static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
 
-    static final boolean DEFAULT_ENABLE_HTTP_PIPELINING = true;
-
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
     private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();
 
@@ -219,7 +217,7 @@ public final class InternalTestCluster extends TestCluster {
     public InternalTestCluster(long clusterSeed, Path baseDir,
                                boolean randomlyAddDedicatedMasters,
                                boolean autoManageMinMasterNodes, int minNumDataNodes, int maxNumDataNodes, String clusterName, NodeConfigurationSource nodeConfigurationSource, int numClientNodes,
-                               boolean enableHttpPipelining, String nodePrefix, Collection<Class<? extends Plugin>> mockPlugins, Function<Client, Client> clientWrapper) {
+                               String nodePrefix, Collection<Class<? extends Plugin>> mockPlugins, Function<Client, Client> clientWrapper) {
         super(clusterSeed);
         this.autoManageMinMasterNodes = autoManageMinMasterNodes;
         this.clientWrapper = clientWrapper;
@@ -265,8 +263,6 @@ public final class InternalTestCluster extends TestCluster {
         this.nodePrefix = nodePrefix;
 
         assert nodePrefix != null;
-        ArrayList<Class<? extends Plugin>> tmpMockPlugins = new ArrayList<>(mockPlugins);
-
 
         this.mockPlugins = mockPlugins;
 
@@ -300,7 +296,6 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
         builder.put(TcpTransport.PORT.getKey(), 0);
         builder.put("http.port", 0);
-        builder.put("http.pipelining", enableHttpPipelining);
         if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
             builder.put("logger.level", System.getProperty("tests.es.logger.level"));
         }
@@ -461,14 +456,9 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
         ensureOpen();
-        Collection<NodeAndClient> values = nodes.values().stream().filter(predicate).collect(Collectors.toCollection(ArrayList::new));
-        if (!values.isEmpty()) {
-            int whichOne = random.nextInt(values.size());
-            for (NodeAndClient nodeAndClient : values) {
-                if (whichOne-- == 0) {
-                    return nodeAndClient;
-                }
-            }
+        List<NodeAndClient> values = nodes.values().stream().filter(predicate).collect(Collectors.toList());
+        if (values.isEmpty() == false) {
+            return randomFrom(random, values);
         }
         return null;
     }
@@ -479,18 +469,14 @@ public final class InternalTestCluster extends TestCluster {
      * stop any of the running nodes.
      */
     public synchronized void ensureAtLeastNumDataNodes(int n) {
-        boolean added = false;
         int size = numDataNodes();
-        for (int i = size; i < n; i++) {
+        if (size < n) {
             logger.info("increasing cluster size from {} to {}", size, n);
-            added = true;
             if (numSharedDedicatedMasterNodes > 0) {
-                startDataOnlyNode(Settings.EMPTY);
+                startDataOnlyNodes(n - size);
             } else {
-                startNode(Settings.EMPTY);
+                startNodes(n - size);
             }
-        }
-        if (added) {
             validateClusterFormed();
         }
     }
@@ -909,7 +895,7 @@ public final class InternalTestCluster extends TestCluster {
 
         private void createNewNode(final Settings newSettings) {
             final long newIdSeed = NodeEnvironment.NODE_ID_SEED_SETTING.get(node.settings()) + 1; // use a new seed to make sure we have new node id
-            Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed).build();
+            Settings finalSettings = Settings.builder().put(node.originalSettings()).put(newSettings).put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed).build();
             if (DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(finalSettings) == false) {
                 throw new IllegalStateException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() +
                     " is not configured after restart of [" + name + "]");
@@ -1114,17 +1100,21 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    CommitStats commitStats = indexShard.commitStats();
-                    if (commitStats != null) { // null if the engine is closed or if the shard is recovering
+                    try {
+                        CommitStats commitStats = indexShard.commitStats();
                         String syncId = commitStats.getUserData().get(Engine.SYNC_COMMIT_ID);
                         if (syncId != null) {
                             long liveDocsOnShard = commitStats.getNumDocs();
                             if (docsOnShards.get(syncId) != null) {
-                                assertThat("sync id is equal but number of docs does not match on node " + nodeAndClient.name + ". expected " + docsOnShards.get(syncId) + " but got " + liveDocsOnShard, docsOnShards.get(syncId), equalTo(liveDocsOnShard));
+                                assertThat("sync id is equal but number of docs does not match on node "
+                                    + nodeAndClient.name + ". expected " + docsOnShards.get(syncId) + " but got "
+                                    + liveDocsOnShard, docsOnShards.get(syncId), equalTo(liveDocsOnShard));
                             } else {
                                 docsOnShards.put(syncId, liveDocsOnShard);
                             }
                         }
+                    } catch (AlreadyClosedException e) {
+                        // the engine is closed or if the shard is recovering
                     }
                 }
             }
@@ -1360,8 +1350,9 @@ public final class InternalTestCluster extends TestCluster {
                 .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old masters
                 .count();
             final int currentMasters = getMasterNodesCount();
-            if (autoManageMinMasterNodes && currentMasters > 1 && newMasters > 0) {
-                // special case for 1 node master - we can't update the min master nodes before we add more nodes.
+            if (autoManageMinMasterNodes && currentMasters > 0 && newMasters > 0 &&
+                getMinMasterNodes(currentMasters + newMasters) <= currentMasters) {
+                // if we're adding too many master-eligible nodes at once, we can't update the min master setting before adding the nodes.
                 updateMinMasterNodes(currentMasters + newMasters);
             }
             List<Future<?>> futures = nodeAndClients.stream().map(node -> executor.submit(node::startNode)).collect(Collectors.toList());
@@ -1376,7 +1367,8 @@ public final class InternalTestCluster extends TestCluster {
             }
             nodeAndClients.forEach(this::publishNode);
 
-            if (autoManageMinMasterNodes && currentMasters == 1 && newMasters > 0) {
+            if (autoManageMinMasterNodes && currentMasters > 0 && newMasters > 0 &&
+                getMinMasterNodes(currentMasters + newMasters) > currentMasters) {
                 // update once masters have joined
                 validateClusterFormed();
                 updateMinMasterNodes(currentMasters + newMasters);
@@ -1631,27 +1623,24 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Starts a node with default settings and returns it's name.
+     * Starts a node with default settings and returns its name.
      */
     public synchronized String startNode() {
         return startNode(Settings.EMPTY);
     }
 
     /**
-     * Starts a node with the given settings builder and returns it's name.
+     * Starts a node with the given settings builder and returns its name.
      */
     public synchronized String startNode(Settings.Builder settings) {
         return startNode(settings.build());
     }
 
     /**
-     * Starts a node with the given settings and returns it's name.
+     * Starts a node with the given settings and returns its name.
      */
     public synchronized String startNode(Settings settings) {
-        final int defaultMinMasterNodes = getMinMasterNodes(getMasterNodesCount() + (Node.NODE_MASTER_SETTING.get(settings) ? 1 : 0));
-        NodeAndClient buildNode = buildNode(settings, defaultMinMasterNodes);
-        startAndPublishNodesAndClients(Collections.singletonList(buildNode));
-        return buildNode.name;
+        return startNodes(settings).get(0);
     }
 
     /**

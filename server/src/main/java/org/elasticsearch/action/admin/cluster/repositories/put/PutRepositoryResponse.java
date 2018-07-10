@@ -20,24 +20,12 @@
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-
-import java.io.IOException;
 
 /**
  * Register repository response
  */
 public class PutRepositoryResponse extends AcknowledgedResponse {
-
-    private static final ConstructingObjectParser<PutRepositoryResponse, Void> PARSER = new ConstructingObjectParser<>("put_repository",
-        true, args -> new PutRepositoryResponse((boolean) args[0]));
-
-    static {
-        declareAcknowledgedField(PARSER);
-    }
 
     PutRepositoryResponse() {
     }
@@ -46,19 +34,7 @@ public class PutRepositoryResponse extends AcknowledgedResponse {
         super(acknowledged);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        readAcknowledged(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        writeAcknowledged(out);
-    }
-
     public static PutRepositoryResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return new PutRepositoryResponse(parseAcknowledged(parser));
     }
 }

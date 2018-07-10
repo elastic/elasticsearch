@@ -19,12 +19,15 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.explain.ExplainRequest;
+import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -42,14 +45,17 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -65,6 +71,9 @@ import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RatedSearchHit;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
+import org.elasticsearch.script.mustache.MultiSearchTemplateResponse;
+import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.Scroll;
@@ -79,6 +88,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.profile.ProfileResult;
@@ -143,7 +153,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::search-request-preference
             searchRequest.preference("_local"); // <1>
             // end::search-request-preference
-            assertNotNull(client.search(searchRequest));
+            assertNotNull(client.search(searchRequest, RequestOptions.DEFAULT));
         }
         {
             // tag::search-source-basics
@@ -176,7 +186,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::search-source-setter
 
             // tag::search-execute
-            SearchResponse searchResponse = client.search(searchRequest);
+            SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             // end::search-execute
 
             // tag::search-execute-listener
@@ -198,7 +208,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::search-execute-async
-            client.searchAsync(searchRequest, listener); // <1>
+            client.searchAsync(searchRequest, RequestOptions.DEFAULT, listener); // <1>
             // end::search-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -296,7 +306,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new IndexRequest("posts", "doc", "3")
                     .source(XContentType.JSON, "company", "Elastic", "age", 40));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            BulkResponse bulkResponse = client.bulk(request);
+            BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
         }
@@ -312,7 +322,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::search-request-aggregations
             searchSourceBuilder.query(QueryBuilders.matchAllQuery());
             searchRequest.source(searchSourceBuilder);
-            SearchResponse searchResponse = client.search(searchRequest);
+            SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             {
                 // tag::search-request-aggregations-get
                 Aggregations aggregations = searchResponse.getAggregations();
@@ -369,7 +379,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new IndexRequest("posts", "doc", "3").source(XContentType.JSON, "user", "tlrx"));
             request.add(new IndexRequest("posts", "doc", "4").source(XContentType.JSON, "user", "cbuescher"));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            BulkResponse bulkResponse = client.bulk(request);
+            BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
         }
@@ -384,7 +394,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             searchSourceBuilder.suggest(suggestBuilder);
             // end::search-request-suggestion
             searchRequest.source(searchSourceBuilder);
-            SearchResponse searchResponse = client.search(searchRequest);
+            SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             {
                 // tag::search-request-suggestion-get
                 Suggest suggest = searchResponse.getSuggest(); // <1>
@@ -416,7 +426,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                     .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch", "user",
                             Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            BulkResponse bulkResponse = client.bulk(request);
+            BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
         }
@@ -437,7 +447,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                     .should(matchQuery("title", "Elasticsearch"))
                     .should(matchQuery("user", "kimchy")));
             searchRequest.source(searchSourceBuilder);
-            SearchResponse searchResponse = client.search(searchRequest);
+            SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             {
                 // tag::search-request-highlighting-get
                 SearchHits hits = searchResponse.getHits();
@@ -472,7 +482,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             IndexRequest request = new IndexRequest("posts", "doc", "1")
                     .source(XContentType.JSON, "tags", "elasticsearch", "comments", 123);
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
-            IndexResponse indexResponse = client.index(request);
+            IndexResponse indexResponse = client.index(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.CREATED, indexResponse.status());
         }
         {
@@ -485,7 +495,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             searchSourceBuilder.aggregation(AggregationBuilders.histogram("by_comments").field("comments").interval(100));
             searchRequest.source(searchSourceBuilder);
 
-            SearchResponse searchResponse = client.search(searchRequest);
+            SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             // tag::search-request-profiling-get
             Map<String, ProfileShardResult> profilingResults =
                     searchResponse.getProfileResults(); // <1>
@@ -548,7 +558,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new IndexRequest("posts", "doc", "3")
                     .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch"));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            BulkResponse bulkResponse = client.bulk(request);
+            BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
         }
@@ -561,7 +571,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             searchSourceBuilder.size(size); // <1>
             searchRequest.source(searchSourceBuilder);
             searchRequest.scroll(TimeValue.timeValueMinutes(1L)); // <2>
-            SearchResponse searchResponse = client.search(searchRequest);
+            SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             String scrollId = searchResponse.getScrollId(); // <3>
             SearchHits hits = searchResponse.getHits();  // <4>
             // end::search-scroll-init
@@ -572,7 +582,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::search-scroll2
             SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId); // <1>
             scrollRequest.scroll(TimeValue.timeValueSeconds(30));
-            SearchResponse searchScrollResponse = client.searchScroll(scrollRequest);
+            SearchResponse searchScrollResponse = client.searchScroll(scrollRequest, RequestOptions.DEFAULT);
             scrollId = searchScrollResponse.getScrollId();  // <2>
             hits = searchScrollResponse.getHits(); // <3>
             assertEquals(3, hits.getTotalHits());
@@ -582,14 +592,14 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
             clearScrollRequest.addScrollId(scrollId);
-            ClearScrollResponse clearScrollResponse = client.clearScroll(clearScrollRequest);
+            ClearScrollResponse clearScrollResponse = client.clearScroll(clearScrollRequest, RequestOptions.DEFAULT);
             assertTrue(clearScrollResponse.isSucceeded());
         }
         {
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.scroll("60s");
 
-            SearchResponse initialSearchResponse = client.search(searchRequest);
+            SearchResponse initialSearchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             String scrollId = initialSearchResponse.getScrollId();
 
             SearchScrollRequest scrollRequest = new SearchScrollRequest();
@@ -601,7 +611,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::scroll-request-arguments
 
             // tag::search-scroll-execute-sync
-            SearchResponse searchResponse = client.searchScroll(scrollRequest);
+            SearchResponse searchResponse = client.searchScroll(scrollRequest, RequestOptions.DEFAULT);
             // end::search-scroll-execute-sync
 
             assertEquals(0, searchResponse.getFailedShards());
@@ -627,7 +637,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             scrollListener = new LatchedActionListener<>(scrollListener, latch);
 
             // tag::search-scroll-execute-async
-            client.searchScrollAsync(scrollRequest, scrollListener); // <1>
+            client.searchScrollAsync(scrollRequest, RequestOptions.DEFAULT, scrollListener); // <1>
             // end::search-scroll-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -648,7 +658,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::clear-scroll-add-scroll-ids
 
             // tag::clear-scroll-execute
-            ClearScrollResponse response = client.clearScroll(request);
+            ClearScrollResponse response = client.clearScroll(request, RequestOptions.DEFAULT);
             // end::clear-scroll-execute
 
             // tag::clear-scroll-response
@@ -678,7 +688,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, clearScrollLatch);
 
             // tag::clear-scroll-execute-async
-            client.clearScrollAsync(request, listener); // <1>
+            client.clearScrollAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::clear-scroll-execute-async
 
             assertTrue(clearScrollLatch.await(30L, TimeUnit.SECONDS));
@@ -692,14 +702,14 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             searchSourceBuilder.query(matchQuery("title", "Elasticsearch"));
             searchRequest.source(searchSourceBuilder);
 
-            SearchResponse searchResponse = client.search(searchRequest); // <1>
+            SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT); // <1>
             String scrollId = searchResponse.getScrollId();
             SearchHit[] searchHits = searchResponse.getHits().getHits();
 
             while (searchHits != null && searchHits.length > 0) { // <2>
                 SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId); // <3>
                 scrollRequest.scroll(scroll);
-                searchResponse = client.searchScroll(scrollRequest);
+                searchResponse = client.searchScroll(scrollRequest, RequestOptions.DEFAULT);
                 scrollId = searchResponse.getScrollId();
                 searchHits = searchResponse.getHits().getHits();
                 // <4>
@@ -707,7 +717,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             ClearScrollRequest clearScrollRequest = new ClearScrollRequest(); // <5>
             clearScrollRequest.addScrollId(scrollId);
-            ClearScrollResponse clearScrollResponse = client.clearScroll(clearScrollRequest);
+            ClearScrollResponse clearScrollResponse = client.clearScroll(clearScrollRequest, RequestOptions.DEFAULT);
             boolean succeeded = clearScrollResponse.isSucceeded();
             // end::search-scroll-example
             assertTrue(succeeded);
@@ -737,7 +747,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::search-template-request-inline
 
         // tag::search-template-response
-        SearchTemplateResponse response = client.searchTemplate(request);
+        SearchTemplateResponse response = client.searchTemplate(request, RequestOptions.DEFAULT);
         SearchResponse searchResponse = response.getResponse();
         // end::search-template-response
 
@@ -749,7 +759,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::render-search-template-request
 
         // tag::render-search-template-response
-        SearchTemplateResponse renderResponse = client.searchTemplate(request);
+        SearchTemplateResponse renderResponse = client.searchTemplate(request, RequestOptions.DEFAULT);
         BytesReference source = renderResponse.getSource(); // <1>
         // end::render-search-template-response
 
@@ -766,21 +776,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         RestClient restClient = client();
 
-        // tag::register-script
-        Request scriptRequest = new Request("POST", "_scripts/title_search");
-        scriptRequest.setJsonEntity(
-            "{" +
-            "  \"script\": {" +
-            "    \"lang\": \"mustache\"," +
-            "    \"source\": {" +
-            "      \"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" } }," +
-            "      \"size\" : \"{{size}}\"" +
-            "    }" +
-            "  }" +
-            "}");
-        Response scriptResponse = restClient.performRequest(scriptRequest);
-        // end::register-script
-        assertEquals(RestStatus.OK.getStatus(), scriptResponse.getStatusLine().getStatusCode());
+        registerQueryScript(restClient);
 
         // tag::search-template-request-stored
         SearchTemplateRequest request = new SearchTemplateRequest();
@@ -802,7 +798,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::search-template-request-options
 
         // tag::search-template-execute
-        SearchTemplateResponse response = client.searchTemplate(request);
+        SearchTemplateResponse response = client.searchTemplate(request, RequestOptions.DEFAULT);
         // end::search-template-execute
 
         SearchResponse searchResponse = response.getResponse();
@@ -828,8 +824,225 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::search-template-execute-async
-        client.searchTemplateAsync(request, listener); // <1>
+        client.searchTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::search-template-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+    
+    public void testMultiSearchTemplateWithInlineScript() throws Exception {
+        indexSearchTestData();
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::multi-search-template-request-inline
+        String [] searchTerms = {"elasticsearch", "logstash", "kibana"};
+        
+        MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest(); // <1>
+        for (String searchTerm : searchTerms) {
+            SearchTemplateRequest request = new SearchTemplateRequest();  // <2>
+            request.setRequest(new SearchRequest("posts")); 
+
+            request.setScriptType(ScriptType.INLINE);
+            request.setScript( 
+                "{" +
+                "  \"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" } }," +
+                "  \"size\" : \"{{size}}\"" +
+                "}");
+
+            Map<String, Object> scriptParams = new HashMap<>();
+            scriptParams.put("field", "title");
+            scriptParams.put("value", searchTerm);
+            scriptParams.put("size", 5);
+            request.setScriptParams(scriptParams);
+            
+            multiRequest.add(request);  // <3> 
+        }
+        // end::multi-search-template-request-inline
+
+        // tag::multi-search-template-request-sync
+        MultiSearchTemplateResponse multiResponse = client.multiSearchTemplate(multiRequest, RequestOptions.DEFAULT);
+        // end::multi-search-template-request-sync
+        
+        // tag::multi-search-template-response
+        for (Item item : multiResponse.getResponses()) { // <1>
+            if (item.isFailure()) {
+                String error = item.getFailureMessage(); // <2>
+            } else {
+                SearchTemplateResponse searchTemplateResponse = item.getResponse(); // <3>
+                SearchResponse searchResponse = searchTemplateResponse.getResponse();
+                searchResponse.getHits();
+            }
+        }
+        // end::multi-search-template-response
+
+        assertNotNull(multiResponse);
+        assertEquals(searchTerms.length, multiResponse.getResponses().length);
+        assertNotNull(multiResponse.getResponses()[0]);
+        SearchResponse searchResponse = multiResponse.getResponses()[0].getResponse().getResponse();
+        assertTrue(searchResponse.getHits().totalHits > 0);
+
+    }
+    
+    public void testMultiSearchTemplateWithStoredScript() throws Exception {
+        indexSearchTestData();
+        RestHighLevelClient client = highLevelClient();
+        RestClient restClient = client();
+
+        registerQueryScript(restClient);
+
+        // tag::multi-search-template-request-stored
+        MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
+        
+        String [] searchTerms = {"elasticsearch", "logstash", "kibana"};
+        for (String searchTerm : searchTerms) {
+        
+            SearchTemplateRequest request = new SearchTemplateRequest();
+            request.setRequest(new SearchRequest("posts"));
+    
+            request.setScriptType(ScriptType.STORED);
+            request.setScript("title_search");
+    
+            Map<String, Object> params = new HashMap<>();
+            params.put("field", "title");
+            params.put("value", searchTerm);
+            params.put("size", 5);
+            request.setScriptParams(params);
+            multiRequest.add(request);
+        }
+        // end::multi-search-template-request-stored
+
+        
+        
+
+        // tag::multi-search-template-execute
+        MultiSearchTemplateResponse multiResponse = client.multiSearchTemplate(multiRequest, RequestOptions.DEFAULT);
+        // end::multi-search-template-execute
+
+        assertNotNull(multiResponse);
+        assertEquals(searchTerms.length, multiResponse.getResponses().length);
+        assertNotNull(multiResponse.getResponses()[0]);
+        SearchResponse searchResponse = multiResponse.getResponses()[0].getResponse().getResponse();
+        assertTrue(searchResponse.getHits().totalHits > 0);
+
+        // tag::multi-search-template-execute-listener
+        ActionListener<MultiSearchTemplateResponse> listener = new ActionListener<MultiSearchTemplateResponse>() {
+            @Override
+            public void onResponse(MultiSearchTemplateResponse response) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::multi-search-template-execute-listener
+
+        // Replace the empty listener by a blocking listener for tests.
+        CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::multi-search-template-execute-async
+        client.multiSearchTemplateAsync(multiRequest, RequestOptions.DEFAULT, listener);
+        // end::multi-search-template-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    protected void registerQueryScript(RestClient restClient) throws IOException {
+        // tag::register-script
+        Request scriptRequest = new Request("POST", "_scripts/title_search");
+        scriptRequest.setJsonEntity(
+            "{" +
+            "  \"script\": {" +
+            "    \"lang\": \"mustache\"," +
+            "    \"source\": {" +
+            "      \"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" } }," +
+            "      \"size\" : \"{{size}}\"" +
+            "    }" +
+            "  }" +
+            "}");
+        Response scriptResponse = restClient.performRequest(scriptRequest);
+        // end::register-script
+        assertEquals(RestStatus.OK.getStatus(), scriptResponse.getStatusLine().getStatusCode());
+    }
+    
+
+    public void testExplain() throws Exception {
+        indexSearchTestData();
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::explain-request
+        ExplainRequest request = new ExplainRequest("contributors", "doc", "1");
+        request.query(QueryBuilders.termQuery("user", "tanguy"));
+        // end::explain-request
+
+        // tag::explain-request-routing
+        request.routing("routing"); // <1>
+        // end::explain-request-routing
+
+        // tag::explain-request-preference
+        request.preference("_local"); // <1>
+        // end::explain-request-preference
+
+        // tag::explain-request-source
+        request.fetchSourceContext(new FetchSourceContext(true, new String[]{"user"}, null)); // <1>
+        // end::explain-request-source
+
+        // tag::explain-request-stored-field
+        request.storedFields(new String[]{"user"}); // <1>
+        // end::explain-request-stored-field
+
+        // tag::explain-execute
+        ExplainResponse response = client.explain(request, RequestOptions.DEFAULT);
+        // end::explain-execute
+
+        // tag::explain-response
+        String index = response.getIndex(); // <1>
+        String type = response.getType(); // <2>
+        String id = response.getId(); // <3>
+        boolean exists = response.isExists(); // <4>
+        boolean match = response.isMatch(); // <5>
+        boolean hasExplanation = response.hasExplanation(); // <6>
+        Explanation explanation = response.getExplanation(); // <7>
+        GetResult getResult = response.getGetResult(); // <8>
+        // end::explain-response
+        assertThat(index, equalTo("contributors"));
+        assertThat(type, equalTo("doc"));
+        assertThat(id, equalTo("1"));
+        assertTrue(exists);
+        assertTrue(match);
+        assertTrue(hasExplanation);
+        assertNotNull(explanation);
+        assertNotNull(getResult);
+
+        // tag::get-result
+        Map<String, Object> source = getResult.getSource(); // <1>
+        Map<String, DocumentField> fields = getResult.getFields(); // <2>
+        // end::get-result
+        assertThat(source, equalTo(Collections.singletonMap("user", "tanguy")));
+        assertThat(fields.get("user").getValue(), equalTo("tanguy"));
+
+        // tag::explain-execute-listener
+        ActionListener<ExplainResponse> listener = new ActionListener<ExplainResponse>() {
+            @Override
+            public void onResponse(ExplainResponse explainResponse) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::explain-execute-listener
+
+        CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::explain-execute-async
+        client.explainAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::explain-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
@@ -849,7 +1062,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::field-caps-request-indicesOptions
 
         // tag::field-caps-execute
-        FieldCapabilitiesResponse response = client.fieldCaps(request);
+        FieldCapabilitiesResponse response = client.fieldCaps(request, RequestOptions.DEFAULT);
         // end::field-caps-execute
 
         // tag::field-caps-response
@@ -892,7 +1105,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::field-caps-execute-async
-        client.fieldCapsAsync(request, listener); // <1>
+        client.fieldCapsAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::field-caps-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -918,7 +1131,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::rank-eval-request-basic
 
             // tag::rank-eval-execute
-            RankEvalResponse response = client.rankEval(request);
+            RankEvalResponse response = client.rankEval(request, RequestOptions.DEFAULT);
             // end::rank-eval-execute
 
             // tag::rank-eval-response
@@ -962,7 +1175,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::rank-eval-execute-async
-            client.rankEvalAsync(request, listener); // <1>
+            client.rankEvalAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::rank-eval-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -987,7 +1200,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(secondSearchRequest);
             // end::multi-search-request-basic
             // tag::multi-search-execute
-            MultiSearchResponse response = client.multiSearch(request);
+            MultiSearchResponse response = client.multiSearch(request, RequestOptions.DEFAULT);
             // end::multi-search-execute
             // tag::multi-search-response
             MultiSearchResponse.Item firstResponse = response.getResponses()[0];   // <1>
@@ -1019,7 +1232,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::multi-search-execute-async
-            client.multiSearchAsync(request, listener); // <1>
+            client.multiSearchAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::multi-search-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1030,7 +1243,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new SearchRequest("posts")  // <1>
                     .types("doc"));                 // <2>
             // end::multi-search-request-index
-            MultiSearchResponse response = client.multiSearch(request);
+            MultiSearchResponse response = client.multiSearch(request, RequestOptions.DEFAULT);
             MultiSearchResponse.Item firstResponse = response.getResponses()[0];
             assertNull(firstResponse.getFailure());
             SearchResponse searchResponse = firstResponse.getResponse();
@@ -1041,12 +1254,12 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
     private void indexSearchTestData() throws IOException {
         CreateIndexRequest authorsRequest = new CreateIndexRequest("authors")
             .mapping("doc", "user", "type=keyword,doc_values=false");
-        CreateIndexResponse authorsResponse = highLevelClient().indices().create(authorsRequest);
+        CreateIndexResponse authorsResponse = highLevelClient().indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
 
         CreateIndexRequest reviewersRequest = new CreateIndexRequest("contributors")
-            .mapping("doc", "user", "type=keyword");
-        CreateIndexResponse reviewersResponse = highLevelClient().indices().create(reviewersRequest);
+            .mapping("doc", "user", "type=keyword,store=true");
+        CreateIndexResponse reviewersResponse = highLevelClient().indices().create(reviewersRequest, RequestOptions.DEFAULT);
         assertTrue(reviewersResponse.isAcknowledged());
 
         BulkRequest bulkRequest = new BulkRequest();
@@ -1067,7 +1280,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
 
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest);
+        BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
         assertSame(RestStatus.OK, bulkResponse.status());
         assertFalse(bulkResponse.hasFailures());
     }

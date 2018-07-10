@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -72,7 +73,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      */
     static final TimeValue GRACE_PERIOD_DURATION = days(7);
 
-    public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS = Long.MAX_VALUE - days(365).millis();
+    public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS =
+            XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
 
     private final ClusterService clusterService;
 
@@ -223,6 +225,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
                             @Override
                             public ClusterState execute(ClusterState currentState) throws Exception {
+                                XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
                                 MetaData currentMetadata = currentState.metaData();
                                 LicensesMetaData licensesMetaData = currentMetadata.custom(LicensesMetaData.TYPE);
                                 Version trialVersion = null;
@@ -341,7 +344,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         if (clusterService.lifecycleState() == Lifecycle.State.STARTED) {
             final ClusterState clusterState = clusterService.state();
             if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false &&
-                    clusterState.nodes().getMasterNode() != null) {
+                    clusterState.nodes().getMasterNode() != null && XPackPlugin.isReadyForXPackCustomMetadata(clusterState)) {
                 final LicensesMetaData currentMetaData = clusterState.metaData().custom(LicensesMetaData.TYPE);
                 boolean noLicense = currentMetaData == null || currentMetaData.getLicense() == null;
                 if (clusterState.getNodes().isLocalNodeElectedMaster() &&
@@ -374,6 +377,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         final ClusterState previousClusterState = event.previousState();
         final ClusterState currentClusterState = event.state();
         if (!currentClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            if (XPackPlugin.isReadyForXPackCustomMetadata(currentClusterState) == false) {
+                logger.debug("cannot add license to cluster as the following nodes might not understand the license metadata: {}",
+                    () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(currentClusterState));
+                return;
+            }
+
             final LicensesMetaData prevLicensesMetaData = previousClusterState.getMetaData().custom(LicensesMetaData.TYPE);
             final LicensesMetaData currentLicensesMetaData = currentClusterState.getMetaData().custom(LicensesMetaData.TYPE);
             if (logger.isDebugEnabled()) {
@@ -404,7 +413,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             // auto-generate license if no licenses ever existed or if the current license is basic and
             // needs extended or if the license signature needs to be updated. this will trigger a subsequent cluster changed event
             if (currentClusterState.getNodes().isLocalNodeElectedMaster() &&
-                    (noLicense || LicenseUtils.licenseNeedsExtended(currentLicense) || LicenseUtils.signatureNeedsUpdate(currentLicense))) {
+                    (noLicense || LicenseUtils.licenseNeedsExtended(currentLicense) ||
+                        LicenseUtils.signatureNeedsUpdate(currentLicense, currentClusterState.nodes()))) {
                 registerOrUpdateSelfGeneratedLicense();
             }
         } else if (logger.isDebugEnabled()) {

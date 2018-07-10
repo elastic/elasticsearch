@@ -13,18 +13,16 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -34,11 +32,10 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
         IsolateDatafeedAction.Request, IsolateDatafeedAction.Response, IsolateDatafeedAction.Response> {
 
     @Inject
-    public TransportIsolateDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          ClusterService clusterService) {
-        super(settings, IsolateDatafeedAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, IsolateDatafeedAction.Request::new, IsolateDatafeedAction.Response::new,
+    public TransportIsolateDatafeedAction(Settings settings, TransportService transportService,
+                                          ActionFilters actionFilters, ClusterService clusterService) {
+        super(settings, IsolateDatafeedAction.NAME, clusterService, transportService, actionFilters,
+            IsolateDatafeedAction.Request::new, IsolateDatafeedAction.Response::new,
                 MachineLearning.UTILITY_THREAD_POOL_NAME);
     }
 

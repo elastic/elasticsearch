@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.command.CliSession;
 import org.elasticsearch.xpack.sql.client.HttpClient;
-import org.elasticsearch.xpack.sql.client.shared.ClientException;
-import org.elasticsearch.xpack.sql.client.shared.Version;
+import org.elasticsearch.xpack.sql.client.ClientException;
+import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 
 import java.sql.SQLException;
@@ -28,7 +27,7 @@ public class CliSessionTests extends ESTestCase {
     public void testProperConnection() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
         when(httpClient.serverInfo()).thenReturn(new MainResponse(randomAlphaOfLength(5), org.elasticsearch.Version.CURRENT.toString(),
-                ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID(), Build.CURRENT));
+                ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID()));
         CliSession cliSession = new CliSession(httpClient);
         cliSession.checkConnection();
         verify(httpClient, times(1)).serverInfo();
@@ -58,7 +57,7 @@ public class CliSessionTests extends ESTestCase {
         }
         when(httpClient.serverInfo()).thenReturn(new MainResponse(randomAlphaOfLength(5),
                 org.elasticsearch.Version.fromString(major + "." + minor + ".23").toString(),
-                ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID(), Build.CURRENT));
+                ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID()));
         CliSession cliSession = new CliSession(httpClient);
         expectThrows(ClientException.class, cliSession::checkConnection);
         verify(httpClient, times(1)).serverInfo();

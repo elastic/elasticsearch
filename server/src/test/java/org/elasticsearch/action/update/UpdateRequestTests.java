@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -70,6 +71,7 @@ public class UpdateRequestTests extends ESTestCase {
 
     private UpdateHelper updateHelper;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -138,6 +140,7 @@ public class UpdateRequestTests extends ESTestCase {
         updateHelper = new UpdateHelper(settings, scriptService);
     }
 
+    @SuppressWarnings("unchecked")
     public void testFromXContent() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type", "1");
         // simple script
@@ -231,7 +234,7 @@ public class UpdateRequestTests extends ESTestCase {
         Map<String, Object> upsertDoc =
             XContentHelper.convertToMap(request.upsertRequest().source(), true, request.upsertRequest().getContentType()).v2();
         assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
-        assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
+        assertThat(((Map<String, Object>) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
         request = new UpdateRequest("test", "type", "1");
         request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject()
@@ -258,7 +261,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(params.get("param1").toString(), equalTo("value1"));
         upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true, request.upsertRequest().getContentType()).v2();
         assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
-        assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
+        assertThat(((Map<String, Object>) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
         // script with doc
         request = new UpdateRequest("test", "type", "1");
@@ -273,7 +276,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .endObject()));
         Map<String, Object> doc = request.doc().sourceAsMap();
         assertThat(doc.get("field1").toString(), equalTo("value1"));
-        assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
+        assertThat(((Map<String, Object>) doc.get("compound")).get("field2").toString(), equalTo("value2"));
     }
 
     public void testUnknownFieldParsing() throws Exception {
@@ -283,8 +286,8 @@ public class UpdateRequestTests extends ESTestCase {
                     .field("unknown_field", "test")
                 .endObject());
 
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> request.fromXContent(contentParser));
-        assertEquals("[UpdateRequest] unknown field [unknown_field], parser not found", ex.getMessage());
+        XContentParseException ex = expectThrows(XContentParseException.class, () -> request.fromXContent(contentParser));
+        assertEquals("[1:2] [UpdateRequest] unknown field [unknown_field], parser not found", ex.getMessage());
 
         UpdateRequest request2 = new UpdateRequest("test", "type", "1");
         XContentParser unknownObject = createParser(XContentFactory.jsonBuilder()
@@ -294,8 +297,8 @@ public class UpdateRequestTests extends ESTestCase {
                         .field("count", 1)
                     .endObject()
                 .endObject());
-        ex = expectThrows(IllegalArgumentException.class, () -> request2.fromXContent(unknownObject));
-        assertEquals("[UpdateRequest] unknown field [params], parser not found", ex.getMessage());
+        ex = expectThrows(XContentParseException.class, () -> request2.fromXContent(unknownObject));
+        assertEquals("[1:76] [UpdateRequest] unknown field [params], parser not found", ex.getMessage());
     }
 
     public void testFetchSourceParsing() throws Exception {
@@ -422,7 +425,7 @@ public class UpdateRequestTests extends ESTestCase {
                 ESTestCase::randomNonNegativeLong);
         final Streamable action = result.action();
         assertThat(action, instanceOf(ReplicationRequest.class));
-        final ReplicationRequest request = (ReplicationRequest) action;
+        final ReplicationRequest<?> request = (ReplicationRequest<?>) action;
         assertThat(request.timeout(), equalTo(updateRequest.timeout()));
     }
 

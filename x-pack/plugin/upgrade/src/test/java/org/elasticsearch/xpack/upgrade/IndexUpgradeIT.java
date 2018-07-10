@@ -41,7 +41,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         // Testing only negative case here, the positive test is done in bwcTests
         assertAcked(client().admin().indices().prepareCreate("test").get());
         ensureYellow("test");
-        Response response = client().prepareExecute(IndexUpgradeInfoAction.INSTANCE).setIndices("test").get();
+        Response response = new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("test").get();
         assertThat(response.getActions().entrySet(), empty());
     }
 
@@ -54,10 +54,10 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         ensureYellow("test");
         disableLicensing();
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> client().prepareExecute(IndexUpgradeInfoAction.INSTANCE).setIndices("test").get());
+                () -> new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("test").get());
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [upgrade]"));
         enableLicensing();
-        Response response = client().prepareExecute(IndexUpgradeInfoAction.INSTANCE).setIndices("test").get();
+        Response response = new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("test").get();
         assertThat(response.getActions().entrySet(), empty());
     }
 
@@ -73,7 +73,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         ensureYellow(testIndex);
 
         IllegalStateException ex = expectThrows(IllegalStateException.class,
-                () -> client().prepareExecute(IndexUpgradeAction.INSTANCE).setIndex(testIndex).get());
+                () -> new IndexUpgradeAction.RequestBuilder(client()).setIndex(testIndex).get());
         assertThat(ex.getMessage(), equalTo("Index [" + testIndex + "] cannot be upgraded"));
 
         SearchResponse searchResponse = client().prepareSearch(testIndex).get();
@@ -132,10 +132,10 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
 
     public void testIndexUpgradeInfoOnEmptyCluster() {
         // On empty cluster asking for all indices shouldn't fail since no indices means nothing needs to be upgraded
-        Response response = client().prepareExecute(IndexUpgradeInfoAction.INSTANCE).setIndices("_all").get();
+        Response response = new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("_all").get();
         assertThat(response.getActions().entrySet(), empty());
 
         // but calling on a particular index should fail
-        assertThrows(client().prepareExecute(IndexUpgradeInfoAction.INSTANCE).setIndices("test"), IndexNotFoundException.class);
+        assertThrows(new IndexUpgradeInfoAction.RequestBuilder(client()).setIndices("test"), IndexNotFoundException.class);
     }
 }

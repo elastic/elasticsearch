@@ -31,6 +31,9 @@ Vagrant.configure(2) do |config|
     # Give the box more memory and cpu because our tests are beasts!
     vbox.memory = Integer(ENV['VAGRANT_MEMORY'] || 8192)
     vbox.cpus = Integer(ENV['VAGRANT_CPUS'] || 4)
+
+    # see https://github.com/hashicorp/vagrant/issues/9524
+    vbox.customize ["modifyvm", :id, "--audio", "none"]
   end
 
   # Switch the default share for the project root from /vagrant to
@@ -97,15 +100,15 @@ Vagrant.configure(2) do |config|
       rpm_common config, box
     end
   end
-  'fedora-26'.tap do |box|
-    config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/fedora-26-x86_64'
-      dnf_common config, box
-    end
-  end
   'fedora-27'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/fedora-27-x86_64'
+      dnf_common config, box
+    end
+  end
+  'fedora-28'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/fedora-28-x86_64'
       dnf_common config, box
     end
   end
@@ -237,6 +240,7 @@ def linux_common(config,
 
   config.vm.provision 'markerfile', type: 'shell', inline: <<-SHELL
     touch /etc/is_vagrant_vm
+    touch /is_vagrant_vm # for consistency between linux and windows
   SHELL
 
   # This prevents leftovers from previous tests using the

@@ -1,6 +1,6 @@
 setup:
   - skip:
-        version: " - 6.4.0"
+        version: " - 6.3.99"
         reason:  "moving_fn added in 6.4.0"
 
 ---

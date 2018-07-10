@@ -21,12 +21,11 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Definition.def;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.PainlessMethodKey;
+import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -52,9 +51,9 @@ final class SSubEachIterable extends AStatement {
     private final SBlock block;
     private final Variable variable;
 
-    private Cast cast = null;
+    private PainlessCast cast = null;
     private Variable iterator = null;
-    private Method method = null;
+    private PainlessMethod method = null;
 
     SSubEachIterable(Location location, Variable variable, AExpression expression, SBlock block) {
         super(location);
@@ -78,12 +77,12 @@ final class SSubEachIterable extends AStatement {
         if (expression.actual == def.class) {
             method = null;
         } else {
-            Type actualType = locals.getDefinition().ClassToType(expression.actual);
-            method = actualType.struct.methods.get(new MethodKey("iterator", 0));
+            method = locals.getPainlessLookup().
+                    getPainlessStructFromJavaClass(expression.actual).methods.get(new PainlessMethodKey("iterator", 0));
 
             if (method == null) {
                 throw createError(new IllegalArgumentException(
-                    "Unable to create iterator for the type [" + actualType.name + "]."));
+                    "Unable to create iterator for the type [" + PainlessLookup.ClassToName(expression.actual) + "]."));
             }
         }
 
@@ -134,6 +133,6 @@ final class SSubEachIterable extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(Definition.ClassToName(variable.clazz), variable.name, expression, block);
+        return singleLineToString(PainlessLookup.ClassToName(variable.clazz), variable.name, expression, block);
     }
 }

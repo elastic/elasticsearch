@@ -5,7 +5,7 @@
 <titleabbrev>Delete Model Snapshots</titleabbrev>
 ++++
 
-This API enables you to delete an existing model snapshot.
+Deletes an existing model snapshot.
 
 
 ==== Request

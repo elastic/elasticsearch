@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.proto;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -74,7 +73,7 @@ public class ColumnInfo implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (Strings.hasText(table)) {
+        if (table != null && table.isEmpty() == false) {
             builder.field("table", table);
         }
         builder.field("name", name);
@@ -146,6 +145,6 @@ public class ColumnInfo implements ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return ProtoUtils.toString(this);
     }
 }

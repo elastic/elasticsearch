@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.rollup;
 
 import org.apache.http.HttpStatus;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -30,18 +29,16 @@ public class RollupRestTestStateCleaner {
 
     private final Logger logger;
     private final RestClient adminClient;
-    private final ESRestTestCase testCase;
 
-    public RollupRestTestStateCleaner(Logger logger, RestClient adminClient, ESRestTestCase testCase) {
+    public RollupRestTestStateCleaner(Logger logger, RestClient adminClient) {
         this.logger = logger;
         this.adminClient = adminClient;
-        this.testCase = testCase;
     }
 
     public void clearRollupMetadata() throws Exception {
         deleteAllJobs();
         waitForPendingTasks();
-        // indices will be deleted by the ESIntegTestCase class
+        // indices will be deleted by the ESRestTestCase class
     }
 
     private void waitForPendingTasks() throws Exception {
@@ -76,7 +73,7 @@ public class RollupRestTestStateCleaner {
     @SuppressWarnings("unchecked")
     private void deleteAllJobs() throws Exception {
         Response response = adminClient.performRequest("GET", "/_xpack/rollup/job/_all");
-        Map<String, Object> jobs = testCase.entityAsMap(response);
+        Map<String, Object> jobs = ESRestTestCase.entityAsMap(response);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> jobConfigs =
                 (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);

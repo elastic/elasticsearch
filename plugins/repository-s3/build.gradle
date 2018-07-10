@@ -321,7 +321,6 @@ integTestCluster {
     setting 's3.client.integration_test_temporary.endpoint', "http://${-> s3Fixture.addressAndPort}"
   } else {
     println "Using an external service to test the repository-s3 plugin"
-
   }
 }
 

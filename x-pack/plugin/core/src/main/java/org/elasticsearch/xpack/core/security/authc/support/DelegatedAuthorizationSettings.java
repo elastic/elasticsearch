@@ -13,6 +13,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
+/**
+ * Settings related to "Delegated Authorization" (aka Lookup Realms)
+ */
 public class DelegatedAuthorizationSettings {
 
     public static final Setting<List<String>> AUTHZ_REALMS = Setting.listSetting("authorizing_realms",

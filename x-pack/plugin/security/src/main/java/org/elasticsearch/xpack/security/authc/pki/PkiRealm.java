@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.pki;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -75,7 +76,7 @@ public class PkiRealm extends Realm implements CachingRealm {
     private final Pattern principalPattern;
     private final UserRoleMapper roleMapper;
     private final Cache<BytesKey, User> cache;
-    private DelegatedAuthorizationSupport delegatedRealms;
+    private final SetOnce<DelegatedAuthorizationSupport> delegatedRealms;
 
     public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, NativeRoleMappingStore nativeRoleMappingStore) {
         this(config, new CompositeRoleMapper(PkiRealmSettings.TYPE, config, watcherService, nativeRoleMappingStore));
@@ -92,14 +93,12 @@ public class PkiRealm extends Realm implements CachingRealm {
                 .setExpireAfterWrite(PkiRealmSettings.CACHE_TTL_SETTING.get(config.settings()))
                 .setMaximumWeight(PkiRealmSettings.CACHE_MAX_USERS_SETTING.get(config.settings()))
                 .build();
+        this.delegatedRealms = new SetOnce<>();
     }
 
     @Override
     public void initialize(Iterable<Realm> realms) {
-        if(delegatedRealms != null) {
-            throw new IllegalStateException("Realm has already been initialized");
-        }
-        delegatedRealms = new DelegatedAuthorizationSupport(realms, config);
+        delegatedRealms.set(new DelegatedAuthorizationSupport(realms, config));
     }
 
     @Override
@@ -120,8 +119,8 @@ public class PkiRealm extends Realm implements CachingRealm {
             final BytesKey fingerprint = computeFingerprint(token.credentials()[0]);
             User user = cache.get(fingerprint);
             if (user != null) {
-                if (delegatedRealms.hasDelegation()) {
-                    delegatedRealms.resolve(token.principal(), listener);
+                if (delegatedRealms.get().hasDelegation()) {
+                    delegatedRealms.get().resolve(token.principal(), listener);
                 } else {
                     listener.onResponse(AuthenticationResult.success(user));
                 }
@@ -136,8 +135,8 @@ public class PkiRealm extends Realm implements CachingRealm {
                     }
                     listener.onResponse(result);
                 }, listener::onFailure);
-                if (delegatedRealms.hasDelegation()) {
-                    delegatedRealms.resolve(token.principal(), cachingListener);
+                if (delegatedRealms.get().hasDelegation()) {
+                    delegatedRealms.get().resolve(token.principal(), cachingListener);
                 } else {
                     this.buildUser(token, cachingListener);
                 }

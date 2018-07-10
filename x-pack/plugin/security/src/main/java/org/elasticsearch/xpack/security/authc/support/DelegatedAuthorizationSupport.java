@@ -22,24 +22,52 @@ import java.util.List;
 
 import static org.elasticsearch.common.Strings.collectionToDelimitedString;
 
+/**
+ * Utility class for supporting "delegated authorization" (aka "authorizing_realms", aka "lookup realms").
+ * A {@link Realm} may support delegating authorization to another realm. It does this by registering a
+ * setting for {@link DelegatedAuthorizationSettings#AUTHZ_REALMS}, and constructing an instance of this
+ * class. Then, after the realm has performed any authentication steps, if {@link #hasDelegation()} is
+ * {@code true}, it delegates the construction of the {@link User} object and {@link AuthenticationResult}
+ * to {@link #resolve(String, ActionListener)}.
+ */
 public class DelegatedAuthorizationSupport {
 
     private final RealmUserLookup lookup;
     private final Logger logger;
 
+    /**
+     * Resolves the {@link DelegatedAuthorizationSettings#AUTHZ_REALMS} setting from {@code config} and calls
+     * {@link #DelegatedAuthorizationSupport(Iterable, List, ThreadContext)}
+     */
     public DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, RealmConfig config) {
         this(allRealms, DelegatedAuthorizationSettings.AUTHZ_REALMS.get(config.settings()), config.threadContext());
     }
 
+    /**
+     * Constructs a new object that delegates to the named realms ({@code lookupRealms}), which must exist within
+     * {@code allRealms}.
+     * @throws IllegalArgumentException if one of the specified realms does not exist
+     */
     protected DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, List<String> lookupRealms, ThreadContext threadContext) {
        this.lookup = new RealmUserLookup(resolveRealms(allRealms, lookupRealms), threadContext);
        this.logger = Loggers.getLogger(getClass());
     }
 
+    /**
+     * Are there any realms configured for delegated lookup
+     */
     public boolean hasDelegation() {
         return this.lookup.hasRealms();
     }
 
+    /**
+     * Attempts to find the user specified by {@code username} in one of the delegated realms.
+     * The realms are searched in the order specified during construction.
+     * Returns a {@link AuthenticationResult#success(User) successful result} if a {@link User}
+     * was found, otherwise returns an
+     * {@link AuthenticationResult#unsuccessful(String, Exception) unsuccessful result}
+     * with a meaningful diagnostic message.
+     */
     public void resolve(String username, ActionListener<AuthenticationResult> resultListener) {
         if (hasDelegation() == false) {
             resultListener.onResponse(AuthenticationResult.unsuccessful(
@@ -74,7 +102,7 @@ public class DelegatedAuthorizationSupport {
                 return realm;
             }
         }
-        throw new IllegalStateException("configured authorizing realm [" + name + "] does not exist (or is not enabled)");
+        throw new IllegalArgumentException("configured authorizing realm [" + name + "] does not exist (or is not enabled)");
     }
 
 }

@@ -24,6 +24,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.collectionToDelimitedString;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -75,10 +76,10 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .putList("authorizing_realms", "no-such-realm")
             .build();
-        final IllegalStateException ise = expectThrows(IllegalStateException.class, () ->
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
             new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings))
         );
-        assertThat(ise.getMessage(), equalTo("configured authorizing realm [no-such-realm] does not exist (or is not enabled)"));
+        assertThat(ex.getMessage(), equalTo("configured authorizing realm [no-such-realm] does not exist (or is not enabled)"));
     }
 
     public void testMatchInDelegationList() throws Exception {
@@ -95,6 +96,30 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
         final AuthenticationResult result = future.get();
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
         assertThat(result.getUser(), sameInstance(user));
+    }
+
+    public void testRealmsAreOrdered() throws Exception {
+        final List<MockLookupRealm> useRealms = shuffle(randomSubsetOf(randomIntBetween(3, realms.size()), realms));
+        final List<String> names = useRealms.stream().map(Realm::name).collect(Collectors.toList());
+        final Settings settings = Settings.builder()
+            .putList("authorizing_realms", names)
+            .build();
+        final List<User> users = new ArrayList<>(names.size());
+        final String username = randomAlphaOfLength(8);
+        for (MockLookupRealm r : useRealms) {
+            final User user = new User(username, "role_" + r.name());
+            users.add(user);
+            r.registerUser(user);
+        }
+
+        final DelegatedAuthorizationSupport das = new DelegatedAuthorizationSupport(realms, buildRealmConfig("r", settings));
+        assertThat(das.hasDelegation(), equalTo(true));
+        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        das.resolve(username, future);
+        final AuthenticationResult result = future.get();
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getUser(), sameInstance(users.get(0)));
+        assertThat(result.getUser().roles(), arrayContaining("role_" + useRealms.get(0).name()));
     }
 
     public void testNoMatchInDelegationList() throws Exception {

@@ -91,13 +91,15 @@ String s3TemporaryBasePath = System.getenv("amazon_s3_base_path_temporary")
 
 String s3EC2Bucket = System.getenv("amazon_s3_bucket_ec2")
 String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
+String s3EC2AccessKey = System.getenv("amazon_s3_access_key_ec2")
+String s3EC2Token = System.getenv("amazon_s3_token_ec2")
 
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
 
 if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath
         && !s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3TemporaryBasePath && !s3TemporarySessionToken
-        && !s3EC2Bucket && !s3EC2BasePath) {
+        && !s3EC2Bucket && !s3EC2BasePath && !s3EC2AccessKey) {
 
   s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
   s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
@@ -112,11 +114,13 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
 
   s3EC2Bucket = 'ec2-bucket-test'
   s3EC2BasePath = 'integration_test'
+  s3EC2AccessKey = 'ec2_accessKey'
+  s3EC2Token = 'ec2_tkn'
 
   useFixture = true
 } else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath
         || !s3TemporaryAccessKey || !s3TemporarySecretKey || !s3TemporaryBucket || !s3TemporaryBasePath || !s3TemporarySessionToken
-        || !s3EC2Bucket || !s3EC2BasePath) {
+        || !s3EC2Bucket || !s3EC2BasePath || !s3EC2AccessKey) {
   throw new IllegalArgumentException("not all options specified to run against external S3 service")
 }
 
@@ -291,8 +295,17 @@ if (useFixture && minioDistribution) {
 task s3Fixture(type: AntFixture) {
   dependsOn testClasses
   env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
+  env 'S3FIXTURE_WORKINGDIR', "${baseDir}"
+  env 'S3FIXTURE_PERMANENT_BUCKET_NAME', "${s3PermanentBucket}"
+  env 'S3FIXTURE_PERMANENT_KEY', "${s3PermanentAccessKey}"
+  env 'S3FIXTURE_TEMPORARY_BUCKET_NAME', "${s3TemporaryBucket}"
+  env 'S3FIXTURE_TEMPORARY_KEY', "${s3TemporaryAccessKey}"
+  env 'S3FIXTURE_TEMPORARY_SESSION_TOKEN', "${s3TemporarySessionToken}"
+  env 'S3FIXTURE_EC2_BUCKET_NAME', "${s3EC2Bucket}"
+  env 'S3FIXTURE_EC2_KEY', "${s3EC2AccessKey}"
+  env 'S3FIXTURE_EC2_TOKEN', "${s3EC2Token}"
   executable = new File(project.runtimeJavaHome, 'bin/java')
-  args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3PermanentBucket, s3TemporaryBucket, s3EC2Bucket
+  args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir
 }
 
 Map<String, Object> expansions = [

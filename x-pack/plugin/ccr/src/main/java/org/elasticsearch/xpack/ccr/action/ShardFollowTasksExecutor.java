@@ -42,6 +42,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -94,7 +95,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             scheduler, params.getIdleShardRetryDelay(), params.getRetryTimeout()) {
 
             @Override
-            protected void updateMapping(LongConsumer handler) {
+            protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {
                 Index leaderIndex = params.getLeaderShardId().getIndex();
                 Index followIndex = params.getFollowShardId().getIndex();
 
@@ -114,8 +115,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     putMappingRequest.source(mappingMetaData.source().string(), XContentType.JSON);
                     followerClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(
                         putMappingResponse -> handler.accept(indexMetaData.getVersion()),
-                        e -> handleFailure(e, () -> updateMapping(handler))));
-                }, e -> handleFailure(e, () -> updateMapping(handler))));
+                        errorHandler));
+                }, errorHandler));
             }
 
             @Override

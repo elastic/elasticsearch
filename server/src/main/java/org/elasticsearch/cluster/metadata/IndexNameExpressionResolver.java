@@ -282,8 +282,10 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         String indexExpression = request.indices() != null && request.indices().length > 0 ? request.indices()[0] : null;
         Context context = new Context(state, request.indicesOptions(), false, true);
         Index[] indices = concreteIndices(context, indexExpression);
-        // concreteIndices will throw its own exception when checking for a write index. Assert here for good measure.
-        assert indices.length == 1 : "The index/alias and options provided did not point to a write-index";
+        if (indices.length != 1) {
+            throw new IllegalArgumentException("The index expression [" + indexExpression +
+                "] and options provided did not point to a single write-index");
+        }
         return indices[0];
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -1012,8 +1013,18 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .indexAliases(state, "test-0", x -> true, true, "test-*");
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias"}, strings);
-        DocWriteRequest request = randomFrom(new IndexRequest("test-alias"),
-            new UpdateRequest("test-alias", "_type", "_id"), new DeleteRequest("test-alias"));
+        IndicesRequest request =  new IndicesRequest()  {
+
+            @Override
+            public String[] indices() {
+                return randomBoolean() ? new String[] { "test-alias" } : new String[] { "test-alias", "test-alias"};
+            }
+
+            @Override
+            public IndicesOptions indicesOptions() {
+                return IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED;
+            }
+        };
         Index writeIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
         assertThat(writeIndex.getName(), equalTo("test-0"));
 
@@ -1022,6 +1033,35 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .writeIndex(testZeroWriteIndex ? randomFrom(false, null) : true)))).build();
         writeIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
         assertThat(writeIndex.getName(), equalTo(testZeroWriteIndex ? "test-0" : "test-1"));
+    }
+
+    public void testConcreteWriteIndexWithWildcardExpansion() {
+        boolean testZeroWriteIndex = randomBoolean();
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("test-1").state(State.OPEN)
+                .putAlias(AliasMetaData.builder("test-alias").writeIndex(testZeroWriteIndex ? true : null)))
+            .put(indexBuilder("test-0").state(State.OPEN)
+                .putAlias(AliasMetaData.builder("test-alias").writeIndex(testZeroWriteIndex ? randomFrom(false, null) : true)));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        String[] strings = indexNameExpressionResolver
+            .indexAliases(state, "test-0", x -> true, true, "test-*");
+        Arrays.sort(strings);
+        assertArrayEquals(new String[] {"test-alias"}, strings);
+        IndicesRequest request =  new IndicesRequest()  {
+
+            @Override
+            public String[] indices() {
+                return new String[] { "test-*"};
+            }
+
+            @Override
+            public IndicesOptions indicesOptions() {
+                return IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED;
+            }
+        };
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> indexNameExpressionResolver.concreteWriteIndex(state, request));
+        assertThat(exception.getMessage(), equalTo("The index expression [test-*] and options provided did not point to a single write-index"));
     }
 
     public void testConcreteWriteIndexWithNoWriteIndexWithSingleIndex() {

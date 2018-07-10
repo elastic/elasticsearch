@@ -806,7 +806,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 throw new SearchContextException(context, "failed to create SearchContextHighlighter", e);
             }
         }
-        if (source.scriptFields() != null) {
+        if (source.scriptFields() != null && source.size() != 0) {
             int maxAllowedScriptFields = context.mapperService().getIndexSettings().getMaxScriptFields();
             if (source.scriptFields().size() > maxAllowedScriptFields) {
                 throw new IllegalArgumentException(

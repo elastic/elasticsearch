@@ -184,14 +184,18 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     /**
-     * @param type the mapping type
-     * @param source consisting of field/properties pairs (e.g. "field1",
-     *            "type=string,store=true"). If the number of arguments is not
-     *            divisible by two an {@link IllegalArgumentException} is thrown
+     * @param type
+     *            the mapping type
+     * @param source
+     *            consisting of field/properties pairs (e.g. "field1",
+     *            "type=string,store=true")
+     * @throws IllegalArgumentException
+     *             if the number of the source arguments is 0 or not divisible by
+     *             two
      * @return the mappings definition
      */
     public static XContentBuilder buildFromSimplifiedDef(String type, Object... source) {
-        if (source.length % 2 != 0) {
+        if (source.length == 0 || source.length % 2 != 0) {
             throw new IllegalArgumentException("mapping source must be pairs of fieldnames and properties definition.");
         }
         try {

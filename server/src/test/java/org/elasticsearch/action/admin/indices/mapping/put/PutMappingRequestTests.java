@@ -76,10 +76,16 @@ public class PutMappingRequestTests extends ESTestCase {
                 " concrete index: [[foo/bar]] and indices: [myindex];");
     }
 
+    /**
+     * Test that method rejects input where input varargs fieldname/properites are not paired correctly
+     * or input is empty.
+     */
     public void testBuildFromSimplifiedDef() {
-        // test that method rejects input where input varargs fieldname/properites are not paired correctly
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> PutMappingRequest.buildFromSimplifiedDef("type", "only_field"));
+        assertEquals("mapping source must be pairs of fieldnames and properties definition.", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class,
+                () -> PutMappingRequest.buildFromSimplifiedDef("type"));
         assertEquals("mapping source must be pairs of fieldnames and properties definition.", e.getMessage());
     }
 

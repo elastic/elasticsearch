@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -66,7 +64,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -756,7 +753,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testGet() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            String mappings = "{\n" +
+            Request createIndex = new Request("PUT", "/posts");
+            createIndex.setJsonEntity(
+                    "{\n" +
                     "    \"mappings\" : {\n" +
                     "        \"doc\" : {\n" +
                     "            \"properties\" : {\n" +
@@ -767,10 +766,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     "            }\n" +
                     "        }\n" +
                     "    }\n" +
-                    "}";
-
-            NStringEntity entity = new NStringEntity(mappings, ContentType.APPLICATION_JSON);
-            Response response = client().performRequest("PUT", "/posts", Collections.emptyMap(), entity);
+                    "}");
+            Response response = client().performRequest(createIndex);
             assertEquals(200, response.getStatusLine().getStatusCode());
 
             IndexRequest indexRequest = new IndexRequest("posts", "doc", "1")
@@ -1071,21 +1068,21 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            String mappings = "{\n" +
-            "    \"mappings\" : {\n" +
-            "        \"type\" : {\n" +
-            "            \"properties\" : {\n" +
-            "                \"foo\" : {\n" +
-            "                    \"type\": \"text\",\n" +
-            "                    \"store\": true\n" +
-            "                }\n" +
-            "            }\n" +
-            "        }\n" +
-            "    }\n" +
-            "}";
-
-            NStringEntity entity = new NStringEntity(mappings, ContentType.APPLICATION_JSON);
-            Response response = client().performRequest("PUT", "/index", Collections.emptyMap(), entity);
+            Request createIndex = new Request("PUT", "/index");
+            createIndex.setJsonEntity(
+                    "{\n" +
+                    "    \"mappings\" : {\n" +
+                    "        \"type\" : {\n" +
+                    "            \"properties\" : {\n" +
+                    "                \"foo\" : {\n" +
+                    "                    \"type\": \"text\",\n" +
+                    "                    \"store\": true\n" +
+                    "                }\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
+                    "}");
+            Response response = client().performRequest(createIndex);
             assertEquals(200, response.getStatusLine().getStatusCode());
         }
 

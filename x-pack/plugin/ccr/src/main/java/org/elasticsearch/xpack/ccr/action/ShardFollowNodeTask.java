@@ -61,11 +61,11 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final BiConsumer<TimeValue, Runnable> scheduler;
 
     private volatile long lastRequestedSeqno;
-    private volatile long globalCheckpoint;
+    private volatile long leaderGlobalCheckpoint;
 
     private volatile int numConcurrentReads = 0;
     private volatile int numConcurrentWrites = 0;
-    private volatile long processedGlobalCheckpoint = 0;
+    private volatile long followerGlobalCheckpoint = 0;
     private volatile long currentIndexMetadataVersion = 0;
     private final AtomicInteger retryCounter = new AtomicInteger(0);
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo).reversed());
@@ -82,8 +82,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     void start(long followerGlobalCheckpoint) {
         this.lastRequestedSeqno = followerGlobalCheckpoint;
-        this.processedGlobalCheckpoint = followerGlobalCheckpoint;
-        this.globalCheckpoint = followerGlobalCheckpoint;
+        this.followerGlobalCheckpoint = followerGlobalCheckpoint;
+        this.leaderGlobalCheckpoint = followerGlobalCheckpoint;
 
         // Forcefully updates follower mapping, this gets us the leader imd version and
         // makes sure that leader and follower mapping are identical.
@@ -101,20 +101,20 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return;
         }
 
-        LOGGER.trace("{} coordinate reads, lastRequestedSeqno={}, globalCheckpoint={}",
-            params.getFollowShardId(), lastRequestedSeqno, globalCheckpoint);
+        LOGGER.trace("{} coordinate reads, lastRequestedSeqno={}, leaderGlobalCheckpoint={}",
+            params.getFollowShardId(), lastRequestedSeqno, leaderGlobalCheckpoint);
         final int maxBatchOperationCount = params.getMaxBatchOperationCount();
-        while (hasReadBudget() && lastRequestedSeqno < globalCheckpoint) {
+        while (hasReadBudget() && lastRequestedSeqno < leaderGlobalCheckpoint) {
             numConcurrentReads++;
             long from = lastRequestedSeqno + 1;
-            long maxRequiredSeqno = Math.min(globalCheckpoint, from + maxBatchOperationCount);
+            long maxRequiredSeqno = Math.min(leaderGlobalCheckpoint, from + maxBatchOperationCount);
             LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, maxRequiredSeqno, maxBatchOperationCount);
             sendShardChangesRequest(from, maxBatchOperationCount, maxRequiredSeqno);
             lastRequestedSeqno = maxRequiredSeqno;
         }
 
         if (numConcurrentReads == 0 && hasReadBudget()) {
-            assert lastRequestedSeqno == globalCheckpoint;
+            assert lastRequestedSeqno == leaderGlobalCheckpoint;
             // We sneak peek if there is any thing new in the leader.
             // If there is we will happily accept
             numConcurrentReads++;
@@ -181,7 +181,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private void handleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
         maybeUpdateMapping(response.getIndexMetadataVersion(), () -> {
             synchronized (ShardFollowNodeTask.this) {
-                globalCheckpoint = Math.max(globalCheckpoint, response.getGlobalCheckpoint());
+                leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
                 final long newMinRequiredSeqNo;
                 if (response.getOperations().length == 0) {
                     newMinRequiredSeqNo = from;
@@ -195,8 +195,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     newMinRequiredSeqNo = maxSeqNo + 1;
                     // update last requested seq no as we may have gotten more than we asked for and we don't want to ask it again.
                     lastRequestedSeqno = Math.max(lastRequestedSeqno, maxSeqNo);
-                    assert lastRequestedSeqno <= globalCheckpoint:
-                        "lastRequestedSeqno [" + lastRequestedSeqno + "] is larger than the global checkpoint [" + globalCheckpoint + "]";
+                    assert lastRequestedSeqno <= leaderGlobalCheckpoint :  "lastRequestedSeqno [" + lastRequestedSeqno +
+                        "] is larger than the global checkpoint [" + leaderGlobalCheckpoint + "]";
                     coordinateWrites();
                 }
 
@@ -208,7 +208,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 } else {
                     // read is completed, decrement
                     numConcurrentReads--;
-                    if (response.getOperations().length == 0 && globalCheckpoint == lastRequestedSeqno)  {
+                    if (response.getOperations().length == 0 && leaderGlobalCheckpoint == lastRequestedSeqno)  {
                         // we got nothing and we have no reason to believe asking again well get us more, treat shard as idle and delay
                         // future requests
                         LOGGER.trace("{} received no ops and no known ops to fetch, scheduling to coordinate reads",
@@ -233,7 +233,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     private synchronized void handleWriteResponse(long followerLocalCheckpoint) {
-        processedGlobalCheckpoint = Math.max(processedGlobalCheckpoint, followerLocalCheckpoint);
+        this.followerGlobalCheckpoint = Math.max(this.followerGlobalCheckpoint, followerLocalCheckpoint);
         numConcurrentWrites--;
         assert numConcurrentWrites >= 0;
         coordinateWrites();
@@ -302,15 +302,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     @Override
     public Status getStatus() {
-        return new Status(globalCheckpoint, lastRequestedSeqno, processedGlobalCheckpoint, numConcurrentReads, numConcurrentWrites);
+        return new Status(leaderGlobalCheckpoint, lastRequestedSeqno, followerGlobalCheckpoint, numConcurrentReads, numConcurrentWrites);
     }
 
     public static class Status implements Task.Status {
 
         public static final String NAME = "shard-follow-node-task-status";
 
-        static final ParseField GLOBAL_CHECKPOINT_FIELD = new ParseField("leader_global_checkpoint");
-        static final ParseField PROCESSED_GLOBAL_CHECKPOINT_FIELD = new ParseField("follower_global_checkpoint");
+        static final ParseField LEADER_GLOBAL_CHECKPOINT_FIELD = new ParseField("leader_global_checkpoint");
+        static final ParseField FOLLOWER_GLOBAL_CHECKPOINT_FIELD = new ParseField("follower_global_checkpoint");
         static final ParseField LAST_REQUESTED_SEQNO_FIELD = new ParseField("last_requested_seqno");
         static final ParseField NUMBER_OF_CONCURRENT_READS_FIELD = new ParseField("number_of_concurrent_reads");
         static final ParseField NUMBER_OF_CONCURRENT_WRITES_FIELD = new ParseField("number_of_concurrent_writes");
@@ -319,46 +319,46 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             args -> new Status((long) args[0], (long) args[1], (long) args[2], (int) args[3], (int) args[4]));
 
         static {
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), GLOBAL_CHECKPOINT_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), LEADER_GLOBAL_CHECKPOINT_FIELD);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), LAST_REQUESTED_SEQNO_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), PROCESSED_GLOBAL_CHECKPOINT_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_GLOBAL_CHECKPOINT_FIELD);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_READS_FIELD);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_WRITES_FIELD);
         }
 
-        private final long globalCheckpoint;
+        private final long leaderGlobalCheckpoint;
         private final long lastRequestedSeqno;
-        private final long processedGlobalCheckpoint;
+        private final long followerGlobalCheckpoint;
         private final int numberOfConcurrentReads;
         private final int numberOfConcurrentWrites;
 
-        Status(long globalCheckpoint, long lastRequestedSeqno, long processedGlobalCheckpoint, int numberOfConcurrentReads,
-               int numberOfConcurrentWrites) {
-            this.globalCheckpoint = globalCheckpoint;
+        Status(long leaderGlobalCheckpoint, long lastRequestedSeqno, long followerGlobalCheckpoint,
+               int numberOfConcurrentReads, int numberOfConcurrentWrites) {
+            this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
             this.lastRequestedSeqno = lastRequestedSeqno;
-            this.processedGlobalCheckpoint = processedGlobalCheckpoint;
+            this.followerGlobalCheckpoint = followerGlobalCheckpoint;
             this.numberOfConcurrentReads = numberOfConcurrentReads;
             this.numberOfConcurrentWrites = numberOfConcurrentWrites;
         }
 
         public Status(StreamInput in) throws IOException {
-            this.globalCheckpoint = in.readZLong();
+            this.leaderGlobalCheckpoint = in.readZLong();
             this.lastRequestedSeqno = in.readZLong();
-            this.processedGlobalCheckpoint = in.readZLong();
+            this.followerGlobalCheckpoint = in.readZLong();
             this.numberOfConcurrentReads = in.readVInt();
             this.numberOfConcurrentWrites = in.readVInt();
         }
 
-        public long getGlobalCheckpoint() {
-            return globalCheckpoint;
+        public long getLeaderGlobalCheckpoint() {
+            return leaderGlobalCheckpoint;
         }
 
         public long getLastRequestedSeqno() {
             return lastRequestedSeqno;
         }
 
-        public long getProcessedGlobalCheckpoint() {
-            return processedGlobalCheckpoint;
+        public long getFollowerGlobalCheckpoint() {
+            return followerGlobalCheckpoint;
         }
 
         public int getNumberOfConcurrentReads() {
@@ -376,9 +376,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeZLong(globalCheckpoint);
+            out.writeZLong(leaderGlobalCheckpoint);
             out.writeZLong(lastRequestedSeqno);
-            out.writeZLong(processedGlobalCheckpoint);
+            out.writeZLong(followerGlobalCheckpoint);
             out.writeVInt(numberOfConcurrentReads);
             out.writeVInt(numberOfConcurrentWrites);
         }
@@ -387,8 +387,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field(GLOBAL_CHECKPOINT_FIELD.getPreferredName(), globalCheckpoint);
-                builder.field(PROCESSED_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), processedGlobalCheckpoint);
+                builder.field(LEADER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), leaderGlobalCheckpoint);
+                builder.field(FOLLOWER_GLOBAL_CHECKPOINT_FIELD.getPreferredName(), followerGlobalCheckpoint);
                 builder.field(LAST_REQUESTED_SEQNO_FIELD.getPreferredName(), lastRequestedSeqno);
                 builder.field(NUMBER_OF_CONCURRENT_READS_FIELD.getPreferredName(), numberOfConcurrentReads);
                 builder.field(NUMBER_OF_CONCURRENT_WRITES_FIELD.getPreferredName(), numberOfConcurrentWrites);
@@ -406,16 +406,16 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status status = (Status) o;
-            return globalCheckpoint == status.globalCheckpoint &&
+            return leaderGlobalCheckpoint == status.leaderGlobalCheckpoint &&
                 lastRequestedSeqno == status.lastRequestedSeqno &&
-                processedGlobalCheckpoint == status.processedGlobalCheckpoint &&
+                followerGlobalCheckpoint == status.followerGlobalCheckpoint &&
                 numberOfConcurrentReads == status.numberOfConcurrentReads &&
                 numberOfConcurrentWrites == status.numberOfConcurrentWrites;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(globalCheckpoint, lastRequestedSeqno, processedGlobalCheckpoint, numberOfConcurrentReads,
+            return Objects.hash(leaderGlobalCheckpoint, lastRequestedSeqno, followerGlobalCheckpoint, numberOfConcurrentReads,
                 numberOfConcurrentWrites);
         }
 

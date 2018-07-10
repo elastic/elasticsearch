@@ -12,7 +12,6 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 
 import java.nio.charset.StandardCharsets;
@@ -56,7 +55,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         task.start(followGlobalCheckpoint);
 
         assertBusy(() -> {
-            assertThat(task.getStatus().getProcessedGlobalCheckpoint(), equalTo(10000L));
+            assertThat(task.getStatus().getFollowerGlobalCheckpoint(), equalTo(10000L));
         });
         assertThat(mappingUpdateCounter.get(), equalTo(1));
     }
@@ -67,7 +66,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         task.start(-1);
 
         assertBusy(() -> {
-            assertThat(task.getStatus().getProcessedGlobalCheckpoint(), equalTo(10000L));
+            assertThat(task.getStatus().getFollowerGlobalCheckpoint(), equalTo(10000L));
         });
     }
 
@@ -78,7 +77,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         task.start(followGlobalCheckpoint);
 
         assertBusy(() -> {
-            assertThat(task.getStatus().getProcessedGlobalCheckpoint(), equalTo(50000L));
+            assertThat(task.getStatus().getFollowerGlobalCheckpoint(), equalTo(50000L));
         });
     }
 
@@ -87,12 +86,12 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         task.start(-1);
 
         assertBusy(() -> {
-            assertThat(task.getStatus().getProcessedGlobalCheckpoint(), greaterThanOrEqualTo(1000L));
+            assertThat(task.getStatus().getFollowerGlobalCheckpoint(), greaterThanOrEqualTo(1000L));
         });
         imdVersion.set(2L);
         leaderGlobalCheckPoint.set(10000L);
         assertBusy(() -> {
-            assertThat(task.getStatus().getProcessedGlobalCheckpoint(), equalTo(10000L));
+            assertThat(task.getStatus().getFollowerGlobalCheckpoint(), equalTo(10000L));
         });
         assertThat(mappingUpdateCounter.get(), equalTo(2));
     }
@@ -102,7 +101,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         task.start(-1);
         randomlyFailWithRetryableError.set(true);
         assertBusy(() -> {
-            assertThat(task.getStatus().getProcessedGlobalCheckpoint(), equalTo(10000L));
+            assertThat(task.getStatus().getFollowerGlobalCheckpoint(), equalTo(10000L));
         });
         assertThat(failedRequests.get(), greaterThan(0));
     }
@@ -112,7 +111,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         task.start(-1);
         randomlyTruncateRequests.set(true);
         assertBusy(() -> {
-            assertThat(task.getStatus().getProcessedGlobalCheckpoint(), equalTo(10000L));
+            assertThat(task.getStatus().getFollowerGlobalCheckpoint(), equalTo(10000L));
         });
         assertThat(truncatedRequests.get(), greaterThan(0));
     }

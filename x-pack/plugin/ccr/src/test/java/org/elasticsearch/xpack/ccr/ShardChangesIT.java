@@ -490,7 +490,7 @@ public class ShardChangesIT extends ESIntegTestCase {
                 ShardFollowNodeTask.Status status = (ShardFollowNodeTask.Status) taskInfo.getStatus();
                 assertThat(status, notNullValue());
                 assertThat("incorrect global checkpoint " + shardFollowTaskParams,
-                    status.getProcessedGlobalCheckpoint(),
+                    status.getFollowerGlobalCheckpoint(),
                     equalTo(numDocsPerShard.get(shardFollowTaskParams.getLeaderShardId())));
             }
         };

@@ -704,20 +704,6 @@ public class InternalEngine extends Engine {
         return false;
     }
 
-    private boolean assertVersionType(final Engine.Operation operation) {
-        if (operation.origin() == Operation.Origin.REPLICA ||
-                operation.origin() == Operation.Origin.PEER_RECOVERY ||
-                operation.origin() == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-            // ensure that replica operation has expected version type for replication
-            // ensure that versionTypeForReplicationAndRecovery is idempotent
-            assert operation.versionType() == operation.versionType().versionTypeForReplicationAndRecovery()
-                    : "unexpected version type in request from [" + operation.origin().name() + "] " +
-                    "found [" + operation.versionType().name() + "] " +
-                    "expected [" + operation.versionType().versionTypeForReplicationAndRecovery().name() + "]";
-        }
-        return true;
-    }
-
     private boolean assertIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
         if (origin == Operation.Origin.PRIMARY) {
             assert assertOriginPrimarySequenceNumber(seqNo);
@@ -757,7 +743,6 @@ public class InternalEngine extends Engine {
         try (ReleasableLock releasableLock = readLock.acquire()) {
             ensureOpen();
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
-            assert assertVersionType(index);
             try (Releasable ignored = versionMap.acquireLock(index.uid().bytes());
                 Releasable indexThrottle = doThrottle ? () -> {} : throttle.acquireThrottle()) {
                 lastWriteNanos = index.startTime();
@@ -1096,7 +1081,6 @@ public class InternalEngine extends Engine {
     public DeleteResult delete(Delete delete) throws IOException {
         versionMap.enforceSafeAccess();
         assert Objects.equals(delete.uid().field(), IdFieldMapper.NAME) : delete.uid().field();
-        assert assertVersionType(delete);
         assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
         final DeleteResult deleteResult;
         // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:

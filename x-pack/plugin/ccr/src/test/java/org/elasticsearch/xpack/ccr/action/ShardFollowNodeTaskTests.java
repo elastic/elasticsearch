@@ -32,7 +32,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@TestLogging("org.elasticsearch.xpack.ccr.action:TRACE")
 public class ShardFollowNodeTaskTests extends ESTestCase {
 
     private ShardFollowNodeTask task;
@@ -72,7 +71,6 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         });
     }
 
-    @TestLogging("org.elasticsearch.xpack.ccr.action:TRACE")
     public void testConcurrentReadsAndWrites() throws Exception {
         long followGlobalCheckpoint = randomIntBetween(-1, 2048);
         task = createShardFollowTask(randomIntBetween(32, 2048), randomIntBetween(2, 10),

@@ -155,12 +155,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             LOGGER.trace("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numConcurrentWrites, ops.get(0).seqNo(),
                 ops.get(ops.size() - 1).seqNo(), ops.size());
             sendBulkShardOperationsRequest(ops);
-
-            // In case that buffer is higher than max write buffer size then reads may all have been stopped,
-            // this if check makes sure that we start a read when there is budget in case no reads are being performed.
-            if (numConcurrentReads == 0 && hasReadBudget()) {
-                coordinateReads();
-            }
         }
     }
 
@@ -243,6 +237,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         numConcurrentWrites--;
         assert numConcurrentWrites >= 0;
         coordinateWrites();
+
+        // In case that buffer has more ops than is allowed then reads may all have been stopped,
+        // this if check makes sure that we start a read when there is budget in case no reads are being performed.
+        if (numConcurrentReads == 0) {
+            coordinateReads();
+        }
     }
 
     private synchronized void maybeUpdateMapping(Long minimumRequiredIndexMetadataVersion, Runnable task) {

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.joda.time.DateTime;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -88,14 +89,7 @@ public abstract class WatchExecutionContext {
     public void ensureWatchExists(CheckedSupplier<Watch, Exception> supplier) throws Exception {
         if (watch == null) {
             watch = supplier.get();
-            // now that the watch exists, extract out the authentication
-            if (watch.status() != null && watch.status().getHeaders() != null) {
-                String header = watch.status().getHeaders().get(AuthenticationField.AUTHENTICATION_KEY);
-                if (header != null) {
-                    Authentication auth = Authentication.decode(header);
-                    user = auth.getUser().principal();
-                }
-            }
+            user = WatchExecutionContext.getUsernameFromWatch(watch);
         }
     }
 
@@ -258,5 +252,20 @@ public abstract class WatchExecutionContext {
 
     public WatchExecutionSnapshot createSnapshot(Thread executionThread) {
         return new WatchExecutionSnapshot(this, executionThread.getStackTrace());
+    }
+
+    /**
+     * Given a watch, this extracts and decodes the relevant auth header and returns the principal of the user that is
+     * executing the watch.
+     */
+    public static String getUsernameFromWatch(Watch watch) throws IOException {
+        if (watch != null && watch.status() != null && watch.status().getHeaders() != null) {
+            String header = watch.status().getHeaders().get(AuthenticationField.AUTHENTICATION_KEY);
+            if (header != null) {
+                Authentication auth = Authentication.decode(header);
+                return auth.getUser().principal();
+            }
+        }
+        return null;
     }
 }

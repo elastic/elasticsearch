@@ -70,11 +70,14 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
     }
 
     /**
-     * @param maxRelevance the maximal relevance judgment in the evaluation dataset
+     * @param maxRelevance
+     *            the maximal relevance judgment in the evaluation dataset
      * @param unknownDocRating
      *            the rating for documents the user hasn't supplied an explicit
-     *            rating for. Can be <tt>null</tt>, in which case document will be skipped.
-     * @param k the search window size all request use.
+     *            rating for. Can be {@code null}, in which case document is
+     *            skipped.
+     * @param k
+     *            the search window size all request use.
      */
     public ExpectedReciprocalRank(int maxRelevance, @Nullable Integer unknownDocRating, int k) {
         this.maxRelevance = maxRelevance;

@@ -39,6 +39,9 @@ public class ManualExecutionContext extends WatchExecutionContext {
         this.recordExecution = recordExecution;
         this.knownWatch = knownWatch;
 
+        // set the watch early to ensure calls to watch() below succeed.
+        super.ensureWatchExists(() -> watch);
+
         if (inputResult != null) {
             onInputResult(inputResult);
         }
@@ -61,7 +64,6 @@ public class ManualExecutionContext extends WatchExecutionContext {
                 }
             }
         }
-        super.ensureWatchExists(() -> watch);
     }
 
     @Override

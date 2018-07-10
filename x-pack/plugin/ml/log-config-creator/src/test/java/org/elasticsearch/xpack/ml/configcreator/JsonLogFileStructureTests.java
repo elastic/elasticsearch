@@ -19,15 +19,19 @@ public class JsonLogFileStructureTests extends LogConfigCreatorTestCase {
         assertTrue(factory.canCreateFromSample(JSON_SAMPLE));
         String charset = randomFrom(POSSIBLE_CHARSETS);
         String timezone = randomFrom(POSSIBLE_TIMEZONES);
+        String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
+        String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         JsonLogFileStructure structure = (JsonLogFileStructure) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME, "ml-cpp",
-            timezone, JSON_SAMPLE, charset);
+            elasticsearchHost, logstashHost, timezone, JSON_SAMPLE, charset);
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
         } else {
             assertThat(structure.getFilebeatToLogstashConfig(), containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
         }
+        assertThat(structure.getFilebeatToLogstashConfig(), containsString(logstashHost));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
+        assertThat(structure.getLogstashFromFilebeatConfig(), containsString(elasticsearchHost));
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getLogstashFromFileConfig(), not(containsString("charset =>")));
         } else {
@@ -35,12 +39,14 @@ public class JsonLogFileStructureTests extends LogConfigCreatorTestCase {
         }
         assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
         assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
+        assertThat(structure.getLogstashFromFileConfig(), containsString(elasticsearchHost));
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToIngestPipelineConfig(), not(containsString("encoding:")));
         } else {
             assertThat(structure.getFilebeatToIngestPipelineConfig(),
                 containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
         }
+        assertThat(structure.getFilebeatToIngestPipelineConfig(), containsString(elasticsearchHost));
         assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"field\": \"timestamp\",\n"));
         assertThat(structure.getIngestPipelineFromFilebeatConfig(), containsString("\"formats\": [ \"UNIX_MS\" ]\n"));
     }

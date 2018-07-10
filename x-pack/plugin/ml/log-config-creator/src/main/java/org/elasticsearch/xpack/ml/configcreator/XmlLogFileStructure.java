@@ -40,7 +40,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         "%s" +
         "\n" +
         "output.logstash:\n" +
-        "  hosts: [\"localhost:5044\"]\n";
+        "  hosts: [\"%s:5044\"]\n";
     private static final String LOGSTASH_FROM_FILEBEAT_TEMPLATE = "input {\n" +
         "  beats {\n" +
         "    port => 5044\n" +
@@ -58,7 +58,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         "\n" +
         "output {\n" +
         "  elasticsearch {\n" +
-        "    hosts => localhost\n" +
+        "    hosts => '%s'\n" +
         "    manage_template => false\n" +
         "    index => \"%%{[@metadata][beat]}-%%{[@metadata][version]}-%%{+YYYY.MM.dd}\"\n" +
         "  }\n" +
@@ -82,7 +82,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         "\n" +
         "output {\n" +
         "  elasticsearch {\n" +
-        "    hosts => localhost\n" +
+        "    hosts => '%s'\n" +
         "    manage_template => false\n" +
         "    index => \"%s\"\n" +
         "    document_type => \"_doc\"\n" +
@@ -96,9 +96,10 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
     private String logstashFromFilebeatConfig;
     private String logstashFromFileConfig;
 
-    XmlLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String logstashFileTimezone,
-                        String sample, String charsetName) throws IOException, ParserConfigurationException, SAXException {
-        super(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, charsetName);
+    XmlLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String elasticsearchHost,
+                        String logstashHost, String logstashFileTimezone, String sample, String charsetName)
+        throws IOException, ParserConfigurationException, SAXException {
+        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
 
         try (Scanner scanner = new Scanner(sample)) {
             messagePrefix = scanner.next();
@@ -184,10 +185,12 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         }
 
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
-            makeFilebeatInputOptions("^\\s*" + messagePrefix, null), makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing));
-        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatDateFilter);
+            makeFilebeatInputOptions("^\\s*" + messagePrefix, null), makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing),
+            logstashHost);
+        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatDateFilter,
+            elasticsearchHost);
         logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput("^\\s*" + messagePrefix),
-            logstashFromFileDateFilter, indexName);
+            logstashFromFileDateFilter, elasticsearchHost, indexName);
     }
 
     String getFilebeatToLogstashConfig() {

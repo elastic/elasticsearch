@@ -203,12 +203,14 @@ file to be processed
 
 Option                     Description
 ------                     -----------
+-e, --elasticsearch-host   elasticsearch host (default: localhost)
 -f, --filebeat-module-dir  path to filebeat module directory (default:
                              $HOME/beats/filebeat/module or from installed
                              filebeat)
 -h, --help                 show help
 -i, --index                index for logstash direct from file config (default:
                              test)
+-l, --logstash-host        logstash host (default: localhost)
 -n, --name                 name for this type of log file (default: xyz)
 -o, --output               output directory (default: .)
 -s, --silent               show minimal output

@@ -74,6 +74,8 @@ public final class LogFileStructureFinder {
     private final String indexName;
     private final String typeName;
     private final String logstashFileTimezone;
+    private final String elasticsearchHost;
+    private final String logstashHost;
 
     /**
      * These need to be ordered so that the more generic formats come after the more specific ones
@@ -81,12 +83,14 @@ public final class LogFileStructureFinder {
     private final List<LogFileStructureFactory> orderedStructureFactories;
 
     public LogFileStructureFinder(Terminal terminal, Path filebeatModulePath, String sampleFileName, String indexName, String typeName,
-                                  String logstashFileTimezone)
+                                  String elasticsearchHost, String logstashHost, String logstashFileTimezone)
         throws IOException {
         this.terminal = Objects.requireNonNull(terminal);
         this.sampleFileName = Objects.requireNonNull(sampleFileName);
         this.indexName = Objects.requireNonNull(indexName);
         this.typeName = Objects.requireNonNull(typeName);
+        this.elasticsearchHost = Objects.requireNonNull(elasticsearchHost);
+        this.logstashHost = Objects.requireNonNull(logstashHost);
         this.logstashFileTimezone = logstashFileTimezone;
         FilebeatModuleStore filebeatModuleStore =
             (filebeatModulePath != null) ? new FilebeatModuleStore(terminal, filebeatModulePath, sampleFileName) : null;
@@ -198,7 +202,8 @@ public final class LogFileStructureFinder {
 
         for (LogFileStructureFactory factory : orderedStructureFactories) {
             if (factory.canCreateFromSample(sample)) {
-                return factory.createFromSample(sampleFileName, indexName, typeName, logstashFileTimezone, sample, charsetName);
+                return factory.createFromSample(sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone,
+                    sample, charsetName);
             }
         }
         throw new UserException(ExitCodes.DATA_ERROR, "Input did not match any known formats");

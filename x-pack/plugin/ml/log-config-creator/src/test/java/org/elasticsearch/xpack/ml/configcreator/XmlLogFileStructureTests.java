@@ -19,8 +19,10 @@ public class XmlLogFileStructureTests extends LogConfigCreatorTestCase {
         assertTrue(factory.canCreateFromSample(XML_SAMPLE));
         String charset = randomFrom(POSSIBLE_CHARSETS);
         String timezone = randomFrom(POSSIBLE_TIMEZONES);
+        String elasticsearchHost = randomFrom(POSSIBLE_HOSTNAMES);
+        String logstashHost = randomFrom(POSSIBLE_HOSTNAMES);
         XmlLogFileStructure structure = (XmlLogFileStructure) factory.createFromSample(TEST_FILE_NAME, TEST_INDEX_NAME, "log4cxx-xml",
-            timezone, XML_SAMPLE, charset);
+            elasticsearchHost, logstashHost, timezone, XML_SAMPLE, charset);
         structure.createConfigs();
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getFilebeatToLogstashConfig(), not(containsString("encoding:")));
@@ -28,7 +30,9 @@ public class XmlLogFileStructureTests extends LogConfigCreatorTestCase {
             assertThat(structure.getFilebeatToLogstashConfig(), containsString("encoding: '" + charset.toLowerCase(Locale.ROOT) + "'"));
         }
         assertThat(structure.getFilebeatToLogstashConfig(), containsString("multiline.pattern: '^\\s*<log4j:event'\n"));
+        assertThat(structure.getFilebeatToLogstashConfig(), containsString(logstashHost));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
+        assertThat(structure.getLogstashFromFilebeatConfig(), containsString(elasticsearchHost));
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getLogstashFromFileConfig(), not(containsString("charset =>")));
         } else {
@@ -37,5 +41,6 @@ public class XmlLogFileStructureTests extends LogConfigCreatorTestCase {
         assertThat(structure.getLogstashFromFileConfig(), containsString("pattern => \"^\\s*<log4j:event\"\n"));
         assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
         assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
+        assertThat(structure.getLogstashFromFileConfig(), containsString(elasticsearchHost));
     }
 }

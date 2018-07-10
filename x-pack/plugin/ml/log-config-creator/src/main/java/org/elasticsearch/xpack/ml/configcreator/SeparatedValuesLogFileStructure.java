@@ -40,7 +40,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         "%s" +
         "\n" +
         "output.logstash:\n" +
-        "  hosts: [\"localhost:5044\"]\n";
+        "  hosts: [\"%s:5044\"]\n";
     private static final String SEPARATOR_TEMPLATE = "    separator => \"%c\"\n";
     private static final String LOGSTASH_CONVERSIONS_TEMPLATE = "    convert => {\n" +
         "%s" +
@@ -64,7 +64,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         "\n" +
         "output {\n" +
         "  elasticsearch {\n" +
-        "    hosts => localhost\n" +
+        "    hosts => '%s'\n" +
         "    manage_template => false\n" +
         "    index => \"%%{[@metadata][beat]}-%%{[@metadata][version]}-%%{+YYYY.MM.dd}\"\n" +
         "  }\n" +
@@ -91,7 +91,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         "\n" +
         "output {\n" +
         "  elasticsearch {\n" +
-        "    hosts => localhost\n" +
+        "    hosts => '%s'\n" +
         "    manage_template => false\n" +
         "    index => \"%s\"\n" +
         "    document_type => \"_doc\"\n" +
@@ -108,9 +108,10 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
     private String logstashFromFileConfig;
 
     SeparatedValuesLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName,
-                                    String logstashFileTimezone, String sample, String charsetName, CsvPreference csvPreference)
+                                    String elasticsearchHost, String logstashHost, String logstashFileTimezone, String sample,
+                                    String charsetName, CsvPreference csvPreference)
         throws IOException {
-        super(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, charsetName);
+        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
         this.csvPreference = Objects.requireNonNull(csvPreference);
         Tuple<Boolean, String[]> headerInfo = findHeaderFromSample(terminal, sample, csvPreference);
         isCsvHeaderInFile = headerInfo.v1();
@@ -406,16 +407,18 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
             .collect(Collectors.joining(",")) : null;
 
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
-            makeFilebeatInputOptions(timeLineRegex, excludeColumns), makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing));
+            makeFilebeatInputOptions(timeLineRegex, excludeColumns), makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing),
+            logstashHost);
         String logstashColumns = Arrays.stream(csvHeader)
             .map(column -> (column.indexOf('"') >= 0) ? ("'" + column + "'") : ("\"" + column + "\"")).collect(Collectors.joining(", "));
         String separatorIfRequired = (delimiter == ',') ? "" : String.format(Locale.ROOT, SEPARATOR_TEMPLATE, delimiter);
         String logStashColumnConversions = makeColumnConversions(mappings);
         logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, separatorIfRequired, logstashColumns,
-            logStashColumnConversions, logstashFromFilebeatDateFilter);
+            logStashColumnConversions, logstashFromFilebeatDateFilter, elasticsearchHost);
         String skipHeaderIfRequired = isCsvHeaderInFile ? "    skip_header => true\n": "";
         logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(timeLineRegex),
-            separatorIfRequired, logstashColumns, skipHeaderIfRequired, logStashColumnConversions, logstashFromFileDateFilter, indexName);
+            separatorIfRequired, logstashColumns, skipHeaderIfRequired, logStashColumnConversions, logstashFromFileDateFilter,
+            elasticsearchHost, indexName);
     }
 
     String getFilebeatToLogstashConfig() {

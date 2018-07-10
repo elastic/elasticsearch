@@ -37,7 +37,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "%s" +
         "\n" +
         "output.logstash:\n" +
-        "  hosts: [\"localhost:5044\"]\n";
+        "  hosts: [\"%s:5044\"]\n";
     private static final String COMMON_LOGSTASH_FILTERS_TEMPLATE = "  grok {\n" +
         "    match => { \"message\" => %s%s%s }\n" +
         "  }\n" +
@@ -59,7 +59,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "\n" +
         "output {\n" +
         "  elasticsearch {\n" +
-        "    hosts => localhost\n" +
+        "    hosts => '%s'\n" +
         "    manage_template => false\n" +
         "    index => \"%%{[@metadata][beat]}-%%{[@metadata][version]}-%%{+YYYY.MM.dd}\"\n" +
         "  }\n" +
@@ -79,7 +79,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "\n" +
         "output {\n" +
         "  elasticsearch {\n" +
-        "    hosts => localhost\n" +
+        "    hosts => '%s'\n" +
         "    manage_template => false\n" +
         "    index => \"%s\"\n" +
         "    document_type => \"_doc\"\n" +
@@ -91,7 +91,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "%s" +
         "\n" +
         "output.elasticsearch:\n" +
-        "  hosts: [\"http://localhost:9200\"]\n" +
+        "  hosts: [\"http://%s:9200\"]\n" +
         "  pipeline: \"%s\"\n";
     private static final String INGEST_PIPELINE_FROM_FILEBEAT_WITHOUT_MODULE_TEMPLATE = "PUT _ingest/pipeline/%s\n" +
         "{\n" +
@@ -117,7 +117,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         "%s\n" +
         "\n" +
         "output.elasticsearch:\n" +
-        "  hosts: [\"http://localhost:9200\"]\n" +
+        "  hosts: [\"http://%s:9200\"]\n" +
         "  pipeline: \"%s\"\n";
     private static final String INGEST_PIPELINE_FROM_FILEBEAT_WITH_MODULE_TEMPLATE = "PUT _ingest/pipeline/%s\n" +
         "%s\n";
@@ -132,8 +132,9 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
     private String ingestPipelineFromFilebeatConfig;
 
     TextLogFileStructure(Terminal terminal, FilebeatModuleStore filebeatModuleStore, String sampleFileName, String indexName,
-                         String typeName, String logstashFileTimezone, String sample, String charsetName) {
-        super(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, charsetName);
+                         String typeName, String elasticsearchHost, String logstashHost, String logstashFileTimezone, String sample,
+                         String charsetName) {
+        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
         this.filebeatModuleStore = filebeatModuleStore;
         this.sample = Objects.requireNonNull(sample);
     }
@@ -218,18 +219,19 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
 
         String filebeatInputOptions = makeFilebeatInputOptions(multiLineRegex, null);
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions,
-            makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing));
+            makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing), logstashHost);
         String logstashFromFilebeatFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
             interimTimestampField, dateFormatsStr, interimTimestampField, makeLogstashTimezoneSetting(hasTimezoneDependentParsing, true));
-        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatFilters);
+        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatFilters,
+            elasticsearchHost);
         String logstashFromFileFilters = String.format(Locale.ROOT, COMMON_LOGSTASH_FILTERS_TEMPLATE, grokQuote, grokPattern, grokQuote,
             interimTimestampField, dateFormatsStr, interimTimestampField, makeLogstashTimezoneSetting(hasTimezoneDependentParsing, false));
         logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(multiLineRegex),
-            logstashFromFileFilters, indexName);
+            logstashFromFileFilters, elasticsearchHost, indexName);
         FilebeatModule matchingModule = (filebeatModuleStore != null) ? filebeatModuleStore.findMatchingModule(sampleMessages) : null;
         if (matchingModule == null) {
             filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_WITHOUT_MODULE_TEMPLATE,
-                filebeatInputOptions, makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing), typeName);
+                filebeatInputOptions, makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing), elasticsearchHost, typeName);
             String jsonEscapedGrokPattern = grokPattern.replaceAll("([\\\\\"])", "\\\\$1");
             ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_WITHOUT_MODULE_TEMPLATE, typeName,
                 typeName, jsonEscapedGrokPattern, interimTimestampField,
@@ -239,7 +241,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
             terminal.println("An existing Filebeat module [" + matchingModule.moduleName +
                 "] looks appropriate; the sample file appears to be " + aOrAn + " [" + matchingModule.fileType + "] log");
             filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_WITH_MODULE_TEMPLATE,
-                matchingModule.inputDefinition, typeName);
+                matchingModule.inputDefinition, elasticsearchHost, typeName);
             ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_WITH_MODULE_TEMPLATE, typeName,
                 matchingModule.ingestPipeline);
         }

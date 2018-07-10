@@ -120,9 +120,10 @@ public class XmlLogFileStructureFactory implements LogFileStructureFactory {
     }
 
     @Override
-    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String logstashFileTimezone,
-                                             String sample, String charsetName)
+    public LogFileStructure createFromSample(String sampleFileName, String indexName, String typeName, String elasticsearchHost,
+                                             String logstashHost, String logstashFileTimezone, String sample, String charsetName)
         throws IOException, ParserConfigurationException, SAXException {
-        return new XmlLogFileStructure(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, sample, charsetName);
+        return new XmlLogFileStructure(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone,
+            sample, charsetName);
     }
 }

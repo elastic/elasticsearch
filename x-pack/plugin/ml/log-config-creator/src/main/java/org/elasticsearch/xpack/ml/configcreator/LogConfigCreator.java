@@ -11,6 +11,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.grok.Grok;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -29,6 +30,8 @@ import java.util.stream.Stream;
  * handles argument parsing and validation and kicks off the structure finder.
  */
 public class LogConfigCreator extends Command {
+
+    private static final Grok IP_OR_HOST_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{IPORHOST}$");
 
     private static final Path HOME_PATH = parsePath(System.getProperty("user.home"));
     private static final Path REPO_MODULE_PATH =
@@ -78,6 +81,8 @@ public class LogConfigCreator extends Command {
         parser.acceptsAll(Arrays.asList("n", "name"), "name for this type of log file (default: xyz)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("f", "filebeat-module-dir"),
             "path to filebeat module directory (default: $HOME/beats/filebeat/module or from installed filebeat)").withRequiredArg();
+        parser.acceptsAll(Arrays.asList("e", "elasticsearch-host"), "elasticsearch host (default: localhost)").withRequiredArg();
+        parser.acceptsAll(Arrays.asList("l", "logstash-host"), "logstash host (default: localhost)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("z", "timezone"),
             "timezone for logstash direct from file input (default: logstash server timezone)").withRequiredArg();
         parser.nonOptions("file to be processed");
@@ -96,6 +101,12 @@ public class LogConfigCreator extends Command {
 
         String typeName = getSingleOptionValueOrDefault(options, "n", "name", "log file type name", "xyz");
         validateName(typeName, "Log file type name");
+
+        String elasticsearchHost = getSingleOptionValueOrDefault(options, "e", "elasticsearch-host", "elasticsearch host", "localhost");
+        validateHost(elasticsearchHost, "Elasticsearch host");
+
+        String logstashHost = getSingleOptionValueOrDefault(options, "l", "logstash-host", "logstash host", "localhost");
+        validateHost(logstashHost, "Logstash host");
 
         Path filebeatModulePath;
         String filebeatModuleDir = getSingleOptionValueOrDefault(options, "f", "filebeat-module-dir", "filebeat module directory", null);
@@ -128,7 +139,7 @@ public class LogConfigCreator extends Command {
 
         try {
             LogFileStructureFinder structureFinder = new LogFileStructureFinder(terminal, filebeatModulePath,
-                file.toAbsolutePath().normalize().toString(), indexName, typeName, timezone);
+                file.toAbsolutePath().normalize().toString(), indexName, typeName, elasticsearchHost, logstashHost, timezone);
             structureFinder.findLogFileConfigs(Files.newInputStream(file), outputDirectory);
         } catch (IOException e) {
             throw new UserException(ExitCodes.DATA_ERROR, "Cannot determine format of file [" + file + "]: " + e.getMessage());
@@ -154,6 +165,12 @@ public class LogConfigCreator extends Command {
         if (VALID_NAME_PATTERN.matcher(name).matches() == false) {
             throw new UserException(ExitCodes.USAGE, description + " [" + name + "] does not match the acceptable pattern [" +
                 VALID_NAME_PATTERN.pattern() + "]");
+        }
+    }
+
+    private static void validateHost(String host, String description) throws UserException {
+        if (IP_OR_HOST_GROK.match(host) == false) {
+            throw new UserException(ExitCodes.USAGE, description + " [" + host + "] is not a valid IP address or hostname");
         }
     }
 }

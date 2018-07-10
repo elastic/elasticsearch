@@ -36,8 +36,9 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
         "%s";
 
     protected AbstractStructuredLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName,
-                                                 String logstashFileTimezone, String charsetName) {
-        super(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, charsetName);
+                                                 String elasticsearchHost, String logstashHost, String logstashFileTimezone,
+                                                 String charsetName) {
+        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
     }
 
     protected Tuple<String, TimestampMatch> guessTimestampField(List<Map<String, ?>> sampleRecords) {

@@ -88,16 +88,20 @@ public abstract class AbstractLogFileStructure {
     protected final String sampleFileName;
     protected final String indexName;
     protected final String typeName;
+    protected final String elasticsearchHost;
+    protected final String logstashHost;
     protected final String logstashFileTimezone;
     protected final String charsetName;
     private String preambleComment = "";
 
     protected AbstractLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName,
-                                       String logstashFileTimezone, String charsetName) {
+                                       String elasticsearchHost, String logstashHost, String logstashFileTimezone, String charsetName) {
         this.terminal = Objects.requireNonNull(terminal);
         this.sampleFileName = Objects.requireNonNull(sampleFileName);
         this.indexName = Objects.requireNonNull(indexName);
         this.typeName = Objects.requireNonNull(typeName);
+        this.elasticsearchHost = Objects.requireNonNull(elasticsearchHost);
+        this.logstashHost = Objects.requireNonNull(logstashHost);
         this.logstashFileTimezone = logstashFileTimezone;
         this.charsetName = Objects.requireNonNull(charsetName);
     }
@@ -118,7 +122,7 @@ public abstract class AbstractLogFileStructure {
     protected void writeRestCallConfigs(Path directory, String consoleFileName, String consoleCommand) throws IOException {
         writeConfigFile(directory, consoleFileName, consoleCommand);
         String curlCommand = "curl -H 'Content-Type: application/json' -X " +
-            consoleCommand.replaceFirst(" ", " http://localhost:9200/").replaceFirst("\n", " -d '\n") + "'\n";
+            consoleCommand.replaceFirst(" ", " http://" + elasticsearchHost + ":9200/").replaceFirst("\n", " -d '\n") + "'\n";
         writeConfigFile(directory, consoleFileName.replaceFirst("\\.console$", ".sh"), curlCommand);
     }
 

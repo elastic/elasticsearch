@@ -37,7 +37,8 @@ public class LogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
     @Before
     public void setup() throws IOException {
-        structureFinder = new LogFileStructureFinder(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME, TEST_TYPE, "UTC");
+        structureFinder = new LogFileStructureFinder(TEST_TERMINAL, null, TEST_FILE_NAME, TEST_INDEX_NAME, TEST_TYPE,
+            randomFrom(POSSIBLE_HOSTNAMES), randomFrom(POSSIBLE_HOSTNAMES), "UTC");
     }
 
     public void testFindCharsetGivenCharacterWidths() throws Exception {

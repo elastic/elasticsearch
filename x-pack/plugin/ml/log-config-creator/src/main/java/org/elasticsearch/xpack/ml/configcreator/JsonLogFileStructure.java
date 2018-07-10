@@ -36,7 +36,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
         "%s" +
         "\n" +
         "output.logstash:\n" +
-        "  hosts: [\"localhost:5044\"]\n";
+        "  hosts: [\"%s:5044\"]\n";
     private static final String LOGSTASH_FROM_FILEBEAT_TEMPLATE = "input {\n" +
         "  beats {\n" +
         "    port => 5044\n" +
@@ -54,7 +54,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
         "\n" +
         "output {\n" +
         "  elasticsearch {\n" +
-        "    hosts => localhost\n" +
+        "    hosts => '%s'\n" +
         "    manage_template => false\n" +
         "    index => \"%%{[@metadata][beat]}-%%{[@metadata][version]}-%%{+YYYY.MM.dd}\"\n" +
         "  }\n" +
@@ -78,7 +78,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
         "\n" +
         "output {\n" +
         "  elasticsearch {\n" +
-        "    hosts => localhost\n" +
+        "    hosts => '%s'\n" +
         "    manage_template => false\n" +
         "    index => \"%s\"\n" +
         "    document_type => \"_doc\"\n" +
@@ -90,7 +90,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
         "%s" +
         "\n" +
         "output.elasticsearch:\n" +
-        "  hosts: [\"http://localhost:9200\"]\n" +
+        "  hosts: [\"http://%s:9200\"]\n" +
         "  pipeline: \"%s\"\n";
     private static final String INGEST_PIPELINE_DATE_PROCESSOR_TEMPLATE = ",\n" +
         "      \"date\": {\n" +
@@ -119,9 +119,9 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
     private String filebeatToIngestPipelineConfig;
     private String ingestPipelineFromFilebeatConfig;
 
-    JsonLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String logstashFileTimezone,
-                         String sample, String charsetName) throws IOException {
-        super(terminal, sampleFileName, indexName, typeName, logstashFileTimezone, charsetName);
+    JsonLogFileStructure(Terminal terminal, String sampleFileName, String indexName, String typeName, String elasticsearchHost,
+                         String logstashHost, String logstashFileTimezone, String sample, String charsetName) throws IOException {
+        super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
 
         sampleRecords = new ArrayList<>();
 
@@ -155,12 +155,13 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
 
         String filebeatInputOptions = makeFilebeatInputOptions(null, null);
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE, filebeatInputOptions,
-            makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing));
-        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatDateFilter);
+            makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing), logstashHost);
+        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatDateFilter,
+            elasticsearchHost);
         logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(null),
-            logstashFromFileDateFilter, indexName);
+            logstashFromFileDateFilter, elasticsearchHost, indexName);
         filebeatToIngestPipelineConfig = String.format(Locale.ROOT, FILEBEAT_TO_INGEST_PIPELINE_TEMPLATE, filebeatInputOptions,
-            makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing), typeName);
+            makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing), elasticsearchHost, typeName);
         ingestPipelineFromFilebeatConfig = String.format(Locale.ROOT, INGEST_PIPELINE_FROM_FILEBEAT_TEMPLATE, typeName, typeName,
             ingestPipelineDateProcessor);
     }

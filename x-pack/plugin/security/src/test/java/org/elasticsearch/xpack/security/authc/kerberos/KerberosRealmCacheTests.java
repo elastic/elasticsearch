@@ -36,11 +36,11 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class KerberosRealmCacheTests extends KerberosRealmTestCase {
 
     public void testAuthenticateWithCache() throws LoginException, GSSException {
-        final String username = randomAlphaOfLength(5);
+        final String username = randomPrincipalName();
         final String outToken = randomAlphaOfLength(10);
         final KerberosRealm kerberosRealm = createKerberosRealm(username);
 
-        final User expectedUser = new User(username, roles.toArray(new String[roles.size()]), null, null, null, true);
+        final User expectedUser = new User(stripRealmName(username), roles.toArray(new String[roles.size()]), null, null, null, true);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
         final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
         final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
@@ -62,7 +62,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
 
     public void testCacheInvalidationScenarios() throws LoginException, GSSException {
         final String outToken = randomAlphaOfLength(10);
-        final List<String> userNames = Arrays.asList(randomAlphaOfLength(5) + "@REALM", randomAlphaOfLength(5) + "@REALM");
+        final List<String> userNames = Arrays.asList(randomPrincipalName(), randomPrincipalName());
         final KerberosRealm kerberosRealm = createKerberosRealm(userNames.toArray(new String[0]));
         verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
 
@@ -71,7 +71,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
         final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(authNUsername, outToken), null);
-        final User expectedUser = new User(authNUsername, roles.toArray(new String[roles.size()]), null, null, null, true);
+        final User expectedUser = new User(stripRealmName(authNUsername), roles.toArray(new String[roles.size()]), null, null, null, true);
 
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
         final User user1 = authenticateAndAssertResult(kerberosRealm, expectedUser, kerberosAuthenticationToken, outToken);
@@ -81,7 +81,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         if (expireAll) {
             kerberosRealm.expireAll();
         } else {
-            kerberosRealm.expire(expireThisUser);
+            kerberosRealm.expire(stripRealmName(expireThisUser));
         }
 
         final User user2 = authenticateAndAssertResult(kerberosRealm, expectedUser, kerberosAuthenticationToken, outToken);
@@ -100,14 +100,14 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
 
     public void testAuthenticateWithValidTicketSucessAuthnWithUserDetailsWhenCacheDisabled()
             throws LoginException, GSSException, IOException {
-        final String username = randomAlphaOfLength(5);
-        final String outToken = randomAlphaOfLength(10);
         // if cache.ttl <= 0 then the cache is disabled
         settings = KerberosTestCase.buildKerberosRealmSettings(
-                KerberosTestCase.writeKeyTab(dir.resolve("key.keytab"), randomAlphaOfLength(4)).toString(), 100, "0m", true);
+                KerberosTestCase.writeKeyTab(dir.resolve("key.keytab"), randomAlphaOfLength(4)).toString(), 100, "0m", true, randomBoolean());
+        final String username = randomPrincipalName();
+        final String outToken = randomAlphaOfLength(10);
         final KerberosRealm kerberosRealm = createKerberosRealm(username);
 
-        final User expectedUser = new User(username, roles.toArray(new String[roles.size()]), null, null, null, true);
+        final User expectedUser = new User(stripRealmName(username), roles.toArray(new String[roles.size()]), null, null, null, true);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
         final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
         final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());

@@ -62,6 +62,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
     private final ThreadPool threadPool;
     private final Path keytabPath;
     private final boolean enableKerberosDebug;
+    private final boolean stripRealmName;
 
     public KerberosRealm(final RealmConfig config, final NativeRoleMappingStore nativeRoleMappingStore, final ThreadPool threadPool) {
         this(config, nativeRoleMappingStore, new KerberosTicketValidator(), threadPool, null);
@@ -88,6 +89,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         this.threadPool = threadPool;
         this.keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
         this.enableKerberosDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
+        this.stripRealmName = KerberosRealmSettings.SETTING_STRIP_REALM_NAME.get(config.settings());
     }
 
     @Override
@@ -126,7 +128,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         kerberosTicketValidator.validateTicket((byte[]) kerbAuthnToken.credentials(), keytabPath, enableKerberosDebug,
                 ActionListener.wrap(userPrincipalNameOutToken -> {
                     if (userPrincipalNameOutToken.v1() != null) {
-                        buildUser(userPrincipalNameOutToken.v1(), userPrincipalNameOutToken.v2(), listener);
+                        buildUser(stripRealmName(userPrincipalNameOutToken.v1()), userPrincipalNameOutToken.v2(), listener);
                     } else {
                         /**
                          * This is when security context could not be established may be due to ongoing
@@ -143,6 +145,24 @@ public final class KerberosRealm extends Realm implements CachingRealm {
                         listener.onResponse(AuthenticationResult.terminate(errorMessage, ese));
                     }
                 }, e -> handleException(e, listener)));
+    }
+
+    /**
+     * If {@link KerberosRealmSettings#SETTING_STRIP_REALM_NAME} is {@code true}
+     * strips realm name from principal name and returns username. Checks for '@'
+     * separator in the given principalName string to strip realm name.
+     *
+     * @param principalName user principal name
+     * @return result string after stripping realm name
+     */
+    private String stripRealmName(final String principalName) {
+        if (this.stripRealmName) {
+            int foundAtIndex = principalName.indexOf('@');
+            if (foundAtIndex > 0) {
+                return principalName.substring(0, foundAtIndex);
+            }
+        }
+        return principalName;
     }
 
     private void handleException(Exception e, final ActionListener<AuthenticationResult> listener) {

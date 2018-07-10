@@ -20,6 +20,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTestCase;
@@ -33,8 +34,10 @@ import org.junit.Before;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -67,7 +70,8 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         dir = createTempDir();
         globalSettings = Settings.builder().put("path.home", dir).build();
-        settings = KerberosTestCase.buildKerberosRealmSettings(KerberosTestCase.writeKeyTab(dir.resolve("key.keytab"), "asa").toString());
+        settings = KerberosTestCase.buildKerberosRealmSettings(KerberosTestCase.writeKeyTab(dir.resolve("key.keytab"), "asa").toString(),
+                100, "10m", true, randomBoolean());
     }
 
     @After
@@ -111,7 +115,8 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected NativeRoleMappingStore roleMappingStore(final List<String> expectedUserNames) {
+    protected NativeRoleMappingStore roleMappingStore(final List<String> userNames) {
+        final List<String> expectedUserNames = userNames.stream().map(this::stripRealmName).collect(Collectors.toList());
         final Client mockClient = mock(Client.class);
         when(mockClient.threadPool()).thenReturn(threadPool);
         when(mockClient.settings()).thenReturn(settings);
@@ -132,5 +137,34 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
 
         return roleMapper;
+    }
+
+    protected String randomPrincipalName() {
+        final StringBuilder principalName = new StringBuilder();
+        principalName.append(randomAlphaOfLength(5));
+        final boolean withInstance = randomBoolean();
+        if (withInstance) {
+            principalName.append("/").append(randomAlphaOfLength(5));
+        }
+        principalName.append(randomAlphaOfLength(5).toUpperCase(Locale.ROOT));
+        return principalName.toString();
+    }
+
+    /**
+     * If {@link KerberosRealmSettings#SETTING_STRIP_REALM_NAME} is {@code true}
+     * strips realm name from principal name and returns username. Checks for '@'
+     * separator in the given principalName string to strip realm name.
+     *
+     * @param principalName user principal name
+     * @return result string after stripping realm name
+     */
+    protected String stripRealmName(final String principalName) {
+        if (KerberosRealmSettings.SETTING_STRIP_REALM_NAME.get(settings)) {
+            int foundAtIndex = principalName.indexOf('@');
+            if (foundAtIndex > 0) {
+                return principalName.substring(0, foundAtIndex);
+            }
+        }
+        return principalName;
     }
 }

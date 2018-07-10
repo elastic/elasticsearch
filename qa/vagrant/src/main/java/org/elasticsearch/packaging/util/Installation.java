@@ -27,6 +27,8 @@ import java.nio.file.Path;
 public class Installation {
 
     public final Path home;
+    public final Path bin; // this isn't a first-class installation feature but we include it for convenience
+    public final Path lib; // same
     public final Path config;
     public final Path data;
     public final Path logs;
@@ -36,6 +38,9 @@ public class Installation {
 
     public Installation(Path home, Path config, Path data, Path logs, Path plugins, Path modules, Path scripts) {
         this.home = home;
+        this.bin = home.resolve("bin");
+        this.lib = home.resolve("lib");
+
         this.config = config;
         this.data = data;
         this.logs = logs;
@@ -54,5 +59,32 @@ public class Installation {
             home.resolve("modules"),
             home.resolve("scripts")
         );
+    }
+
+    public Path bin(String executableName) {
+        return bin.resolve(executableName);
+    }
+
+    public Path config(String configFileName) {
+        return config.resolve(configFileName);
+    }
+
+    public Executables executables() {
+        return new Executables();
+    }
+
+    public class Executables {
+
+        public final Path elasticsearch = platformExecutable("elasticsearch");
+        public final Path elasticsearchPlugin = platformExecutable("elasticsearch-plugin");
+        public final Path elasticsearchKeystore = platformExecutable("elasticsearch-keystore");
+        public final Path elasticsearchTranslog = platformExecutable("elasticsearch-translog");
+
+        private Path platformExecutable(String name) {
+            final String platformExecutableName = Platforms.WINDOWS
+                ? name + ".bat"
+                : name;
+            return bin(platformExecutableName);
+        }
     }
 }

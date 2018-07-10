@@ -20,35 +20,24 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.mockito.Matchers;
-import org.mockito.Mockito;
+import org.joda.time.format.DateTimeFormat;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
-import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class DateIndexNameProcessorTests extends ESTestCase {
 
     public void testJodaPattern() throws Exception {
         Function<String, DateTime> function = DateFormat.Joda.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSZ", DateTimeZone.UTC, Locale.ROOT);
-        DateIndexNameProcessor processor = new DateIndexNameProcessor(
-                "_tag", "_field", Collections.singletonList(function), DateTimeZone.UTC,
-                "events-", "y", "yyyyMMdd", TestTemplateService.instance()
-        );
-
+        DateIndexNameProcessor processor = createProcessor("_field", Collections.singletonList(function),
+            DateTimeZone.UTC, "events-", "y", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
                 Collections.singletonMap("_field", "2016-04-25T12:24:20.101Z"));
         processor.execute(document);
@@ -57,8 +46,8 @@ public class DateIndexNameProcessorTests extends ESTestCase {
 
     public void testTAI64N()throws Exception {
         Function<String, DateTime> function = DateFormat.Tai64n.getFunction(null, DateTimeZone.UTC, null);
-        DateIndexNameProcessor dateProcessor = new DateIndexNameProcessor("_tag", "_field", Collections.singletonList(function),
-                DateTimeZone.UTC, "events-", "m", "yyyyMMdd", TestTemplateService.instance());
+        DateIndexNameProcessor dateProcessor = createProcessor("_field", Collections.singletonList(function),
+                DateTimeZone.UTC, "events-", "m", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
                 Collections.singletonMap("_field", (randomBoolean() ? "@" : "") + "4000000050d506482dbdf024"));
         dateProcessor.execute(document);
@@ -67,8 +56,8 @@ public class DateIndexNameProcessorTests extends ESTestCase {
 
     public void testUnixMs()throws Exception {
         Function<String, DateTime> function = DateFormat.UnixMs.getFunction(null, DateTimeZone.UTC, null);
-        DateIndexNameProcessor dateProcessor = new DateIndexNameProcessor("_tag", "_field", Collections.singletonList(function),
-                DateTimeZone.UTC, "events-", "m", "yyyyMMdd", TestTemplateService.instance());
+        DateIndexNameProcessor dateProcessor = createProcessor("_field", Collections.singletonList(function),
+                DateTimeZone.UTC, "events-", "m", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
                 Collections.singletonMap("_field", "1000500"));
         dateProcessor.execute(document);
@@ -82,29 +71,41 @@ public class DateIndexNameProcessorTests extends ESTestCase {
 
     public void testUnix()throws Exception {
         Function<String, DateTime> function = DateFormat.Unix.getFunction(null, DateTimeZone.UTC, null);
-        DateIndexNameProcessor dateProcessor = new DateIndexNameProcessor("_tag", "_field", Collections.singletonList(function),
-                DateTimeZone.UTC, "events-", "m", "yyyyMMdd", TestTemplateService.instance());
+        DateIndexNameProcessor dateProcessor = createProcessor("_field", Collections.singletonList(function),
+                DateTimeZone.UTC, "events-", "m", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
                 Collections.singletonMap("_field", "1000.5"));
         dateProcessor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{19700101||/m{yyyyMMdd|UTC}}>"));
     }
 
-    public void testTemplateSupported() throws Exception {
-        ScriptService scriptService = mock(ScriptService.class);
-        TestTemplateService.MockTemplateScript.Factory factory = new TestTemplateService.MockTemplateScript.Factory("script_result");
-        when(scriptService.compile(any(Script.class), Matchers.<ScriptContext<TemplateScript.Factory>>any())).thenReturn(factory);
-        when(scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG)).thenReturn(true);
+    public void testTemplatedFields() throws Exception {
+        String indexNamePrefix = randomAlphaOfLength(10);
+        String dateRounding = randomFrom("y", "M", "w", "d", "h", "m", "s");
+        String indexNameFormat = randomFrom("yyyy-MM-dd'T'HH:mm:ss.SSSZ", "yyyyMMdd", "MM/dd/yyyy");
+        String date = Integer.toString(randomInt());
+        Function<String, DateTime> dateTimeFunction = DateFormat.Unix.getFunction(null, DateTimeZone.UTC, null);
 
-        DateIndexNameProcessor dateProcessor = new DateIndexNameProcessor("_tag", "_field",
-            Collections.singletonList(DateFormat.Unix.getFunction(null, DateTimeZone.UTC, null)),
-            DateTimeZone.UTC, "events-", "m", "yyyyMMdd", scriptService);
+        DateIndexNameProcessor dateProcessor = createProcessor("_field",
+            Collections.singletonList(dateTimeFunction),  DateTimeZone.UTC, indexNamePrefix,
+            dateRounding, indexNameFormat);
+
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null,
-            Collections.singletonMap("_field", "1000.5"));
+            Collections.singletonMap("_field", date));
         dateProcessor.execute(document);
 
-        // here we only care that the script was compiled and that it returned what we expect.
-        Mockito.verify(scriptService).compile(any(Script.class), Matchers.<ScriptContext<TemplateScript.Factory>>any());
-        assertThat(document.getSourceAndMetadata().get("_index"), equalTo("script_result"));
+        assertThat(document.getSourceAndMetadata().get("_index"),
+            equalTo("<"+indexNamePrefix+"{"+DateTimeFormat.forPattern(indexNameFormat)
+                .print(dateTimeFunction.apply(date))+"||/"+dateRounding+"{"+indexNameFormat+"|UTC}}>"));
+    }
+
+    private DateIndexNameProcessor createProcessor(String field, List<Function<String, DateTime>> dateFormats,
+                                                   DateTimeZone timezone, String indexNamePrefix, String dateRounding,
+                                                   String indexNameFormat) {
+        return new DateIndexNameProcessor(randomAlphaOfLength(10), field, dateFormats, timezone,
+            new TestTemplateService.MockTemplateScript.Factory(indexNamePrefix),
+            new TestTemplateService.MockTemplateScript.Factory(dateRounding),
+            new TestTemplateService.MockTemplateScript.Factory(indexNameFormat)
+        );
     }
 }

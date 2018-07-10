@@ -26,6 +26,7 @@ import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,9 +41,9 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         DateIndexNameProcessor processor = factory.create(null, null, config);
         assertThat(processor.getDateFormats().size(), Matchers.equalTo(1));
         assertThat(processor.getField(), Matchers.equalTo("_field"));
-        assertThat(processor.getIndexNamePrefix(), Matchers.equalTo(""));
-        assertThat(processor.getDateRounding(), Matchers.equalTo("y"));
-        assertThat(processor.getIndexNameFormat(), Matchers.equalTo("yyyy-MM-dd"));
+        assertThat(processor.getIndexNamePrefixTemplate().newInstance(Collections.emptyMap()).execute(), Matchers.equalTo(""));
+        assertThat(processor.getDateRoundingTemplate().newInstance(Collections.emptyMap()).execute(), Matchers.equalTo("y"));
+        assertThat(processor.getIndexNameFormatTemplate().newInstance(Collections.emptyMap()).execute(), Matchers.equalTo("yyyy-MM-dd"));
         assertThat(processor.getTimezone(), Matchers.equalTo(DateTimeZone.UTC));
     }
 
@@ -64,7 +65,7 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         config.put("index_name_format", "yyyyMMdd");
 
         processor = factory.create(null, null, config);
-        assertThat(processor.getIndexNameFormat(), Matchers.equalTo("yyyyMMdd"));
+        assertThat(processor.getIndexNameFormatTemplate().newInstance(Collections.emptyMap()).execute(), Matchers.equalTo("yyyyMMdd"));
 
         config = new HashMap<>();
         config.put("field", "_field");
@@ -81,7 +82,7 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         config.put("date_rounding", "y");
 
         processor = factory.create(null, null, config);
-        assertThat(processor.getIndexNamePrefix(), Matchers.equalTo("_prefix"));
+        assertThat(processor.getIndexNamePrefixTemplate().newInstance(Collections.emptyMap()).execute(), Matchers.equalTo("_prefix"));
     }
 
     public void testRequiredFields() throws Exception {

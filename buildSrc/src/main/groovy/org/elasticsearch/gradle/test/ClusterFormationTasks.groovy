@@ -650,7 +650,9 @@ class ClusterFormationTasks {
         start.doFirst {
             project.logger.info("Starting node in ${node.clusterName} distribution: ${node.config.distribution}")
         }
+        start.ext.node = node
         return start
+
     }
 
     static Task configureWaitTask(String name, Project project, List<NodeInfo> nodes, List<Task> startTasks, int waitSeconds) {

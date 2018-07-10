@@ -76,23 +76,23 @@ public class S3RepositoryTests extends ESTestCase {
         // chunk < buffer should fail
         final Settings s1 = bufferAndChunkSettings(10, 5);
         final Exception e1 = expectThrows(RepositoryException.class,
-                () -> new S3Repository(getRepositoryMetaData(s1), Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service()));
+                () -> createS3Repo(getRepositoryMetaData(s1)));
         assertThat(e1.getMessage(), containsString("chunk_size (5mb) can't be lower than buffer_size (10mb)"));
         // chunk > buffer should pass
         final Settings s2 = bufferAndChunkSettings(5, 10);
-        new S3Repository(getRepositoryMetaData(s2), Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service()).close();
+        createS3Repo(getRepositoryMetaData(s2)).close();
         // chunk = buffer should pass
         final Settings s3 = bufferAndChunkSettings(5, 5);
-        new S3Repository(getRepositoryMetaData(s3), Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service()).close();
+        createS3Repo(getRepositoryMetaData(s3)).close();
         // buffer < 5mb should fail
         final Settings s4 = bufferAndChunkSettings(4, 10);
         final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
-                () -> new S3Repository(getRepositoryMetaData(s4), Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service())
+                () -> createS3Repo(getRepositoryMetaData(s4))
                         .close());
         assertThat(e2.getMessage(), containsString("failed to parse value [4mb] for setting [buffer_size], must be >= [5mb]"));
         final Settings s5 = bufferAndChunkSettings(5, 6000000);
         final IllegalArgumentException e3 = expectThrows(IllegalArgumentException.class,
-                () -> new S3Repository(getRepositoryMetaData(s5), Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service())
+                () -> createS3Repo(getRepositoryMetaData(s5))
                         .close());
         assertThat(e3.getMessage(), containsString("failed to parse value [6000000mb] for setting [chunk_size], must be <= [5tb]"));
     }
@@ -111,14 +111,14 @@ public class S3RepositoryTests extends ESTestCase {
     public void testBasePathSetting() {
         final RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
                 .put(S3Repository.BASE_PATH_SETTING.getKey(), "foo/bar").build());
-        try (S3Repository s3repo = new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service())) {
+        try (S3Repository s3repo = createS3Repo(metadata)) {
             assertEquals("foo/bar/", s3repo.basePath().buildAsString());
         }
     }
 
     public void testDefaultBufferSize() {
         final RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.EMPTY);
-        try (S3Repository s3repo = new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service())) {
+        try (S3Repository s3repo = createS3Repo(metadata)) {
             assertThat(s3repo.getBlobStore(), is(nullValue()));
             s3repo.start();
             final long defaultBufferSize = ((S3BlobStore)s3repo.blobStore()).bufferSizeInBytes();
@@ -126,5 +126,13 @@ public class S3RepositoryTests extends ESTestCase {
             assertThat(defaultBufferSize, Matchers.lessThanOrEqualTo(100L * 1024 * 1024));
             assertThat(defaultBufferSize, Matchers.greaterThanOrEqualTo(5L * 1024 * 1024));
         }
+    }
+
+    private S3Repository createS3Repo(RepositoryMetaData metadata) {
+        return new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service()) {
+            @Override
+            protected void verificationThreadCheck() {
+            }
+        };
     }
 }

@@ -270,7 +270,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     protected void doClose() {
-        BlobStore store = blobStore.get();
+        BlobStore store;
+        // to close blobStore if blobStore initialization is started during close
+        synchronized (lock) {
+            store = blobStore.get();
+        }
         if (store != null) {
             try {
                 store.close();
@@ -320,6 +324,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     if (lifecycle.started() == false) {
                         throw new RepositoryException(metadata.name(), "repository is not in started state");
                     }
+                    verificationThreadCheck();
                     try {
                         store = createBlobStore();
                     } catch (RepositoryException e) {
@@ -606,13 +611,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     protected void verificationThreadCheck() {
-        assert Thread.currentThread().getName().contains(ThreadPool.Names.SNAPSHOT) :
-            "Expected current thread [" + Thread.currentThread() + "] to be the snapshot thread.";
+        assert Thread.currentThread().getName().contains(ThreadPool.Names.SNAPSHOT)
+            || Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC) :
+            "Expected current thread [" + Thread.currentThread() + "] to be the snapshot or generic thread.";
     }
 
     @Override
     public String startVerification() {
-        verificationThreadCheck();
         try {
             if (isReadOnly()) {
                 // TODO: add repository verification for read-only repositories

@@ -239,10 +239,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         coordinateWrites();
 
         // In case that buffer has more ops than is allowed then reads may all have been stopped,
-        // this if check makes sure that we start a read when there is budget in case no reads are being performed.
-        if (numConcurrentReads == 0) {
-            coordinateReads();
-        }
+        // this invocation makes sure that we start a read when there is budget in case no reads are being performed.
+        coordinateReads();
     }
 
     private synchronized void maybeUpdateMapping(Long minimumRequiredIndexMetadataVersion, Runnable task) {

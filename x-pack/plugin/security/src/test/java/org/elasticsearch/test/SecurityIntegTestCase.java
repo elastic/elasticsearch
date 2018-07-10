@@ -264,6 +264,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings transportClientSettings() {
         return Settings.builder().put(super.transportClientSettings())
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NIO)
                 .put(customSecuritySettingsSource.transportClientSettings())
                 .build();
     }

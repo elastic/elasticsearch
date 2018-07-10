@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.FeatureAware;
 import org.elasticsearch.cluster.Diff;
@@ -248,18 +249,50 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     /**
-     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards and
-     * that point to the specified concrete indices or match partially with the indices via wildcards.
+     * Finds the specific index aliases that point to the specified concrete indices or match partially with the indices via wildcards.
      *
-     * @param aliases         The names of the index aliases to find
      * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
      * @return a map of index to a list of alias metadata, the list corresponding to a concrete index will be empty if no aliases are
      * present for that index
      */
-    public ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
+    public ImmutableOpenMap<String, List<AliasMetaData>> findAllAliases(String[] concreteIndices) {
+        return findAliases(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, concreteIndices);
+    }
+
+    /**
+     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards and
+     * that point to the specified concrete indices or match partially with the indices via wildcards.
+     *
+     * @param aliasesRequest The request to find aliases for
+     * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
+     * @return a map of index to a list of alias metadata, the list corresponding to a concrete index will be empty if no aliases are
+     * present for that index
+     */
+    public ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final AliasesRequest aliasesRequest, String[] concreteIndices) {
+        return findAliases(aliasesRequest.getOriginalAliases(), aliasesRequest.aliases(), concreteIndices);
+    }
+
+    /**
+     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards and
+     * that point to the specified concrete indices or match partially with the indices via wildcards.
+     *
+     * @param aliases The aliases to look for
+     * @param originalAliases The original aliases that the user originally requested
+     * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
+     * @return a map of index to a list of alias metadata, the list corresponding to a concrete index will be empty if no aliases are
+     * present for that index
+     */
+    private ImmutableOpenMap<String, List<AliasMetaData>> findAliases(String[] originalAliases, String[] aliases,
+                                                                      String[] concreteIndices) {
         assert aliases != null;
+        assert originalAliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
+            return ImmutableOpenMap.of();
+        }
+
+        //if aliases were provided but they got replaced with empty aliases, return empty map
+        if (originalAliases.length > 0 && aliases.length == 0) {
             return ImmutableOpenMap.of();
         }
 

@@ -103,13 +103,13 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
         LOGGER.trace("{} coordinate reads, lastRequestedSeqno={}, globalCheckpoint={}",
             params.getFollowShardId(), lastRequestedSeqno, globalCheckpoint);
-        final int maxReadSize = params.getMaxBatchOperationCount();
+        final int maxBatchOperationCount = params.getMaxBatchOperationCount();
         while (hasReadBudget() && lastRequestedSeqno < globalCheckpoint) {
             numConcurrentReads++;
             long from = lastRequestedSeqno + 1;
-            long maxRequiredSeqno = Math.min(globalCheckpoint, from + maxReadSize);
-            LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, maxRequiredSeqno, maxReadSize);
-            sendShardChangesRequest(from, maxReadSize, maxRequiredSeqno);
+            long maxRequiredSeqno = Math.min(globalCheckpoint, from + maxBatchOperationCount);
+            LOGGER.trace("{}[{}] read [{}/{}]", params.getFollowShardId(), numConcurrentReads, maxRequiredSeqno, maxBatchOperationCount);
+            sendShardChangesRequest(from, maxBatchOperationCount, maxRequiredSeqno);
             lastRequestedSeqno = maxRequiredSeqno;
         }
 
@@ -120,7 +120,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             numConcurrentReads++;
             long from = lastRequestedSeqno + 1;
             LOGGER.trace("{}[{}] peek read [{}]", params.getFollowShardId(), numConcurrentReads, from);
-            sendShardChangesRequest(from, maxReadSize, lastRequestedSeqno);
+            sendShardChangesRequest(from, maxBatchOperationCount, lastRequestedSeqno);
         }
     }
 

@@ -34,12 +34,11 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-Docker images can be retrieved with the following commands:
+For example, Docker images can be retrieved with the following command:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
 docker pull {docker-repo}:{version}
-docker pull {docker-repo}-oss:{version}
 --------------------------------------------
 
 endif::[]

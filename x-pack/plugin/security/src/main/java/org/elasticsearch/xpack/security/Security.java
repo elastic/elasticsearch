@@ -203,6 +203,7 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
+import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -846,8 +847,14 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (transportClientMode || enabled == false) { // don't register anything if we are not enabled, or in transport client mode
             return Collections.emptyMap();
         }
-        return Collections.singletonMap(SecurityField.NAME4, () -> new SecurityNetty4ServerTransport(settings, threadPool,
-                networkService, bigArrays, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
+
+        Map<String, Supplier<Transport>> transports = new HashMap<>();
+        transports.put(SecurityField.NAME4, () -> new SecurityNetty4ServerTransport(settings, threadPool,
+            networkService, bigArrays, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
+        transports.put(SecurityField.NIO, () -> new SecurityNioTransport(settings, threadPool,
+            networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter.get(), getSslService()));
+
+        return Collections.unmodifiableMap(transports);
     }
 
     @Override

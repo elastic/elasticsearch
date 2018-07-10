@@ -44,6 +44,8 @@ import java.util.function.Predicate;
  */
 public abstract class SocketChannelContext extends ChannelContext<SocketChannel> {
 
+    public static final Predicate<NioSocketChannel> ALWAYS_ALLOW_CHANNEL = (c) -> true;
+
     protected final NioSocketChannel channel;
     protected final InboundChannelBuffer channelBuffer;
     protected final AtomicBoolean isClosing = new AtomicBoolean(false);
@@ -52,15 +54,8 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     private final NioSelector selector;
     private final CompletableContext<Void> connectContext = new CompletableContext<>();
     private final LinkedList<FlushOperation> pendingFlushes = new LinkedList<>();
-    private boolean ioException;
-    private boolean peerClosed;
     private boolean closeNow;
     private Exception connectException;
-
-    protected SocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
-                                   ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
-        this(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, (c) -> true);
-    }
 
     protected SocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
                                    ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer,
@@ -174,7 +169,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     @Override
     protected void register() throws IOException {
         super.register();
-        if (allowChannelPredicate.test(channel)) {
+        if (allowChannelPredicate.test(channel) == false) {
             closeNow = true;
         }
     }
@@ -235,24 +230,20 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
      */
     public abstract boolean selectorShouldClose();
 
-    protected boolean hasIOException() {
-        return ioException;
-    }
-
-    protected boolean isPeerClosed() {
-        return peerClosed;
+    protected boolean closeNow() {
+        return closeNow;
     }
 
     protected int readFromChannel(ByteBuffer buffer) throws IOException {
         try {
             int bytesRead = rawChannel.read(buffer);
             if (bytesRead < 0) {
-                peerClosed = true;
+                closeNow = true;
                 bytesRead = 0;
             }
             return bytesRead;
         } catch (IOException e) {
-            ioException = true;
+            closeNow = true;
             throw e;
         }
     }
@@ -261,12 +252,12 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         try {
             int bytesRead = (int) rawChannel.read(buffers);
             if (bytesRead < 0) {
-                peerClosed = true;
+                closeNow = true;
                 bytesRead = 0;
             }
             return bytesRead;
         } catch (IOException e) {
-            ioException = true;
+            closeNow = true;
             throw e;
         }
     }
@@ -275,7 +266,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         try {
             return rawChannel.write(buffer);
         } catch (IOException e) {
-            ioException = true;
+            closeNow = true;
             throw e;
         }
     }
@@ -284,7 +275,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         try {
             return (int) rawChannel.write(buffers);
         } catch (IOException e) {
-            ioException = true;
+            closeNow = true;
             throw e;
         }
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.lookup;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistClass;
 import org.elasticsearch.painless.spi.WhitelistConstructor;
@@ -29,6 +30,7 @@ import org.objectweb.asm.Type;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Modifier;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -733,10 +735,8 @@ public final class PainlessLookup {
                     // TODO: and it was dependent on the order of the extends which
                     // TODO: which no longer exists since this is generated automatically
                     // sanity check, look for missing covariant/generic override
-                    /*if (owner.clazz.isInterface() && child.clazz == Object.class) {
+                    if (owner.clazz.isInterface() && method.owner.clazz == Object.class) {
                         // ok
-                    } else if (child.clazz == Spliterator.OfPrimitive.class || child.clazz == PrimitiveIterator.class) {
-                        // ok, we rely on generics erasure for these (its guaranteed in the javadocs though!!!!)
                     } else if (Constants.JRE_IS_MINIMUM_JAVA9 && owner.clazz == LocalDate.class) {
                         // ok, java 9 added covariant override for LocalDate.getEra() to return IsoEra:
                         // https://bugs.openjdk.java.net/browse/JDK-8072746
@@ -750,30 +750,30 @@ public final class PainlessLookup {
                                 arguments = new Class<?>[method.arguments.size() + 1];
                                 arguments[0] = method.owner.clazz;
                                 for (int i = 0; i < method.arguments.size(); i++) {
-                                    arguments[i + 1] = method.arguments.get(i).clazz;
+                                    arguments[i + 1] = defClassToObjectClass(method.arguments.get(i));
                                 }
                             } else {
                                 impl = owner.clazz;
                                 arguments = new Class<?>[method.arguments.size()];
                                 for (int i = 0; i < method.arguments.size(); i++) {
-                                    arguments[i] = method.arguments.get(i).clazz;
+                                    arguments[i] = defClassToObjectClass(method.arguments.get(i));
                                 }
                             }
                             java.lang.reflect.Method m = impl.getMethod(method.method.getName(), arguments);
-                            if (m.getReturnType() != method.rtn.clazz) {
+                            if (m.getReturnType() != defClassToObjectClass(method.rtn)) {
                                 throw new IllegalStateException("missing covariant override for: " + m + " in " + owner.name);
                             }
                             if (m.isBridge() && !Modifier.isVolatile(method.modifiers)) {
                                 // its a bridge in the destination, but not in the source, but it might still be ok, check generics:
                                 java.lang.reflect.Method source = child.clazz.getMethod(method.method.getName(), arguments);
                                 if (!Arrays.equals(source.getGenericParameterTypes(), source.getParameterTypes())) {
-                                    throw new IllegalStateException("missing generic override for: " + m + " in " + owner.name);
+                                    throw new IllegalStateException("missing generic override for: " + method.method + " in " + owner.name);
                                 }
                             }
                         } catch (ReflectiveOperationException e) {
                             throw new AssertionError(e);
                         }
-                    }*/
+                    }
                     owner.methods.put(methodKey, method);
                 }
             }

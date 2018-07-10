@@ -569,6 +569,7 @@ class java.time.ZoneOffset {
   ZoneOffset ofHoursMinutes(int,int)
   ZoneOffset ofHoursMinutesSeconds(int,int,int)
   ZoneOffset ofTotalSeconds(int)
+  int compareTo(ZoneOffset)
 }
 
 #### Enums

@@ -233,16 +233,19 @@ class java.util.PrimitiveIterator {
 class java.util.PrimitiveIterator$OfDouble {
   Double next()
   double nextDouble()
+  void forEachRemaining(Consumer)
 }
 
 class java.util.PrimitiveIterator$OfInt {
   Integer next()
   int nextInt()
+  void forEachRemaining(Consumer)
 }
 
 class java.util.PrimitiveIterator$OfLong {
   Long next()
   long nextLong()
+  void forEachRemaining(Consumer)
 }
 
 class java.util.Spliterator {
@@ -265,21 +268,27 @@ class java.util.Spliterator {
 }
 
 class java.util.Spliterator$OfPrimitive {
-  void forEachRemaining(def)
-  boolean tryAdvance(def)
   Spliterator.OfPrimitive trySplit()
+  void forEachRemaining(Consumer)
+  boolean tryAdvance(Consumer)
 }
 
 class java.util.Spliterator$OfDouble {
   Spliterator.OfDouble trySplit()
+  boolean tryAdvance(Consumer)
+  void forEachRemaining(Consumer)
 }
 
 class java.util.Spliterator$OfInt {
   Spliterator.OfInt trySplit()
+  boolean tryAdvance(Consumer)
+  void forEachRemaining(Consumer)
 }
 
 class java.util.Spliterator$OfLong {
   Spliterator.OfLong trySplit()
+  boolean tryAdvance(Consumer)
+  void forEachRemaining(Consumer)
 }
 
 class java.util.Queue {

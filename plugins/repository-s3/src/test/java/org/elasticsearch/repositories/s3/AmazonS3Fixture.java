@@ -37,6 +37,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -70,22 +72,38 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
 
     @Override
     protected Response handle(final Request request) throws IOException {
-        final RequestHandler handler = handlers.retrieve(request.getMethod() + " " + request.getPath(), request.getParameters());
+        final String nonAuthorizedPath = "* " + request.getMethod() + " " + request.getPath();
+        final RequestHandler nonAuthorizedHandler = handlers.retrieve(nonAuthorizedPath, request.getParameters());
+        if (nonAuthorizedHandler != null) {
+            return nonAuthorizedHandler.handle(request);
+        }
+
+        final String authorizedPath = "A " + request.getMethod() + " " + request.getPath();
+        final RequestHandler handler = handlers.retrieve(authorizedPath, request.getParameters());
         if (handler != null) {
             final String authorization = request.getHeader("Authorization");
             final String permittedBucket;
-            if (authorization.contains("s3_integration_test_permanent_access_key")) {
+            if (authorization != null && authorization.contains("s3_integration_test_permanent_access_key")) {
                 final String sessionToken = request.getHeader("x-amz-security-token");
                 if (sessionToken != null) {
                     return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Unexpected session token", "");
                 }
                 permittedBucket = permanentBucketName;
-            } else if (authorization.contains("s3_integration_test_temporary_access_key")) {
+            } else if (authorization != null && authorization.contains("s3_integration_test_temporary_access_key")) {
                 final String sessionToken = request.getHeader("x-amz-security-token");
                 if (sessionToken == null) {
                     return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "No session token", "");
                 }
                 if (sessionToken.equals("s3_integration_test_temporary_session_token") == false) {
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
+                }
+                permittedBucket = temporaryBucketName;
+            } else if (authorization != null && authorization.contains("securitycredentials42_KEYID")) {
+                final String sessionToken = request.getHeader("x-amz-security-token");
+                if (sessionToken == null) {
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "No session token", "");
+                }
+                if (sessionToken.equals("securitycredentials42_TKN") == false) {
                     return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
                 }
                 permittedBucket = temporaryBucketName;
@@ -129,7 +147,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // HEAD Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectHEAD.html
-        objectsPaths("HEAD /{bucket}").forEach(path ->
+        objectsPaths("A HEAD /{bucket}").forEach(path ->
             handlers.insert(path, (request) -> {
                 final String bucketName = request.getParam("bucket");
 
@@ -151,7 +169,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // PUT Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPUT.html
-        objectsPaths("PUT /{bucket}").forEach(path ->
+        objectsPaths("A PUT /{bucket}").forEach(path ->
             handlers.insert(path, (request) -> {
                 final String destBucketName = request.getParam("bucket");
 
@@ -201,7 +219,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // DELETE Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectDELETE.html
-        objectsPaths("DELETE /{bucket}").forEach(path ->
+        objectsPaths("A DELETE /{bucket}").forEach(path ->
             handlers.insert(path, (request) -> {
                 final String bucketName = request.getParam("bucket");
 
@@ -219,7 +237,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // GET Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectGET.html
-        objectsPaths("GET /{bucket}").forEach(path ->
+        objectsPaths("A GET /{bucket}").forEach(path ->
             handlers.insert(path, (request) -> {
                 final String bucketName = request.getParam("bucket");
 
@@ -240,7 +258,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // HEAD Bucket
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketHEAD.html
-        handlers.insert("HEAD /{bucket}", (request) -> {
+        handlers.insert("A HEAD /{bucket}", (request) -> {
             String bucket = request.getParam("bucket");
             if (Strings.hasText(bucket) && buckets.containsKey(bucket)) {
                 return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
@@ -252,7 +270,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // GET Bucket (List Objects) Version 1
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketGET.html
-        handlers.insert("GET /{bucket}/", (request) -> {
+        handlers.insert("A GET /{bucket}/", (request) -> {
             final String bucketName = request.getParam("bucket");
 
             final Bucket bucket = buckets.get(bucketName);
@@ -270,7 +288,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // Delete Multiple Objects
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html
-        handlers.insert("POST /", (request) -> {
+        handlers.insert("A POST /", (request) -> {
             final List<String> deletes = new ArrayList<>();
             final List<String> errors = new ArrayList<>();
 
@@ -310,6 +328,40 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
                 }
             }
             return newInternalError(request.getId(), "Something is wrong with this POST multiple deletes request");
+        });
+
+        // non-authorized requests
+
+        Function<String, Response> credentialResponseFunction = prefix -> {
+            final Date expiration = new Date(new Date().getTime() + TimeUnit.DAYS.toMillis(1));
+            final String response = "{"
+                 + "\"AccessKeyId\": \"" + prefix + "_KEYID" + "\","
+                 + "\"Expiration\": \"" + DateUtils.formatISO8601Date(expiration) + "\","
+                 + "\"RoleArn\": \"" + prefix + "_ROLE" + "\","
+                 + "\"SecretAccessKey\": \"" + prefix + "_SCR_KEY" + "\","
+                 + "\"Token\": \"" + prefix + "_TKN" + "\""
+                 + "}";
+
+            final Map<String, String> headers = new HashMap<>(contentType("application/json"));
+            return new Response(RestStatus.OK.getStatus(), headers, response.getBytes(UTF_8));
+        };
+
+        // GET
+        //
+        // http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
+        handlers.insert("* GET /latest/meta-data/iam/security-credentials/", (request) -> {
+            final String response = "securitycredentials42";
+
+            final Map<String, String> headers = new HashMap<>(contentType("text/plain"));
+            return new Response(RestStatus.OK.getStatus(), headers, response.getBytes(UTF_8));
+        });
+
+        // GET
+        //
+        // http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
+        handlers.insert("* GET /latest/meta-data/iam/security-credentials/{credentials}", (request) -> {
+            final String credentials = request.getParam("credentials");
+            return credentialResponseFunction.apply(credentials);
         });
 
         return handlers;

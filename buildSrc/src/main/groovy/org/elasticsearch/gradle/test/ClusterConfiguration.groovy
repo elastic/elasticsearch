@@ -137,7 +137,7 @@ class ClusterConfiguration {
         this.project = project
     }
 
-    Map<String, String> systemProperties = new HashMap<>()
+    Map<String, Object> systemProperties = new HashMap<>()
 
     Map<String, Object> settings = new HashMap<>()
 
@@ -157,7 +157,7 @@ class ClusterConfiguration {
     List<Object> dependencies = new ArrayList<>()
 
     @Input
-    void systemProperty(String property, String value) {
+    void systemProperty(String property, Object value) {
         systemProperties.put(property, value)
     }
 

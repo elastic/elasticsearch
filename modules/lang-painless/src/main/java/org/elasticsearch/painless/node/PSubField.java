@@ -94,7 +94,7 @@ final class PSubField extends AStoreable {
         writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
-            writer.getStatic(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
+            writer.getStatic(field. owner.type, field.javaName, MethodWriter.getType(field.clazz));
         } else {
             writer.getField(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
         }

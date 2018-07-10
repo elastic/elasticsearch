@@ -871,64 +871,19 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         Objects.requireNonNull(parentPainlessClass);
         Objects.requireNonNull(childPainlessClass);
 
-            for (Map.Entry<String, PainlessMethod> painlessMethodEntry : childPainlessClass.methods.entrySet()) {
-                String painlessMethodKey = painlessMethodEntry.getKey();
-                PainlessMethod painlessMethod = painlessMethodEntry.getValue();
+        for (Map.Entry<String, PainlessMethod> painlessMethodEntry : childPainlessClass.methods.entrySet()) {
+            String painlessMethodKey = painlessMethodEntry.getKey();
+            PainlessMethod painlessMethod = painlessMethodEntry.getValue();
 
-                parentPainlessClass.methods.putIfAbsent(painlessMethodKey, )
-                if (parentPainlessClass.methods.get(painlessMethodKey) == null) {
-                    // sanity check, look for missing covariant/generic override
-                    if (parentJavaClass.isInterface() && childJavaClass == Object.class) {
-                        // ok
-                    } else if (childJavaClass == Spliterator.OfPrimitive.class || childJavaClass == PrimitiveIterator.class) {
-                        // ok, we rely on generics erasure for these (its guaranteed in the javadocs though!!!!)
-                    } else if (Constants.JRE_IS_MINIMUM_JAVA9 && owner.clazz == LocalDate.class) {
-                        // ok, java 9 added covariant override for LocalDate.getEra() to return IsoEra:
-                        // https://bugs.openjdk.java.net/browse/JDK-8072746
-                    } else {
-                        try {
-                            // TODO: we *have* to remove all these public members and use getter methods to encapsulate!
-                            final Class<?> impl;
-                            final Class<?> arguments[];
-                            if (method.augmentation != null) {
-                                impl = method.augmentation;
-                                arguments = new Class<?>[method.arguments.size() + 1];
-                                arguments[0] = method.owner.clazz;
-                                for (int i = 0; i < method.arguments.size(); i++) {
-                                    arguments[i + 1] = method.arguments.get(i).clazz;
-                                }
-                            } else {
-                                impl = owner.clazz;
-                                arguments = new Class<?>[method.arguments.size()];
-                                for (int i = 0; i < method.arguments.size(); i++) {
-                                    arguments[i] = method.arguments.get(i).clazz;
-                                }
-                            }
-                            java.lang.reflect.Method m = impl.getMethod(method.method.getName(), arguments);
-                            if (m.getReturnType() != method.rtn.clazz) {
-                                throw new IllegalStateException("missing covariant override for: " + m + " in " + owner.name);
-                            }
-                            if (m.isBridge() && !Modifier.isVolatile(method.modifiers)) {
-                                // its a bridge in the destination, but not in the source, but it might still be ok, check generics:
-                                java.lang.reflect.Method source = child.clazz.getMethod(method.method.getName(), arguments);
-                                if (!Arrays.equals(source.getGenericParameterTypes(), source.getParameterTypes())) {
-                                    throw new IllegalStateException("missing generic override for: " + m + " in " + owner.name);
-                                }
-                            }
-                        } catch (ReflectiveOperationException e) {
-                            throw new AssertionError(e);
-                        }
-                    }*/
-                    parentPainlessClass.methods.put(painlessMethodKey, painlessMethod);
-                }
-            }
+            parentPainlessClass.methods.putIfAbsent(painlessMethodKey, painlessMethod)
+        }
 
-            for (PainlessField field : pain.members.values()) {
-                if (owner.members.get(field.name) == null) {
-                    owner.members.put(field.name,
-                        new PainlessField(field.name, field.javaName, owner, field.clazz, field.modifiers, field.getter, field.setter));
-                }
+        for (PainlessField field : childPainlessClass.members.values()) {
+            if (owner.members.get(field.name) == null) {
+                owner.members.put(field.name,
+                    new PainlessField(field.name, field.javaName, owner, field.clazz, field.modifiers, field.getter, field.setter));
             }
+        }
     }
 
     /**

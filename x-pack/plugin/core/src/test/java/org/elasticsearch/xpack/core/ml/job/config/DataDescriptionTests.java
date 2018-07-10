@@ -53,7 +53,12 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         description.setTimeFormat("epoch");
         description.setTimeFormat("epoch_ms");
         description.setTimeFormat("yyyy-MM-dd HH");
-        description.setTimeFormat("yyyy.MM.dd G 'at' HH:mm:ss Z");
+    }
+
+    @AwaitsFix(bugUrl = "https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8206980")
+    public void testVerify_GivenValidFormat_Java11Bug() {
+        DataDescription.Builder description = new DataDescription.Builder();
+        description.setTimeFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
     }
 
     public void testVerify_GivenInValidFormat() {

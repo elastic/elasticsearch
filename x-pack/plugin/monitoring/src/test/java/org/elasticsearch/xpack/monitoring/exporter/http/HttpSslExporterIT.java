@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.hamcrest.CoreMatchers;
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 

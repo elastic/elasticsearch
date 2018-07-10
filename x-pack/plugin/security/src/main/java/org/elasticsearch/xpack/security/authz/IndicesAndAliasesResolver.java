@@ -200,7 +200,7 @@ class IndicesAndAliasesResolver {
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(),
                         loadAuthorizedAliases(authorizedIndices.get(), metaData));
-                aliasesRequest.aliases(aliases.toArray(new String[aliases.size()]));
+                aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }
             if (indicesReplacedWithNoIndices) {
                 if (indicesRequest instanceof GetAliasesRequest == false) {

@@ -27,6 +27,9 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
+import org.elasticsearch.action.admin.indices.analyze.DetailAnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -41,6 +44,7 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -86,12 +90,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1232,6 +1238,81 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    public void testGetIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            Settings settings = Settings.builder().put("number_of_shards", 3).build();
+            String mappings = "{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
+            CreateIndexResponse createIndexResponse = client.indices().create(
+                new CreateIndexRequest("index", settings).mapping("doc", mappings, XContentType.JSON),
+                RequestOptions.DEFAULT);
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        // tag::get-index-request
+        GetIndexRequest request = new GetIndexRequest().indices("index"); // <1>
+        // end::get-index-request
+
+        // tag::get-index-request-indicesOptions
+        request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+        // end::get-index-request-indicesOptions
+
+        // tag::get-index-request-includeDefaults
+        request.includeDefaults(true); // <1>
+        // end::get-index-request-includeDefaults
+
+        // tag::get-index-execute
+        GetIndexResponse getIndexResponse = client.indices().get(request, RequestOptions.DEFAULT);
+        // end::get-index-execute
+
+        // tag::get-index-response
+        ImmutableOpenMap<String, MappingMetaData> indexMappings = getIndexResponse.getMappings().get("index"); // <1>
+        Map<String, Object> indexTypeMappings = indexMappings.get("doc").getSourceAsMap(); // <2>
+        List<AliasMetaData> indexAliases = getIndexResponse.getAliases().get("index"); // <3>
+        String numberOfShardsString = getIndexResponse.getSetting("index", "index.number_of_shards"); // <4>
+        Settings indexSettings = getIndexResponse.getSettings().get("index"); // <5>
+        Integer numberOfShards = indexSettings.getAsInt("index.number_of_shards", null); // <6>
+        TimeValue time = getIndexResponse.defaultSettings().get("index")
+            .getAsTime("index.refresh_interval", null); // <7>
+        // end::get-index-response
+
+        assertEquals(
+            Collections.singletonMap("properties",
+                Collections.singletonMap("field-1", Collections.singletonMap("type", "integer"))),
+            indexTypeMappings
+        );
+        assertTrue(indexAliases.isEmpty());
+        assertEquals(IndexSettings.DEFAULT_REFRESH_INTERVAL, time);
+        assertEquals("3", numberOfShardsString);
+        assertEquals(Integer.valueOf(3), numberOfShards);
+
+        // tag::get-index-execute-listener
+        ActionListener<GetIndexResponse> listener =
+            new ActionListener<GetIndexResponse>() {
+                @Override
+                public void onResponse(GetIndexResponse getIndexResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::get-index-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::get-index-execute-async
+        client.indices().getAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::get-index-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
     public void testForceMergeIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -2316,5 +2397,128 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::validate-query-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testAnalyze() throws IOException, InterruptedException {
+
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::analyze-builtin-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.text("Some text to analyze", "Some more text to analyze");  // <1>
+            request.analyzer("english");    // <2>
+            // end::analyze-builtin-request
+        }
+
+        {
+            // tag::analyze-custom-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.text("<b>Some text to analyze</b>");
+            request.addCharFilter("html_strip");                // <1>
+            request.tokenizer("standard");                      // <2>
+            request.addTokenFilter("lowercase");                // <3>
+
+            Map<String, Object> stopFilter = new HashMap<>();
+            stopFilter.put("type", "stop");
+            stopFilter.put("stopwords", new String[]{ "to" });  // <4>
+            request.addTokenFilter(stopFilter);                 // <5>
+            // end::analyze-custom-request
+        }
+
+        {
+            // tag::analyze-custom-normalizer-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.text("<b>BaR</b>");
+            request.addTokenFilter("lowercase");
+            // end::analyze-custom-normalizer-request
+
+            // tag::analyze-request-explain
+            request.explain(true);                      // <1>
+            request.attributes("keyword", "type");      // <2>
+            // end::analyze-request-explain
+
+            // tag::analyze-request-sync
+            AnalyzeResponse response = client.indices().analyze(request, RequestOptions.DEFAULT);
+            // end::analyze-request-sync
+
+            // tag::analyze-response-tokens
+            List<AnalyzeResponse.AnalyzeToken> tokens = response.getTokens();   // <1>
+            // end::analyze-response-tokens
+            // tag::analyze-response-detail
+            DetailAnalyzeResponse detail = response.detail();                   // <1>
+            // end::analyze-response-detail
+
+            assertNull(tokens);
+            assertNotNull(detail.tokenizer());
+        }
+
+        CreateIndexRequest req = new CreateIndexRequest("my_index");
+        CreateIndexResponse resp = client.indices().create(req, RequestOptions.DEFAULT);
+        assertTrue(resp.isAcknowledged());
+
+        PutMappingRequest pmReq = new PutMappingRequest()
+            .indices("my_index")
+            .type("_doc")
+            .source("my_field", "type=text,analyzer=english");
+        PutMappingResponse pmResp = client.indices().putMapping(pmReq, RequestOptions.DEFAULT);
+        assertTrue(pmResp.isAcknowledged());
+
+        {
+            // tag::analyze-index-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.index("my_index");              // <1>
+            request.analyzer("my_analyzer");        // <2>
+            request.text("some text to analyze");
+            // end::analyze-index-request
+
+            // tag::analyze-execute-listener
+            ActionListener<AnalyzeResponse> listener = new ActionListener<AnalyzeResponse>() {
+                @Override
+                public void onResponse(AnalyzeResponse analyzeTokens) {
+
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+
+                }
+            };
+            // end::analyze-execute-listener
+
+            // use a built-in analyzer in the test
+            request = new AnalyzeRequest();
+            request.index("my_index");
+            request.field("my_field");
+            request.text("some text to analyze");
+            // Use a blocking listener in the test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::analyze-request-async
+            client.indices().analyzeAsync(request, RequestOptions.DEFAULT, listener);
+            // end::analyze-request-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::analyze-index-normalizer-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.index("my_index");                  // <1>
+            request.normalizer("my_normalizer");        // <2>
+            request.text("some text to analyze");
+            // end::analyze-index-normalizer-request
+        }
+
+        {
+            // tag::analyze-field-request
+            AnalyzeRequest request = new AnalyzeRequest();
+            request.index("my_index");
+            request.field("my_field");
+            request.text("some text to analyze");
+            // end::analyze-field-request
+        }
+
     }
 }

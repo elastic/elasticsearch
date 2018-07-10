@@ -89,11 +89,15 @@ String s3TemporarySessionToken = System.getenv("amazon_s3_session_token_temporar
 String s3TemporaryBucket = System.getenv("amazon_s3_bucket_temporary")
 String s3TemporaryBasePath = System.getenv("amazon_s3_base_path_temporary")
 
+String s3EC2Bucket = System.getenv("amazon_s3_bucket_ec2")
+String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
+
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
 
 if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath
-        && !s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3TemporaryBasePath && !s3TemporarySessionToken) {
+        && !s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3TemporaryBasePath && !s3TemporarySessionToken
+        && !s3EC2Bucket && !s3EC2BasePath) {
 
   s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
   s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
@@ -106,9 +110,13 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
   s3TemporaryBasePath = 'integration_test'
   s3TemporarySessionToken = 's3_integration_test_temporary_session_token'
 
+  s3EC2Bucket = 'ec2-bucket-test'
+  s3EC2BasePath = 'integration_test'
+
   useFixture = true
 } else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath
-        || !s3TemporaryAccessKey || !s3TemporarySecretKey || !s3TemporaryBucket || !s3TemporaryBasePath || !s3TemporarySessionToken) {
+        || !s3TemporaryAccessKey || !s3TemporarySecretKey || !s3TemporaryBucket || !s3TemporaryBasePath || !s3TemporarySessionToken
+        || !s3EC2Bucket || !s3EC2BasePath) {
   throw new IllegalArgumentException("not all options specified to run against external S3 service")
 }
 
@@ -284,7 +292,7 @@ task s3Fixture(type: AntFixture) {
   dependsOn testClasses
   env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
   executable = new File(project.runtimeJavaHome, 'bin/java')
-  args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3PermanentBucket, s3TemporaryBucket
+  args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3PermanentBucket, s3TemporaryBucket, s3EC2Bucket
 }
 
 Map<String, Object> expansions = [
@@ -292,8 +300,8 @@ Map<String, Object> expansions = [
   'permanent_base_path': s3PermanentBasePath,
   'temporary_bucket': s3TemporaryBucket,
   'temporary_base_path': s3TemporaryBasePath,
-  'ec2_bucket': s3TemporaryBucket,
-  'ec2_base_path': s3TemporaryBasePath
+  'ec2_bucket': s3EC2Bucket,
+  'ec2_base_path': s3EC2BasePath
 ]
 
 processTestResources {

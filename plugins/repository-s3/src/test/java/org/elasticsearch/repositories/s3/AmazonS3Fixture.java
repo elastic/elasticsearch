@@ -48,6 +48,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * he implementation is based on official documentation available at https://docs.aws.amazon.com/AmazonS3/latest/API/.
  */
 public class AmazonS3Fixture extends AbstractHttpFixture {
+    private static final String AUTH = "AUTH";
+    private static final String NON_AUTH = "NON_AUTH";
+    private static final String EC2_AUTH_PREFIX = "securitycredentials42";
 
     /** List of the buckets stored on this test server **/
     private final Map<String, Bucket> buckets = ConcurrentCollections.newConcurrentMap();
@@ -56,40 +59,47 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     private final PathTrie<RequestHandler> handlers;
     private final String permanentBucketName;
     private final String temporaryBucketName;
+    private final String ec2BucketName;
 
     /**
      * Creates a {@link AmazonS3Fixture}
      */
-    private AmazonS3Fixture(final String workingDir, final String permanentBucketName, final String temporaryBucketName) {
+    private AmazonS3Fixture(final String workingDir, final String permanentBucketName,
+                            final String temporaryBucketName, final String ec2BucketName) {
         super(workingDir);
         this.permanentBucketName = permanentBucketName;
         this.temporaryBucketName = temporaryBucketName;
+        this.ec2BucketName = ec2BucketName;
 
         this.buckets.put(permanentBucketName, new Bucket(permanentBucketName));
         this.buckets.put(temporaryBucketName, new Bucket(temporaryBucketName));
+        this.buckets.put(ec2BucketName, new Bucket(ec2BucketName));
         this.handlers = defaultHandlers(buckets);
     }
 
     @Override
     protected Response handle(final Request request) throws IOException {
-        final String nonAuthorizedPath = "* " + request.getMethod() + " " + request.getPath();
+        final String nonAuthorizedPath = NON_AUTH + " " + request.getMethod() + " " + request.getPath();
         final RequestHandler nonAuthorizedHandler = handlers.retrieve(nonAuthorizedPath, request.getParameters());
         if (nonAuthorizedHandler != null) {
             return nonAuthorizedHandler.handle(request);
         }
 
-        final String authorizedPath = "A " + request.getMethod() + " " + request.getPath();
+        final String authorizedPath = AUTH + " " + request.getMethod() + " " + request.getPath();
         final RequestHandler handler = handlers.retrieve(authorizedPath, request.getParameters());
         if (handler != null) {
             final String authorization = request.getHeader("Authorization");
+            if (authorization == null) {
+                return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad access key", "");
+            }
             final String permittedBucket;
-            if (authorization != null && authorization.contains("s3_integration_test_permanent_access_key")) {
+            if (authorization.contains("s3_integration_test_permanent_access_key")) {
                 final String sessionToken = request.getHeader("x-amz-security-token");
                 if (sessionToken != null) {
                     return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Unexpected session token", "");
                 }
                 permittedBucket = permanentBucketName;
-            } else if (authorization != null && authorization.contains("s3_integration_test_temporary_access_key")) {
+            } else if (authorization.contains("s3_integration_test_temporary_access_key")) {
                 final String sessionToken = request.getHeader("x-amz-security-token");
                 if (sessionToken == null) {
                     return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "No session token", "");
@@ -98,15 +108,15 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
                     return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
                 }
                 permittedBucket = temporaryBucketName;
-            } else if (authorization != null && authorization.contains("securitycredentials42_KEYID")) {
+            } else if (authorization.contains(EC2_AUTH_PREFIX + "_KEYID")) {
                 final String sessionToken = request.getHeader("x-amz-security-token");
                 if (sessionToken == null) {
                     return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "No session token", "");
                 }
-                if (sessionToken.equals("securitycredentials42_TKN") == false) {
+                if (sessionToken.equals(EC2_AUTH_PREFIX + "_TKN") == false) {
                     return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
                 }
-                permittedBucket = temporaryBucketName;
+                permittedBucket = ec2BucketName;
             } else {
                 return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad access key", "");
             }
@@ -131,12 +141,15 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     }
 
     public static void main(final String[] args) throws Exception {
-        if (args == null || args.length != 3) {
+        if (args == null || args.length != 4) {
             throw new IllegalArgumentException(
-                "AmazonS3Fixture <working directory> <bucket for permanent creds> <bucket for temporary creds>");
+                "AmazonS3Fixture <working directory>"
+                    + " <bucket for permanent creds>"
+                    + " <bucket for temporary creds>"
+                    + " <bucket for ec2 creds>");
         }
 
-        final AmazonS3Fixture fixture = new AmazonS3Fixture(args[0], args[1], args[2]);
+        final AmazonS3Fixture fixture = new AmazonS3Fixture(args[0], args[1], args[2], args[3]);
         fixture.listen();
     }
 
@@ -147,7 +160,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // HEAD Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectHEAD.html
-        objectsPaths("A HEAD /{bucket}").forEach(path ->
+        objectsPaths(AUTH + " HEAD /{bucket}").forEach(path ->
             handlers.insert(path, (request) -> {
                 final String bucketName = request.getParam("bucket");
 
@@ -169,7 +182,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // PUT Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPUT.html
-        objectsPaths("A PUT /{bucket}").forEach(path ->
+        objectsPaths(AUTH + " PUT /{bucket}").forEach(path ->
             handlers.insert(path, (request) -> {
                 final String destBucketName = request.getParam("bucket");
 
@@ -219,7 +232,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // DELETE Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectDELETE.html
-        objectsPaths("A DELETE /{bucket}").forEach(path ->
+        objectsPaths(AUTH + " DELETE /{bucket}").forEach(path ->
             handlers.insert(path, (request) -> {
                 final String bucketName = request.getParam("bucket");
 
@@ -237,7 +250,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // GET Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectGET.html
-        objectsPaths("A GET /{bucket}").forEach(path ->
+        objectsPaths(AUTH + " GET /{bucket}").forEach(path ->
             handlers.insert(path, (request) -> {
                 final String bucketName = request.getParam("bucket");
 
@@ -258,7 +271,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // HEAD Bucket
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketHEAD.html
-        handlers.insert("A HEAD /{bucket}", (request) -> {
+        handlers.insert(AUTH + " HEAD /{bucket}", (request) -> {
             String bucket = request.getParam("bucket");
             if (Strings.hasText(bucket) && buckets.containsKey(bucket)) {
                 return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
@@ -270,7 +283,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // GET Bucket (List Objects) Version 1
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketGET.html
-        handlers.insert("A GET /{bucket}/", (request) -> {
+        handlers.insert(AUTH + " GET /{bucket}/", (request) -> {
             final String bucketName = request.getParam("bucket");
 
             final Bucket bucket = buckets.get(bucketName);
@@ -288,7 +301,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // Delete Multiple Objects
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html
-        handlers.insert("A POST /", (request) -> {
+        handlers.insert(AUTH + " POST /", (request) -> {
             final List<String> deletes = new ArrayList<>();
             final List<String> errors = new ArrayList<>();
 
@@ -349,8 +362,8 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // GET
         //
         // http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
-        handlers.insert("* GET /latest/meta-data/iam/security-credentials/", (request) -> {
-            final String response = "securitycredentials42";
+        handlers.insert(NON_AUTH + " GET /latest/meta-data/iam/security-credentials/", (request) -> {
+            final String response = EC2_AUTH_PREFIX;
 
             final Map<String, String> headers = new HashMap<>(contentType("text/plain"));
             return new Response(RestStatus.OK.getStatus(), headers, response.getBytes(UTF_8));
@@ -359,8 +372,11 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // GET
         //
         // http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
-        handlers.insert("* GET /latest/meta-data/iam/security-credentials/{credentials}", (request) -> {
+        handlers.insert(NON_AUTH + " GET /latest/meta-data/iam/security-credentials/{credentials}", (request) -> {
             final String credentials = request.getParam("credentials");
+            if (EC2_AUTH_PREFIX.equals(credentials) == false) {
+                return new Response(RestStatus.NOT_FOUND.getStatus(), new HashMap<>(), "unknown credentials".getBytes(UTF_8));
+            }
             return credentialResponseFunction.apply(credentials);
         });
 

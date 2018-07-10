@@ -101,7 +101,7 @@ The role definition might be missing or invalid.
 |======================
 
 To help track down these possibilities, add the following lines to the end of
-the `log4j2.properties` configuration file in the `CONFIG_DIR`:
+the `log4j2.properties` configuration file in the `ES_PATH_CONF`:
 
 [source,properties]
 ----------------

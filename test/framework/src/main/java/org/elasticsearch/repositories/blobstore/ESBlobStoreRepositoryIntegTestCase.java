@@ -28,6 +28,8 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.snapshots.SnapshotMissingException;
+import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -50,7 +52,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     protected abstract void createTestRepository(String name);
 
     public void testSnapshotAndRestore() throws Exception {
-        String repoName = randomAsciiName();
+        final String repoName = randomAsciiName();
         logger.info("-->  creating repository {}", repoName);
         createTestRepository(repoName);
         int indexCount = randomIntBetween(1, 5);
@@ -63,7 +65,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             assertHitCount(client().prepareSearch(indexNames[i]).setSize(0).get(), docCounts[i]);
         }
 
-        String snapshotName = randomAsciiName();
+        final String snapshotName = randomAsciiName();
         logger.info("-->  create snapshot {}:{}", repoName, snapshotName);
         assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                 .setWaitForCompletion(true).setIndices(indexNames));
@@ -109,6 +111,15 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
         logger.info("-->  delete snapshot {}:{}", repoName, snapshotName);
         assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).get());
+
+        expectThrows(SnapshotMissingException.class, () ->
+            client().admin().cluster().prepareGetSnapshots(repoName).setSnapshots(snapshotName).get());
+
+        expectThrows(SnapshotMissingException.class, () ->
+            client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).get());
+
+        expectThrows(SnapshotRestoreException.class, () ->
+            client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(randomBoolean()).get());
     }
 
     public void testMultipleSnapshotAndRollback() throws Exception {
@@ -166,7 +177,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         }
     }
 
-    public void testIndicesDeletedFromRepository() throws Exception {
+    public void testIndicesDeletedFromRepository() {
         Client client = client();
 
         logger.info("-->  creating repository");

@@ -16,6 +16,7 @@ import org.elasticsearch.example.realm.CustomRealm;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 
@@ -52,7 +53,7 @@ public class CustomRolesProviderIT extends ESIntegTestCase {
 
     public void setupTestUser(String role) {
         SecurityClient securityClient = new SecurityClient(client());
-        securityClient.preparePutUser(TEST_USER, TEST_PWD.toCharArray(), role).get();
+        securityClient.preparePutUser(TEST_USER, TEST_PWD.toCharArray(), Hasher.BCRYPT, role).get();
     }
 
     public void testAuthorizedCustomRoleSucceeds() throws Exception {

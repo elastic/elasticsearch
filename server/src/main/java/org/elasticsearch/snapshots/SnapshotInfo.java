@@ -27,19 +27,18 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.time.CompoundDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -53,7 +52,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
-    private static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("strictDateOptionalTime");
+    private static final CompoundDateTimeFormatter DATE_TIME_FORMATTER = DateFormatters.forPattern("strictDateOptionalTime");
     private static final String SNAPSHOT = "snapshot";
     private static final String UUID = "uuid";
     private static final String INDICES = "indices";
@@ -84,7 +83,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final Comparator<SnapshotInfo> COMPARATOR =
         Comparator.comparing(SnapshotInfo::startTime).thenComparing(SnapshotInfo::snapshotId);
 
-    private static final class SnapshotInfoBuilder {
+    public static final class SnapshotInfoBuilder {
         private String snapshotName = null;
         private String snapshotUUID = null;
         private String state = null;
@@ -137,23 +136,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             this.version = version;
         }
 
-        private void setShardFailures(XContentParser parser) {
-            if (shardFailures == null) {
-                shardFailures = new ArrayList<>();
-            }
-
-            try {
-                if (parser.currentToken() == Token.START_ARRAY) {
-                    parser.nextToken();
-                }
-
-                while (parser.currentToken() != Token.END_ARRAY) {
-                    shardFailures.add(SnapshotShardFailure.fromXContent(parser));
-                    parser.nextToken();
-                }
-            } catch (IOException exception) {
-                throw new UncheckedIOException(exception);
-            }
+        private void setShardFailures(List<SnapshotShardFailure> shardFailures) {
+            this.shardFailures = shardFailures;
         }
 
         private void ignoreVersion(String version) {
@@ -172,7 +156,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             // ignore extra field
         }
 
-        private SnapshotInfo build() {
+        public SnapshotInfo build() {
             SnapshotId snapshotId = new SnapshotId(snapshotName, snapshotUUID);
 
             if (indices == null) {
@@ -219,11 +203,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
     }
 
-    private static final ObjectParser<SnapshotInfoBuilder, Void> SNAPSHOT_INFO_PARSER =
-            new ObjectParser<>(SnapshotInfoBuilder.class.getName(), SnapshotInfoBuilder::new);
+    public static final ObjectParser<SnapshotInfoBuilder, Void> SNAPSHOT_INFO_PARSER =
+            new ObjectParser<>(SnapshotInfoBuilder.class.getName(), true, SnapshotInfoBuilder::new);
 
     private static final ObjectParser<ShardStatsBuilder, Void> SHARD_STATS_PARSER =
-        new ObjectParser<>(ShardStatsBuilder.class.getName(), ShardStatsBuilder::new);
+        new ObjectParser<>(ShardStatsBuilder.class.getName(), true, ShardStatsBuilder::new);
 
     static {
         SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setSnapshotName, new ParseField(SNAPSHOT));
@@ -236,8 +220,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         SNAPSHOT_INFO_PARSER.declareObject(SnapshotInfoBuilder::setShardStatsBuilder, SHARD_STATS_PARSER, new ParseField(SHARDS));
         SNAPSHOT_INFO_PARSER.declareBoolean(SnapshotInfoBuilder::setIncludeGlobalState, new ParseField(INCLUDE_GLOBAL_STATE));
         SNAPSHOT_INFO_PARSER.declareInt(SnapshotInfoBuilder::setVersion, new ParseField(VERSION_ID));
-        SNAPSHOT_INFO_PARSER.declareField(
-                SnapshotInfoBuilder::setShardFailures, parser -> parser, new ParseField(FAILURES), ValueType.OBJECT_ARRAY_OR_STRING);
+        SNAPSHOT_INFO_PARSER.declareObjectArray(SnapshotInfoBuilder::setShardFailures, SnapshotShardFailure.SNAPSHOT_SHARD_FAILURE_PARSER,
+            new ParseField(FAILURES));
         SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreVersion, new ParseField(VERSION));
         SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreStartTime, new ParseField(START_TIME));
         SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::ignoreEndTime, new ParseField(END_TIME));
@@ -521,7 +505,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         // write snapshot info to repository snapshot blob format
         if (CONTEXT_MODE_SNAPSHOT.equals(params.param(CONTEXT_MODE_PARAM))) {
-            return toXContentSnapshot(builder, params);
+            return toXContentInternal(builder, params);
         }
 
         final boolean verbose = params.paramAsBoolean("verbose", GetSnapshotsRequest.DEFAULT_VERBOSE_MODE);
@@ -548,11 +532,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             builder.field(REASON, reason);
         }
         if (verbose || startTime != 0) {
-            builder.field(START_TIME, DATE_TIME_FORMATTER.printer().print(startTime));
+            builder.field(START_TIME, DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(startTime).atZone(ZoneOffset.UTC)));
             builder.field(START_TIME_IN_MILLIS, startTime);
         }
         if (verbose || endTime != 0) {
-            builder.field(END_TIME, DATE_TIME_FORMATTER.printer().print(endTime));
+            builder.field(END_TIME, DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(endTime).atZone(ZoneOffset.UTC)));
             builder.field(END_TIME_IN_MILLIS, endTime);
             builder.humanReadableField(DURATION_IN_MILLIS, DURATION, new TimeValue(endTime - startTime));
         }
@@ -576,7 +560,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         return builder;
     }
 
-    private XContentBuilder toXContentSnapshot(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
+    private XContentBuilder toXContentInternal(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
         builder.startObject(SNAPSHOT);
         builder.field(NAME, snapshotId.getName());
         builder.field(UUID, snapshotId.getUUID());
@@ -609,22 +593,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         return builder;
     }
 
+    /**
+     * This method creates a SnapshotInfo from external x-content.  It does not
+     * handle x-content written with the internal version.
+     */
     public static SnapshotInfo fromXContent(final XContentParser parser) throws IOException {
-        parser.nextToken(); // // move to '{'
-
-        if (parser.currentToken() != Token.START_OBJECT) {
-            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "], expected ['{']");
-        }
-
-        SnapshotInfo snapshotInfo = SNAPSHOT_INFO_PARSER.apply(parser, null).build();
-
-        if (parser.currentToken() != Token.END_OBJECT) {
-            throw new IllegalArgumentException("unexpected token [" + parser.currentToken() + "], expected ['}']");
-        }
-
-        parser.nextToken(); // move past '}'
-
-        return snapshotInfo;
+        return SNAPSHOT_INFO_PARSER.parse(parser, null).build();
     }
 
     /**

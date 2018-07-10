@@ -325,6 +325,9 @@ public class IndicesOptions implements ToXContentFragment {
         builder.endArray();
         builder.field("ignore_unavailable", ignoreUnavailable());
         builder.field("allow_no_indices", allowNoIndices());
+        builder.field("forbid_aliases_to_multiple_indices", allowAliasesToMultipleIndices() == false);
+        builder.field("forbid_closed_indices", forbidClosedIndices());
+        builder.field("ignore_aliases", ignoreAliases());
         return builder;
     }
 

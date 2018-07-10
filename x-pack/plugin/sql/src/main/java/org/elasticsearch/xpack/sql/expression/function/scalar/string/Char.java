@@ -14,20 +14,10 @@ import org.elasticsearch.xpack.sql.type.DataType;
 /**
  * Converts an int ASCII code to a character value.
  */
-public class Char extends UnaryStringFunction {
+public class Char extends UnaryStringIntFunction {
 
     public Char(Location location, Expression field) {
         super(location, field);
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
-            return new TypeResolution("Unresolved children");
-        }
-
-        return field().dataType().isInteger ? TypeResolution.TYPE_RESOLVED : new TypeResolution(
-                "'%s' requires a integer type, received %s", operation(), field().dataType().esType);
     }
 
     @Override

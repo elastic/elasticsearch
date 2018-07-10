@@ -14,20 +14,10 @@ import org.elasticsearch.xpack.sql.type.DataType;
 /**
  * Generates a string consisting of count spaces.
  */
-public class Space extends UnaryStringFunction {
+public class Space extends UnaryStringIntFunction {
 
     public Space(Location location, Expression field) {
         super(location, field);
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
-            return new TypeResolution("Unresolved children");
-        }
-
-        return field().dataType().isInteger ? TypeResolution.TYPE_RESOLVED : new TypeResolution(
-                "'%s' requires a integer type, received %s", operation(), field().dataType().esType);
     }
 
     @Override

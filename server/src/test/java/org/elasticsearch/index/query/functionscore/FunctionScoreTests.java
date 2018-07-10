@@ -708,9 +708,6 @@ public class FunctionScoreTests extends ESTestCase {
 
     public void testExplanationAndScoreEqualsEvenIfNoFunctionMatches() throws IOException {
         IndexSearcher localSearcher = newSearcher(reader);
-        // TODO the following is unused, not sure if this means there is some test missing or this is leftover
-        // ScoreMode scoreMode = randomFrom(new
-        // ScoreMode[]{ScoreMode.SUM, ScoreMode.AVG, ScoreMode.FIRST, ScoreMode.MIN, ScoreMode.MAX, ScoreMode.MULTIPLY});
         CombineFunction combineFunction = randomFrom(new
             CombineFunction[]{CombineFunction.SUM, CombineFunction.AVG, CombineFunction.MIN, CombineFunction.MAX,
             CombineFunction.MULTIPLY, CombineFunction.REPLACE});

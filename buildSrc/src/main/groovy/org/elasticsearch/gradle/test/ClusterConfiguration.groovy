@@ -137,6 +137,9 @@ class ClusterConfiguration {
         this.project = project
     }
 
+    // **Note** for systemProperties, settings, keystoreFiles etc:
+    // value could be a GString that is evaluated to just a String
+    // there are cases when value depends on task that is not executed yet on configuration stage
     Map<String, Object> systemProperties = new HashMap<>()
 
     Map<String, Object> settings = new HashMap<>()

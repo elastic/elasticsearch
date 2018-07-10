@@ -202,7 +202,6 @@ class ClusterFormationTasks {
         setup = configureCreateKeystoreTask(taskName(prefix, node, 'createKeystore'), project, setup, node)
         setup = configureAddKeystoreSettingTasks(prefix, project, setup, node)
         setup = configureAddKeystoreFileTasks(prefix, project, setup, node)
-        setup = configureESJavaOpts(prefix, project, setup, node)
 
         if (node.config.plugins.isEmpty() == false) {
             if (node.nodeVersion == VersionProperties.elasticsearch) {
@@ -413,31 +412,6 @@ class ClusterFormationTasks {
         return parentTask
     }
 
-    /** Configure ES JAVA OPTS - adds system properties, assertion flags, remote debug etc */
-    static Task configureESJavaOpts(String parent, Project project, Task setup, NodeInfo node) {
-        return project.tasks.create(name: taskName(parent, node, 'configureESJavaOpts'), type: DefaultTask, dependsOn: setup) {
-            doLast {
-                String collectedSystemProperties = node.config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
-                List<String> esJavaOpts = [collectedSystemProperties]
-                esJavaOpts.add(node.config.jvmArgs)
-                if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
-                    // put the enable assertions options before other options to allow
-                    // flexibility to disable assertions for specific packages or classes
-                    // in the cluster-specific options
-                    esJavaOpts.add("-ea")
-                    esJavaOpts.add("-esa")
-                }
-                // we must add debug options inside the closure so the config is read at execution time, as
-                // gradle task options are not processed until the end of the configuration phase
-                if (node.config.debug) {
-                    println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
-                    esJavaOpts.add('-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000')
-                }
-                node.env['ES_JAVA_OPTS'] = esJavaOpts.join(" ")
-            }
-        }
-    }
-
     static Task configureExtraConfigFilesTask(String name, Project project, Task setup, NodeInfo node) {
         if (node.config.extraConfigFiles.isEmpty()) {
             return setup
@@ -629,7 +603,6 @@ class ClusterFormationTasks {
 
     /** Adds a task to start an elasticsearch node with the given configuration */
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
-
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = { AntBuilder ant ->
             ant.exec(executable: node.executable, spawn: node.config.daemonize, dir: node.cwd, taskname: 'elasticsearch') {
@@ -667,6 +640,27 @@ class ClusterFormationTasks {
         }
         start.doLast(elasticsearchRunner)
         start.doFirst {
+            // Configure ES JAVA OPTS - adds system properties, assertion flags, remote debug etc
+            List<String> esJavaOpts = [node.env.get('ES_JAVA_OPTS', '')]
+            String collectedSystemProperties = node.config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
+            esJavaOpts.add(collectedSystemProperties)
+            esJavaOpts.add(node.config.jvmArgs)
+            if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
+                // put the enable assertions options before other options to allow
+                // flexibility to disable assertions for specific packages or classes
+                // in the cluster-specific options
+                esJavaOpts.add("-ea")
+                esJavaOpts.add("-esa")
+            }
+            // we must add debug options inside the closure so the config is read at execution time, as
+            // gradle task options are not processed until the end of the configuration phase
+            if (node.config.debug) {
+                println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
+                esJavaOpts.add('-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000')
+            }
+            node.env['ES_JAVA_OPTS'] = esJavaOpts.join(" ")
+
+            //
             project.logger.info("Starting node in ${node.clusterName} distribution: ${node.config.distribution}")
         }
         return start

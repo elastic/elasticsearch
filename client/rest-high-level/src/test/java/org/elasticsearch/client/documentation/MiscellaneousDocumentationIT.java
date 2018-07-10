@@ -87,7 +87,7 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
                     XPackInfoRequest.Category.BUILD,
                     XPackInfoRequest.Category.LICENSE,
                     XPackInfoRequest.Category.FEATURES));
-            XPackInfoResponse response = client.xPackInfo(request, RequestOptions.DEFAULT);
+            XPackInfoResponse response = client.xpack().info(request, RequestOptions.DEFAULT);
             //end::x-pack-info-execute
 
             //tag::x-pack-info-response
@@ -123,7 +123,7 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::x-pack-info-execute-async
-            client.xPackInfoAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.xpack().infoAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-info-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

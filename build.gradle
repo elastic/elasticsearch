@@ -222,7 +222,7 @@ subprojects {
     "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':server',
-    "org.elasticsearch:elasticsearch-cli:${version}": ':libs:cli',
+    "org.elasticsearch:elasticsearch-cli:${version}": ':libs:elasticsearch-cli',
     "org.elasticsearch:elasticsearch-core:${version}": ':libs:core',
     "org.elasticsearch:elasticsearch-nio:${version}": ':libs:nio',
     "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
@@ -576,6 +576,22 @@ gradle.projectsEvaluated {
       if (dependenciesInfo) {
         project.tasks.remove(dependenciesInfo)
         project.precommit.dependsOn.remove('dependenciesInfo')
+      }
+    }
+  }
+  project.allprojects.forEach { outer ->
+    project.allprojects.forEach { inner ->
+      if (inner.path == outer.path) {
+        // same project, do nothing
+        return
+      }
+      if (inner.name == outer.name && inner.group == outer.group) {
+        throw new GradleException(
+                "Detected that two projects: ${inner.path} and ${outer.path} " +
+                        "have the same name and group: ${inner.group}:${inner.name}. " +
+                        "This doesn't currently work correctly in Gradle, see: " +
+                        "https://github.com/gradle/gradle/issues/847"
+        )
       }
     }
   }

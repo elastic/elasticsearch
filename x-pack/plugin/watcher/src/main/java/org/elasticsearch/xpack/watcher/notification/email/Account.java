@@ -27,6 +27,7 @@ import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Properties;
+import java.util.Set;
 
 public class Account {
 
@@ -106,7 +107,7 @@ public class Account {
         if (auth != null && auth.password() != null) {
             password = new String(auth.password().text(cryptoService));
         } else if (config.smtp.password != null) {
-            password = new String(config.smtp.password);
+            password = new String(config.smtp.password.getChars());
         }
 
         if (profile == null) {
@@ -204,7 +205,7 @@ public class Account {
             final String host;
             final int port;
             final String user;
-            final char[] password;
+            final SecureString password;
             final Properties properties;
 
             Smtp(Settings settings) {
@@ -212,25 +213,30 @@ public class Account {
 
                 port = settings.getAsInt("port", settings.getAsInt("localport", settings.getAsInt("local_port", 25)));
                 user = settings.get("user", settings.get("from", null));
-                String passStr = getNullableSetting(SMTP_PASSWORD, settings, SECURE_PASSWORD_SETTING);
-                password = passStr != null ? passStr.toCharArray() : null;
+                password = getSecureSetting(SMTP_PASSWORD, settings, SECURE_PASSWORD_SETTING);
+                //password = passStr != null ? passStr.toCharArray() : null;
                 properties = loadSmtpProperties(settings);
             }
 
             /**
              * Finds a setting, and then a secure setting if the setting is null, or returns null if one does not exist. This differs
              * from other getSetting calls in that it allows for null whereas the other methods throw an exception.
+             *
+             * Note: if your setting was not previously secure, than the string reference that is in the setting object is still
+             * insecure. This is only constructing a new SecureString with the char[] of the insecure setting.
              */
-            private static String getNullableSetting(String settingName, Settings settings, Setting<SecureString> secureSetting) {
+            private static SecureString getSecureSetting(String settingName, Settings settings, Setting<SecureString> secureSetting) {
                 String value = settings.get(settingName);
                 if (value == null) {
                     SecureString secureString = secureSetting.get(settings);
                     if (secureString != null && secureString.length() > 0) {
-                        value = secureString.toString();
+                        return secureString;
+                    } else  {
+                        return null;
                     }
+                } else {
+                    return new SecureString(value.toCharArray());
                 }
-
-                return value;
             }
 
             /**
@@ -253,11 +259,10 @@ public class Account {
 
                 settings = builder.build();
                 Properties props = new Properties();
-                for (String key : settings.keySet()) {
-                    // Secure strings can not be retreived out of a settings object and should be handled differently
-                    if (key.startsWith("secure_") == false) {
-                        props.setProperty(SMTP_SETTINGS_PREFIX + key, settings.get(key));
-                    }
+                // Secure strings can not be retreived out of a settings object and should be handled differently
+                Set<String> insecureSettings = settings.filter(s -> s.startsWith("secure_") == false).keySet();
+                for (String key : insecureSettings) {
+                    props.setProperty(SMTP_SETTINGS_PREFIX + key, settings.get(key));
                 }
                 return props;
             }

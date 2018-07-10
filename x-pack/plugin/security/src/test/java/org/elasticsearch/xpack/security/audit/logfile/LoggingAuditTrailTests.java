@@ -143,7 +143,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }).when(clusterService).addListener(Mockito.isA(LoggingAuditTrail.class));
         final ClusterSettings clusterSettings = mockClusterSettings();
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        prefix = LoggingAuditTrail.LocalNodeInfo.resolvePrefix(settings, localNode);
+        prefix = LoggingAuditTrail.EntryCommonFields.resolvePrefix(settings, localNode);
         threadContext = new ThreadContext(Settings.EMPTY);
     }
 
@@ -151,7 +151,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
+        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.entryCommonFields);
         auditTrail.anonymousAccessDenied("_action", message);
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [anonymous_access_denied]\t"  + origins +
@@ -197,7 +197,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
+        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.entryCommonFields);
         auditTrail.authenticationFailed(new MockToken(), "_action", message);
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [authentication_failed]\t" + origins +
@@ -220,7 +220,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
+        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.entryCommonFields);
         auditTrail.authenticationFailed("_action", message);
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [authentication_failed]\t" + origins +
@@ -298,7 +298,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         settings =
                 Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "realm_authentication_failed").build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
-        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
+        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.entryCommonFields);
         auditTrail.authenticationFailed("_realm", new MockToken(), "_action", message);
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [realm_authentication_failed]\trealm=[_realm], " + origins +
@@ -339,7 +339,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
+        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.entryCommonFields);
         final boolean runAs = randomBoolean();
         User user;
         if (runAs) {
@@ -378,7 +378,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         // test enabled
         settings = Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "system_access_granted").build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
-        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
+        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.entryCommonFields);
         auditTrail.accessGranted(createAuthentication(SystemUser.INSTANCE), "internal:_action", message, new String[] { role });
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", principal=[" +
@@ -396,7 +396,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
+        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.entryCommonFields);
         final boolean runAs = randomBoolean();
         User user;
         if (runAs) {
@@ -428,7 +428,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
+        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.entryCommonFields);
         final boolean runAs = randomBoolean();
         User user;
         if (runAs) {
@@ -485,7 +485,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
         final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
-        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
+        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.entryCommonFields);
         auditTrail.tamperedRequest(action, message);
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [tampered_request]\t" + origins +
@@ -512,7 +512,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
         final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
-        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
+        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.entryCommonFields);
         auditTrail.tamperedRequest(user, action, message);
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [tampered_request]\t" + origins + ", " + userInfo +
@@ -569,7 +569,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
+        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.entryCommonFields);
         final User user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
         final String role = randomAlphaOfLengthBetween(1, 6);
         auditTrail.runAsGranted(createAuthentication(user), "_action", message, new String[] { role });
@@ -597,7 +597,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
+        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.entryCommonFields);
         final User user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
         final String role = randomAlphaOfLengthBetween(1, 6);
         auditTrail.runAsDenied(createAuthentication(user), "_action", message, new String[] { role });
@@ -624,7 +624,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     public void testOriginAttributes() throws Exception {
         final MockMessage message = new MockMessage(threadContext);
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
-        final String text = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
+        final String text = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.entryCommonFields);
         final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
         if (restAddress != null) {
             assertThat(text, equalTo("origin_type=[rest], origin_address=[" +
@@ -688,7 +688,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
-        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
+        final String origins = LoggingAuditTrail.originAttributes(threadContext, message, auditTrail.entryCommonFields);
         final boolean runAs = randomBoolean();
         User user;
         if (runAs) {

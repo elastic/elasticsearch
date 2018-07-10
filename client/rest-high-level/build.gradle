@@ -43,7 +43,6 @@ archivesBaseName = 'elasticsearch-rest-high-level-client'
 
 publishing {
   publications {
-    println("ASDFA now!")
     nebula(MavenPublication) {
       artifact shadowJar
       artifactId = archivesBaseName

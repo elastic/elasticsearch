@@ -133,7 +133,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
         return ToXContent.EMPTY_PARAMS;
     }
 
-    public static BytesReference insertRandomFieldsAndShuffle(ToXContent testInstance, XContentType xContentType,
+    static BytesReference insertRandomFieldsAndShuffle(ToXContent testInstance, XContentType xContentType,
             boolean supportsUnknownFields, String[] shuffleFieldsExceptions, Predicate<String> randomFieldsExcludeFilter,
             CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParserFunction,
             ToXContent.Params toXContentParams) throws IOException {

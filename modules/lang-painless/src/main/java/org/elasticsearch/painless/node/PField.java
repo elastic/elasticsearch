@@ -19,15 +19,16 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Field;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Definition.def;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessField;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessMethodKey;
 
 import java.util.List;
 import java.util.Map;
@@ -63,29 +64,29 @@ public final class PField extends AStoreable {
         prefix = prefix.cast(locals);
 
         if (prefix.actual.isArray()) {
-            sub = new PSubArrayLength(location, Definition.ClassToName(prefix.actual), value);
+            sub = new PSubArrayLength(location, PainlessLookup.ClassToName(prefix.actual), value);
         } else if (prefix.actual == def.class) {
             sub = new PSubDefField(location, value);
         } else {
-            Struct struct = locals.getDefinition().getPainlessStructFromJavaClass(prefix.actual);
-            Field field = prefix instanceof EStatic ? struct.staticMembers.get(value) : struct.members.get(value);
+            PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
+            PainlessField field = prefix instanceof EStatic ? struct.staticMembers.get(value) : struct.members.get(value);
 
             if (field != null) {
                 sub = new PSubField(location, field);
             } else {
-                Method getter = struct.methods.get(
-                    new Definition.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+                PainlessMethod getter = struct.methods.get(
+                    new PainlessMethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
 
                 if (getter == null) {
                     getter = struct.methods.get(
-                        new Definition.MethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+                        new PainlessMethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
                 }
 
-                Method setter = struct.methods.get(
-                    new Definition.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
+                PainlessMethod setter = struct.methods.get(
+                    new PainlessMethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
                 if (getter != null || setter != null) {
-                    sub = new PSubShortcut(location, value, Definition.ClassToName(prefix.actual), getter, setter);
+                    sub = new PSubShortcut(location, value, PainlessLookup.ClassToName(prefix.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
                     index.analyze(locals);
@@ -103,7 +104,7 @@ public final class PField extends AStoreable {
 
         if (sub == null) {
             throw createError(new IllegalArgumentException(
-                "Unknown field [" + value + "] for type [" + Definition.ClassToName(prefix.actual) + "]."));
+                "Unknown field [" + value + "] for type [" + PainlessLookup.ClassToName(prefix.actual) + "]."));
         }
 
         if (nullSafe) {

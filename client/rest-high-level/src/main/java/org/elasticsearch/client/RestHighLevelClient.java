@@ -202,6 +202,7 @@ public class RestHighLevelClient implements Closeable {
     private final IngestClient ingestClient = new IngestClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final TasksClient tasksClient = new TasksClient(this);
+    private final XPackClient xPackClient = new XPackClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -290,6 +291,19 @@ public class RestHighLevelClient implements Closeable {
      */
     public final TasksClient tasks() {
         return tasksClient;
+    }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for
+     * accessing the Elastic Licensed X-Pack APIs that are shipped with the
+     * default distribution of Elasticsearch. All of these APIs will 404 if run
+     * against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-api.html">
+     * X-Pack APIs on elastic.co</a> for more information.
+     */
+    public final XPackClient xpack() {
+        return xPackClient;
     }
 
     /**
@@ -668,7 +682,7 @@ public class RestHighLevelClient implements Closeable {
                 emptySet());
     }
 
-        
+
     /**
      * Executes a request using the Multi Search Template API.
      *
@@ -678,9 +692,9 @@ public class RestHighLevelClient implements Closeable {
     public final MultiSearchTemplateResponse multiSearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest,
             RequestOptions options) throws IOException {
         return performRequestAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
-                options, MultiSearchTemplateResponse::fromXContext, emptySet());        
-    }   
-    
+                options, MultiSearchTemplateResponse::fromXContext, emptySet());
+    }
+
     /**
      * Asynchronously executes a request using the Multi Search Template API
      *
@@ -692,7 +706,7 @@ public class RestHighLevelClient implements Closeable {
                                           ActionListener<MultiSearchTemplateResponse> listener) {
         performRequestAsyncAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
             options, MultiSearchTemplateResponse::fromXContext, listener, emptySet());
-    }    
+    }
 
     /**
      * Asynchronously executes a request using the Ranking Evaluation API.

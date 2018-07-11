@@ -25,6 +25,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -100,6 +101,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public static final String REQUEST_NAME_FIELD_NAME = "request.name";
     public static final String TRANSPORT_PROFILE_FIELD_NAME = "transport.profile";
     public static final String RULE_FIELD_NAME = "rule";
+    public static final String OPAQUE_ID_FIELD_NAME = "opaque_id";
     public static final String NAME = "logfile";
     public static final Setting<Boolean> HOST_ADDRESS_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_address"),
             false, Property.NodeScope, Property.Dynamic);
@@ -208,6 +210,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             if (includeRequestBody) {
                 logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
             }
+            opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
     }
@@ -229,6 +232,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
                 }
+                opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
             }
         }
@@ -249,6 +253,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
                 }
+                opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
             }
         }
@@ -268,6 +273,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             if (includeRequestBody) {
                 logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
             }
+            opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
     }
@@ -288,6 +294,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
                 }
+                opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
             }
         }
@@ -306,6 +313,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             if (includeRequestBody) {
                 logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
             }
+            opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
     }
@@ -325,6 +333,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
                 }
+                opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
             }
         }
@@ -345,6 +354,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             if (includeRequestBody) {
                 logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
             }
+            opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
     }
@@ -366,6 +376,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
                 }
+                opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
             }
         }
@@ -388,6 +399,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             if (includeRequestBody) {
                 logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
             }
+            opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
     }
@@ -411,6 +423,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
                 }
+                opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
             }
         }
@@ -433,6 +446,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
                 }
+                opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
             }
         }
@@ -451,6 +465,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             if (includeRequestBody) {
                 logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
             }
+            opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
     }
@@ -470,6 +485,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
                 }
+                opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
             }
         }
@@ -491,6 +507,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
                 }
+                opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
             }
         }
@@ -506,6 +523,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                     .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
                     .with(RULE_FIELD_NAME, rule);
+            opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
     }
@@ -520,6 +538,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                     .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
                     .with(RULE_FIELD_NAME, rule);
+            opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
     }
@@ -541,6 +560,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
                 }
+                opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
             }
         }
@@ -563,6 +583,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 if (indices.isPresent()) {
                     logEntry.with(INDICES_FIELD_NAME, Strings.arrayToCommaDelimitedString(indices.get()));
                 }
+                opaqueId(threadContext, logEntry);
                 logger.info(logEntry);
             }
         }
@@ -585,6 +606,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             if (includeRequestBody) {
                 logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
             }
+            opaqueId(threadContext, logEntry);
             logger.info(logEntry);
         }
     }
@@ -606,6 +628,13 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .with(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
         } else {
             logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
+        }
+    }
+
+    private static void opaqueId(ThreadContext threadContext, StringMapMessage logEntry) {
+        final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID);
+        if (opaqueId != null) {
+            logEntry.with(OPAQUE_ID_FIELD_NAME, opaqueId);
         }
     }
 
@@ -635,7 +664,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         // fall through to local_node default
     }
 
-    static Optional<String[]> indices(TransportMessage message) {
+    private static Optional<String[]> indices(TransportMessage message) {
         if (message instanceof IndicesRequest) {
             final String[] indices = ((IndicesRequest) message).indices();
             if (indices != null && indices.length != 0) {
@@ -645,12 +674,12 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         return Optional.empty();
     }
 
-    static String effectiveRealmName(Authentication authentication) {
+    private static String effectiveRealmName(Authentication authentication) {
         return authentication.getLookedUpBy() != null ? authentication.getLookedUpBy().getName()
                 : authentication.getAuthenticatedBy().getName();
     }
 
-    static void principal(User user, StringMapMessage logEntry) {
+    private static void principal(User user, StringMapMessage logEntry) {
         logEntry.with(PRINCIPAL_FIELD_NAME, user.principal());
         if (user.isRunAs()) {
             logEntry.with(PRINCIPAL_RUN_BY_FIELD_NAME, user.authenticatedUser().principal());

@@ -66,8 +66,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
-import org.elasticsearch.protocol.xpack.XPackInfoRequest;
-import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
@@ -204,6 +202,7 @@ public class RestHighLevelClient implements Closeable {
     private final IngestClient ingestClient = new IngestClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final TasksClient tasksClient = new TasksClient(this);
+    private final XPackClient xPackClient = new XPackClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -292,6 +291,19 @@ public class RestHighLevelClient implements Closeable {
      */
     public final TasksClient tasks() {
         return tasksClient;
+    }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for
+     * accessing the Elastic Licensed X-Pack APIs that are shipped with the
+     * default distribution of Elasticsearch. All of these APIs will 404 if run
+     * against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-api.html">
+     * X-Pack APIs on elastic.co</a> for more information.
+     */
+    public final XPackClient xpack() {
+        return xPackClient;
     }
 
     /**
@@ -792,34 +804,6 @@ public class RestHighLevelClient implements Closeable {
                                      ActionListener<FieldCapabilitiesResponse> listener) {
         performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
             FieldCapabilitiesResponse::fromXContent, listener, emptySet());
-    }
-
-    /**
-     * Fetch information about X-Pack from the cluster if it is installed.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html">
-     * the docs</a> for more.
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public XPackInfoResponse xPackInfo(XPackInfoRequest request, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(request, RequestConverters::xPackInfo, options,
-            XPackInfoResponse::fromXContent, emptySet());
-    }
-
-    /**
-     * Fetch information about X-Pack from the cluster if it is installed.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html">
-     * the docs</a> for more.
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     */
-    public void xPackInfoAsync(XPackInfoRequest request, RequestOptions options,
-                                  ActionListener<XPackInfoResponse> listener) {
-        performRequestAsyncAndParseEntity(request, RequestConverters::xPackInfo, options,
-            XPackInfoResponse::fromXContent, listener, emptySet());
     }
 
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,

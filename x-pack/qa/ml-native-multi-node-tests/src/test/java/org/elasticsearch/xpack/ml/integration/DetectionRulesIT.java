@@ -49,6 +49,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31916")
     public void testCondition() throws Exception {
         DetectionRule rule = new DetectionRule.Builder(Arrays.asList(
                 new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.LT, 100.0)

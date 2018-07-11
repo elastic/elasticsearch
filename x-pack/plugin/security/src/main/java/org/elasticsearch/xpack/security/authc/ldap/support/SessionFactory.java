@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import javax.net.SocketFactory;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -141,7 +140,11 @@ public abstract class SessionFactory {
                     sslConfigurationSettings.verificationMode.getKey() +
                     "] may not be used at the same time");
         } else if (verificationModeExists) {
-            final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(RealmSettings.getFullSettingKey(config, "ssl"));
+            final String sslKey = RealmSettings.getFullSettingKey(config, "ssl");
+            final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
+            if (sslConfiguration == null) {
+                throw new IllegalStateException("cannot find SSL configuration for " + sslKey);
+            }
             if (sslConfiguration.verificationMode().isHostnameVerificationEnabled()) {
                 options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
             }

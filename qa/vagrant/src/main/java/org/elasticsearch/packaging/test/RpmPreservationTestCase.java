@@ -34,6 +34,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.FileUtils.append;
+import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
 import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
@@ -115,7 +116,8 @@ public abstract class RpmPreservationTestCase {
         if (isSystemd()) {
             assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode, is(1));
         }
-        Stream.of(
+
+        assertPathsDontExist(
             installation.bin,
             installation.lib,
             installation.modules,
@@ -125,12 +127,11 @@ public abstract class RpmPreservationTestCase {
             installation.envFile,
             SYSVINIT_SCRIPT,
             SYSTEMD_SERVICE
-        ).forEach(path -> assertFalse(path + " should not exist", Files.exists(path)));
-
-
+        );
 
         assertTrue(Files.exists(installation.config));
         assertTrue(Files.exists(installation.config("elasticsearch.keystore")));
+
         Stream.of(
             "elasticsearch.yml",
             "jvm.options",

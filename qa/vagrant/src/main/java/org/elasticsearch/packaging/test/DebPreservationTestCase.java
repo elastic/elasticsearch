@@ -33,6 +33,8 @@ import java.nio.file.Paths;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
+import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
+import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
 import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
@@ -83,24 +85,27 @@ public abstract class DebPreservationTestCase {
         remove(distribution());
 
         // some config files were not removed
-        Stream.of(
+
+        assertPathsExist(
             installation.config,
             installation.config("elasticsearch.yml"),
             installation.config("jvm.options"),
             installation.config("log4j2.properties")
-        ).forEach(path -> assertTrue(path + " should exist", Files.exists(path)));
+        );
 
         // keystore was removed
-        Stream.of(
+
+        assertPathsDontExist(
             installation.config("elasticsearch.keystore"),
             installation.config(".elasticsearch.keystore.initial_md5sum")
-        ).forEach(path -> assertFalse(path + " should not exist", Files.exists(path)));
+        );
 
         // doc files were removed
-        Stream.of(
-            "/usr/share/doc/" + distribution().flavor.name,
-            "/usr/share/doc/" + distribution().flavor.name + "/copyright"
-        ).map(Paths::get).forEach(path -> assertFalse(path + " does not exist", Files.exists(path)));
+
+        assertPathsDontExist(
+            Paths.get("/usr/share/doc/" + distribution().flavor.name),
+            Paths.get("/usr/share/doc/" + distribution().flavor.name + "/copyright")
+        );
 
         // sysvinit service file was not removed
         assertTrue(Files.exists(SYSVINIT_SCRIPT));
@@ -118,11 +123,11 @@ public abstract class DebPreservationTestCase {
 
         assertRemoved(distribution());
 
-        Stream.of(
+        assertPathsDontExist(
             installation.config,
             installation.envFile,
             SYSVINIT_SCRIPT
-        ).forEach(path -> assertFalse(path + " should not exist", Files.exists(path)));
+        );
 
         assertThat(packageStatus(distribution()).exitCode, is(1));
     }

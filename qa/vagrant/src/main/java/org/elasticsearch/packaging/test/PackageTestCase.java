@@ -37,6 +37,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
+import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
@@ -150,14 +151,14 @@ public abstract class PackageTestCase {
 
         }
 
-        Stream.of(
+        assertPathsDontExist(
             installation.bin,
             installation.lib,
             installation.modules,
             installation.plugins,
             installation.logs,
             installation.pidDir
-        ).forEach(path -> assertFalse(path + " should not exist", Files.exists(path)));
+        );
 
         assertFalse(Files.exists(SYSTEMD_SERVICE));
     }

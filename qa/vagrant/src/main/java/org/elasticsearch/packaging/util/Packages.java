@@ -74,19 +74,12 @@ public class Packages {
 
     public static Result packageStatus(Distribution distribution) {
         final Shell sh = new Shell();
-        final String manager;
         final Result result;
 
         if (distribution.packaging == Distribution.Packaging.RPM) {
-            manager = "rpm";
             result = sh.runIgnoreExitCode("rpm -qe " + distribution.flavor.name);
         } else {
-            manager = "dpkg";
             result = sh.runIgnoreExitCode("dpkg -s " + distribution.flavor.name);
-        }
-
-        if (result.exitCode > 1) {
-            throw new RuntimeException(manager + " encountered an error: " + result);
         }
 
         return result;

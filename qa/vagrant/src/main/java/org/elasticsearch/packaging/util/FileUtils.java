@@ -33,11 +33,15 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileOwnerAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsNot.not;
 import static org.hamcrest.text.IsEmptyString.isEmptyOrNullString;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Wrappers and convenience methods for common filesystem operations
@@ -167,5 +171,13 @@ public class FileUtils {
 
     public static Path getDistributionFile(Distribution distribution, String version) {
         return getPackagingArchivesDir().resolve(distribution.filename(version));
+    }
+
+    public static void assertPathsExist(Path... paths) {
+        Arrays.stream(paths).forEach(path -> assertTrue(path + " should exist", Files.exists(path)));
+    }
+
+    public static void assertPathsDontExist(Path... paths) {
+        Arrays.stream(paths).forEach(path -> assertFalse(path + " should not exist", Files.exists(path)));
     }
 }

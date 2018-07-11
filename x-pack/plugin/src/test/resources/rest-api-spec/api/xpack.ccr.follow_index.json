@@ -9,16 +9,13 @@
         "index": {
           "type": "string",
           "required": true,
-          "description": "The name of the index that follows to leader index."
-        }
-      },
-      "params": {
-        "leader_index": {
-          "type": "string",
-          "required": true,
-          "description": "The name of the index to read the changes from."
+          "description": "The name of the follower index."
         }
       }
+    },
+    "body": {
+      "description" : "The name of the leader index and other optional ccr related parameters",
+      "required" : true
     }
   }
 }

@@ -9,10 +9,8 @@
         "index": {
           "type": "string",
           "required": true,
-          "description": "The name of the follow index that should stop following its leader index."
+          "description": "The name of the follower index that should stop following its leader index."
         }
-      },
-      "params": {
       }
     }
   }

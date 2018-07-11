@@ -6,9 +6,12 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
-public class FollowIndexRequestTests extends AbstractStreamableTestCase<FollowIndexAction.Request> {
+import java.io.IOException;
+
+public class FollowIndexRequestTests extends AbstractStreamableXContentTestCase<FollowIndexAction.Request> {
 
     @Override
     protected FollowIndexAction.Request createBlankInstance() {
@@ -18,6 +21,16 @@ public class FollowIndexRequestTests extends AbstractStreamableTestCase<FollowIn
     @Override
     protected FollowIndexAction.Request createTestInstance() {
         return createTestRequest();
+    }
+
+    @Override
+    protected FollowIndexAction.Request doParseInstance(XContentParser parser) throws IOException {
+        return FollowIndexAction.Request.fromXContent(parser, null);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 
     static FollowIndexAction.Request createTestRequest() {

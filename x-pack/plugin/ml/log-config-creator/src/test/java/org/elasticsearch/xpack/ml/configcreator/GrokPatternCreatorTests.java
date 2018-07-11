@@ -312,4 +312,41 @@ public class GrokPatternCreatorTests extends LogConfigCreatorTestCase {
         assertEquals("long", mappings.get("response"));
         assertEquals("keyword", mappings.get("verb"));
     }
+
+    public void testAdjustForPunctuationGivenCommonPrefix() {
+        Collection<String> snippets = Arrays.asList(
+            "\",\"lab6.localhost\",\"Route Domain\",\"/Common/0\",\"No-lookup\",\"192.168.33.212\",\"No-lookup\",\"192.168.33.132\"," +
+                "\"80\",\"46721\",\"/Common/Subnet_33\",\"TCP\",\"0\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"Staged\",\"/Common/policy1\"" +
+                ",\"rule1\",\"Accept\",\"\",\"\",\"\",\"0000000000000000\"",
+            "\",\"lab6.localhost\",\"Route Domain\",\"/Common/0\",\"No-lookup\",\"192.168.143.244\",\"No-lookup\",\"192.168.33.106\"," +
+                "\"55025\",\"162\",\"/Common/Subnet_33\",\"UDP\",\"0\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"Staged\",\"/Common/policy1\"" +
+                ",\"rule1\",\"Accept\",\"\",\"\",\"\",\"0000000000000000\"",
+            "\",\"lab6.localhost\",\"Route Domain\",\"/Common/0\",\"No-lookup\",\"192.168.33.3\",\"No-lookup\",\"224.0.0.102\"," +
+                "\"3222\",\"3222\",\"/Common/Subnet_33\",\"UDP\",\"0\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"Staged\",\"/Common/policy1\"" +
+                ",\"rule1\",\"Accept\",\"\",\"\",\"\",\"0000000000000000\""
+        );
+
+        StringBuilder patternBuilder = new StringBuilder();
+
+        Collection<String> adjustedSnippets = GrokPatternCreator.adjustForPunctuation(snippets, patternBuilder);
+        assertEquals("\",", patternBuilder.toString());
+        assertNotNull(adjustedSnippets);
+        assertThat(new ArrayList<>(adjustedSnippets),
+            containsInAnyOrder(snippets.stream().map(snippet -> snippet.substring(2)).toArray(String[]::new)));
+    }
+
+    public void testAdjustForPunctuationGivenNoCommonPrefix() {
+        Collection<String> snippets = Arrays.asList(
+            "|client (id:2) was removed from servergroup 'Normal'(id:7) by client 'User1'(id:2)",
+            "|servergroup 'GAME'(id:9) was added by 'User1'(id:2)",
+            "|permission 'i_group_auto_update_type'(id:146) with values (value:30, negated:0, skipchannel:0) " +
+                "was added by 'User1'(id:2) to servergroup 'GAME'(id:9)"
+        );
+
+        StringBuilder patternBuilder = new StringBuilder();
+
+        Collection<String> adjustedSnippets = GrokPatternCreator.adjustForPunctuation(snippets, patternBuilder);
+        assertEquals("", patternBuilder.toString());
+        assertSame(snippets, adjustedSnippets);
+    }
 }

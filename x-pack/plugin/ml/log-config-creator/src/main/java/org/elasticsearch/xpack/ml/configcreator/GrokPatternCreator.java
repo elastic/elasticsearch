@@ -177,6 +177,8 @@ public final class GrokPatternCreator {
                                               Map<String, String> mappings, boolean ignoreKeyValueCandidate,
                                               int ignoreValueOnlyCandidates) {
 
+        snippets = adjustForPunctuation(snippets, overallGrokPatternBuilder);
+
         GrokPatternCandidate bestCandidate = null;
         if (snippets.isEmpty() == false) {
             GrokPatternCandidate kvCandidate = new KeyValueGrokPatternCandidate(terminal);
@@ -205,6 +207,65 @@ public final class GrokPatternCreator {
             processCandidateAndSplit(terminal, fieldNameCountStore, overallGrokPatternBuilder, bestCandidate, isLast, snippets, mappings,
                 true, ignoreValueOnlyCandidates + (ignoreKeyValueCandidate ? 1 : 0), ignoreKeyValueCandidate, ignoreValueOnlyCandidates);
         }
+    }
+
+    /**
+     * If the snippets supplied begin with more than 1 character of common punctuation or whitespace
+     * then add all but the last of these characters to the overall pattern and remove them from the
+     * snippets.
+     * @param snippets Input snippets - not modified.
+     * @param overallPatternBuilder The string builder in which a regex is being built to which common
+     *                              punctuation characters will be appended (with appropriate escaping
+     *                              if necessary).
+     * @return Output snippets, which will be a copy of the input snippets but with whatever characters
+     *         were added to <code>overallPatternBuilder</code> removed from the beginning.
+     */
+    static Collection<String> adjustForPunctuation(Collection<String> snippets, StringBuilder overallPatternBuilder) {
+
+        assert snippets.isEmpty() == false;
+
+        StringBuilder commonInitialPunctuation = new StringBuilder();
+
+        for (String snippet : snippets) {
+
+            if (commonInitialPunctuation.length() == 0) {
+                for (int index = 0; index < snippet.length(); ++index) {
+                    char ch = snippet.charAt(index);
+                    if (PUNCTUATION_OR_SPACE.indexOf(ch) >= 0) {
+                        commonInitialPunctuation.append(ch);
+                    } else {
+                        break;
+                    }
+                }
+            } else {
+                if (commonInitialPunctuation.length() > snippet.length()) {
+                    commonInitialPunctuation.delete(snippet.length(), commonInitialPunctuation.length());
+                }
+                for (int index = 0; index < commonInitialPunctuation.length(); ++index) {
+                    char ch = snippet.charAt(index);
+                    if (ch != commonInitialPunctuation.charAt(index)) {
+                        commonInitialPunctuation.delete(index, commonInitialPunctuation.length());
+                        break;
+                    }
+                }
+            }
+
+            if (commonInitialPunctuation.length() <= 1) {
+                return snippets;
+            }
+        }
+
+        int numLiteralCharacters = commonInitialPunctuation.length() - 1;
+
+        for (int index = 0; index < numLiteralCharacters; ++index) {
+            char ch = commonInitialPunctuation.charAt(index);
+            if (NEEDS_ESCAPING.indexOf(ch) >= 0) {
+                overallPatternBuilder.append('\\');
+            }
+            overallPatternBuilder.append(ch);
+        }
+
+        return snippets.stream().map(snippet -> snippet.substring(numLiteralCharacters)).collect(Collectors.toList());
     }
 
     /**

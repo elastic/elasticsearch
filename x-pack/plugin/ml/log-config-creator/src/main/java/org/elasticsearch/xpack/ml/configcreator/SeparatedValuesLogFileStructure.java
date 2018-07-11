@@ -298,7 +298,32 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
         return currentCol[secondLen];
     }
 
+    static boolean lineHasUnescapedQuote(String line, CsvPreference csvPreference) {
+        char quote = csvPreference.getQuoteChar();
+        String lineWithEscapedQuotesRemoved = line.replace(String.valueOf(quote) + quote, "");
+        for (int index = 1; index < lineWithEscapedQuotesRemoved.length() - 1; ++index) {
+            if (lineWithEscapedQuotesRemoved.charAt(index) == quote &&
+                lineWithEscapedQuotesRemoved.codePointAt(index - 1) != csvPreference.getDelimiterChar() &&
+                lineWithEscapedQuotesRemoved.codePointAt(index + 1) != csvPreference.getDelimiterChar()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static boolean canCreateFromSample(Terminal terminal, String sample, CsvPreference csvPreference, String formatName) {
+
+        // Logstash's CSV parser won't tolerate fields where just part of the
+        // value is quoted, whereas SuperCSV will, hence this extra check
+        String[] sampleLines = sample.split("\n");
+        for (String sampleLine : sampleLines) {
+            if (lineHasUnescapedQuote(sampleLine, csvPreference)) {
+                terminal.println(Verbosity.VERBOSE, "Not " + formatName +
+                    " because a line has an unescaped quote that is not at the beginning or end of a field: [" + sampleLine + "]");
+                return false;
+            }
+        }
+
         try (CsvListReader csvReader = new CsvListReader(new StringReader(sample), csvPreference)) {
 
             int fieldsInFirstRow = -1;

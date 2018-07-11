@@ -190,4 +190,34 @@ public class SeparatedValuesLogFileStructureTests extends LogConfigCreatorTestCa
             "      \"f7\" => \"boolean\"\n" +
             "    }\n", conversions);
     }
+
+    public void testLineHasUnescapedQuote() {
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a,b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a,b\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a,b,c\"", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a,\"b\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a,b,\"c\"", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a,\"b\"\"\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a,b,\"c\"\"\"", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"\"\"a\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a\"\"\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a,\"\"b\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertTrue(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("between\"words,b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertTrue(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("x and \"y\",b,c", CsvPreference.EXCEL_PREFERENCE));
+
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a\tb\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a\tb\tc\"", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a\t\"b\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a\tb\t\"c\"", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a\t\"b\"\"\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("a\tb\t\"c\"\"\"", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"\"\"a\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a\"\"\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("\"a\t\"\"b\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertTrue(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("between\"words\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertTrue(SeparatedValuesLogFileStructure.lineHasUnescapedQuote("x and \"y\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+    }
 }

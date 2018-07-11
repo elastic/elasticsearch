@@ -41,7 +41,6 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
     private final Environment environment = TestEnvironment.newEnvironment(globalSettings);
 
     private static MockWebServer webServer;
-    private static Path keystore;
     private MockSecureSettings secureSettings;
 
 
@@ -51,7 +50,6 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
             webServer.close();
             webServer = null;
         }
-        keystore = null;
     }
 
     @Override
@@ -61,10 +59,8 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        if (keystore == null) {
-            keystore = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.jks");
-            assertThat(Files.exists(keystore), CoreMatchers.is(true));
-        }
+        final Path truststore = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.jks");
+        assertThat(Files.exists(truststore), CoreMatchers.is(true));
 
         if (webServer == null) {
             try {
@@ -80,12 +76,12 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
             .put("xpack.monitoring.exporters.plaintext.type", "http")
             .put("xpack.monitoring.exporters.plaintext.enabled", true)
             .put("xpack.monitoring.exporters.plaintext.host", address)
-            .put("xpack.monitoring.exporters.plaintext.ssl.truststore.path", keystore)
+            .put("xpack.monitoring.exporters.plaintext.ssl.truststore.path", truststore)
             .put("xpack.monitoring.exporters.plaintext.ssl.truststore.password", "testnode")
             .put("xpack.monitoring.exporters.secure.type", "http")
             .put("xpack.monitoring.exporters.secure.enabled", true)
             .put("xpack.monitoring.exporters.secure.host", address)
-            .put("xpack.monitoring.exporters.secure.ssl.truststore.path", keystore);
+            .put("xpack.monitoring.exporters.secure.ssl.truststore.path", truststore);
 
         secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.monitoring.exporters.secure.ssl.truststore.secure_password", "testnode");
@@ -95,9 +91,13 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
     }
 
     private MockWebServer buildWebServer() throws IOException {
+        final Path cert = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.crt");
+        final Path key = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.pem");
+
         final Settings sslSettings = Settings.builder()
-            .put("xpack.ssl.keystore.path", keystore)
-            .put("xpack.ssl.keystore.password", "testnode")
+            .put("xpack.ssl.certificate", cert)
+            .put("xpack.ssl.key", key)
+            .put("xpack.ssl.key_passphrase", "testnode")
             .put(globalSettings)
             .build();
 

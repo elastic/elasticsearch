@@ -176,7 +176,7 @@ class org.elasticsearch.index.similarity.ScriptedSimilarity$Doc {
   float getFreq()
 }
 
-class org.elasticsearch.script.AnalysisScript$Term {
+class org.elasticsearch.script.AnalysisPredicateScript$Term {
   CharSequence term
   int posInc
   int posLen

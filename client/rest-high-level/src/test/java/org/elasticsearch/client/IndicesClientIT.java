@@ -631,7 +631,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         createIndex(index, Settings.EMPTY);
         closeIndex(index);
         ResponseException exception = expectThrows(ResponseException.class,
-                () -> client().performRequest(HttpGet.METHOD_NAME, index + "/_search"));
+                () -> client().performRequest(new Request(HttpGet.METHOD_NAME, index + "/_search")));
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
         assertThat(exception.getMessage().contains(index), equalTo(true));
 
@@ -642,7 +642,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(openIndexResponse.isAcknowledged());
         assertTrue(openIndexResponse.isShardsAcknowledged());
 
-        Response response = client().performRequest(HttpGet.METHOD_NAME, index + "/_search");
+        Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, index + "/_search"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
@@ -674,7 +674,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testCloseExistingIndex() throws IOException {
         String index = "index";
         createIndex(index, Settings.EMPTY);
-        Response response = client().performRequest(HttpGet.METHOD_NAME, index + "/_search");
+        Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, index + "/_search"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(index);
@@ -684,7 +684,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(closeIndexResponse.isAcknowledged());
 
         ResponseException exception = expectThrows(ResponseException.class,
-                () -> client().performRequest(HttpGet.METHOD_NAME, index + "/_search"));
+                () -> client().performRequest(new Request(HttpGet.METHOD_NAME, index + "/_search")));
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
         assertThat(exception.getMessage().contains(index), equalTo(true));
     }
@@ -851,7 +851,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
 
         createIndex("index", Settings.EMPTY);
-        client().performRequest(HttpPut.METHOD_NAME, "/index/_alias/alias");
+        client().performRequest(new Request(HttpPut.METHOD_NAME, "/index/_alias/alias"));
         assertTrue(execute(getAliasesRequest, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync,
                 highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
 
@@ -972,10 +972,10 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testGetAlias() throws IOException {
         {
             createIndex("index1", Settings.EMPTY);
-            client().performRequest(HttpPut.METHOD_NAME, "/index1/_alias/alias1");
+            client().performRequest(new Request(HttpPut.METHOD_NAME, "/index1/_alias/alias1"));
 
             createIndex("index2", Settings.EMPTY);
-            client().performRequest(HttpPut.METHOD_NAME, "/index2/_alias/alias2");
+            client().performRequest(new Request(HttpPut.METHOD_NAME, "/index2/_alias/alias2"));
 
             createIndex("index3", Settings.EMPTY);
         }
@@ -1111,7 +1111,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertThat(getAliasesResponse.getError(), equalTo("alias [" + alias + "] missing"));
         }
         createIndex(index, Settings.EMPTY);
-        client().performRequest(HttpPut.METHOD_NAME, index + "/_alias/" + alias);
+        client().performRequest(new Request(HttpPut.METHOD_NAME, index + "/_alias/" + alias));
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices(index, "non_existent_index");
             GetAliasesResponse getAliasesResponse = execute(getAliasesRequest, highLevelClient().indices()::getAlias,

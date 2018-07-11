@@ -156,8 +156,9 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         jobBuilder.setAnalysisConfig(ac);
         jobBuilder.setDataDescription(new DataDescription.Builder());
         jobBuilder.setCreateTime(new Date());
+        Job job = jobBuilder.build();
 
-        Job updatedJob = update.mergeWithJob(jobBuilder.build(), new ByteSizeValue(0L));
+        Job updatedJob = update.mergeWithJob(job, new ByteSizeValue(0L));
 
         assertEquals(update.getGroups(), updatedJob.getGroups());
         assertEquals(update.getDescription(), updatedJob.getDescription());
@@ -172,12 +173,10 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertEquals(update.getModelSnapshotId(), updatedJob.getModelSnapshotId());
         assertEquals(update.getJobVersion(), updatedJob.getJobVersion());
         for (JobUpdate.DetectorUpdate detectorUpdate : update.getDetectorUpdates()) {
-            assertNotNull(updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorDescription());
-            assertEquals(detectorUpdate.getDescription(),
-                    updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorDescription());
-            assertNotNull(updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorDescription());
-            assertEquals(detectorUpdate.getRules(),
-                    updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getRules());
+            Detector updatedDetector = updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex());
+            assertNotNull(updatedDetector);
+            assertEquals(detectorUpdate.getDescription(), updatedDetector.getDetectorDescription());
+            assertEquals(detectorUpdate.getRules(), updatedDetector.getRules());
         }
     }
 

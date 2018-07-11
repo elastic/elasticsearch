@@ -156,14 +156,14 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.jobId = jobId;
         this.queryDelay = queryDelay;
         this.frequency = frequency;
-        this.indices = indices;
-        this.types = types;
+        this.indices = indices == null ? null : Collections.unmodifiableList(indices);
+        this.types = types == null ? null : Collections.unmodifiableList(types);
         this.query = query;
         this.aggregations = aggregations;
-        this.scriptFields = scriptFields;
+        this.scriptFields = scriptFields == null ? null : Collections.unmodifiableList(scriptFields);
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
-        this.headers = Objects.requireNonNull(headers);
+        this.headers = headers == null ? null : Collections.unmodifiableMap(headers);
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {

@@ -193,7 +193,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         this.jobId = jobId;
         this.jobType = jobType;
         this.jobVersion = jobVersion;
-        this.groups = groups;
+        this.groups = Collections.unmodifiableList(groups);
         this.description = description;
         this.createTime = createTime;
         this.finishedTime = finishedTime;
@@ -207,7 +207,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         this.backgroundPersistInterval = backgroundPersistInterval;
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
         this.resultsRetentionDays = resultsRetentionDays;
-        this.customSettings = customSettings;
+        this.customSettings = customSettings == null ? null : Collections.unmodifiableMap(customSettings);
         this.modelSnapshotId = modelSnapshotId;
         this.modelSnapshotMinVersion = modelSnapshotMinVersion;
         this.resultsIndexName = resultsIndexName;

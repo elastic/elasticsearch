@@ -508,7 +508,7 @@ public class Detector implements ToXContentObject, Writeable {
             partitionFieldName = detector.partitionFieldName;
             useNull = detector.useNull;
             excludeFrequent = detector.excludeFrequent;
-            rules = new ArrayList<>(detector.getRules());
+            rules = new ArrayList<>(detector.rules);
             detectorIndex = detector.detectorIndex;
         }
 

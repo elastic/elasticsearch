@@ -144,13 +144,13 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         this.latency = latency;
         this.categorizationFieldName = categorizationFieldName;
         this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
-        this.categorizationFilters = categorizationFilters;
+        this.categorizationFilters = categorizationFilters == null ? null : Collections.unmodifiableList(categorizationFilters);
         this.summaryCountFieldName = summaryCountFieldName;
-        this.influencers = influencers;
+        this.influencers = Collections.unmodifiableList(influencers);
         this.overlappingBuckets = overlappingBuckets;
         this.resultFinalizationWindow = resultFinalizationWindow;
         this.multivariateByFields = multivariateByFields;
-        this.multipleBucketSpans = multipleBucketSpans;
+        this.multipleBucketSpans = multipleBucketSpans == null ? null : Collections.unmodifiableList(multipleBucketSpans);
         this.usePerPartitionNormalization = usePerPartitionNormalization;
     }
 
@@ -487,18 +487,20 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         }
 
         public Builder(AnalysisConfig analysisConfig) {
-            this.detectors = analysisConfig.detectors;
+            this.detectors = new ArrayList<>(analysisConfig.detectors);
             this.bucketSpan = analysisConfig.bucketSpan;
             this.latency = analysisConfig.latency;
             this.categorizationFieldName = analysisConfig.categorizationFieldName;
-            this.categorizationFilters = analysisConfig.categorizationFilters;
+            this.categorizationFilters = analysisConfig.categorizationFilters == null ? null
+                    : new ArrayList<>(analysisConfig.categorizationFilters);
             this.categorizationAnalyzerConfig = analysisConfig.categorizationAnalyzerConfig;
             this.summaryCountFieldName = analysisConfig.summaryCountFieldName;
-            this.influencers = analysisConfig.influencers;
+            this.influencers = new ArrayList<>(analysisConfig.influencers);
             this.overlappingBuckets = analysisConfig.overlappingBuckets;
             this.resultFinalizationWindow = analysisConfig.resultFinalizationWindow;
             this.multivariateByFields = analysisConfig.multivariateByFields;
-            this.multipleBucketSpans = analysisConfig.multipleBucketSpans;
+            this.multipleBucketSpans = analysisConfig.multipleBucketSpans == null ? null
+                    : new ArrayList<>(analysisConfig.multipleBucketSpans);
             this.usePerPartitionNormalization = analysisConfig.usePerPartitionNormalization;
         }
 
@@ -516,6 +518,10 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
                 sequentialIndexDetectors.add(builder.build());
             }
             this.detectors = sequentialIndexDetectors;
+        }
+
+        public void setDetector(int detectorIndex, Detector detector) {
+            detectors.set(detectorIndex, detector);
         }
 
         public void setBucketSpan(TimeValue bucketSpan) {
@@ -543,7 +549,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         }
 
         public void setInfluencers(List<String> influencers) {
-            this.influencers = influencers;
+            this.influencers = ExceptionsHelper.requireNonNull(influencers, INFLUENCERS.getPreferredName());
         }
 
         public void setOverlappingBuckets(Boolean overlappingBuckets) {

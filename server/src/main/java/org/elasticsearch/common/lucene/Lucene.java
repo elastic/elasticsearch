@@ -894,9 +894,10 @@ public class Lucene {
                         int rollbackCount = 0;
                         FixedBitSet liveDocs = new FixedBitSet(leaf.maxDoc());
                         liveDocs.set(0, liveDocs.length());
-                        while ((rollbackDocs.nextDoc() != DocIdSetIterator.NO_MORE_DOCS)) {
-                            assert leaf.getLiveDocs().get(rollbackDocs.docID()) == false : "doc is rolled back but not deleted";
-                            liveDocs.clear(rollbackDocs.docID());
+                        int docId;
+                        while ((docId = rollbackDocs.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                            assert leaf.getLiveDocs().get(docId) == false : "doc [" + docId + "] is rolled back but not deleted";
+                            liveDocs.clear(docId);
                             rollbackCount++;
                         }
                         return new SubReaderWithLiveDocs(leaf, liveDocs, leaf.maxDoc() - rollbackCount);
@@ -917,11 +918,11 @@ public class Lucene {
         }
     }
 
-    /** A shortcut allows reading numeric docValues once. The docId must have value in the acessing DV */
+    /** A shortcut allows reading numeric docValues once. The docId must have value in the accessing DV */
     public static long readNumericDV(LeafReader leafReader, String field, int docId) throws IOException {
         NumericDocValues dv = leafReader.getNumericDocValues(field);
         if (dv == null) {
-            throw new IllegalStateException("missing dv [" + field + "]");
+            throw new IllegalStateException("missing docValues [" + field + "]");
         }
         if (dv.advanceExact(docId) == false) {
             throw new IllegalStateException("doc [" + docId + "] does not exist in [" + field + "] docValues");

@@ -80,6 +80,16 @@ public class RepositoryCredentialsTests extends ESTestCase {
         ProxyS3RepositoryPlugin(Settings settings) {
             super(settings, new ProxyS3Service(settings));
         }
+
+        @Override
+        protected S3Repository createRepository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry registry) {
+            return new S3Repository(metadata, settings, registry, service){
+                @Override
+                protected void verificationThreadCheck() {
+
+                }
+            };
+        }
     }
 
     public void testRepositoryCredentialsOverrideSecureCredentials() throws IOException {

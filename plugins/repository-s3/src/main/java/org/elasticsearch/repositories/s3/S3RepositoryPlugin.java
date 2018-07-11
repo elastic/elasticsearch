@@ -61,7 +61,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         });
     }
 
-    private final S3Service service;
+    protected final S3Service service;
 
     public S3RepositoryPlugin(final Settings settings) {
         this(settings, new S3Service(settings));

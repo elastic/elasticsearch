@@ -84,9 +84,6 @@ public class PutMappingRequestTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> PutMappingRequest.buildFromSimplifiedDef("type", "only_field"));
         assertEquals("mapping source must be pairs of fieldnames and properties definition.", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class,
-                () -> PutMappingRequest.buildFromSimplifiedDef("type"));
-        assertEquals("mapping source must be pairs of fieldnames and properties definition.", e.getMessage());
     }
 
     public void testPutMappingRequestSerialization() throws IOException {

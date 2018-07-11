@@ -190,10 +190,6 @@ PUT _xpack/rollup/job/combined
 --------------------------------------------------
 // NOTCONSOLE
 
-The rollup job will automatically use a placeholder term (`__ROLLUP_NULL_VALUE_PLACEHOLDER__`) as the `null_value` for keyword fields,
-which allows it to handle documents that may be missing some of the grouping fields.  This placeholder is then removed from search
-results, resulting in correct doc counts in a manner that is invisible to the user.
-
 === Doc counts and overlapping jobs
 
 There was previously an issue with document counts on "overlapping" job configurations, driven by the same internal implementation detail.

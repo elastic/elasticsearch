@@ -369,7 +369,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
             CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
             LinkedHashMap<String, Object> keys = new LinkedHashMap<>(3);
-            keys.put("foo.date_histogram", null);
             keys.put("bar.terms", null);
             keys.put("abc.histogram", null);
             when(bucket.getKey()).thenReturn(keys);

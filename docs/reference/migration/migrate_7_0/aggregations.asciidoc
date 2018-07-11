@@ -23,3 +23,10 @@ Aggregation is now a variable called `state` available in the script context, ra
 being provided via the `params` object as `params._agg`.
 
 The old `params._agg` variable is still available as well.
+
+==== Change GeoHashGrid.Bucket#getKey() to return a String instead of a GeoPoint
+
+The aggregation bucket used to return a GeoPoint representing the bucket keys hash
+value. This was not consistent with the Rest API output that represents the key simply
+as the string value of the geohash. The Java API now also returns a String here which
+can be converted to a point as needed by the client.

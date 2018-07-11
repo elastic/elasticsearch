@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.geo.GeoHashUtils;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
@@ -77,12 +76,12 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
         @Override
         public String getKeyAsString() {
-            return GeoHashUtils.stringEncode(geohashAsLong);
+            return getKey();
         }
 
         @Override
-        public GeoPoint getKey() {
-            return GeoPoint.fromGeohash(geohashAsLong);
+        public String getKey() {
+            return GeoHashUtils.stringEncode(geohashAsLong);
         }
 
         @Override

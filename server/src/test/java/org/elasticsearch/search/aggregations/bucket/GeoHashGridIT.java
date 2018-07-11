@@ -26,7 +26,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
@@ -171,8 +170,8 @@ public class GeoHashGridIT extends ESIntegTestCase {
                 assertNotSame(bucketCount, 0);
                 assertEquals("Geohash " + geohash + " has wrong doc count ",
                         expectedBucketCount, bucketCount);
-                GeoPoint geoPoint = (GeoPoint) propertiesKeys[i];
-                assertThat(stringEncode(geoPoint.lon(), geoPoint.lat(), precision), equalTo(geohash));
+                String parsedGeoHash = (String) propertiesKeys[i];
+                assertThat(parsedGeoHash, equalTo(geohash));
                 assertThat((long) propertiesDocCounts[i], equalTo(bucketCount));
             }
         }

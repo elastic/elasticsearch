@@ -77,7 +77,7 @@ public class GeoHashUtils {
         long b;
         long l = 0L;
         for(char c : hash.toCharArray()) {
-            b = (long)(BASE_32_STRING.indexOf(c));
+            b = BASE_32_STRING.indexOf(c);
             l |= (b<<(level--*5));
             if (level < 0) {
                 // We cannot handle more than 12 levels
@@ -178,7 +178,7 @@ public class GeoHashUtils {
         long b;
         long l = 0L;
         for(char c : hash.toCharArray()) {
-            b = (long)(BASE_32_STRING.indexOf(c));
+            b = BASE_32_STRING.indexOf(c);
             if (b < 0) {
                 throw new IllegalArgumentException("unsupported symbol [" + c + "] in geohash [" + hash + "]");
             }

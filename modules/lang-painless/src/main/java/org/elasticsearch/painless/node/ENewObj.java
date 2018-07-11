@@ -19,12 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessMethodKey;
 
 import java.util.List;
@@ -63,7 +63,7 @@ public final class ENewObj extends AExpression {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual);
+        PainlessClass struct = locals.getPainlessLookup().getPainlessClassFromJavaClass(actual);
         constructor = struct.constructors.get(new PainlessMethodKey("<init>", arguments.size()));
 
         if (constructor != null) {

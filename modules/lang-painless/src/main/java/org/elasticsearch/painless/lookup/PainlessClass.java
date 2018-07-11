@@ -23,7 +23,6 @@ import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodHandle;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 public final class PainlessClass {
@@ -43,43 +42,25 @@ public final class PainlessClass {
 
     public final PainlessMethod functionalMethod;
 
-    PainlessClass(String name, Class<?> clazz, Type type) {
+    PainlessClass(String name, Class<?> clazz, Type type,
+                  Map<String, PainlessMethod> constructors, Map<String, PainlessMethod> staticMethods, Map<String, PainlessMethod> methods,
+                  Map<String, PainlessField> staticMembers, Map<String, PainlessField> members,
+                  Map<String, MethodHandle> getters, Map<String, MethodHandle> setters,
+                  PainlessMethod functionalMethod) {
         this.name = name;
         this.clazz = clazz;
         this.type = type;
 
-        constructors = new HashMap<>();
-        staticMethods = new HashMap<>();
-        methods = new HashMap<>();
+        this.constructors = Collections.unmodifiableMap(constructors);
+        this.staticMethods = Collections.unmodifiableMap(staticMethods);
+        this.methods = Collections.unmodifiableMap(methods);
 
-        staticMembers = new HashMap<>();
-        members = new HashMap<>();
+        this.staticMembers = Collections.unmodifiableMap(staticMembers);
+        this.members = Collections.unmodifiableMap(members);
 
-        getters = new HashMap<>();
-        setters = new HashMap<>();
-
-        functionalMethod = null;
-    }
-
-    PainlessClass(PainlessClass painlessClass, PainlessMethod functionalMethod) {
-        name = painlessClass.name;
-        clazz = painlessClass.clazz;
-        type = painlessClass.type;
-
-        constructors = Collections.unmodifiableMap(painlessClass.constructors);
-        staticMethods = Collections.unmodifiableMap(painlessClass.staticMethods);
-        methods = Collections.unmodifiableMap(painlessClass.methods);
-
-        staticMembers = Collections.unmodifiableMap(painlessClass.staticMembers);
-        members = Collections.unmodifiableMap(painlessClass.members);
-
-        getters = Collections.unmodifiableMap(painlessClass.getters);
-        setters = Collections.unmodifiableMap(painlessClass.setters);
+        this.getters = Collections.unmodifiableMap(getters);
+        this.setters = Collections.unmodifiableMap(setters);
 
         this.functionalMethod = functionalMethod;
-    }
-
-    public PainlessClass freeze(PainlessMethod functionalMethod) {
-        return new PainlessClass(this, functionalMethod);
     }
 }

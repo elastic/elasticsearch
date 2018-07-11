@@ -20,15 +20,15 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.node.SFunction.FunctionReserved;
 import org.objectweb.asm.Opcodes;
 
@@ -120,7 +120,7 @@ public final class ELambda extends AExpression implements ILambda {
             }
         } else {
             // we know the method statically, infer return type and any unknown/def types
-            interfaceMethod = locals.getPainlessLookup().getPainlessStructFromJavaClass(expected).functionalMethod;
+            interfaceMethod = locals.getPainlessLookup().getPainlessClassFromJavaClass(expected).functionalMethod;
             if (interfaceMethod == null) {
                 throw createError(new IllegalArgumentException("Cannot pass lambda to [" + PainlessLookup.ClassToName(expected) +
                                                                "], not a functional interface"));

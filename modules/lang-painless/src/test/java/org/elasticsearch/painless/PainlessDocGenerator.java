@@ -68,7 +68,7 @@ public class PainlessDocGenerator {
                 Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false, StandardCharsets.UTF_8.name())) {
             emitGeneratedWarning(indexStream);
-            List<PainlessClass> structs = PAINLESS_LOOKUP.getStructs().stream().sorted(comparing(t -> t.name)).collect(toList());
+            List<PainlessClass> structs = PAINLESS_LOOKUP.getPainlessClasses().stream().sorted(comparing(t -> t.name)).collect(toList());
             for (PainlessClass struct : structs) {
                 if (struct.clazz.isPrimitive()) {
                     // Primitives don't have methods to reference
@@ -238,7 +238,7 @@ public class PainlessDocGenerator {
        an internal link with the text.
      */
     private static void emitType(PrintStream stream, Class<?> clazz) {
-        emitStruct(stream, PAINLESS_LOOKUP.getPainlessStructFromJavaClass(clazz));
+        emitStruct(stream, PAINLESS_LOOKUP.getPainlessClassFromJavaClass(clazz));
         while ((clazz = clazz.getComponentType()) != null) {
             stream.print("[]");
         }

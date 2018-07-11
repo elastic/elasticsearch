@@ -22,12 +22,10 @@ package org.elasticsearch.painless.lookup;
 import org.objectweb.asm.Type;
 
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.Collection;
 import java.util.Map;
-import java.util.Objects;
 
-public class PainlessLookupBase {
+public final class PainlessLookupUtility {
 
     // The following terminology is used for variable names throughout the lookup package:
     //
@@ -109,34 +107,35 @@ public class PainlessLookupBase {
         return anyTypeName.replace(def.class.getName(), DEF_PAINLESS_CLASS_NAME).replace('$', '.');
     }
 
-    public static String buildPainlessMethodKey(String methodName, int methodArity) {
-        return methodName + "/" + methodArity;
+    public static String anyTypeToPainlessTypeName(Class<?> anyType) {
+        if (anyType.isLocalClass() || anyType.isAnonymousClass()) {
+            return null;
+        } else if (anyType.isArray()) {
+            Class<?> anyTypeComponent = anyType.getComponentType();
+            int arrayDimensions = 1;
+
+            while (anyTypeComponent.isArray()) {
+                anyTypeComponent = anyTypeComponent.getComponentType();
+                ++arrayDimensions;
+            }
+
+            if (anyTypeComponent == def.class) {
+                StringBuilder painlessDefTypeNameArrayBuilder = new StringBuilder(DEF_PAINLESS_CLASS_NAME);
+
+                for (int dimension = 0; dimension < arrayDimensions; dimension++) {
+                    painlessDefTypeNameArrayBuilder.append("[]");
+                }
+
+                return painlessDefTypeNameArrayBuilder.toString();
+            }
+        } else if (anyType == def.class) {
+            return def.class.getSimpleName();
+        }
+
+        return anyType.getCanonicalName().replace('$', '.');
     }
 
-    public static String buildPainlessFieldKey(String fieldName) {
-        return fieldName;
-    }
-
-    public static final String DEF_PAINLESS_CLASS_NAME = def.class.getSimpleName();
-    public static final String CONSTRUCTOR_ANY_NAME = "<init>";
-
-    final Map<String, Class<?>> painlessClassNamesToJavaClasses;
-    final Map<Class<?>, PainlessClass> javaClassesToPainlessClasses;
-
-    PainlessLookupBase() {
-        painlessClassNamesToJavaClasses = new HashMap<>();
-        javaClassesToPainlessClasses = new HashMap<>();
-    }
-
-    PainlessLookupBase(Map<String, Class<?>> painlessClassNamesToJavaClasses, Map<Class<?>, PainlessClass> javaClassesToPainlessClasses) {
-        Objects.requireNonNull(painlessClassNamesToJavaClasses);
-        Objects.requireNonNull(javaClassesToPainlessClasses);
-
-        this.painlessClassNamesToJavaClasses = Collections.unmodifiableMap(painlessClassNamesToJavaClasses);
-        this.javaClassesToPainlessClasses = Collections.unmodifiableMap(javaClassesToPainlessClasses);
-    }
-
-    public Class<?> painlessTypeNameToPainlessType(String painlessTypeName) {
+    public static Class<?> painlessTypeNameToPainlessType(String painlessTypeName, Map<String, Class<?>> painlessClassNamesToJavaClasses) {
         Class<?> javaClass = painlessClassNamesToJavaClasses.get(painlessTypeName);
 
         if (javaClass != null) {
@@ -151,8 +150,8 @@ public class PainlessLookupBase {
 
             while (arrayIndex < painlessTypeNameLength) {
                 if (painlessTypeName.charAt(arrayIndex) == '[' &&
-                        ++arrayIndex < painlessTypeNameLength  &&
-                        painlessTypeName.charAt(arrayIndex++) == ']') {
+                    ++arrayIndex < painlessTypeNameLength  &&
+                    painlessTypeName.charAt(arrayIndex++) == ']') {
                     ++arrayDimensions;
                 } else {
                     throw new IllegalArgumentException("invalid painless type [" + painlessTypeName + "].");
@@ -196,15 +195,86 @@ public class PainlessLookupBase {
         throw new IllegalArgumentException("painless type [" + painlessTypeName + "] not found");
     }
 
-    public void validatePainlessType(Class<?> painlessType) {
+    public static void validatePainlessType(Class<?> painlessType, Collection<Class<?>> javaClasses) {
         String painlessTypeName = anyTypeNameToPainlessTypeName(painlessType.getName());
 
         while (painlessType.getComponentType() != null) {
             painlessType = painlessType.getComponentType();
         }
 
-        if (javaClassesToPainlessClasses.containsKey(painlessType) == false) {
+        if (javaClasses.contains(painlessType) == false) {
             throw new IllegalStateException("painless type [" + painlessTypeName + "] not found");
         }
+    }
+
+    public static String buildPainlessMethodKey(String methodName, int methodArity) {
+        return methodName + "/" + methodArity;
+    }
+
+    public static String buildPainlessFieldKey(String fieldName) {
+        return fieldName;
+    }
+
+    public static Class<?> getBoxedAnyType(Class<?> anyType) {
+        if (anyType == boolean.class) {
+            return Boolean.class;
+        } else if (anyType == byte.class) {
+            return Byte.class;
+        } else if (anyType == short.class) {
+            return Short.class;
+        } else if (anyType == char.class) {
+            return Character.class;
+        } else if (anyType == int.class) {
+            return Integer.class;
+        } else if (anyType == long.class) {
+            return Long.class;
+        } else if (anyType == float.class) {
+            return Float.class;
+        } else if (anyType == double.class) {
+            return Double.class;
+        }
+
+        return anyType;
+    }
+
+    public static Class<?> getUnboxedAnyType(Class<?> anyType) {
+        if (anyType == Boolean.class) {
+            return boolean.class;
+        } else if (anyType == Byte.class) {
+            return byte.class;
+        } else if (anyType == Short.class) {
+            return short.class;
+        } else if (anyType == Character.class) {
+            return char.class;
+        } else if (anyType == Integer.class) {
+            return int.class;
+        } else if (anyType == Long.class) {
+            return long.class;
+        } else if (anyType == Float.class) {
+            return float.class;
+        } else if (anyType == Double.class) {
+            return double.class;
+        }
+
+        return anyType;
+    }
+
+    public static boolean isAnyTypeConstant(Class<?> anyType) {
+        return anyType == boolean.class ||
+            anyType == byte.class    ||
+            anyType == short.class   ||
+            anyType == char.class    ||
+            anyType == int.class     ||
+            anyType == long.class    ||
+            anyType == float.class   ||
+            anyType == double.class  ||
+            anyType == String.class;
+    }
+
+    public static final String DEF_PAINLESS_CLASS_NAME = def.class.getSimpleName();
+    public static final String CONSTRUCTOR_ANY_NAME = "<init>";
+
+    private PainlessLookupUtility() {
+
     }
 }

@@ -223,7 +223,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     protected final boolean transportClient;
     protected final boolean enabled;
     protected final Environment env;
-    List<NotificationService> reloadableServices = new ArrayList<>();
+    protected List<NotificationService> reloadableServices = new ArrayList<>();
 
     public Watcher(final Settings settings) {
         this.settings = settings;

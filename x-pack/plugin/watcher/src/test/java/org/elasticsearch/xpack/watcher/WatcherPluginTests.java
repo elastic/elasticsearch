@@ -16,9 +16,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
-import org.elasticsearch.xpack.watcher.notification.email.Account;
 
-import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
@@ -111,9 +109,7 @@ public class WatcherPluginTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         NotificationService mockService = mock(NotificationService.class);
-        Watcher watcher = new Watcher(settings);
-        watcher.reloadableServices.clear();
-        watcher.reloadableServices.add(mockService);
+        Watcher watcher = new TestWatcher(settings, mockService);
 
         watcher.reload(settings);
         verify(mockService, times(1)).reload(settings);
@@ -125,9 +121,17 @@ public class WatcherPluginTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         NotificationService mockService = mock(NotificationService.class);
-        Watcher watcher = new Watcher(settings);
+        Watcher watcher = new TestWatcher(settings, mockService);
 
         watcher.reload(settings);
         verifyNoMoreInteractions(mockService);
+    }
+
+    private class TestWatcher extends Watcher {
+
+        public TestWatcher(Settings settings, NotificationService service) {
+            super(settings);
+            reloadableServices.add(service);
+        }
     }
 }

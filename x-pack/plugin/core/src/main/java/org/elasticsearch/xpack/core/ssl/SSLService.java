@@ -427,9 +427,8 @@ public class SSLService extends AbstractComponent {
     Map<SSLConfiguration, SSLContextHolder> loadSSLConfigurations() {
         Map<SSLConfiguration, SSLContextHolder> sslContextHolders = new HashMap<>();
         sslContextHolders.put(globalSSLConfiguration, createSslContext(globalSSLConfiguration));
-        this.sslConfigurations.put("_global", globalSSLConfiguration);
+        this.sslConfigurations.put("xpack.ssl", globalSSLConfiguration);
 
-        final Settings transportSSLSettings = settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX);
         Map<String, Settings> sslSettingsMap = new HashMap<>();
         sslSettingsMap.put(XPackSettings.HTTP_SSL_PREFIX, getHttpTransportSSLSettings(settings));
         sslSettingsMap.put("xpack.http.ssl", settings.getByPrefix("xpack.http.ssl."));
@@ -446,10 +445,10 @@ public class SSLService extends AbstractComponent {
             }
         });
 
-        // transport is special because we want to use a auto-generated key when there isn't one
+        final Settings transportSSLSettings = settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX);
         final SSLConfiguration transportSSLConfiguration = new SSLConfiguration(transportSSLSettings, globalSSLConfiguration);
         this.transportSSLConfiguration.set(transportSSLConfiguration);
-        this.sslConfigurations.put("_transport", transportSSLConfiguration);
+        storeSslConfiguration(XPackSettings.TRANSPORT_SSL_PREFIX, transportSSLConfiguration);
         Map<String, Settings> profileSettings = getTransportProfileSSLSettings(settings);
         sslContextHolders.computeIfAbsent(transportSSLConfiguration, this::createSslContext);
         profileSettings.forEach((key, profileSetting) -> {
@@ -694,7 +693,7 @@ public class SSLService extends AbstractComponent {
             contextName = contextName.substring(0, contextName.length() - 1);
         }
         final SSLConfiguration configuration = sslConfigurations.get(contextName);
-        if (configuration == null && logger.isTraceEnabled()) {
+        if (configuration == null) {
             logger.warn("Cannot find SSL configuration for context {}. Known contexts are: {}", contextName,
                 Strings.collectionToCommaDelimitedString(sslConfigurations.keySet()));
         }

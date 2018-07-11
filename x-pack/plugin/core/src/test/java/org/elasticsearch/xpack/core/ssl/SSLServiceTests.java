@@ -139,7 +139,7 @@ public class SSLServiceTests extends ESTestCase {
 
         assertThat(sslContext, is(sameInstance(cachedSslContext)));
 
-        final SSLConfiguration configuration = sslService.getSSLConfiguration("_global");
+        final SSLConfiguration configuration = sslService.getSSLConfiguration("xpack.ssl");
         final SSLContext configContext = sslService.sslContext(configuration);
         assertThat(configContext, is(sameInstance(sslContext)));
     }
@@ -250,7 +250,7 @@ public class SSLServiceTests extends ESTestCase {
         assertTrue(sslService.isConfigurationValidForServerUsage(sslService.sslConfiguration(
                 settings.getByPrefix("xpack.security.transport.ssl."))));
         assertFalse(sslService.isConfigurationValidForServerUsage(globalConfiguration(sslService)));
-        assertTrue(sslService.isConfigurationValidForServerUsage(sslService.getSSLConfiguration("_transport")));
+        assertTrue(sslService.isConfigurationValidForServerUsage(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
     }
 
     public void testGetVerificationMode() throws Exception {
@@ -289,8 +289,8 @@ public class SSLServiceTests extends ESTestCase {
         assertTrue(sslService.isSSLClientAuthEnabled(settings.getByPrefix("transport.profiles.foo.xpack.security.ssl."),
                 settings.getByPrefix("xpack.security.transport.ssl.")));
 
-        assertFalse(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("_global")));
-        assertTrue(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("_transport")));
+        assertFalse(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("xpack.ssl")));
+        assertTrue(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
     }
 
     public void testThatHttpClientAuthDefaultsToNone() throws Exception {
@@ -480,7 +480,7 @@ public class SSLServiceTests extends ESTestCase {
         sslContext.init(null, null, null);
         final String[] cipherSuites = sslContext.getSupportedSSLParameters().getCipherSuites();
 
-        final String[] settingPrefix = {
+        final String[] contextNames = {
             "xpack.ssl",
             "xpack.http.ssl",
             "xpack.security.http.ssl",
@@ -494,7 +494,7 @@ public class SSLServiceTests extends ESTestCase {
             "xpack.monitoring.exporters.mon2.ssl"
         };
 
-        assumeTrue("Not enough cipher suites are available to support this test", cipherSuites.length >= settingPrefix.length);
+        assumeTrue("Not enough cipher suites are available to support this test", cipherSuites.length >= contextNames.length);
 
         // Here we use a different ciphers for each context, so we can check that the returned SSLConfiguration matches the
         // provided settings
@@ -502,7 +502,7 @@ public class SSLServiceTests extends ESTestCase {
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final Settings.Builder builder = Settings.builder();
-        for (String prefix : settingPrefix) {
+        for (String prefix : contextNames) {
             secureSettings.setString(prefix + ".keystore.secure_password", "testnode");
             builder.put(prefix + ".keystore.path", testnodeStore)
                 .putList(prefix + ".cipher_suites", cipher.next());
@@ -517,14 +517,8 @@ public class SSLServiceTests extends ESTestCase {
             .build();
         SSLService sslService = new SSLService(settings, env);
 
-        final String[] context = new String[]{"_global",
-            "xpack.http.ssl", "xpack.security.http.ssl",
-            "_transport", "transport.profiles.prof1.xpack.security.ssl",
-            "transport.profiles.prof2.xpack.security.ssl", "transport.profiles.prof3.xpack.security.ssl"
-            , "xpack.security.authc.realms.realm1.ssl", "xpack.security.authc.realms.realm2.ssl",
-            "xpack.monitoring.exporters.mon1.ssl", "xpack.monitoring.exporters.mon2.ssl"};
-        for (int i = 0; i < context.length; i++) {
-            final String name = context[i];
+        for (int i = 0; i < contextNames.length; i++) {
+            final String name = contextNames[i];
             final SSLConfiguration configuration = sslService.getSSLConfiguration(name);
             assertThat("Configuration for " + name, configuration, notNullValue());
             assertThat("KeyStore for " + name, configuration.keyConfig(), instanceOf(StoreKeyConfig.class));
@@ -538,7 +532,7 @@ public class SSLServiceTests extends ESTestCase {
         // by name, and get back the global configuration
         final SSLConfiguration realm3Config = sslService.getSSLConfiguration("xpack.security.authc.realms.realm3.ssl");
         final SSLConfiguration mon3Config = sslService.getSSLConfiguration("xpack.monitoring.exporters.mon3.ssl.");
-        final SSLConfiguration global = sslService.getSSLConfiguration("_global");
+        final SSLConfiguration global = globalConfiguration(sslService);
         assertThat(realm3Config, sameInstance(global));
         assertThat(mon3Config, sameInstance(global));
     }
@@ -727,7 +721,7 @@ public class SSLServiceTests extends ESTestCase {
 
     private static SSLConfiguration globalConfiguration(SSLService sslService) {
         if (randomBoolean()) {
-            return sslService.getSSLConfiguration("_global");
+            return sslService.getSSLConfiguration("xpack.ssl");
         }
         if (randomBoolean()) {
             return sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);

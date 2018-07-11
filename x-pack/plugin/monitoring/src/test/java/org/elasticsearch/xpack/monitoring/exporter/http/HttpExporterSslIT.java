@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.SUITE,
     numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
-public class HttpSslExporterIT extends MonitoringIntegTestCase {
+public class HttpExporterSslIT extends MonitoringIntegTestCase {
 
     private final Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
     private final Environment environment = TestEnvironment.newEnvironment(globalSettings);

@@ -57,9 +57,6 @@ public class AsyncAfterWriteActionTests extends ESIndexLevelReplicationTestCase 
         };
         try (ReplicationGroup shards = createGroup(0, exceptionFunction)) {
             shards.startAll();
-            if (randomBoolean()) {
-                shards.flush();
-            }
 
             if (failOnPrimary == false) {
                 IndexShard replica = shards.addReplica();

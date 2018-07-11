@@ -30,7 +30,7 @@ import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocumen
 
 public class IngestDocumentMatcherTests extends ESTestCase {
 
-    public void testAssertIngestDocumentFailsOnDifferentMapData() {
+    public void testDifferentMapData() {
         Map<String, Object> sourceAndMetadata1 = new HashMap<>();
         sourceAndMetadata1.put("foo", "bar");
         IngestDocument document1 = new IngestDocument(sourceAndMetadata1, new HashMap<>());
@@ -38,7 +38,7 @@ public class IngestDocumentMatcherTests extends ESTestCase {
         assertThrowsOnComparision(document1, document2);
     }
 
-    public void testAssertIngestDocumentFailsOnDifferentLengthListData() {
+    public void testDifferentLengthListData() {
         String rootKey = "foo";
         IngestDocument document1 =
             new IngestDocument(Collections.singletonMap(rootKey, Arrays.asList("bar", "baz")), new HashMap<>());
@@ -47,7 +47,7 @@ public class IngestDocumentMatcherTests extends ESTestCase {
         assertThrowsOnComparision(document1, document2);
     }
 
-    public void testAssertIngestDocumentFailsOnDifferentNestedListFieldData() {
+    public void testDifferentNestedListFieldData() {
         String rootKey = "foo";
         IngestDocument document1 =
             new IngestDocument(Collections.singletonMap(rootKey, Arrays.asList("bar", "baz")), new HashMap<>());
@@ -56,7 +56,7 @@ public class IngestDocumentMatcherTests extends ESTestCase {
         assertThrowsOnComparision(document1, document2);
     }
 
-    public void testAssertIngestDocumentFailsOnDifferentNestedMapFieldData() {
+    public void testDifferentNestedMapFieldData() {
         String rootKey = "foo";
         IngestDocument document1 =
             new IngestDocument(Collections.singletonMap(rootKey, Collections.singletonMap("bar", "baz")), new HashMap<>());
@@ -65,7 +65,7 @@ public class IngestDocumentMatcherTests extends ESTestCase {
         assertThrowsOnComparision(document1, document2);
     }
 
-    public void testThrowsAssertionErrorOnTypeConflict() {
+    public void testOnTypeConflict() {
         String rootKey = "foo";
         IngestDocument document1 =
             new IngestDocument(Collections.singletonMap(rootKey, Collections.singletonList("baz")), new HashMap<>());

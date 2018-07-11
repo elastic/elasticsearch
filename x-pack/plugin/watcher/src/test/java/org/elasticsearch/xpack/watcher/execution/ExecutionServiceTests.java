@@ -79,7 +79,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -1082,9 +1081,6 @@ public class ExecutionServiceTests extends ESTestCase {
         Watch watch = mock(Watch.class);
         WatchStatus status = mock(WatchStatus.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
-        Authentication authentication = new Authentication(new User("joe", "admin"),
-            new Authentication.RealmRef("native_realm", "native", "node1"), null);
-        String encoded = authentication.encode();
 
         // Should be null
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
@@ -1097,11 +1093,11 @@ public class ExecutionServiceTests extends ESTestCase {
         context.ensureWatchExists(() -> watch);
         assertNull(context.getUser());
 
-        Map<String, String> headers = new HashMap<>();
-        headers.put(AuthenticationField.AUTHENTICATION_KEY, encoded);
+        Authentication authentication = new Authentication(new User("joe", "admin"),
+            new Authentication.RealmRef("native_realm", "native", "node1"), null);
 
         // Should no longer be null now that the proper header is set
-        when(status.getHeaders()).thenReturn(headers);
+        when(status.getHeaders()).thenReturn(Collections.singletonMap(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
         context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
         context.ensureWatchExists(() -> watch);
         assertThat(context.getUser(), equalTo("joe"));

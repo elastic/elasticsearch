@@ -37,7 +37,6 @@ dependencyLicenses {
 }
 
 shadowJar {
-    classifier = null
     relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
 }
 
@@ -58,8 +57,6 @@ artifacts  {
     nodeps nodepsJar
     archives shadowJar
 }
-
-assemble.dependsOn shadowJar
 
 // Use the jar for testing so the tests are more "real"
 test {

@@ -696,6 +696,28 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            /*
+             * When we use the shadow plugin we entirely replace the
+             * normal jar with the shadow jar so we no longer want to run
+             * the jar task.
+             */
+            project.tasks.jar.enabled = false
+            project.tasks.shadowJar {
+                /*
+                 * Replace the default "shadow" classifier with null
+                 * which will leave the classifier off of the file name.
+                 */
+                classifier = null
+                /*
+                 * Not all cases need service files merged but it is
+                 * better to be safe
+                 */
+                mergeServiceFiles()
+            }
+            // Make sure we assemble the shadow jar
+            project.tasks.assemble.dependsOn project.tasks.shadowJar
+        }
     }
 
     /** Returns a closure of common configuration shared by unit and integration tests. */

@@ -80,15 +80,6 @@ forbiddenApisMain {
   signaturesURLs += [file('src/main/resources/forbidden/rest-high-level-signatures.txt').toURI().toURL()]
 }
 
-shadowJar {
-  classifier = null
-  mergeServiceFiles()
-}
-
-// We don't need normal jar, we use shadow jar instead
-jar.enabled = false
-assemble.dependsOn shadowJar
-
 javadoc {
   /*
    * Bundle all of the javadoc from all of the shaded projects into this one

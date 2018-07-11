@@ -1605,7 +1605,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
         // TODO: Remove this method after primary-replica resync use soft-deletes
-        return getEngine().newTranslogSnapshotBetween(minSeqNo, Long.MAX_VALUE);
+        return getEngine().newSnapshotFromMinSeqNo(minSeqNo);
     }
 
     /**

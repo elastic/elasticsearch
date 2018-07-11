@@ -344,7 +344,7 @@ public class InternalEngine extends Engine {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
             final long localCheckpoint = localCheckpointTracker.getCheckpoint();
-            try (Translog.Snapshot snapshot = getTranslog().newSnapshotFrom(localCheckpoint + 1)) {
+            try (Translog.Snapshot snapshot = getTranslog().newSnapshotFromMinSeqNo(localCheckpoint + 1)) {
                 Translog.Operation operation;
                 while ((operation = snapshot.next()) != null) {
                     if (operation.seqNo() > localCheckpoint) {
@@ -480,8 +480,8 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newTranslogSnapshotBetween(long minSeqNo, long maxSeqNo) throws IOException {
-        return getTranslog().getSnapshotBetween(minSeqNo, maxSeqNo);
+    public Translog.Snapshot newSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
+        return getTranslog().newSnapshotFromMinSeqNo(minSeqNo);
     }
 
     /**
@@ -493,7 +493,7 @@ public class InternalEngine extends Engine {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             return newLuceneChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false);
         } else {
-            return getTranslog().getSnapshotBetween(startingSeqNo, Long.MAX_VALUE);
+            return getTranslog().newSnapshotFromMinSeqNo(startingSeqNo);
         }
     }
 
@@ -2483,7 +2483,7 @@ public class InternalEngine extends Engine {
         } else {
             final long currentLocalCheckpoint = getLocalCheckpointTracker().getCheckpoint();
             final LocalCheckpointTracker tracker = new LocalCheckpointTracker(startingSeqNo, startingSeqNo - 1);
-            try (Translog.Snapshot snapshot = getTranslog().getSnapshotBetween(startingSeqNo, Long.MAX_VALUE)) {
+            try (Translog.Snapshot snapshot = getTranslog().newSnapshotFromMinSeqNo(startingSeqNo)) {
                 Translog.Operation operation;
                 while ((operation = snapshot.next()) != null) {
                     if (operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {

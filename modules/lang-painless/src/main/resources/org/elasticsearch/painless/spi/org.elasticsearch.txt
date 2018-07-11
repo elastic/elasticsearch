@@ -175,3 +175,13 @@ class org.elasticsearch.index.similarity.ScriptedSimilarity$Doc {
   int getLength()
   float getFreq()
 }
+
+class org.elasticsearch.script.AnalysisScript$Term {
+  CharSequence term
+  int posInc
+  int posLen
+  int startOffset
+  int endOffset
+  String type
+  boolean isKeyword
+}

@@ -459,7 +459,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && (backgroundPersistInterval == null || Objects.equals(backgroundPersistInterval, job.getBackgroundPersistInterval()))
                 && (modelSnapshotRetentionDays == null || Objects.equals(modelSnapshotRetentionDays, job.getModelSnapshotRetentionDays()))
                 && (resultsRetentionDays == null || Objects.equals(resultsRetentionDays, job.getResultsRetentionDays()))
-                && (categorizationFilters == null | Objects.equals(categorizationFilters, job.getAnalysisConfig().getCategorizationFilters()))
+                && (categorizationFilters == null
+                        || Objects.equals(categorizationFilters, job.getAnalysisConfig().getCategorizationFilters()))
                 && (customSettings == null || Objects.equals(customSettings, job.getCustomSettings()))
                 && (modelSnapshotId == null || Objects.equals(modelSnapshotId, job.getModelSnapshotId()))
                 && (modelSnapshotMinVersion == null || Objects.equals(modelSnapshotMinVersion, job.getModelSnapshotMinVersion()))

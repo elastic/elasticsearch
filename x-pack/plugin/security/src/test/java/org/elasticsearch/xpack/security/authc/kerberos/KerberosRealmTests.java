@@ -82,8 +82,8 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
-        assertThat(e.getMessage(), equalTo(
-                "Expected UPN '" + Arrays.asList(maybeRemoveRealmName(username)) + "' but was '" + maybeRemoveRealmName("does-not-exist@REALM") + "'"));
+        assertThat(e.getMessage(), equalTo("Expected UPN '" + Arrays.asList(maybeRemoveRealmName(username)) + "' but was '"
+                + maybeRemoveRealmName("does-not-exist@REALM") + "'"));
     }
 
     public void testLookupUser() {

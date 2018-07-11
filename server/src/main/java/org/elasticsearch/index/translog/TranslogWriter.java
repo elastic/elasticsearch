@@ -203,7 +203,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             if (previous.v1().equals(data) == false) {
                 Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput()));
                 Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.v1().streamInput()));
-                // we need to relax versionType from this check as versionType is removed in 7.x
+                // we need to exclude versionType from this check because it's removed in 7.0
                 final boolean sameOp;
                 if (prvOp instanceof Translog.Index && newOp instanceof Translog.Index) {
                     final Translog.Index o1 = (Translog.Index) prvOp;

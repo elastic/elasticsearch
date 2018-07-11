@@ -263,7 +263,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    String followIndex = request.getFollowRequest().getFollowIndex();
+                    String followIndex = request.getFollowRequest().getFollowerIndex();
                     IndexMetaData currentIndex = currentState.metaData().index(followIndex);
                     if (currentIndex != null) {
                         throw new ResourceAlreadyExistsException(currentIndex.getIndex());
@@ -294,10 +294,10 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
                     ClusterState updatedState = builder.build();
 
                     RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
-                        .addAsNew(updatedState.metaData().index(request.getFollowRequest().getFollowIndex()));
+                        .addAsNew(updatedState.metaData().index(request.getFollowRequest().getFollowerIndex()));
                     updatedState = allocationService.reroute(
                         ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
-                        "follow index [" + request.getFollowRequest().getFollowIndex() + "] created");
+                        "follow index [" + request.getFollowRequest().getFollowerIndex() + "] created");
 
                     logger.info("[{}] creating index, cause [ccr_create_and_follow], shards [{}]/[{}]",
                         followIndex, followIMD.getNumberOfShards(), followIMD.getNumberOfReplicas());
@@ -308,7 +308,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
         }
 
         private void initiateFollowing(Request request, ActionListener<Response> listener) {
-            activeShardsObserver.waitForActiveShards(new String[]{request.followRequest.getFollowIndex()},
+            activeShardsObserver.waitForActiveShards(new String[]{request.followRequest.getFollowerIndex()},
                 ActiveShardCount.DEFAULT, request.timeout(), result -> {
                     if (result) {
                         client.execute(FollowIndexAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
@@ -323,7 +323,7 @@ public class CreateAndFollowIndexAction extends Action<CreateAndFollowIndexActio
 
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowRequest().getFollowIndex());
+            return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowRequest().getFollowerIndex());
         }
 
     }

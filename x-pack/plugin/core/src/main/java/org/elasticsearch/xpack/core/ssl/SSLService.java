@@ -51,6 +51,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Provides access to {@link SSLEngine} and {@link SSLSocketFactory} objects based on a provided configuration. All
@@ -139,7 +140,7 @@ public class SSLService extends AbstractComponent {
      * @return Never {@code null}.
      * @deprecated This method will fail if the SSL configuration uses a {@link org.elasticsearch.common.settings.SecureSetting} but the
      * {@link org.elasticsearch.common.settings.SecureSettings} have been closed. Use {@link #getSSLConfiguration(String)}
-     * and {@link #sslIOSessionStrategy(SSLConfiguration)}
+     * and {@link #sslIOSessionStrategy(SSLConfiguration)} (Deprecated, but not removed because monitoring uses dynamic SSL settings)
      */
     @Deprecated
     public SSLIOSessionStrategy sslIOSessionStrategy(Settings settings) {
@@ -209,7 +210,7 @@ public class SSLService extends AbstractComponent {
      *             certificate
      * @param port the port of the remote endpoint
      * @return {@link SSLEngine}
-     * @see #sslConfiguration(Settings, Settings)
+     * @see #getSSLConfiguration(String)
      */
     public SSLEngine createSSLEngine(SSLConfiguration configuration, String host, int port) {
         SSLContext sslContext = sslContext(configuration);
@@ -245,43 +246,10 @@ public class SSLService extends AbstractComponent {
 
     /**
      * Indicates whether client authentication is enabled for a particular configuration
-     * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. The global configuration
-     *                 will be used for fallback
-     * @deprecated Use {@link #isSSLClientAuthEnabled(SSLConfiguration)} with {@link #getSSLConfiguration(String)}
-     */
-    @Deprecated
-    public boolean isSSLClientAuthEnabled(Settings settings) {
-        return isSSLClientAuthEnabled(settings, Settings.EMPTY);
-    }
-
-    /**
-     * Indicates whether client authentication is enabled for a particular configuration
-     * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix
-     * @param fallback the settings that should be used for the fallback of the SSLConfiguration. Using {@link Settings#EMPTY}
-     *                 results in a fallback to the global configuration
-     */
-    public boolean isSSLClientAuthEnabled(Settings settings, Settings fallback) {
-        SSLConfiguration sslConfiguration = sslConfiguration(settings, fallback);
-        return isSSLClientAuthEnabled(sslConfiguration);
-    }
-
-    /**
-     * Indicates whether client authentication is enabled for a particular configuration
      */
     public boolean isSSLClientAuthEnabled(SSLConfiguration sslConfiguration) {
         Objects.requireNonNull(sslConfiguration, "SSLConfiguration cannot be null");
         return sslConfiguration.sslClientAuth().enabled();
-    }
-
-    /**
-     * Returns the {@link VerificationMode} that is specified in the settings (or the default)
-     * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix
-     * @param fallback the settings that should be used for the fallback of the SSLConfiguration. Using {@link Settings#EMPTY}
-     *                 results in a fallback to the global configuration
-     */
-    public VerificationMode getVerificationMode(Settings settings, Settings fallback) {
-        SSLConfiguration sslConfiguration = sslConfiguration(settings, fallback);
-        return sslConfiguration.verificationMode();
     }
 
     /**
@@ -338,6 +306,14 @@ public class SSLService extends AbstractComponent {
         SSLConfiguration fallback = sslConfiguration(fallbackSettings);
         return new SSLConfiguration(settings, fallback);
     }
+
+    public Set<String> getTransportProfileContextNames() {
+        return Collections.unmodifiableSet(this.sslConfigurations
+            .keySet().stream()
+            .filter(k -> k.startsWith("transport.profiles."))
+            .collect(Collectors.toSet()));
+    }
+
 
     /**
      * Accessor to the loaded ssl configuration objects at the current point in time. This is useful for testing
@@ -653,9 +629,7 @@ public class SSLService extends AbstractComponent {
         Map<String, Settings> profiles = settings.getGroups("transport.profiles.", true);
         for (Entry<String, Settings> entry : profiles.entrySet()) {
             Settings profileSettings = entry.getValue().getByPrefix("xpack.security.ssl.");
-            if (profileSettings.isEmpty() == false) {
-                sslSettings.put("transport.profiles." + entry.getKey() + ".xpack.security.ssl", profileSettings);
-            }
+            sslSettings.put("transport.profiles." + entry.getKey() + ".xpack.security.ssl", profileSettings);
         }
         return sslSettings;
     }

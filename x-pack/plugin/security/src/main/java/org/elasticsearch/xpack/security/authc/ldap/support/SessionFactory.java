@@ -134,20 +134,19 @@ public abstract class SessionFactory {
         final Settings realmSSLSettings = realmSettings.getByPrefix("ssl.");
         final boolean verificationModeExists =
                 sslConfigurationSettings.verificationMode.exists(realmSSLSettings);
-        final boolean hostnameVerficationExists =
+        final boolean hostnameVerificationExists =
                 realmSettings.get(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, null) != null;
 
-        if (verificationModeExists && hostnameVerficationExists) {
+        if (verificationModeExists && hostnameVerificationExists) {
             throw new IllegalArgumentException("[" + SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING + "] and [" +
                     sslConfigurationSettings.verificationMode.getKey() +
                     "] may not be used at the same time");
         } else if (verificationModeExists) {
-            VerificationMode verificationMode = sslService.getVerificationMode(realmSSLSettings,
-                    Settings.EMPTY);
-            if (verificationMode == VerificationMode.FULL) {
+            final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(RealmSettings.getFullSettingKey(config, "ssl"));
+            if (sslConfiguration.verificationMode().isHostnameVerificationEnabled()) {
                 options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
             }
-        } else if (hostnameVerficationExists) {
+        } else if (hostnameVerificationExists) {
             new DeprecationLogger(logger).deprecated("the setting [{}] has been deprecated and " +
                             "will be removed in a future version. use [{}] instead",
                     RealmSettings.getFullSettingKey(config, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING),

@@ -255,7 +255,7 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testGetVerificationMode() throws Exception {
         SSLService sslService = new SSLService(Settings.EMPTY, env);
-        assertThat(sslService.getVerificationMode(Settings.EMPTY, Settings.EMPTY), is(XPackSettings.VERIFICATION_MODE_DEFAULT));
+        assertThat(globalConfiguration(sslService).verificationMode(), is(XPackSettings.VERIFICATION_MODE_DEFAULT));
 
         Settings settings = Settings.builder()
                 .put("xpack.ssl.verification_mode", "none")
@@ -263,34 +263,25 @@ public class SSLServiceTests extends ESTestCase {
                 .put("transport.profiles.foo.xpack.security.ssl.verification_mode", "full")
                 .build();
         sslService = new SSLService(settings, env);
-        assertThat(sslService.getVerificationMode(Settings.EMPTY, Settings.EMPTY), is(VerificationMode.NONE));
-        assertThat(sslService.getVerificationMode(settings.getByPrefix("xpack.security.transport.ssl."), Settings.EMPTY),
-                is(VerificationMode.CERTIFICATE));
-        assertThat(sslService.getVerificationMode(settings.getByPrefix("transport.profiles.foo.xpack.security.ssl."),
-                settings.getByPrefix("xpack.security.transport.ssl.")), is(VerificationMode.FULL));
-        assertThat(sslService.getVerificationMode(Settings.EMPTY, settings.getByPrefix("xpack.security.transport.ssl.")),
-                is(VerificationMode.CERTIFICATE));
+        assertThat(globalConfiguration(sslService).verificationMode(), is(VerificationMode.NONE));
+        assertThat(sslService.getSSLConfiguration("xpack.security.transport.ssl.").verificationMode(), is(VerificationMode.CERTIFICATE));
+        assertThat(sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl.").verificationMode(),
+            is(VerificationMode.FULL));
     }
 
     public void testIsSSLClientAuthEnabled() throws Exception {
         SSLService sslService = new SSLService(Settings.EMPTY, env);
-        assertTrue(sslService.isSSLClientAuthEnabled(Settings.EMPTY));
-        assertTrue(sslService.isSSLClientAuthEnabled(Settings.EMPTY, Settings.EMPTY));
+        assertTrue(globalConfiguration(sslService).sslClientAuth().enabled());
 
         Settings settings = Settings.builder()
                 .put("xpack.ssl.client_authentication", "none")
                 .put("xpack.security.transport.ssl.client_authentication", "optional")
+                .put("transport.profiles.foo.port", "9400-9410")
                 .build();
         sslService = new SSLService(settings, env);
-        assertFalse(sslService.isSSLClientAuthEnabled(Settings.EMPTY));
-        assertFalse(sslService.isSSLClientAuthEnabled(Settings.EMPTY, Settings.EMPTY));
-        assertTrue(sslService.isSSLClientAuthEnabled(settings.getByPrefix("xpack.security.transport.ssl.")));
-        assertTrue(sslService.isSSLClientAuthEnabled(settings.getByPrefix("xpack.security.transport.ssl."), Settings.EMPTY));
-        assertTrue(sslService.isSSLClientAuthEnabled(settings.getByPrefix("transport.profiles.foo.xpack.security.ssl."),
-                settings.getByPrefix("xpack.security.transport.ssl.")));
-
-        assertFalse(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("xpack.ssl")));
+        assertFalse(sslService.isSSLClientAuthEnabled(globalConfiguration(sslService)));
         assertTrue(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
+        assertTrue(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl")));
     }
 
     public void testThatHttpClientAuthDefaultsToNone() throws Exception {

@@ -96,7 +96,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
                 .build();
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
-        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("_global");
+        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster()
                 .getInstance(Transport.class, node).boundAddress().publishAddress();

@@ -107,6 +107,10 @@ day and the same day of the month and time of day the following year in the
 specified timezone, so that the date and time are the same at the start and end. +
 * Multiple years (__n__y) are not supported.
 
+NOTE:
+In all cases, when the specified end time does not exist, the actual end time is
+the closest available time after the specified end.
+
 Widely distributed applications must also consider vagaries such as countries that
 start and stop daylight savings time at 12:01 A.M., so end up with one minute of 
 Sunday followed by an additional 59 minutes of Saturday once a year, and countries
@@ -118,8 +122,8 @@ that your time interval specification is
 what you intend it to be.
 
 WARNING:
-To avoid unexpected results, all connected servers and clients must sync to the
-same network time service.
+To avoid unexpected results, all connected servers and clients must sync to a
+reliable network time service.
 
 ==== Examples
 

@@ -21,8 +21,8 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.def;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -93,7 +93,7 @@ public final class EUnary extends AExpression {
         promote = AnalyzerCaster.promoteNumeric(child.actual, false);
 
         if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply not [~] to type [" + Definition.ClassToName(child.actual) + "]."));
+            throw createError(new ClassCastException("Cannot apply not [~] to type [" + PainlessLookup.ClassToName(child.actual) + "]."));
         }
 
         child.expected = promote;
@@ -122,7 +122,8 @@ public final class EUnary extends AExpression {
         promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply positive [+] to type [" + Definition.ClassToName(child.actual) + "]."));
+            throw createError(
+                    new ClassCastException("Cannot apply positive [+] to type [" + PainlessLookup.ClassToName(child.actual) + "]."));
         }
 
         child.expected = promote;
@@ -155,7 +156,8 @@ public final class EUnary extends AExpression {
         promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply negative [-] to type [" + Definition.ClassToName(child.actual) + "]."));
+            throw createError(
+                    new ClassCastException("Cannot apply negative [-] to type [" + PainlessLookup.ClassToName(child.actual) + "]."));
         }
 
         child.expected = promote;

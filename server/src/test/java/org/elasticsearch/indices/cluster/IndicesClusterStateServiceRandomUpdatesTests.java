@@ -53,6 +53,7 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -399,7 +400,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
         final MockIndicesService indicesService = indicesServiceSupplier.get();
         final Settings settings = Settings.builder().put("node.name", discoveryNode.getName()).build();
-        final TransportService transportService = new TransportService(settings, null, threadPool,
+        final TransportService transportService = new TransportService(settings, mock(Transport.class), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null,
             Collections.emptySet());

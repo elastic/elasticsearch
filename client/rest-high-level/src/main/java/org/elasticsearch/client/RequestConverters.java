@@ -45,6 +45,7 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptReque
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -103,6 +104,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -114,8 +116,10 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.StringJoiner;
+import java.util.stream.Collectors;
 
 final class RequestConverters {
     static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
@@ -833,6 +837,22 @@ final class RequestConverters {
         return request;
     }
 
+    static Request getIndex(GetIndexRequest getIndexRequest) {
+        String[] indices = getIndexRequest.indices() == null ? Strings.EMPTY_ARRAY : getIndexRequest.indices();
+
+        String endpoint = endpoint(indices);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params params = new Params(request);
+        params.withIndicesOptions(getIndexRequest.indicesOptions());
+        params.withLocal(getIndexRequest.local());
+        params.withIncludeDefaults(getIndexRequest.includeDefaults());
+        params.withHuman(getIndexRequest.humanReadable());
+        params.withMasterTimeout(getIndexRequest.masterNodeTimeout());
+
+        return request;
+    }
+
     static Request indicesExist(GetIndexRequest getIndexRequest) {
         // this can be called with no indices as argument by transport client, not via REST though
         if (getIndexRequest.indices() == null || getIndexRequest.indices().length == 0) {
@@ -1019,6 +1039,18 @@ final class RequestConverters {
         return request;
     }
 
+    static Request analyze(AnalyzeRequest request) throws IOException {
+        EndpointBuilder builder = new EndpointBuilder();
+        String index = request.index();
+        if (index != null) {
+            builder.addPathPart(index);
+        }
+        builder.addPathPartAsIs("_analyze");
+        Request req = new Request(HttpGet.METHOD_NAME, builder.build());
+        req.setEntity(createEntity(request, REQUEST_BODY_CONTENT_TYPE));
+        return req;
+    }
+
     static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -1033,6 +1065,19 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withTimeout(deleteStoredScriptRequest.timeout());
         params.withMasterTimeout(deleteStoredScriptRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request xPackInfo(XPackInfoRequest infoRequest) {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");
+        if (false == infoRequest.isVerbose()) {
+            request.addParameter("human", "false");
+        }
+        if (false == infoRequest.getCategories().equals(EnumSet.allOf(XPackInfoRequest.Category.class))) {
+            request.addParameter("categories", infoRequest.getCategories().stream()
+                    .map(c -> c.toString().toLowerCase(Locale.ROOT))
+                    .collect(Collectors.joining(",")));
+        }
         return request;
     }
 

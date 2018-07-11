@@ -15,16 +15,6 @@
         "index": {
           "type" : "string",
           "description" : "The name of the index to scope the operation"
-        },
-        "prefer_local": {
-          "type" : "boolean",
-          "description" : "With `true`, specify that a local shard should be used if available, with `false`, use a random shard (default: true)"
-        },
-        "format": {
-          "type": "enum",
-          "options" : ["detailed","text"],
-          "default": "detailed",
-          "description": "Format of the output"
         }
       }
     },

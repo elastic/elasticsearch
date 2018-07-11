@@ -90,7 +90,6 @@ String s3TemporaryBucket = System.getenv("amazon_s3_bucket_temporary")
 String s3TemporaryBasePath = System.getenv("amazon_s3_base_path_temporary")
 
 String s3EC2Bucket = System.getenv("amazon_s3_bucket_ec2")
-String s3EC2ProfileName = System.getenv("amazon_s3_profile_ec2")
 String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
 String s3EC2AccessKey = System.getenv("amazon_s3_access_key_ec2")
 String s3EC2Token = System.getenv("amazon_s3_token_ec2")
@@ -100,7 +99,7 @@ String s3EC2Token = System.getenv("amazon_s3_token_ec2")
 
 if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath
         && !s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3TemporaryBasePath && !s3TemporarySessionToken
-        && !s3EC2Bucket && !s3EC2ProfileName && !s3EC2BasePath && !s3EC2AccessKey && !s3EC2Token) {
+        && !s3EC2Bucket && !s3EC2BasePath && !s3EC2AccessKey && !s3EC2Token) {
 
   s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
   s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
@@ -114,7 +113,6 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
   s3TemporarySessionToken = 's3_integration_test_temporary_session_token'
 
   s3EC2Bucket = 'ec2-bucket-test'
-  s3EC2ProfileName = 'ec2_profile'
   s3EC2BasePath = 'integration_test'
   s3EC2AccessKey = 'ec2_accessKey'
   s3EC2Token = 'ec2_tkn'
@@ -122,7 +120,7 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
   useFixture = true
 } else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath
         || !s3TemporaryAccessKey || !s3TemporarySecretKey || !s3TemporaryBucket || !s3TemporaryBasePath || !s3TemporarySessionToken
-        || !s3EC2Bucket || !s3EC2ProfileName || !s3EC2BasePath || !s3EC2AccessKey || !s3EC2Token) {
+        || !s3EC2Bucket || !s3EC2BasePath || !s3EC2AccessKey || !s3EC2Token) {
   throw new IllegalArgumentException("not all options specified to run against external S3 service")
 }
 
@@ -304,7 +302,6 @@ task s3Fixture(type: AntFixture) {
   env 'S3FIXTURE_TEMPORARY_KEY', s3TemporaryAccessKey
   env 'S3FIXTURE_TEMPORARY_SESSION_TOKEN', s3TemporarySessionToken
   env 'S3FIXTURE_EC2_BUCKET_NAME', s3EC2Bucket
-  env 'S3FIXTURE_EC2_PROFILE_NAME', s3EC2ProfileName
   env 'S3FIXTURE_EC2_KEY', s3EC2AccessKey
   env 'S3FIXTURE_EC2_TOKEN', s3EC2Token
   executable = new File(project.runtimeJavaHome, 'bin/java')

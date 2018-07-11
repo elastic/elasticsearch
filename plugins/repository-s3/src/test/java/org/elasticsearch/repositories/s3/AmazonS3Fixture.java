@@ -38,6 +38,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -56,44 +57,31 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     private static final String AUTH = "AUTH";
     private static final String NON_AUTH = "NON_AUTH";
 
+    private static final String EC2_PROFILE = "ec2Profile";
+
     /** List of the buckets stored on this test server **/
     private final Map<String, Bucket> buckets = ConcurrentCollections.newConcurrentMap();
 
     /** Request handlers for the requests made by the S3 client **/
     private final PathTrie<RequestHandler> handlers;
-    private final String permanentBucketName;
-    private final String permanentKey;
-    private final String temporaryBucketName;
-    private final String temporaryKey;
-    private final String temporarySessionToken;
-    private final String ec2BucketName;
-    private final String ec2ProfileName;
-    private final String ec2Key;
-    private final String ec2Token;
+
+    private final Bucket permanentBucket;
+    private final Bucket temporaryBucket;
+    private final Bucket ec2Bucket;
 
     /**
      * Creates a {@link AmazonS3Fixture}
      */
     private AmazonS3Fixture(final String workingDir) {
         super(workingDir);
-        this.permanentBucketName = envVar("S3FIXTURE_PERMANENT_BUCKET_NAME");
-        this.permanentKey = envVar("S3FIXTURE_PERMANENT_KEY");
-        this.temporaryBucketName = envVar("S3FIXTURE_TEMPORARY_BUCKET_NAME");
-        this.temporaryKey = envVar("S3FIXTURE_TEMPORARY_KEY");
-        this.temporarySessionToken = envVar("S3FIXTURE_TEMPORARY_SESSION_TOKEN");
-        this.ec2BucketName = envVar("S3FIXTURE_EC2_BUCKET_NAME");
-        this.ec2ProfileName = envVar("S3FIXTURE_EC2_PROFILE_NAME");
-        this.ec2Key = envVar("S3FIXTURE_EC2_KEY");
-        this.ec2Token = envVar("S3FIXTURE_EC2_TOKEN");
+        this.permanentBucket = new Bucket("S3FIXTURE_PERMANENT", false);
+        this.temporaryBucket = new Bucket("S3FIXTURE_TEMPORARY");
+        this.ec2Bucket = new Bucket("S3FIXTURE_EC2");
 
-        for (String bucketName : new String[]{permanentBucketName, temporaryBucketName, ec2BucketName}) {
-            this.buckets.put(bucketName, new Bucket(bucketName));
+        for (Bucket bucket : new Bucket[]{permanentBucket, temporaryBucket, ec2Bucket}) {
+            this.buckets.put(bucket.name, bucket);
         }
         this.handlers = defaultHandlers(buckets);
-    }
-
-    private static String envVar(String varName) {
-        return Objects.requireNonNull(System.getenv(varName), "env variable '" + varName + "' is missing");
     }
 
     private static String nonAuthPath(Request request) {
@@ -127,32 +115,29 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
             if (authorization == null) {
                 return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad access key", "");
             }
-            final String permittedBucket;
-            if (authorization.contains(permanentKey)) {
-                final String sessionToken = request.getHeader("x-amz-security-token");
-                if (sessionToken != null) {
-                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Unexpected session token", "");
+            final Collection<Bucket> values = buckets.values();
+            String permittedBucket = null;
+            for (final Bucket bucket : values) {
+                if (authorization.contains(bucket.key)) {
+                    final String sessionToken = request.getHeader("x-amz-security-token");
+                    if (bucket.token == null) {
+                        if (sessionToken != null) {
+                            return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Unexpected session token", "");
+                        }
+                    } else {
+                        if (sessionToken == null) {
+                            return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "No session token", "");
+                        }
+                        if (sessionToken.equals(bucket.token) == false) {
+                            return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
+                        }
+                    }
+                    permittedBucket = bucket.name;
+                    break;
                 }
-                permittedBucket = permanentBucketName;
-            } else if (authorization.contains(temporaryKey)) {
-                final String sessionToken = request.getHeader("x-amz-security-token");
-                if (sessionToken == null) {
-                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "No session token", "");
-                }
-                if (sessionToken.equals(temporarySessionToken) == false) {
-                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
-                }
-                permittedBucket = temporaryBucketName;
-            } else if (authorization.contains(ec2Key)) {
-                final String sessionToken = request.getHeader("x-amz-security-token");
-                if (sessionToken == null) {
-                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "No session token", "");
-                }
-                if (sessionToken.equals(ec2Token) == false) {
-                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
-                }
-                permittedBucket = ec2BucketName;
-            } else {
+            }
+
+            if (permittedBucket == null) {
                 return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad access key", "");
             }
 
@@ -393,7 +378,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         //
         // http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
         handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/latest/meta-data/iam/security-credentials/"), (request) -> {
-            final String response = ec2ProfileName;
+            final String response = EC2_PROFILE;
 
             final Map<String, String> headers = new HashMap<>(contentType("text/plain"));
             return new Response(RestStatus.OK.getStatus(), headers, response.getBytes(UTF_8));
@@ -404,13 +389,17 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
         handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/latest/meta-data/iam/security-credentials/{profileName}"), (request) -> {
             final String profileName = request.getParam("profileName");
-            if (ec2ProfileName.equals(profileName) == false) {
+            if (EC2_PROFILE.equals(profileName) == false) {
                 return new Response(RestStatus.NOT_FOUND.getStatus(), new HashMap<>(), "unknown credentials".getBytes(UTF_8));
             }
-            return credentialResponseFunction.apply(profileName, ec2Key, ec2Token);
+            return credentialResponseFunction.apply(profileName, ec2Bucket.key, ec2Bucket.token);
         });
 
         return handlers;
+    }
+
+    private static String envVar(String varName) {
+        return Objects.requireNonNull(System.getenv(varName), "env variable '" + varName + "' is missing");
     }
 
     /**
@@ -421,11 +410,23 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         /** Bucket name **/
         final String name;
 
+        final String key;
+
+        final String token;
+
         /** Blobs contained in the bucket **/
         final Map<String, byte[]> objects;
 
-        Bucket(final String name) {
-            this.name = Objects.requireNonNull(name);
+        Bucket(final String envPrefix) {
+            this(envPrefix, true);
+        }
+
+        Bucket(final String envPrefix, final boolean tokenRequired) {
+            this.name = envVar(envPrefix + "_BUCKET_NAME");
+            this.key = envVar(envPrefix + "_KEY");
+            this.token = tokenRequired ? System.getenv(envPrefix + "_TOKEN") !=  null
+                ? envVar(envPrefix + "_TOKEN") : envVar(envPrefix + "_SESSION_TOKEN")
+                : null;
             this.objects = ConcurrentCollections.newConcurrentMap();
         }
     }

@@ -628,7 +628,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 && Objects.equals(this.lastDataTime, that.lastDataTime)
                 && Objects.equals(this.establishedModelMemory, that.establishedModelMemory)
                 && Objects.equals(this.analysisConfig, that.analysisConfig)
-                && Objects.equals(this.analysisLimits, that.analysisLimits) && Objects.equals(this.dataDescription, that.dataDescription)
+                && Objects.equals(this.analysisLimits, that.analysisLimits)
+                && Objects.equals(this.dataDescription, that.dataDescription)
                 && Objects.equals(this.modelPlotConfig, that.modelPlotConfig)
                 && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
                 && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
@@ -1056,6 +1057,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return Objects.equals(this.id, that.id)
                     && Objects.equals(this.jobType, that.jobType)
                     && Objects.equals(this.jobVersion, that.jobVersion)
+                    && Objects.equals(this.groups, that.groups)
                     && Objects.equals(this.description, that.description)
                     && Objects.equals(this.analysisConfig, that.analysisConfig)
                     && Objects.equals(this.analysisLimits, that.analysisLimits)
@@ -1078,7 +1080,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, jobType, jobVersion, description, analysisConfig, analysisLimits, dataDescription, createTime,
+            return Objects.hash(id, jobType, jobVersion, groups, description, analysisConfig, analysisLimits, dataDescription, createTime,
                     finishedTime, lastDataTime, establishedModelMemory, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
                     modelSnapshotMinVersion, resultsIndexName, deleted);

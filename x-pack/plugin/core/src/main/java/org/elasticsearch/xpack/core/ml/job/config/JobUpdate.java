@@ -449,6 +449,42 @@ public class JobUpdate implements Writeable, ToXContentObject {
         return builder.build();
     }
 
+    boolean isNoop(Job job) {
+        return (groups == null || Objects.equals(groups, job.getGroups()))
+                && (description == null || Objects.equals(description, job.getDescription()))
+                && (modelPlotConfig == null || Objects.equals(modelPlotConfig, job.getModelPlotConfig()))
+                && (analysisLimits == null || Objects.equals(analysisLimits, job.getAnalysisLimits()))
+                && updatesDetectors(job) == false
+                && (renormalizationWindowDays == null || Objects.equals(renormalizationWindowDays, job.getRenormalizationWindowDays()))
+                && (backgroundPersistInterval == null || Objects.equals(backgroundPersistInterval, job.getBackgroundPersistInterval()))
+                && (modelSnapshotRetentionDays == null || Objects.equals(modelSnapshotRetentionDays, job.getModelSnapshotRetentionDays()))
+                && (resultsRetentionDays == null || Objects.equals(resultsRetentionDays, job.getResultsRetentionDays()))
+                && (categorizationFilters == null | Objects.equals(categorizationFilters, job.getAnalysisConfig().getCategorizationFilters()))
+                && (customSettings == null || Objects.equals(customSettings, job.getCustomSettings()))
+                && (modelSnapshotId == null || Objects.equals(modelSnapshotId, job.getModelSnapshotId()))
+                && (modelSnapshotMinVersion == null || Objects.equals(modelSnapshotMinVersion, job.getModelSnapshotMinVersion()))
+                && (establishedModelMemory == null || Objects.equals(establishedModelMemory, job.getEstablishedModelMemory()))
+                && (jobVersion == null || Objects.equals(jobVersion, job.getJobVersion()));
+    }
+
+    boolean updatesDetectors(Job job) {
+        AnalysisConfig analysisConfig = job.getAnalysisConfig();
+        if (detectorUpdates == null) {
+            return false;
+        }
+        for (DetectorUpdate detectorUpdate : detectorUpdates) {
+            if (detectorUpdate.description == null && detectorUpdate.rules == null) {
+                continue;
+            }
+            Detector detector = analysisConfig.getDetectors().get(detectorUpdate.detectorIndex);
+            if (Objects.equals(detectorUpdate.description, detector.getDetectorDescription()) == false
+                    || Objects.equals(detectorUpdate.rules, detector.getRules()) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {

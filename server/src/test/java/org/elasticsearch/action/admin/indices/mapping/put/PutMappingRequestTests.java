@@ -77,8 +77,9 @@ public class PutMappingRequestTests extends ESTestCase {
     }
 
     /**
-     * Test that method rejects input where input varargs fieldname/properites are not paired correctly
-     * or input is empty.
+     * Test that {@link PutMappingRequest#buildFromSimplifiedDef(String, Object...)}
+     * rejects inputs where the {@code Object...} varargs of field name and properties are not
+     * paired correctly
      */
     public void testBuildFromSimplifiedDef() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

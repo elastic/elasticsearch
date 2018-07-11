@@ -21,17 +21,6 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.XmlProvider
 import org.gradle.api.publish.maven.MavenPublication
 
-buildscript {
-  repositories {
-    maven {
-      url 'https://plugins.gradle.org/m2/'
-    }
-  }
-  dependencies {
-    classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
-  }
-}
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'nebula.maven-base-publish'
@@ -40,34 +29,6 @@ apply plugin: 'com.github.johnrengelman.shadow'
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'
-
-publishing {
-  publications {
-    nebula(MavenPublication) {
-      artifact shadowJar
-      artifactId = archivesBaseName
-      /*
-       * Configure the pom to include the "shadow" as compile dependencies
-       * because that is how we're using them but remove all other dependencies
-       * because they've been shaded into the jar.
-       */
-      pom.withXml { XmlProvider xml ->
-        Node root = xml.asNode()
-        root.remove(root.dependencies)
-        Node dependenciesNode = root.appendNode('dependencies')
-        project.configurations.shadow.allDependencies.each {
-          if (false == it instanceof SelfResolvingDependency) {
-            Node dependencyNode = dependenciesNode.appendNode('dependency')
-            dependencyNode.appendNode('groupId', it.group)
-            dependencyNode.appendNode('artifactId', it.name)
-            dependencyNode.appendNode('version', it.version)
-            dependencyNode.appendNode('scope', 'compile')
-          }
-        }
-      }
-    }
-  }
-}
 
 /*
  * We need somewhere to configure dependencies that we don't wish to shade

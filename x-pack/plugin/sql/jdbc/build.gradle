@@ -1,15 +1,3 @@
-
-buildscript {
-    repositories {
-        maven {
-            url 'https://plugins.gradle.org/m2/'
-        }
-    }
-    dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
-    }
-}
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
@@ -69,18 +57,6 @@ task nodepsJar(type: Jar) {
 artifacts  {
     nodeps nodepsJar
     archives shadowJar
-}
-
-publishing {
-    publications {
-        nebula(MavenPublication) {
-            artifact shadowJar
-            pom.withXml {
-                // Nebula is mistakenly including all dependencies that are already shadowed into the shadow jar
-                asNode().remove(asNode().dependencies)
-            }
-        }
-    }
 }
 
 assemble.dependsOn shadowJar

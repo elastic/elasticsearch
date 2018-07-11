@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
@@ -36,6 +37,7 @@ import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
+import org.gradle.api.artifacts.SelfResolvingDependency
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.plugins.JavaPlugin
@@ -498,7 +500,41 @@ class BuildPlugin implements Plugin<Project> {
                     }
                 }
             }
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                project.publishing {
+                    publications {
+                        nebula(MavenPublication) {
+                            artifact project.tasks.shadowJar
+                            artifactId = project.archivesBaseName
+                            /*
+                            * Configure the pom to include the "shadow" as compile dependencies
+                            * because that is how we're using them but remove all other dependencies
+                            * because they've been shaded into the jar.
+                            */
+                            pom.withXml { XmlProvider xml ->
+                                Node root = xml.asNode()
+                                root.remove(root.dependencies)
+                                Node dependenciesNode = root.appendNode('dependencies')
+                                project.configurations.shadow.allDependencies.each {
+                                    if (false == it instanceof SelfResolvingDependency) {
+                                        Node dependencyNode = dependenciesNode.appendNode('dependency')
+                                        dependencyNode.appendNode('groupId', it.group)
+                                        dependencyNode.appendNode('artifactId', it.name)
+                                        dependencyNode.appendNode('version', it.version)
+                                        dependencyNode.appendNode('scope', 'compile')
+                                    }
+                                }
+                                // Be tidy and remove the element if it is empty
+                                if (dependenciesNode.children.empty) {
+                                    root.remove(dependenciesNode)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
+
     }
 
     /** Adds compiler settings to the project */

@@ -411,9 +411,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public int estimateTotalOperationsFromMinSeq(long minSeqNo) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            return readersBetweenMinAndMaxSeqNo(minSeqNo, Long.MAX_VALUE)
-                    .mapToInt(BaseTranslogReader::totalOperations)
-                    .sum();
+            return readersAboveMinSeqNo(minSeqNo).mapToInt(BaseTranslogReader::totalOperations).sum();
         }
     }
 
@@ -602,23 +600,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return null;
     }
 
-    /**
-     * Returns a snapshot with operations having a sequence number equal to or greater than <code>minSeqNo</code>.
-     */
-    public Snapshot newSnapshotFrom(long minSeqNo) throws IOException {
-        return getSnapshotBetween(minSeqNo, Long.MAX_VALUE);
-    }
-
-    /**
-     * Returns a snapshot with operations having a sequence number equal to or greater than <code>minSeqNo</code> and
-     * equal to or lesser than <code>maxSeqNo</code>.
-     */
-    public Snapshot getSnapshotBetween(long minSeqNo, long maxSeqNo) throws IOException {
+    public Snapshot newSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            TranslogSnapshot[] snapshots = readersBetweenMinAndMaxSeqNo(minSeqNo, maxSeqNo)
-                    .map(BaseTranslogReader::newSnapshot)
-                    .toArray(TranslogSnapshot[]::new);
+            TranslogSnapshot[] snapshots = readersAboveMinSeqNo(minSeqNo).map(BaseTranslogReader::newSnapshot)
+                .toArray(TranslogSnapshot[]::new);
             return newMultiSnapshot(snapshots);
         }
     }
@@ -644,14 +630,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    private Stream<? extends BaseTranslogReader> readersBetweenMinAndMaxSeqNo(long minSeqNo, long maxSeqNo) {
-        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread() ;
-
+    private Stream<? extends BaseTranslogReader> readersAboveMinSeqNo(long minSeqNo) {
+        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread() :
+            "callers of readersAboveMinSeqNo must hold a lock: readLock ["
+                + readLock.isHeldByCurrentThread() + "], writeLock [" + readLock.isHeldByCurrentThread() + "]";
         return Stream.concat(readers.stream(), Stream.of(current))
             .filter(reader -> {
-                final Checkpoint checkpoint = reader.getCheckpoint();
-                return checkpoint.maxSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO ||
-                        checkpoint.minSeqNo <= maxSeqNo && checkpoint.maxSeqNo >= minSeqNo;
+                final long maxSeqNo = reader.getCheckpoint().maxSeqNo;
+                return maxSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || maxSeqNo >= minSeqNo;
             });
     }
 

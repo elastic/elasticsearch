@@ -18,38 +18,39 @@
  */
 package org.elasticsearch.action.support.replication;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.action.ActionListener;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 
 public abstract class TransportWriteActionTestHelper {
 
-
-    public static void performPostWriteActions(final IndexShard indexShard,
-                                              final WriteRequest<?> request,
-                                              @Nullable final Translog.Location location,
-                                              final Logger logger) {
+    private static void waitForPostWriteActions(Consumer<ActionListener> listenerConsumer) {
         final CountDownLatch latch = new CountDownLatch(1);
-        TransportWriteAction.RespondingWriteResult writerResult = new TransportWriteAction.RespondingWriteResult() {
+        final ActionListener listener = new ActionListener() {
             @Override
-            public void onSuccess(boolean forcedRefresh) {
+            public void onResponse(Object o) {
                 latch.countDown();
             }
 
             @Override
-            public void onFailure(Exception ex) {
-                throw new AssertionError(ex);
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
             }
         };
-        new TransportWriteAction.AsyncAfterWriteAction(indexShard, request, location, writerResult, logger).run();
+        listenerConsumer.accept(listener);
         try {
             latch.await();
         } catch (InterruptedException e) {
             throw new AssertionError(e);
         }
+    }
+
+    public static void waitForPostWriteActions(final TransportWriteAction.WritePrimaryResult<?, ?> result) {
+        waitForPostWriteActions(listener -> result.respond(listener));
+    }
+
+    public static void waitForPostWriteActions(TransportWriteAction.WriteReplicaResult<?> result) {
+        waitForPostWriteActions(listener -> result.respond(listener));
     }
 }

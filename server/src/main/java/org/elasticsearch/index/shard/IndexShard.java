@@ -2328,7 +2328,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * NOTE: if the syncListener throws an exception when it's processed the exception will only be logged. Users should make sure that the
      * listener handles all exception cases internally.
      */
-    public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
+    public void sync(Translog.Location location, Consumer<Exception> syncListener) {
         verifyNotClosed();
         translogSyncProcessor.put(location, syncListener);
     }

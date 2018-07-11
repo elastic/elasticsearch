@@ -340,9 +340,9 @@ public abstract class TransportReplicationAction<
                     setPhase(replicationTask, "primary");
                     final ActionListener<Response> listener = createResponseListener(primaryShardReference);
                     createReplicatedOperation(request,
-                            ActionListener.wrap(result -> result.respond(listener), listener::onFailure),
-                            primaryShardReference)
-                            .execute();
+                        listener,
+                        primaryShardReference)
+                        .execute();
                 }
             } catch (Exception e) {
                 Releasables.closeWhileHandlingException(primaryShardReference); // release shard operation lock before responding to caller
@@ -403,9 +403,8 @@ public abstract class TransportReplicationAction<
             };
         }
 
-        protected ReplicationOperation<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>> createReplicatedOperation(
-            Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener,
-            PrimaryShardReference primaryShardReference) {
+        protected ReplicationOperation<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>, Response>
+            createReplicatedOperation(Request request, ActionListener<Response> listener, PrimaryShardReference primaryShardReference) {
             return new ReplicationOperation<>(request, primaryShardReference, listener,
                     newReplicasProxy(primaryTerm), logger, actionName);
         }
@@ -447,7 +446,8 @@ public abstract class TransportReplicationAction<
             }
         }
 
-        public void respond(ActionListener<Response> listener) {
+        @Override
+        public void respond(ActionListener listener) {
             if (finalResponseIfSuccessful != null) {
                 listener.onResponse(finalResponseIfSuccessful);
             } else {
@@ -601,7 +601,8 @@ public abstract class TransportReplicationAction<
             } catch (IOException responseException) {
                 responseException.addSuppressed(e);
                 logger.warn(() -> new ParameterizedMessage(
-                            "failed to send error message back to client for action [{}]", transportReplicaAction), responseException);
+                            "failed to send error message back to client for action [{}]", transportReplicaAction),
+                    responseException);
             }
         }
 

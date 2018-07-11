@@ -203,6 +203,9 @@ public class IngestClientIT extends ESIntegTestCase {
         BulkResponse response = client().bulk(bulkRequest).actionGet();
 
         assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
+        assertThat(response.getItems()[0].isFailed(), equalTo(false));
+        assertThat(response.getItems()[1].isFailed(), equalTo(false));
+
         Map<String, Object> inserted = client().prepareGet("index", "type", "1")
             .get().getSourceAsMap();
         assertThat(inserted.get("field1"), equalTo("val1"));

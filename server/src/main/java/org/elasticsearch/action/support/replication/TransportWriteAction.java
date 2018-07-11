@@ -128,9 +128,11 @@ public abstract class TransportWriteAction<
     public static class WritePrimaryResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
             Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response>
             implements RespondingWriteResult {
-        boolean finishedAsyncActions;
         public final Location location;
-        ActionListener<Response> listener = null;
+        // as AsyncAfterWriteAction could execute on another thread
+        volatile boolean finishedAsyncActions;
+        volatile Exception asyncActionFailure;
+        volatile ActionListener<Response> listener = null;
 
         public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
                                   @Nullable Location location, @Nullable Exception operationFailure,
@@ -152,16 +154,17 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public synchronized void respond(ActionListener<Response> listener) {
+        public synchronized void respond(ActionListener listener) {
             this.listener = listener;
-            respondIfPossible(null);
+            respondIfPossible();
         }
 
         /**
          * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
          */
-        protected void respondIfPossible(Exception ex) {
+        protected void respondIfPossible() {
             if (finishedAsyncActions && listener != null) {
+                Exception ex = asyncActionFailure;
                 if (ex == null) {
                     super.respond(listener);
                 } else {
@@ -171,26 +174,30 @@ public abstract class TransportWriteAction<
         }
 
         public synchronized void onFailure(Exception exception) {
+            asyncActionFailure = exception;
             finishedAsyncActions = true;
-            respondIfPossible(exception);
+            respondIfPossible();
         }
 
         @Override
         public synchronized void onSuccess(boolean forcedRefresh) {
             finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
             finishedAsyncActions = true;
-            respondIfPossible(null);
+            respondIfPossible();
         }
     }
 
     /**
      * Result of taking the action on the replica.
      */
-    protected static class WriteReplicaResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>>
+    public static class WriteReplicaResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>>
             extends ReplicaResult implements RespondingWriteResult {
         public final Location location;
-        boolean finishedAsyncActions;
-        private ActionListener<TransportResponse.Empty> listener;
+        // as AsyncAfterWriteAction could execute on another thread
+        private volatile boolean finishedAsyncActions;
+        private volatile Exception asyncActionFailure;
+        private volatile ActionListener<TransportResponse.Empty> listener;
+
 
         public WriteReplicaResult(ReplicaRequest request, @Nullable Location location,
                                   @Nullable Exception operationFailure, IndexShard replica, Logger logger) {
@@ -206,14 +213,15 @@ public abstract class TransportWriteAction<
         @Override
         public void respond(ActionListener<TransportResponse.Empty> listener) {
             this.listener = listener;
-            respondIfPossible(null);
+            respondIfPossible();
         }
 
         /**
          * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
          */
-        protected void respondIfPossible(Exception ex) {
+        protected void respondIfPossible() {
             if (finishedAsyncActions && listener != null) {
+                Exception ex = asyncActionFailure;
                 if (ex == null) {
                     super.respond(listener);
                 } else {
@@ -223,15 +231,16 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void onFailure(Exception ex) {
+        public synchronized void onFailure(Exception ex) {
+            asyncActionFailure = ex;
             finishedAsyncActions = true;
-            respondIfPossible(ex);
+            respondIfPossible();
         }
 
         @Override
         public synchronized void onSuccess(boolean forcedRefresh) {
             finishedAsyncActions = true;
-            respondIfPossible(null);
+            respondIfPossible();
         }
     }
 

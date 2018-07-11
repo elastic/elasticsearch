@@ -68,8 +68,6 @@ public class RestoreModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         openJob(job.getId());
         String forecastId = forecast(job.getId(), TimeValue.timeValueHours(3), null);
         waitForecastToFinish(job.getId(), forecastId);
-        ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastId);
-        assertThat(forecastStats.getStatus(), equalTo(ForecastRequestStats.ForecastRequestStatus.FINISHED));
 
         closeJob(job.getId());
 

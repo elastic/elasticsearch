@@ -169,7 +169,9 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
         void remove(BytesRef uid, DeleteVersionValue deleted) {
             VersionValue previousValue = current.remove(uid);
-            current.updateMinDeletedTimestamp(deleted);
+            if (deleted != null) {
+                current.updateMinDeletedTimestamp(deleted);
+            }
             if (previousValue != null) {
                 long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
                 adjustRam(-(BASE_BYTES_PER_CHM_ENTRY + previousValue.ramBytesUsed() + uidRAMBytesUsed));
@@ -360,7 +362,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     /**
      * Removes this uid from the pending deletes map.
      */
-    void removeTombstoneUnderLock(BytesRef uid) {
+    boolean removeTombstoneUnderLock(BytesRef uid) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
         final VersionValue prev = tombstones.remove(uid);
@@ -368,6 +370,17 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             assert prev.isDelete();
             long v = ramBytesUsedTombstones.addAndGet(-(BASE_BYTES_PER_CHM_ENTRY + prev.ramBytesUsed() + uidRAMBytesUsed));
             assert v >= 0 : "bytes=" + v;
+        }
+        return prev != null;
+    }
+
+    /**
+     * Removes this uid from the current version map and the pending deletes map.
+     */
+    void removeIndexAndDeleteUnderLock(BytesRef uid) {
+        assert assertKeyedLockHeldByCurrentThread(uid);
+        if (removeTombstoneUnderLock(uid) == false) {
+            maps.remove(uid, null);
         }
     }
 

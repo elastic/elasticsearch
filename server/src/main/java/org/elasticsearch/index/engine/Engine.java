@@ -1652,17 +1652,11 @@ public abstract class Engine implements Closeable {
      */
     public abstract void maybePruneDeletes();
 
-    /** A service supports replacing the existing operations with new operations */
-    public interface Rollbacker extends Closeable {
-        /**
-         * Undo the existing operation in the current engine if exists; then replace that operation with the new operation.
-         * @param newOp the new operation
-         * @return the result may be null if the existing operation matches the new operation;
-         *         otherwise this method returns the result of applying the new operation.
-         */
-        Engine.Result rollback(Engine.Operation newOp) throws IOException;
-    }
-
-    /** Creates a new rollback instance from the current engine. The caller has to release this instance after finishing its usage */
-    public abstract Rollbacker newRollbackInstance(MapperService mapperService) throws IOException;
+    /**
+     * Try to undo the colliding operation (whose seqno equals to the newOp's) in this engine.
+     * If the colliding operation matches the newOp, this method won't undo the existing operation and return false.
+     *
+     * @return {@code true} if there is a difference between the colliding operation and the new operation
+     */
+    public abstract boolean maybeRollback(MapperService mapperService, Engine.Operation newOp) throws IOException;
 }

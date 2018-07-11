@@ -40,6 +40,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
@@ -101,8 +102,8 @@ public class Lucene {
     }
 
     public static final String SOFT_DELETE_FIELD = "__soft_delete";
-    // We can't use hard-deletes with soft-deletes together because we can't exclude hard-deletes from liveDocs
-    // when reading history from Lucene. We use this bitset to exclude rolled_back documents from liveDocs.
+    // We can't use hard-deletes with soft-deletes together because we can't exclude documents that hard-deleted and soft-deleted
+    // from liveDocs. We use this numeric docValues to exclude rolled back documents from liveDocs.
     public static final String ROLLED_BACK_FIELD = "__rolled_back";
 
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
@@ -914,5 +915,17 @@ public class Lucene {
         public CacheHelper getReaderCacheHelper() {
             return null; // Modifying liveDocs
         }
+    }
+
+    /** A shortcut allows reading numeric docValues once. The docId must have value in the acessing DV */
+    public static long readNumericDV(LeafReader leafReader, String field, int docId) throws IOException {
+        NumericDocValues dv = leafReader.getNumericDocValues(field);
+        if (dv == null) {
+            throw new IllegalStateException("missing dv [" + field + "]");
+        }
+        if (dv.advanceExact(docId) == false) {
+            throw new IllegalStateException("doc [" + docId + "] does not exist in [" + field + "] docValues");
+        }
+        return dv.longValue();
     }
 }

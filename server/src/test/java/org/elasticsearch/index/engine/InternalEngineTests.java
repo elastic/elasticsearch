@@ -5012,12 +5012,12 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testRollbackConvergeHistory() throws Exception {
+    public void testMaybeRollback() throws Exception {
         IOUtils.close(engine, store);
         threadPool = spy(threadPool);
         AtomicLong clockTime = new AtomicLong();
         when(threadPool.relativeTimeInMillis()).thenAnswer(i -> clockTime.incrementAndGet());
-        List<Engine.Operation> primaryOps = new ArrayList<>();
+        List<Engine.Operation> newPrimaryOps = new ArrayList<>();
         List<Engine.Operation> replicaOps = new ArrayList<>();
         List<Engine.Operation> resyncOps = new ArrayList<>();
         int numOps = scaledRandomIntBetween(1, 500);
@@ -5025,6 +5025,7 @@ public class InternalEngineTests extends EngineTestCase {
         long oldTerm = between(1, 10);
         long newTerm = oldTerm + between(1, 10);
         long startRollbackSeqNo = between(0, numOps - 1);
+        int numOpsToRollback = 0;
         for (int i = 0; i < numOps; i++) {
             // create a hole in seqno to prevent the local checkpoint from advancing
             if (i > startRollbackSeqNo && rarely()) {
@@ -5048,23 +5049,25 @@ public class InternalEngineTests extends EngineTestCase {
             Engine.Operation.TYPE primaryOpType = randomFrom(Engine.Operation.TYPE.values());
             if (seqNo <= startRollbackSeqNo) {
                 replicaOps.add(nextOp.apply(primaryOpType, oldTerm));
-                primaryOps.add(nextOp.apply(primaryOpType, oldTerm));
+                newPrimaryOps.add(nextOp.apply(primaryOpType, oldTerm));
             } else {
                 boolean notArrivedYetOnReplica = randomBoolean();
                 if (notArrivedYetOnReplica) {
                     long term = randomFrom(oldTerm, newTerm);
                     resyncOps.add(nextOp.apply(primaryOpType, term));
-                    primaryOps.add(nextOp.apply(primaryOpType, term));
+                    newPrimaryOps.add(nextOp.apply(primaryOpType, term));
+                    numOpsToRollback++;
                 } else {
                     boolean rollbackWithSameOp = randomBoolean();
                     if (rollbackWithSameOp) {
-                        primaryOps.add(nextOp.apply(primaryOpType, oldTerm));
+                        newPrimaryOps.add(nextOp.apply(primaryOpType, oldTerm));
                         resyncOps.add(nextOp.apply(primaryOpType, oldTerm));
                         replicaOps.add(nextOp.apply(primaryOpType, oldTerm));
                     } else {
-                        primaryOps.add(nextOp.apply(primaryOpType, newTerm));
+                        newPrimaryOps.add(nextOp.apply(primaryOpType, newTerm));
                         resyncOps.add(nextOp.apply(primaryOpType, newTerm));
                         replicaOps.add(nextOp.apply(randomFrom(Engine.Operation.TYPE.values()), oldTerm));
+                        numOpsToRollback++;
                     }
                 }
             }
@@ -5087,32 +5090,36 @@ public class InternalEngineTests extends EngineTestCase {
                 return super.tryUpdateDocValue(readerIn, docID, fields);
             }
         };
-        Randomness.shuffle(primaryOps);
+        Randomness.shuffle(newPrimaryOps);
         Randomness.shuffle(replicaOps);
         Randomness.shuffle(resyncOps);
         MapperService mapperService = createMapperService("test");
 
-        try (Store primaryStore = createStore();
-             InternalEngine primaryEngine = createEngine(indexSettings, primaryStore, createTempDir(), newMergePolicy());
+        try (Store newPrimaryStore = createStore();
+             InternalEngine newPrimaryEngine = createEngine(indexSettings, newPrimaryStore, createTempDir(), newMergePolicy());
              Store replicaStore = createStore();
              InternalEngine replicaEngine = createEngine(indexSettings, replicaStore, createTempDir(), newMergePolicy(), iwf)) {
-            applyOperations(primaryOps, primaryEngine);
+            applyOperations(newPrimaryOps, newPrimaryEngine);
             applyOperations(replicaOps, replicaEngine);
             replicaEngine.getLocalCheckpointTracker().resetCheckpoint(startRollbackSeqNo);
             replicaEngine.rollTranslogGeneration();
             replicaEngine.refresh("test");
-            try (Engine.Rollbacker rollbacker = replicaEngine.newRollbackInstance(mapperService)) {
-                for (Engine.Operation op : resyncOps) {
-                    rollbacker.rollback(op);
-                    assertThat(engine.getVersionMapSize(), equalTo(0));
+            // Rollback
+            int rolledBackCount = 0;
+            for (Engine.Operation resyncOp : resyncOps) {
+                if (replicaEngine.maybeRollback(mapperService, resyncOp)) {
+                    rolledBackCount++;
+                    applyOperations(Collections.singletonList(resyncOp), replicaEngine);
+                    replicaEngine.refresh("test", Engine.SearcherScope.INTERNAL);
                 }
             }
-            assertThat(replicaEngine.getLocalCheckpoint(), equalTo(primaryEngine.getLocalCheckpoint()));
-            primaryEngine.refresh("test");
+            assertThat(rolledBackCount, equalTo(numOpsToRollback));
+            assertThat(replicaEngine.getLocalCheckpoint(), equalTo(newPrimaryEngine.getLocalCheckpoint()));
+            newPrimaryEngine.refresh("test");
             replicaEngine.refresh("test");
-            assertSameLuceneHistory(primaryEngine, replicaEngine);
+            assertSameLuceneHistory(newPrimaryEngine, replicaEngine);
             assertDeleteTombstoneRequirements(replicaEngine);
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(primaryEngine, mapperService);
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(newPrimaryEngine, mapperService);
         }
     }
 

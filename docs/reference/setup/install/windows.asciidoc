@@ -384,16 +384,16 @@ with Command Prompt:
 
 [source,sh]
 --------------------------------------------
-sc.exe stop {es}
-sc.exe start {es}
+sc.exe stop Elasticsearch
+sc.exe start Elasticsearch
 --------------------------------------------
 
 with PowerShell:
 
 [source,powershell]
 --------------------------------------------
-Get-Service {es} | Stop-Service
-Get-Service {es} | Start-Service
+Get-Service Elasticsearch | Stop-Service
+Get-Service Elasticsearch | Start-Service
 --------------------------------------------
 
 Changes can be made to `jvm.options` and `elasticsearch.yml` configuration files to configure the

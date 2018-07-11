@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.cluster.ClusterName;
@@ -48,7 +47,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-@Seed("BB1473C5C751C4FB")
 public class ScriptServiceTests extends ESTestCase {
 
     private ScriptEngine scriptEngine;

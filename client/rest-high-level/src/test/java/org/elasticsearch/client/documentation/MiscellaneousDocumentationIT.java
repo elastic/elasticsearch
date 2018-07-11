@@ -142,8 +142,8 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
             //end::x-pack-info-execute
 
             //tag::x-pack-usage-response
-            Map<String, Map<String, Object>> usages = response.getUsages();         // <1>
-            Map<String, Object> monitoringUsage = usages.get("monitoring");         // <2>
+            Map<String, Map<String, Object>> usages = response.getUsages();
+            Map<String, Object> monitoringUsage = usages.get("monitoring");
             assertThat(monitoringUsage.get("available"), is(true));
             assertThat(monitoringUsage.get("enabled"), is(true));
             assertThat(monitoringUsage.get("collection_enabled"), is(false));

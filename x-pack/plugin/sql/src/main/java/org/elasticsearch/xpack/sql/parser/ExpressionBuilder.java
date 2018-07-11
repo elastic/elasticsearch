@@ -236,7 +236,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         char escape = 0;
         PatternEscapeContext escapeCtx = ctx.patternEscape();
-        String escapeString = string(escapeCtx != null ? escapeCtx.escape : null);
+        String escapeString = escapeCtx == null ? null : string(escapeCtx.escape);
 
         if (Strings.hasText(escapeString)) {
             // shouldn't happen but adding validation in case the string parsing gets wonky

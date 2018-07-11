@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -40,16 +41,19 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     private Version version;
     private ClusterName clusterName;
     private String clusterUuid;
+    private String clusterDynamicName;
     private Build build;
 
     MainResponse() {
     }
 
-    public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build) {
+    public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid,
+                        String clusterDynamicName, Build build) {
         this.nodeName = nodeName;
         this.version = version;
         this.clusterName = clusterName;
         this.clusterUuid = clusterUuid;
+        this.clusterDynamicName = clusterDynamicName;
         this.build = build;
     }
 
@@ -69,6 +73,8 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         return clusterUuid;
     }
 
+    public String getClusterDynamicName() { return clusterDynamicName; }
+
     public Build getBuild() {
         return build;
     }
@@ -84,6 +90,9 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
             out.writeBoolean(true);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeString(clusterDynamicName);
+        }
     }
 
     @Override
@@ -97,7 +106,10 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
             in.readBoolean();
         }
-    }
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                clusterDynamicName = in.readString();
+            }
+        }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -105,6 +117,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("name", nodeName);
         builder.field("cluster_name", clusterName.value());
         builder.field("cluster_uuid", clusterUuid);
+        builder.field("cluster_dynamic_name", clusterDynamicName);
         builder.startObject("version")
             .field("number", version.toString())
             .field("build_flavor", build.flavor().displayName())
@@ -128,6 +141,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         PARSER.declareString((response, value) -> response.nodeName = value, new ParseField("name"));
         PARSER.declareString((response, value) -> response.clusterName = new ClusterName(value), new ParseField("cluster_name"));
         PARSER.declareString((response, value) -> response.clusterUuid = value, new ParseField("cluster_uuid"));
+        PARSER.declareString((response, value) -> response.clusterDynamicName = value, new ParseField("cluster_dynamic_name"));
         PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
         PARSER.declareObject((response, value) -> {
             final String buildFlavor = (String) value.get("build_flavor");
@@ -149,22 +163,23 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        MainResponse other = (MainResponse) o;
-        return Objects.equals(nodeName, other.nodeName) &&
-                Objects.equals(version, other.version) &&
-                Objects.equals(clusterUuid, other.clusterUuid) &&
-                Objects.equals(build, other.build) &&
-                Objects.equals(clusterName, other.clusterName);
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MainResponse that = (MainResponse) o;
+        return Objects.equals(nodeName, that.nodeName) &&
+            Objects.equals(version, that.version) &&
+            Objects.equals(clusterName, that.clusterName) &&
+            Objects.equals(clusterUuid, that.clusterUuid) &&
+            Objects.equals(clusterDynamicName, that.clusterDynamicName) &&
+            Objects.equals(build, that.build);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeName, version, clusterUuid, build, clusterName);
+        return Objects.hash(nodeName, version, clusterName, clusterUuid, clusterDynamicName, build);
+    }
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

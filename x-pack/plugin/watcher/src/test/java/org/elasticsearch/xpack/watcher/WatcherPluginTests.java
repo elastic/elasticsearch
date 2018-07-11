@@ -129,7 +129,7 @@ public class WatcherPluginTests extends ESTestCase {
 
     private class TestWatcher extends Watcher {
 
-        public TestWatcher(Settings settings, NotificationService service) {
+        TestWatcher(Settings settings, NotificationService service) {
             super(settings);
             reloadableServices.add(service);
         }

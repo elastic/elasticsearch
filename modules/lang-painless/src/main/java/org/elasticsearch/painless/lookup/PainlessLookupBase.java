@@ -113,6 +113,10 @@ public class PainlessLookupBase {
         return methodName + "/" + methodArity;
     }
 
+    public static String buildPainlessFieldKey(String fieldName) {
+        return fieldName;
+    }
+
     public static final String DEF_PAINLESS_CLASS_NAME = def.class.getSimpleName();
     public static final String CONSTRUCTOR_ANY_NAME = "<init>";
 

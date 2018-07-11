@@ -31,11 +31,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.PrimitiveIterator;
+import java.util.Set;
 import java.util.Spliterator;
+import java.util.Stack;
 import java.util.regex.Pattern;
 
 public final class PainlessLookupBuilder extends PainlessLookupBase {
@@ -678,6 +681,7 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         }
 
         String anyTypeNameField = painlessTypeField.getCanonicalName();
+        String painlessFieldKey = buildPainlessFieldKey(fieldName);
         String painlessTypeNameField = anyTypeNameToPainlessTypeName(anyTypeNameField);
 
         if (javaField.getType() != painlessDefTypeToJavaObjectType(painlessTypeField)) {
@@ -692,7 +696,7 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
                         "static painless field [[" + painlessClassName + "]. [" + fieldName + "]] must be final");
             }
 
-            PainlessField painlessField = painlessClass.staticMembers.get(fieldName);
+            PainlessField painlessField = painlessClass.staticMembers.get(painlessFieldKey);
 
             if (painlessField == null) {
                 painlessField = painlessFieldCache.computeIfAbsent(
@@ -700,7 +704,7 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
                         key -> new PainlessField(fieldName, javaField.getName(), painlessClass,
                                                  painlessTypeField, javaField.getModifiers(), null, null));
 
-                painlessClass.staticMembers.put(fieldName, painlessField);
+                painlessClass.staticMembers.put(painlessFieldKey, painlessField);
             } else if (painlessField.clazz != painlessTypeField) {
                 throw new IllegalArgumentException("illegal duplicate static painless fields [" + fieldName + "] found " +
                         "[[" + painlessClassName + "], [" + fieldName + "], [" + painlessTypeField.getCanonicalName() + "] and " +
@@ -725,11 +729,11 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
                         "method handle setter not found for painless field [[" + painlessClassName + "], [" + fieldName + "]]");
             }
 
-            PainlessField painlessField = painlessClass.members.get(fieldName);
+            PainlessField painlessField = painlessClass.members.get(painlessFieldKey);
 
             if (painlessField == null) {
                 painlessField = painlessFieldCache.computeIfAbsent(
-                        new PainlessFieldCacheKey(javaClass, fieldName, painlessTypeField),
+                        new PainlessFieldCacheKey(javaClass, painlessFieldKey, painlessTypeField),
                         key -> new PainlessField(fieldName, javaField.getName(), painlessClass,
                                                  painlessTypeField, javaField.getModifiers(), methodHandleGetter, methodHandleSetter));
 
@@ -806,83 +810,63 @@ public final class PainlessLookupBuilder extends PainlessLookupBase {
         }
     }
 
-    private void copyChildClassesMembersToParentClasses() {
-        for (Class<?> parentJavaClass : javaClassesToPainlessClasses.keySet()) {
+    private void copyPainlessClassesMembers() {
+        Set<Class<?>> copiedJavaClasses = new HashSet<>();
 
-            List<String> painlessSuperStructs = new ArrayList<>();
-            Class<?> javaSuperClass = painlessStruct.clazz.getSuperclass();
+        for (Class<?> targetJavaClass : javaClassesToPainlessClasses.keySet()) {
 
-            Stack<Class<?>> javaInteraceLookups = new Stack<>();
-            javaInteraceLookups.push(painlessStruct.clazz);
+        }
+    }
 
-            // adds super classes to the inheritance list
-            if (javaSuperClass != null && javaSuperClass.isInterface() == false) {
-                while (javaSuperClass != null) {
-                    PainlessClass painlessSuperStruct = javaClassesToPainlessStructs.get(javaSuperClass);
+    private void copyPainlessClassMembers(Class<?> targetJavaClass, Set<Class<?>> copiedJavaClasses) {
+        if (targetJavaClass == null || copiedJavaClasses.contains(targetJavaClass)) {
+            return;
+        }
 
-                    if (painlessSuperStruct != null) {
-                        painlessSuperStructs.add(painlessSuperStruct.name);
-                    }
+        Class<?> originalJavaClass = targetJavaClass.getSuperclass();
+        copyPainlessClassMembers(originalJavaClass, copiedJavaClasses);
+        copyPainlessInterfaceMembers(originalJavaClass, copiedJavaClasses);
+        copiedJavaClasses.add(originalJavaClass);
 
-                    javaInteraceLookups.push(javaSuperClass);
-                    javaSuperClass = javaSuperClass.getSuperclass();
-                }
-            }
+        if (javaClassesToPainlessClasses.containsKey(originalJavaClass)) {
+            copyChildClassMembersToParentClass(originalJavaClass, targetJavaClass);
+        }
+    }
 
-            // adds all super interfaces to the inheritance list
-            while (javaInteraceLookups.isEmpty() == false) {
-                Class<?> javaInterfaceLookup = javaInteraceLookups.pop();
+    private void copyPainlessInterfaceMembers(Class<?> targetJavaClass, Set<Class<?>> copiedJavaClasses) {
+        if (copiedJavaClasses.contains(targetJavaClass)) {
+            return;
+        }
 
-                for (Class<?> javaSuperInterface : javaInterfaceLookup.getInterfaces()) {
-                    PainlessClass painlessInterfaceStruct = javaClassesToPainlessStructs.get(javaSuperInterface);
+        for (Class<?> originalJavaClass : targetJavaClass.getInterfaces()) {
+            copyPainlessInterfaceMembers(originalJavaClass, copiedJavaClasses);
+            copiedJavaClasses.add(originalJavaClass);
 
-                    if (painlessInterfaceStruct != null) {
-                        String painlessInterfaceStructName = painlessInterfaceStruct.name;
-
-                        if (painlessSuperStructs.contains(painlessInterfaceStructName) == false) {
-                            painlessSuperStructs.add(painlessInterfaceStructName);
-                        }
-
-                        for (Class<?> javaPushInterface : javaInterfaceLookup.getInterfaces()) {
-                            javaInteraceLookups.push(javaPushInterface);
-                        }
-                    }
-                }
-            }
-
-            // copies methods and fields from super structs to the parent struct
-            copyStruct(painlessStruct.name, painlessSuperStructs);
-
-            // copies methods and fields from Object into interface types
-            if (painlessStruct.clazz.isInterface() || (def.class.getSimpleName()).equals(painlessStruct.name)) {
-                PainlessClass painlessObjectStruct = javaClassesToPainlessStructs.get(Object.class);
-
-                if (painlessObjectStruct != null) {
-                    copyStruct(painlessStruct.name, Collections.singletonList(painlessObjectStruct.name));
-                }
+            if (javaClassesToPainlessClasses.containsKey(originalJavaClass)) {
+                copyChildClassMembersToParentClass(originalJavaClass, targetJavaClass);
             }
         }
     }
 
-    private void copyChildClassMembersToParentClass(Class<?> parentJavaClass, Class<?> childJavaClass) {
-        PainlessClass parentPainlessClass = javaClassesToPainlessClasses.get(parentJavaClass);
-        PainlessClass childPainlessClass  = javaClassesToPainlessClasses.get(childJavaClass);
+    private void copyChildClassMembersToParentClass(Class<?> originalJavaClass, Class<?> targetJavaClass) {
+        PainlessClass originalPainlessClass = javaClassesToPainlessClasses.get(originalJavaClass);
+        PainlessClass targetPainlessClass = javaClassesToPainlessClasses.get(targetJavaClass);
 
-        Objects.requireNonNull(parentPainlessClass);
-        Objects.requireNonNull(childPainlessClass);
+        Objects.requireNonNull(originalPainlessClass);
+        Objects.requireNonNull(targetPainlessClass);
 
-        for (Map.Entry<String, PainlessMethod> painlessMethodEntry : childPainlessClass.methods.entrySet()) {
+        for (Map.Entry<String, PainlessMethod> painlessMethodEntry : originalPainlessClass.methods.entrySet()) {
             String painlessMethodKey = painlessMethodEntry.getKey();
             PainlessMethod painlessMethod = painlessMethodEntry.getValue();
 
-            parentPainlessClass.methods.putIfAbsent(painlessMethodKey, painlessMethod)
+            targetPainlessClass.methods.putIfAbsent(painlessMethodKey, painlessMethod);
         }
 
-        for (PainlessField field : childPainlessClass.members.values()) {
-            if (owner.members.get(field.name) == null) {
-                owner.members.put(field.name,
-                    new PainlessField(field.name, field.javaName, owner, field.clazz, field.modifiers, field.getter, field.setter));
-            }
+        for (Map.Entry<String, PainlessField> painlessFieldEntry : originalPainlessClass.members.entrySet()) {
+            String painlessFieldKey = painlessFieldEntry.getKey();
+            PainlessField painlessField = painlessFieldEntry.getValue();
+
+            targetPainlessClass.members.putIfAbsent(painlessFieldKey, painlessField);
         }
     }
 

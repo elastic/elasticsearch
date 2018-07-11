@@ -110,7 +110,7 @@ public class SSLServiceTests extends ESTestCase {
                 .setSecureSettings(secureCustomSettings)
                 .build();
 
-        SSLConfiguration configuration = sslService.sslConfiguration(customTruststoreSettings, Settings.EMPTY);
+        SSLConfiguration configuration =  new SSLConfiguration(customTruststoreSettings, globalConfiguration(sslService));
         SSLEngine sslEngineWithTruststore = sslService.createSSLEngine(configuration, null, -1);
         assertThat(sslEngineWithTruststore, is(not(nullValue())));
 
@@ -170,7 +170,7 @@ public class SSLServiceTests extends ESTestCase {
                     .setSecureSettings(secureSettings)
                     .build();
             final SSLService sslService = new SSLService(settings, env);
-            SSLConfiguration configuration = sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
+            SSLConfiguration configuration = globalConfiguration(sslService);
             sslService.createSSLEngine(configuration, null, -1);
             fail("expected an exception");
         } catch (ElasticsearchException e) {
@@ -187,7 +187,7 @@ public class SSLServiceTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);
-        SSLConfiguration configuration = sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
+        SSLConfiguration configuration = globalConfiguration(sslService);
         SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
         assertThat(Arrays.asList(engine.getEnabledProtocols()), not(hasItem("SSLv3")));
     }
@@ -246,9 +246,6 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
                 .build();
         sslService = new SSLService(settings, env);
-        assertFalse(sslService.isConfigurationValidForServerUsage(globalConfiguration(sslService)));
-        assertTrue(sslService.isConfigurationValidForServerUsage(sslService.sslConfiguration(
-                settings.getByPrefix("xpack.security.transport.ssl."))));
         assertFalse(sslService.isConfigurationValidForServerUsage(globalConfiguration(sslService)));
         assertTrue(sslService.isConfigurationValidForServerUsage(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
     }
@@ -711,14 +708,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     private static SSLConfiguration globalConfiguration(SSLService sslService) {
-        if (randomBoolean()) {
-            return sslService.getSSLConfiguration("xpack.ssl");
-        }
-        if (randomBoolean()) {
-            return sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
-        } else {
-            return sslService.sslConfiguration(Settings.EMPTY);
-        }
+        return sslService.getSSLConfiguration("xpack.ssl");
     }
 
     class AssertionCallback implements FutureCallback<HttpResponse> {

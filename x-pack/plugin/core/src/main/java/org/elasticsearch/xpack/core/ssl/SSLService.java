@@ -291,29 +291,12 @@ public class SSLService extends AbstractComponent {
         return new SSLConfiguration(settings, globalSSLConfiguration);
     }
 
-    /**
-     * Returns the existing {@link SSLConfiguration} for the given settings and applies the provided fallback settings instead of the global
-     * configuration
-     * @param settings the settings for the ssl configuration
-     * @param fallbackSettings the settings that should be used for the fallback of the SSLConfiguration. Using {@link Settings#EMPTY}
-     *                         results in a fallback to the global configuration
-     * @return the ssl configuration for the provided settings. If the settings are empty, the global configuration is returned
-     */
-    public SSLConfiguration sslConfiguration(Settings settings, Settings fallbackSettings) {
-        if (settings.isEmpty() && fallbackSettings.isEmpty()) {
-            return globalSSLConfiguration;
-        }
-        SSLConfiguration fallback = sslConfiguration(fallbackSettings);
-        return new SSLConfiguration(settings, fallback);
-    }
-
     public Set<String> getTransportProfileContextNames() {
         return Collections.unmodifiableSet(this.sslConfigurations
             .keySet().stream()
             .filter(k -> k.startsWith("transport.profiles."))
             .collect(Collectors.toSet()));
     }
-
 
     /**
      * Accessor to the loaded ssl configuration objects at the current point in time. This is useful for testing

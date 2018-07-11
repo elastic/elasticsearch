@@ -160,7 +160,7 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
     @SuppressForbidden(reason = "Need to open socket connection")
     public void testRenegotiation() throws Exception {
         SSLService sslService = createSSLService();
-        final SSLConfiguration sslConfiguration = sslService.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
         SocketFactory factory = sslService.sslSocketFactory(sslConfiguration);
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
             SocketAccess.doPrivileged(() -> socket.connect(serviceA.boundAddress().publishAddress().address()));

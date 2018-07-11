@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySe
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
 
 import javax.net.SocketFactory;
 

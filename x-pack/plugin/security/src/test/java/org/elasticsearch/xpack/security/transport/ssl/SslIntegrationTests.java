@@ -122,7 +122,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
         CredentialsProvider provider = new BasicCredentialsProvider();
         provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(),
                 new String(nodeClientPassword().getChars())));
-        SSLConfiguration sslConfiguration = service.sslConfiguration(Settings.EMPTY, Settings.EMPTY);
+        SSLConfiguration sslConfiguration = service.getSSLConfiguration("xpack.ssl");
         try (CloseableHttpClient client = HttpClients.custom()
                 .setSSLSocketFactory(new SSLConnectionSocketFactory(service.sslSocketFactory(sslConfiguration),
                         SSLConnectionSocketFactory.getDefaultHostnameVerifier()))

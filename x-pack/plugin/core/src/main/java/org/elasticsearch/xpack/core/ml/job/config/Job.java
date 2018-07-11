@@ -223,7 +223,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             jobVersion = null;
         }
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            groups = in.readList(StreamInput::readString);
+            groups = Collections.unmodifiableList(in.readList(StreamInput::readString));
         } else {
             groups = Collections.emptyList();
         }
@@ -244,7 +244,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         backgroundPersistInterval = in.readOptionalTimeValue();
         modelSnapshotRetentionDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
-        customSettings = in.readMap();
+        Map<String, Object> readCustomSettings = in.readMap();
+        customSettings = readCustomSettings == null ? null : Collections.unmodifiableMap(readCustomSettings);
         modelSnapshotId = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1) && in.readBoolean()) {
             modelSnapshotMinVersion = Version.readVersion(in);

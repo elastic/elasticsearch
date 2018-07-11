@@ -157,7 +157,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public AnalysisConfig(StreamInput in) throws IOException {
         bucketSpan = in.readTimeValue();
         categorizationFieldName = in.readOptionalString();
-        categorizationFilters = in.readBoolean() ? in.readList(StreamInput::readString) : null;
+        categorizationFilters = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
         } else {
@@ -165,8 +165,8 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         }
         latency = in.readOptionalTimeValue();
         summaryCountFieldName = in.readOptionalString();
-        detectors = in.readList(Detector::new);
-        influencers = in.readList(StreamInput::readString);
+        detectors = Collections.unmodifiableList(in.readList(Detector::new));
+        influencers = Collections.unmodifiableList(in.readList(StreamInput::readString));
         overlappingBuckets = in.readOptionalBoolean();
         resultFinalizationWindow = in.readOptionalLong();
         multivariateByFields = in.readOptionalBoolean();
@@ -176,7 +176,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             for (int i = 0; i < arraySize; i++) {
                 spans.add(in.readTimeValue());
             }
-            multipleBucketSpans = spans;
+            multipleBucketSpans = Collections.unmodifiableList(spans);
         } else {
             multipleBucketSpans = null;
         }

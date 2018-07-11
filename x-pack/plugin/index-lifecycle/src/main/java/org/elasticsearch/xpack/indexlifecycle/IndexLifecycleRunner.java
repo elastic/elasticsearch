@@ -9,7 +9,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -28,6 +27,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
+import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.LongSupplier;
 
 public class IndexLifecycleRunner {
@@ -286,6 +287,8 @@ public class IndexLifecycleRunner {
 
     public static ClusterState setPolicyForIndexes(final String newPolicyName, final Index[] indices, ClusterState currentState,
             LifecyclePolicy newPolicy, List<String> failedIndexes) {
+        Map<String, LifecyclePolicy> policiesMap = ((IndexLifecycleMetadata) currentState.metaData().custom(IndexLifecycleMetadata.TYPE))
+                .getPolicies();
         MetaData.Builder newMetadata = MetaData.builder(currentState.getMetaData());
         boolean clusterStateChanged = false;
         for (Index index : indices) {
@@ -294,8 +297,8 @@ public class IndexLifecycleRunner {
                 // Index doesn't exist so fail it
                 failedIndexes.add(index.getName());
             } else {
-                IndexMetaData.Builder newIdxMetadata = IndexLifecycleRunner.setPolicyForIndex(newPolicyName, newPolicy, failedIndexes,
-                        index, indexMetadata);
+                IndexMetaData.Builder newIdxMetadata = IndexLifecycleRunner.setPolicyForIndex(newPolicyName, newPolicy, policiesMap,
+                        failedIndexes, index, indexMetadata);
                 if (newIdxMetadata != null) {
                     newMetadata.put(newIdxMetadata);
                     clusterStateChanged = true;
@@ -312,12 +315,15 @@ public class IndexLifecycleRunner {
     }
 
     private static IndexMetaData.Builder setPolicyForIndex(final String newPolicyName, LifecyclePolicy newPolicy,
-            List<String> failedIndexes,
-            Index index, IndexMetaData indexMetadata) {
+            Map<String, LifecyclePolicy> policiesMap, List<String> failedIndexes, Index index, IndexMetaData indexMetadata) {
         Settings idxSettings = indexMetadata.getSettings();
         Settings.Builder newSettings = Settings.builder().put(idxSettings);
-        String currentPolicy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
+        String currentPolicyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
         StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(idxSettings);
+        LifecyclePolicy currentPolicy = null;
+        if (Strings.hasLength(currentPolicyName)) {
+            currentPolicy = policiesMap.get(currentPolicyName);
+        }
 
         if (canSetPolicy(currentStepKey, currentPolicy, newPolicy)) {
             newSettings.put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), newPolicyName);
@@ -329,14 +335,14 @@ public class IndexLifecycleRunner {
         }
     }
 
-    private static boolean canSetPolicy(StepKey currentStepKey, String currentPolicyName, LifecyclePolicy newPolicy) {
-        if (Strings.hasLength(currentPolicyName)) {
-            if (ShrinkAction.NAME.equals(currentStepKey.getAction())) {
+    private static boolean canSetPolicy(StepKey currentStepKey, LifecyclePolicy currentPolicy, LifecyclePolicy newPolicy) {
+        if (currentPolicy != null) {
+            if (currentPolicy.isActionSafe(currentStepKey)) {
+                return true;
+            } else {
                 // Index is in the shrink action so fail it
                 // NORELEASE also need to check if the shrink action has changed between oldPolicy and newPolicy
                 return false;
-            } else {
-                return true;
             }
         } else {
             // Index not previously managed by ILM so safe to change policy
@@ -360,13 +366,19 @@ public class IndexLifecycleRunner {
      *            the current {@link ClusterState}
      */
     public static boolean canUpdatePolicy(String policyName, LifecyclePolicy newPolicy, ClusterState currentState) {
+        Map<String, LifecyclePolicy> policiesMap = ((IndexLifecycleMetadata) currentState.metaData().custom(IndexLifecycleMetadata.TYPE))
+                .getPolicies();
         for (ObjectCursor<IndexMetaData> cursor : currentState.getMetaData().indices().values()) {
             IndexMetaData idxMetadata = cursor.value;
             Settings idxSettings = idxMetadata.getSettings();
             String currentPolicyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
+            LifecyclePolicy currentPolicy = null;
+            if (Strings.hasLength(currentPolicyName)) {
+                currentPolicy = policiesMap.get(currentPolicyName);
+            }
             if (policyName.equals(currentPolicyName)) {
                 StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(idxSettings);
-                if (canSetPolicy(currentStepKey, policyName, newPolicy) == false) {
+                if (canSetPolicy(currentStepKey, currentPolicy, newPolicy) == false) {
                     return false;
                 }
             }
@@ -375,6 +387,8 @@ public class IndexLifecycleRunner {
     }
 
     public static ClusterState removePolicyForIndexes(final Index[] indices, ClusterState currentState, List<String> failedIndexes) {
+        Map<String, LifecyclePolicy> policiesMap = ((IndexLifecycleMetadata) currentState.metaData().custom(IndexLifecycleMetadata.TYPE))
+                .getPolicies();
         MetaData.Builder newMetadata = MetaData.builder(currentState.getMetaData());
         boolean clusterStateChanged = false;
         for (Index index : indices) {
@@ -383,7 +397,8 @@ public class IndexLifecycleRunner {
                 // Index doesn't exist so fail it
                 failedIndexes.add(index.getName());
             } else {
-                IndexMetaData.Builder newIdxMetadata = IndexLifecycleRunner.removePolicyForIndex(index, indexMetadata, failedIndexes);
+                IndexMetaData.Builder newIdxMetadata = IndexLifecycleRunner.removePolicyForIndex(index, indexMetadata, policiesMap,
+                        failedIndexes);
                 if (newIdxMetadata != null) {
                     newMetadata.put(newIdxMetadata);
                     clusterStateChanged = true;
@@ -399,11 +414,16 @@ public class IndexLifecycleRunner {
         }
     }
 
-    private static IndexMetaData.Builder removePolicyForIndex(Index index, IndexMetaData indexMetadata, List<String> failedIndexes) {
+    private static IndexMetaData.Builder removePolicyForIndex(Index index, IndexMetaData indexMetadata,
+            Map<String, LifecyclePolicy> policiesMap, List<String> failedIndexes) {
         Settings idxSettings = indexMetadata.getSettings();
         Settings.Builder newSettings = Settings.builder().put(idxSettings);
-        String currentPolicy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
+        String currentPolicyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
         StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(idxSettings);
+        LifecyclePolicy currentPolicy = null;
+        if (Strings.hasLength(currentPolicyName)) {
+            currentPolicy = policiesMap.get(currentPolicyName);
+        }
 
         if (canRemovePolicy(currentStepKey, currentPolicy)) {
             newSettings.remove(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey());
@@ -425,11 +445,10 @@ public class IndexLifecycleRunner {
         }
     }
 
-    private static boolean canRemovePolicy(StepKey currentStepKey, String currentPolicyName) {
-        if (Strings.hasLength(currentPolicyName)) {
-            // Can't remove policy if the index is currently in the Shrink
-            // action
-            return ShrinkAction.NAME.equals(currentStepKey.getAction()) == false;
+    private static boolean canRemovePolicy(StepKey currentStepKey, LifecyclePolicy currentPolicy) {
+        if (currentPolicy != null) {
+            // Can't remove policy if the index is currently in an unsafe action
+            return currentPolicy.isActionSafe(currentStepKey);
         } else {
             // Index not previously managed by ILM
             return true;

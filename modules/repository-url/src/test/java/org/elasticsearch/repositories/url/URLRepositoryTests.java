@@ -37,6 +37,15 @@ import static org.hamcrest.CoreMatchers.nullValue;
 
 public class URLRepositoryTests extends ESTestCase {
 
+    private URLRepository createRepository(Settings baseSettings, RepositoryMetaData repositoryMetaData) {
+        return new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
+            new NamedXContentRegistry(Collections.emptyList())) {
+            @Override
+            protected void verificationThreadCheck() {
+            }
+        };
+    }
+
     public void testWhiteListingRepoURL() throws IOException {
         String repoPath = createTempDir().resolve("repository").toUri().toURL().toString();
         Settings baseSettings = Settings.builder()
@@ -45,8 +54,7 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), repoPath)
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
-        final URLRepository repository = new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
-            new NamedXContentRegistry(Collections.emptyList()));
+        final URLRepository repository = createRepository(baseSettings, repositoryMetaData);
         repository.start();
 
         assertThat("blob store has to be lazy initialized", repository.getBlobStore(), is(nullValue()));
@@ -61,8 +69,7 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), repoPath)
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
-        final URLRepository repository = new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
-            new NamedXContentRegistry(Collections.emptyList()));
+        final URLRepository repository = createRepository(baseSettings, repositoryMetaData);
         repository.start();
         try {
             repository.blobContainer();
@@ -84,8 +91,7 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.SUPPORTED_PROTOCOLS_SETTING.getKey(), "http,https")
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
-        final URLRepository repository = new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
-            new NamedXContentRegistry(Collections.emptyList()));
+        final URLRepository repository = createRepository(baseSettings, repositoryMetaData);
         repository.start();
         try {
             repository.blobContainer();
@@ -102,8 +108,7 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), "file:/var/" )
             .build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
-        final URLRepository repository = new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
-            new NamedXContentRegistry(Collections.emptyList()));
+        final URLRepository repository = createRepository(baseSettings, repositoryMetaData);
         repository.start();
         try {
             repository.blobContainer();

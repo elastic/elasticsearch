@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -34,22 +36,23 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         // we use this primary on the operations yet we expect the applied operations to have the primary term of the follower
         final long primaryTerm = randomLongBetween(1, Integer.MAX_VALUE);
 
-        final Translog.Operation[] operations = new Translog.Operation[randomIntBetween(0, 127)];
-        for (int i = 0; i < operations.length; i++) {
+        int numOps = randomIntBetween(0, 127);
+        final List<Translog.Operation> operations = new ArrayList<>(randomIntBetween(0, 127));
+        for (int i = 0; i < numOps; i++) {
             final String id = Integer.toString(i);
             final long seqNo = i;
             final Translog.Operation.Type type =
                     randomValueOtherThan(Translog.Operation.Type.CREATE, () -> randomFrom(Translog.Operation.Type.values()));
             switch (type) {
                 case INDEX:
-                    operations[i] = new Translog.Index("_doc", id, seqNo, primaryTerm, 0, VersionType.INTERNAL, SOURCE, null, -1);
+                    operations.add(new Translog.Index("_doc", id, seqNo, primaryTerm, 0, VersionType.INTERNAL, SOURCE, null, -1));
                     break;
                 case DELETE:
-                    operations[i] =
-                            new Translog.Delete("_doc", id, new Term("_id", Uid.encodeId(id)), seqNo, primaryTerm, 0, VersionType.INTERNAL);
+                    operations.add(
+                        new Translog.Delete("_doc", id, new Term("_id", Uid.encodeId(id)), seqNo, primaryTerm, 0, VersionType.INTERNAL));
                     break;
                 case NO_OP:
-                    operations[i] = new Translog.NoOp(seqNo, primaryTerm, "test");
+                    operations.add(new Translog.NoOp(seqNo, primaryTerm, "test"));
                     break;
                 default:
                     throw new IllegalStateException("unexpected operation type [" + type + "]");
@@ -60,7 +63,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                 TransportBulkShardOperationsAction.shardOperationOnPrimary(followerPrimary.shardId(), operations, followerPrimary, logger);
 
         try (Translog.Snapshot snapshot = followerPrimary.newTranslogSnapshotFromMinSeqNo(0)) {
-            assertThat(snapshot.totalOperations(), equalTo(operations.length));
+            assertThat(snapshot.totalOperations(), equalTo(operations.size()));
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
                 assertThat(operation.primaryTerm(), equalTo(followerPrimary.getPrimaryTerm()));

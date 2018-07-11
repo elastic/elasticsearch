@@ -31,8 +31,7 @@ public class RestCreateAndFollowIndexAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        Request request = new Request();
-        request.setFollowRequest(RestFollowIndexAction.createRequest(restRequest));
+        Request request = new Request(RestFollowIndexAction.createRequest(restRequest));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

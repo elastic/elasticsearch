@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 
 import java.io.IOException;
 
@@ -36,20 +36,9 @@ public class RestFollowIndexAction extends BaseRestHandler {
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
-    static Request createRequest(RestRequest restRequest) {
-        Request request = new Request();
-        request.setLeaderIndex(restRequest.param("leader_index"));
-        request.setFollowIndex(restRequest.param("index"));
-        if (restRequest.hasParam(ShardFollowTask.MAX_CHUNK_SIZE.getPreferredName())) {
-            request.setBatchSize(Long.valueOf(restRequest.param(ShardFollowTask.MAX_CHUNK_SIZE.getPreferredName())));
+    static Request createRequest(RestRequest restRequest) throws IOException {
+        try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
+            return Request.fromXContent(parser, restRequest.param("index"));
         }
-        if (restRequest.hasParam(ShardFollowTask.NUM_CONCURRENT_CHUNKS.getPreferredName())) {
-            request.setConcurrentProcessors(Integer.valueOf(restRequest.param(ShardFollowTask.NUM_CONCURRENT_CHUNKS.getPreferredName())));
-        }
-        if (restRequest.hasParam(ShardFollowTask.PROCESSOR_MAX_TRANSLOG_BYTES_PER_REQUEST.getPreferredName())) {
-            long value = Long.valueOf(restRequest.param(ShardFollowTask.PROCESSOR_MAX_TRANSLOG_BYTES_PER_REQUEST.getPreferredName()));
-            request.setProcessorMaxTranslogBytes(value);
-        }
-        return request;
     }
 }

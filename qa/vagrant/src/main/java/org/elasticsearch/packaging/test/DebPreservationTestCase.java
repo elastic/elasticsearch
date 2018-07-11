@@ -30,7 +30,6 @@ import org.junit.runners.MethodSorters;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
@@ -46,7 +45,6 @@ import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;

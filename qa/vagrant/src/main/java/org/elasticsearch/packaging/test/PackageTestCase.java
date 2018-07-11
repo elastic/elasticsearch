@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;

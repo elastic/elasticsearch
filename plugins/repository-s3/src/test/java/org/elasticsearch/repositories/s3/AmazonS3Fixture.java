@@ -18,6 +18,11 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
 import com.amazonaws.util.DateUtils;
@@ -62,6 +67,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     private final String temporaryKey;
     private final String temporarySessionToken;
     private final String ec2BucketName;
+    private final String ec2ProfileName;
     private final String ec2Key;
     private final String ec2Token;
 
@@ -76,28 +82,45 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         this.temporaryKey = envVar("S3FIXTURE_TEMPORARY_KEY");
         this.temporarySessionToken = envVar("S3FIXTURE_TEMPORARY_SESSION_TOKEN");
         this.ec2BucketName = envVar("S3FIXTURE_EC2_BUCKET_NAME");
+        this.ec2ProfileName = envVar("S3FIXTURE_EC2_PROFILE_NAME");
         this.ec2Key = envVar("S3FIXTURE_EC2_KEY");
         this.ec2Token = envVar("S3FIXTURE_EC2_TOKEN");
 
-        this.buckets.put(permanentBucketName, new Bucket(permanentBucketName));
-        this.buckets.put(temporaryBucketName, new Bucket(temporaryBucketName));
-        this.buckets.put(ec2BucketName, new Bucket(ec2BucketName));
+        for (String bucketName : new String[]{permanentBucketName, temporaryBucketName, ec2BucketName}) {
+            this.buckets.put(bucketName, new Bucket(bucketName));
+        }
         this.handlers = defaultHandlers(buckets);
     }
 
-    private String envVar(String varName) {
+    private static String envVar(String varName) {
         return Objects.requireNonNull(System.getenv(varName), "env variable '" + varName + "' is missing");
+    }
+
+    private static String nonAuthPath(Request request) {
+        return nonAuthPath(request.getMethod(), request.getPath());
+    }
+
+    private static String nonAuthPath(String method, String path) {
+        return NON_AUTH + " " + method + " " + path;
+    }
+
+    private static String authPath(Request request) {
+        return authPath(request.getMethod(), request.getPath());
+    }
+
+    private static String authPath(String method, String path) {
+        return AUTH + " " + method + " " + path;
     }
 
     @Override
     protected Response handle(final Request request) throws IOException {
-        final String nonAuthorizedPath = NON_AUTH + " " + request.getMethod() + " " + request.getPath();
+        final String nonAuthorizedPath = nonAuthPath(request);
         final RequestHandler nonAuthorizedHandler = handlers.retrieve(nonAuthorizedPath, request.getParameters());
         if (nonAuthorizedHandler != null) {
             return nonAuthorizedHandler.handle(request);
         }
 
-        final String authorizedPath = AUTH + " " + request.getMethod() + " " + request.getPath();
+        final String authorizedPath = authPath(request);
         final RequestHandler handler = handlers.retrieve(authorizedPath, request.getParameters());
         if (handler != null) {
             final String authorization = request.getHeader("Authorization");
@@ -154,7 +177,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
 
     public static void main(final String[] args) throws Exception {
         if (args == null || args.length != 1) {
-            throw new IllegalArgumentException("AmazonS3Fixture <basedir");
+            throw new IllegalArgumentException("AmazonS3Fixture <working directory>");
         }
         final AmazonS3Fixture fixture = new AmazonS3Fixture(args[0]);
         fixture.listen();
@@ -167,7 +190,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // HEAD Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectHEAD.html
-        objectsPaths(AUTH + " HEAD /{bucket}").forEach(path ->
+        objectsPaths(authPath(HttpHead.METHOD_NAME, "/{bucket}")).forEach(path ->
             handlers.insert(path, (request) -> {
                 final String bucketName = request.getParam("bucket");
 
@@ -189,7 +212,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // PUT Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPUT.html
-        objectsPaths(AUTH + " PUT /{bucket}").forEach(path ->
+        objectsPaths(authPath(HttpPut.METHOD_NAME, "/{bucket}")).forEach(path ->
             handlers.insert(path, (request) -> {
                 final String destBucketName = request.getParam("bucket");
 
@@ -239,7 +262,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // DELETE Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectDELETE.html
-        objectsPaths(AUTH + " DELETE /{bucket}").forEach(path ->
+        objectsPaths(authPath(HttpDelete.METHOD_NAME, "/{bucket}")).forEach(path ->
             handlers.insert(path, (request) -> {
                 final String bucketName = request.getParam("bucket");
 
@@ -257,7 +280,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // GET Object
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectGET.html
-        objectsPaths(AUTH + " GET /{bucket}").forEach(path ->
+        objectsPaths(authPath(HttpGet.METHOD_NAME, "/{bucket}")).forEach(path ->
             handlers.insert(path, (request) -> {
                 final String bucketName = request.getParam("bucket");
 
@@ -278,7 +301,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // HEAD Bucket
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketHEAD.html
-        handlers.insert(AUTH + " HEAD /{bucket}", (request) -> {
+        handlers.insert(authPath(HttpHead.METHOD_NAME, "/{bucket}"), (request) -> {
             String bucket = request.getParam("bucket");
             if (Strings.hasText(bucket) && buckets.containsKey(bucket)) {
                 return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
@@ -290,7 +313,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // GET Bucket (List Objects) Version 1
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketGET.html
-        handlers.insert(AUTH + " GET /{bucket}/", (request) -> {
+        handlers.insert(authPath(HttpGet.METHOD_NAME, "/{bucket}/"), (request) -> {
             final String bucketName = request.getParam("bucket");
 
             final Bucket bucket = buckets.get(bucketName);
@@ -308,7 +331,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // Delete Multiple Objects
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html
-        handlers.insert(AUTH + " POST /", (request) -> {
+        handlers.insert(authPath(HttpPost.METHOD_NAME, "/"), (request) -> {
             final List<String> deletes = new ArrayList<>();
             final List<String> errors = new ArrayList<>();
 
@@ -352,13 +375,13 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
 
         // non-authorized requests
 
-        TriFunction<String, String, String, Response> credentialResponseFunction = (prefix, key, token) -> {
+        TriFunction<String, String, String, Response> credentialResponseFunction = (profileName, key, token) -> {
             final Date expiration = new Date(new Date().getTime() + TimeUnit.DAYS.toMillis(1));
             final String response = "{"
                  + "\"AccessKeyId\": \"" + key + "\","
                  + "\"Expiration\": \"" + DateUtils.formatISO8601Date(expiration) + "\","
-                 + "\"RoleArn\": \"" + prefix + "_ROLE" + "\","
-                 + "\"SecretAccessKey\": \"" + prefix + "_SCR_KEY" + "\","
+                 + "\"RoleArn\": \"" + profileName + "_ROLE" + "\","
+                 + "\"SecretAccessKey\": \"" + profileName + "_SCR_KEY" + "\","
                  + "\"Token\": \"" + token + "\""
                  + "}";
 
@@ -369,8 +392,8 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // GET
         //
         // http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
-        handlers.insert(NON_AUTH + " GET /latest/meta-data/iam/security-credentials/", (request) -> {
-            final String response = ec2Key;
+        handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/latest/meta-data/iam/security-credentials/"), (request) -> {
+            final String response = ec2ProfileName;
 
             final Map<String, String> headers = new HashMap<>(contentType("text/plain"));
             return new Response(RestStatus.OK.getStatus(), headers, response.getBytes(UTF_8));
@@ -379,12 +402,12 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // GET
         //
         // http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
-        handlers.insert(NON_AUTH + " GET /latest/meta-data/iam/security-credentials/{credentials}", (request) -> {
-            final String credentials = request.getParam("credentials");
-            if (ec2Key.equals(credentials) == false) {
+        handlers.insert(nonAuthPath(HttpGet.METHOD_NAME, "/latest/meta-data/iam/security-credentials/{profileName}"), (request) -> {
+            final String profileName = request.getParam("profileName");
+            if (ec2ProfileName.equals(profileName) == false) {
                 return new Response(RestStatus.NOT_FOUND.getStatus(), new HashMap<>(), "unknown credentials".getBytes(UTF_8));
             }
-            return credentialResponseFunction.apply(credentials, ec2Key, ec2Token);
+            return credentialResponseFunction.apply(profileName, ec2Key, ec2Token);
         });
 
         return handlers;

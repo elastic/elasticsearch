@@ -461,7 +461,6 @@ public class SlackMessageTests extends ESTestCase {
         assertThat(parsed, equalTo(template));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31948")
     public void testTemplateRender() throws Exception {
         Settings settings = SlackMessageDefaultsTests.randomSettings();
         SlackMessageDefaults defaults = new SlackMessageDefaults(settings);
@@ -482,7 +481,7 @@ public class SlackMessageTests extends ESTestCase {
         if (randomBoolean()) {
             templateBuilder.setText(randomAlphaOfLength(10));
         }
-        if (randomBoolean()) {
+        if (templateBuilder.text == null || randomBoolean()) {
             int count = randomIntBetween(0, 3);
             for (int i = 0; i < count; i++) {
                 Attachment.Template.Builder attachmentBuilder = createRandomAttachmentTemplateBuilder();

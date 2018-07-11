@@ -39,7 +39,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRatings;
 
 /**
- * Implemention of the Expected Reciprocal Rank metric described in:<p>
+ * Implementation of the Expected Reciprocal Rank metric described in:<p>
  *
  * Chapelle, O., Metlzer, D., Zhang, Y., &amp; Grinspan, P. (2009).<br>
  * Expected reciprocal rank for graded relevance.<br>

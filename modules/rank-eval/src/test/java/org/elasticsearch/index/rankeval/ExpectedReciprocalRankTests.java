@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
@@ -74,13 +73,8 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
      */
     public void testERRAt() {
         List<RatedDocument> rated = new ArrayList<>();
-        int[] relevanceRatings = new int[] { 3, 2, 0, 1};
-        SearchHit[] hits = new SearchHit[relevanceRatings.length];
-        for (int i = 0; i < relevanceRatings.length; i++) {
-            rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
-            hits[i] = new SearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0, null));
-        }
+        Integer[] relevanceRatings = new Integer[] { 3, 2, 0, 1};
+        SearchHit[] hits = createSearchHits(rated, relevanceRatings);
         ExpectedReciprocalRank err = new ExpectedReciprocalRank(3, 0, 3);
         assertEquals(0.8984375, err.evaluate("id", hits, rated).getQualityLevel(), DELTA);
         // take 4th rank into window
@@ -105,6 +99,17 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
     public void testERRMissingRatings() {
         List<RatedDocument> rated = new ArrayList<>();
         Integer[] relevanceRatings = new Integer[] { 3, null, 0, 1};
+        SearchHit[] hits = createSearchHits(rated, relevanceRatings);
+        ExpectedReciprocalRank err = new ExpectedReciprocalRank(3, null, 4);
+        EvalQueryQuality evaluation = err.evaluate("id", hits, rated);
+        assertEquals(0.875 + 0.00390625, evaluation.getQualityLevel(), DELTA);
+        assertEquals(1, ((ExpectedReciprocalRank.Detail) evaluation.getMetricDetails()).getUnratedDocs());
+        // if we supply e.g. 2 as unknown docs rating, it should be the same as in the other test above
+        err = new ExpectedReciprocalRank(3, 2, 4);
+        assertEquals(0.8984375 + 0.00244140625, err.evaluate("id", hits, rated).getQualityLevel(), DELTA);
+    }
+
+    private SearchHit[] createSearchHits(List<RatedDocument> rated, Integer[] relevanceRatings) {
         SearchHit[] hits = new SearchHit[relevanceRatings.length];
         for (int i = 0; i < relevanceRatings.length; i++) {
             if (relevanceRatings[i] != null) {
@@ -113,13 +118,7 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
             hits[i] = new SearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0, null));
         }
-        ExpectedReciprocalRank err = new ExpectedReciprocalRank(3, null, 4);
-        EvalQueryQuality evaluation = err.evaluate("id", hits, rated);
-        assertEquals(0.875 + 0.00390625, evaluation.getQualityLevel(), DELTA);
-        assertEquals(1, ((ExpectedReciprocalRank.Detail) evaluation.getMetricDetails()).getUnratedDocs());
-        // if we supply e.g. 2 as unknown docs rating, it should be the same as in the other test above
-        err = new ExpectedReciprocalRank(3, 2, 4);
-        assertEquals(0.8984375 + 0.00244140625, err.evaluate("id", hits, rated).getQualityLevel(), DELTA);
+        return hits;
     }
 
     /**
@@ -181,21 +180,9 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
     }
 
     public void testMetricDetails() {
-        double dcg = randomDoubleBetween(0, 1, true);
-        double idcg = randomBoolean() ? 0.0 : randomDoubleBetween(0, 1, true);
-        double expectedNdcg = idcg != 0 ? dcg / idcg : 0.0;
         int unratedDocs = randomIntBetween(0, 100);
-        DiscountedCumulativeGain.Detail detail = new DiscountedCumulativeGain.Detail(dcg, idcg, unratedDocs);
-        assertEquals(dcg, detail.getDCG(), 0.0);
-        assertEquals(idcg, detail.getIDCG(), 0.0);
-        assertEquals(expectedNdcg, detail.getNDCG(), 0.0);
+        ExpectedReciprocalRank.Detail detail = new ExpectedReciprocalRank.Detail(unratedDocs);
         assertEquals(unratedDocs, detail.getUnratedDocs());
-        if (idcg != 0) {
-            assertEquals("{\"dcg\":{\"dcg\":" + dcg + ",\"ideal_dcg\":" + idcg + ",\"normalized_dcg\":" + expectedNdcg
-                    + ",\"unrated_docs\":" + unratedDocs + "}}", Strings.toString(detail));
-        } else {
-            assertEquals("{\"dcg\":{\"dcg\":" + dcg + ",\"unrated_docs\":" + unratedDocs + "}}", Strings.toString(detail));
-        }
     }
 
     public void testSerialization() throws IOException {

@@ -17,8 +17,9 @@
 
   - do:
       xpack.ccr.create_and_follow_index:
-        leader_index: foo
         index: bar
+        body:
+          leader_index: foo
   - is_true: follow_index_created
   - is_true: follow_index_shards_acked
   - is_true: index_following_started
@@ -30,8 +31,9 @@
 
   - do:
       xpack.ccr.follow_index:
-        leader_index: foo
         index: bar
+        body:
+          leader_index: foo
   - is_true: acknowledged
 
   - do:

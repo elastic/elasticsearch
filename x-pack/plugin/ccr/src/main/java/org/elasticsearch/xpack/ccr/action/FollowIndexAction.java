@@ -19,12 +19,18 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.SearchSlowLog;
@@ -68,10 +74,51 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         return new Response();
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements ToXContentObject {
+
+        private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
+        private static final ParseField FOLLOWER_INDEX_FIELD = new ParseField("follower_index");
+        private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(NAME, true,
+            (args, followerIndex) -> {
+                if (args[1] != null) {
+                    followerIndex = (String) args[1];
+                }
+                return new Request((String) args[0], followerIndex, (Integer) args[2], (Integer) args[3], (Long) args[4],
+                    (Integer) args[5], (Integer) args[6], (TimeValue) args[7], (TimeValue) args[8]);
+        });
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), LEADER_INDEX_FIELD);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FOLLOWER_INDEX_FIELD);
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), ShardFollowTask.MAX_BATCH_OPERATION_COUNT);
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), ShardFollowTask.MAX_CONCURRENT_READ_BATCHES);
+            PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), ShardFollowTask.MAX_BATCH_SIZE_IN_BYTES);
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), ShardFollowTask.MAX_CONCURRENT_WRITE_BATCHES);
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), ShardFollowTask.MAX_WRITE_BUFFER_SIZE);
+            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> TimeValue.parseTimeValue(p.text(), ShardFollowTask.RETRY_TIMEOUT.getPreferredName()),
+                ShardFollowTask.RETRY_TIMEOUT, ObjectParser.ValueType.STRING);
+            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> TimeValue.parseTimeValue(p.text(), ShardFollowTask.IDLE_SHARD_RETRY_DELAY.getPreferredName()),
+                ShardFollowTask.IDLE_SHARD_RETRY_DELAY, ObjectParser.ValueType.STRING);
+        }
+
+        public static Request fromXContent(XContentParser parser, String followerIndex) throws IOException {
+            Request request = PARSER.parse(parser, followerIndex);
+            if (followerIndex != null) {
+                if (request.followerIndex == null) {
+                    request.followerIndex = followerIndex;
+                } else {
+                    if (request.followerIndex.equals(followerIndex) == false) {
+                        throw new IllegalArgumentException("provided follower_index is not equal");
+                    }
+                }
+            }
+            return request;
+        }
 
         private String leaderIndex;
-        private String followIndex;
+        private String followerIndex;
         private int maxBatchOperationCount;
         private int maxConcurrentReadBatches;
         private long maxOperationSizeInBytes;
@@ -80,9 +127,37 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         private TimeValue retryTimeout;
         private TimeValue idleShardRetryDelay;
 
-        public Request(String leaderIndex, String followIndex, int maxBatchOperationCount, int maxConcurrentReadBatches,
-                       long maxOperationSizeInBytes, int maxConcurrentWriteBatches, int maxWriteBufferSize,
+        public Request(String leaderIndex, String followerIndex, Integer maxBatchOperationCount, Integer maxConcurrentReadBatches,
+                       Long maxOperationSizeInBytes, Integer maxConcurrentWriteBatches, Integer maxWriteBufferSize,
                        TimeValue retryTimeout, TimeValue idleShardRetryDelay) {
+            if (leaderIndex == null) {
+                throw new IllegalArgumentException("leader_index is missing");
+            }
+            if (followerIndex == null) {
+                throw new IllegalArgumentException("follower_index is missing");
+            }
+            if (maxBatchOperationCount == null) {
+                maxBatchOperationCount = ShardFollowNodeTask.DEFAULT_MAX_BATCH_OPERATION_COUNT;
+            }
+            if (maxConcurrentReadBatches == null) {
+                maxConcurrentReadBatches = ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_READ_BATCHES;
+            }
+            if (maxOperationSizeInBytes == null) {
+                maxOperationSizeInBytes = ShardFollowNodeTask.DEFAULT_MAX_BATCH_SIZE_IN_BYTES;
+            }
+            if (maxConcurrentWriteBatches == null) {
+                maxConcurrentWriteBatches = ShardFollowNodeTask.DEFAULT_MAX_CONCURRENT_WRITE_BATCHES;
+            }
+            if (maxWriteBufferSize == null) {
+                maxWriteBufferSize = ShardFollowNodeTask.DEFAULT_MAX_WRITE_BUFFER_SIZE;
+            }
+            if (retryTimeout == null) {
+                retryTimeout = ShardFollowNodeTask.DEFAULT_RETRY_TIMEOUT;
+            }
+            if (idleShardRetryDelay == null) {
+                idleShardRetryDelay = ShardFollowNodeTask.DEFAULT_IDLE_SHARD_RETRY_DELAY;
+            }
+
             if (maxBatchOperationCount < 1) {
                 throw new IllegalArgumentException("maxBatchOperationCount must be larger than 0");
             }
@@ -99,15 +174,15 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
                 throw new IllegalArgumentException("maxWriteBufferSize must be larger than 0");
             }
 
-            this.leaderIndex = Objects.requireNonNull(leaderIndex);
-            this.followIndex = Objects.requireNonNull(followIndex);
+            this.leaderIndex = leaderIndex;
+            this.followerIndex = followerIndex;
             this.maxBatchOperationCount = maxBatchOperationCount;
             this.maxConcurrentReadBatches = maxConcurrentReadBatches;
             this.maxOperationSizeInBytes = maxOperationSizeInBytes;
             this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
             this.maxWriteBufferSize = maxWriteBufferSize;
-            this.retryTimeout = Objects.requireNonNull(retryTimeout);
-            this.idleShardRetryDelay = Objects.requireNonNull(idleShardRetryDelay);
+            this.retryTimeout = retryTimeout;
+            this.idleShardRetryDelay = idleShardRetryDelay;
         }
 
         Request() {
@@ -117,8 +192,8 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             return leaderIndex;
         }
 
-        public String getFollowIndex() {
-            return followIndex;
+        public String getFollowerIndex() {
+            return followerIndex;
         }
 
         public int getMaxBatchOperationCount() {
@@ -134,7 +209,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             leaderIndex = in.readString();
-            followIndex = in.readString();
+            followerIndex = in.readString();
             maxBatchOperationCount = in.readVInt();
             maxConcurrentReadBatches = in.readVInt();
             maxOperationSizeInBytes = in.readVLong();
@@ -148,7 +223,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(leaderIndex);
-            out.writeString(followIndex);
+            out.writeString(followerIndex);
             out.writeVInt(maxBatchOperationCount);
             out.writeVInt(maxConcurrentReadBatches);
             out.writeVLong(maxOperationSizeInBytes);
@@ -156,6 +231,24 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             out.writeVInt(maxWriteBufferSize);
             out.writeOptionalTimeValue(retryTimeout);
             out.writeOptionalTimeValue(idleShardRetryDelay);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
+                builder.field(FOLLOWER_INDEX_FIELD.getPreferredName(), followerIndex);
+                builder.field(ShardFollowTask.MAX_BATCH_OPERATION_COUNT.getPreferredName(), maxBatchOperationCount);
+                builder.field(ShardFollowTask.MAX_BATCH_SIZE_IN_BYTES.getPreferredName(), maxOperationSizeInBytes);
+                builder.field(ShardFollowTask.MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
+                builder.field(ShardFollowTask.MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
+                builder.field(ShardFollowTask.MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
+                builder.field(ShardFollowTask.RETRY_TIMEOUT.getPreferredName(), retryTimeout.getStringRep());
+                builder.field(ShardFollowTask.IDLE_SHARD_RETRY_DELAY.getPreferredName(), idleShardRetryDelay.getStringRep());
+            }
+            builder.endObject();
+            return builder;
         }
 
         @Override
@@ -171,12 +264,12 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
                 Objects.equals(retryTimeout, request.retryTimeout) &&
                 Objects.equals(idleShardRetryDelay, request.idleShardRetryDelay) &&
                 Objects.equals(leaderIndex, request.leaderIndex) &&
-                Objects.equals(followIndex, request.followIndex);
+                Objects.equals(followerIndex, request.followerIndex);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(leaderIndex, followIndex, maxBatchOperationCount, maxConcurrentReadBatches, maxOperationSizeInBytes,
+            return Objects.hash(leaderIndex, followerIndex, maxBatchOperationCount, maxConcurrentReadBatches, maxOperationSizeInBytes,
                 maxConcurrentWriteBatches, maxWriteBufferSize, retryTimeout, idleShardRetryDelay);
         }
     }
@@ -216,7 +309,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             ClusterState localClusterState = clusterService.state();
-            IndexMetaData followIndexMetadata = localClusterState.getMetaData().index(request.followIndex);
+            IndexMetaData followIndexMetadata = localClusterState.getMetaData().index(request.followerIndex);
 
             String[] indices = new String[]{request.leaderIndex};
             Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
@@ -378,7 +471,7 @@ public class FollowIndexAction extends Action<FollowIndexAction.Response> {
             throw new IllegalArgumentException("leader index [" + request.leaderIndex + "] does not exist");
         }
         if (followIndex == null) {
-            throw new IllegalArgumentException("follow index [" + request.followIndex + "] does not exist");
+            throw new IllegalArgumentException("follow index [" + request.followerIndex + "] does not exist");
         }
         if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
             throw new IllegalArgumentException("leader index [" + request.leaderIndex + "] does not have soft deletes enabled");

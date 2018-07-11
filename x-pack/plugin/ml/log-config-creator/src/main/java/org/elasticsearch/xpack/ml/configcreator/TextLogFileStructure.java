@@ -174,19 +174,28 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
 
         List<String> sampleMessages = new ArrayList<>();
         StringBuilder preamble = new StringBuilder();
+        int linesConsumed = 0;
         StringBuilder message = null;
+        int linesInMessage = 0;
         String multiLineRegex = createMultiLineMessageStartRegex(bestTimestamp.v2(), bestTimestamp.v1().simplePattern.pattern());
         Pattern multiLinePattern = Pattern.compile(multiLineRegex);
         for (String sampleLine : sampleLines) {
             if (multiLinePattern.matcher(sampleLine).find()) {
                 if (message != null) {
                     sampleMessages.add(message.toString());
+                    linesConsumed += linesInMessage;
                 }
                 message = new StringBuilder(sampleLine);
+                linesInMessage = 1;
             } else {
                 // If message is null here then the sample probably began with the incomplete ending of a previous message
-                if (message != null) {
+                if (message == null) {
+                    // We count lines before the first message as consumed (just like we would
+                    // for the CSV header or lines before the first XML document starts)
+                    ++linesConsumed;
+                } else {
                     message.append('\n').append(sampleLine);
+                    ++linesInMessage;
                 }
             }
             if (sampleMessages.size() < 2) {
@@ -195,7 +204,7 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
         }
         // Don't add the last message, as it might be partial and mess up subsequent pattern finding
 
-        createPreambleComment(preamble.toString());
+        createPreambleComment(linesConsumed, sampleMessages.size(), preamble.toString());
 
         mappings = new TreeMap<>();
         mappings.put("message", "text");

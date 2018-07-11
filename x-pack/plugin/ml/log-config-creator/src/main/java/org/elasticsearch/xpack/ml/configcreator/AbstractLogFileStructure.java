@@ -228,13 +228,14 @@ public abstract class AbstractLogFileStructure {
         return length > KEYWORD_MAX_LEN || length - str.replaceAll("\\s", "").length() > KEYWORD_MAX_SPACES;
     }
 
-    protected void createPreambleComment(String preamble) {
+    protected void createPreambleComment(int lineCount, int messageCount, String preamble) {
         if (preamble == null || preamble.isEmpty()) {
             preambleComment = "";
         } else {
-            preambleComment = "# This config was derived from a sample that began with:\n" +
+            preambleComment = String.format(Locale.ROOT,
+                "# This config was derived from a sample of %s messages from %s lines that began with:\n", messageCount, lineCount) +
                 "#\n" +
-                "# " + preamble.replaceFirst("\n$", "").replace("\n", "\n# ") + "\n" +
+                "# " + preamble.replaceFirst("\n+$", "").replace("\n", "\n# ") + "\n" +
                 "#\n";
         }
     }

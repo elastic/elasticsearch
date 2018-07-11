@@ -39,7 +39,6 @@ import java.util.Set;
 public final class LogFileStructureFinder {
 
     private static final int MIN_SAMPLE_LINE_COUNT = 2;
-    private static final int IDEAL_SAMPLE_LINE_COUNT = 1000;
 
     private static final int BUFFER_SIZE = 8192;
 
@@ -104,11 +103,11 @@ public final class LogFileStructureFinder {
         );
     }
 
-    public void findLogFileConfigs(InputStream fromFile, Path outputDirectory) throws Exception {
+    public void findLogFileConfigs(int idealSampleLineCount, InputStream fromFile, Path outputDirectory) throws Exception {
 
         CharsetMatch charsetMatch = findCharset(fromFile);
 
-        String sample = sampleFile(charsetMatch.getReader(), MIN_SAMPLE_LINE_COUNT, IDEAL_SAMPLE_LINE_COUNT);
+        String sample = sampleFile(charsetMatch.getReader(), MIN_SAMPLE_LINE_COUNT, Math.max(MIN_SAMPLE_LINE_COUNT, idealSampleLineCount));
 
         LogFileStructure structure = makeBestStructure(sample, charsetMatch.getName());
         structure.writeConfigs(outputDirectory);

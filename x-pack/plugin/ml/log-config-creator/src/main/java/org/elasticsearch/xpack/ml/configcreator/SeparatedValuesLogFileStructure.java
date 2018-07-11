@@ -121,14 +121,19 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
                 csvReader.getHeader(false);
             }
             sampleRecords = new ArrayList<>();
+            String preamble = null;
+            int lastGoodLineNumber = 0;
             try {
                 Map<String, String> sampleRecord;
                 while ((sampleRecord = csvReader.read(csvHeader)) != null) {
                     if (sampleRecords.size() == (isCsvHeaderInFile ? 0 : 1)) {
-                        createPreambleComment(Pattern.compile("\n").splitAsStream(sample).limit(csvReader.getLineNumber())
-                            .collect(Collectors.joining("\n", "", "\n")));
+                        preamble = Pattern.compile("\n").splitAsStream(sample).limit(csvReader.getLineNumber())
+                            .collect(Collectors.joining("\n", "", "\n"));
                     }
-                    sampleRecords.add(sampleRecord);
+                    if (sampleRecords.isEmpty() || sampleRecord.size() == sampleRecords.get(0).size()) {
+                        sampleRecords.add(sampleRecord);
+                        lastGoodLineNumber = csvReader.getLineNumber();
+                    }
                 }
             } catch (SuperCsvException e) {
                 // Tolerate an incomplete last record as long as we have one complete record
@@ -136,6 +141,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
                     throw e;
                 }
             }
+            createPreambleComment(lastGoodLineNumber, sampleRecords.size(), preamble);
         }
     }
 

@@ -52,6 +52,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         "  xml {\n" +
         "    source => \"message\"\n" +
         "    remove_field => [ \"message\" ]\n" +
+        "    target => \"doc\"\n" +
         "  }\n" +
         "%s" +
         "}\n" +
@@ -76,6 +77,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         "  xml {\n" +
         "    source => \"message\"\n" +
         "    remove_field => [ \"message\" ]\n" +
+        "    target => \"doc\"\n" +
         "  }\n" +
         "%s" +
         "}\n" +
@@ -113,6 +115,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
 
         String[] sampleDocEnds = sample.split(Pattern.quote(messagePrefix));
         StringBuilder preamble = new StringBuilder(sampleDocEnds[0]);
+        int linesConsumed = numNewlinesIn(sampleDocEnds[0]);
         for (int i = 1; i < sampleDocEnds.length; ++i) {
             String sampleDoc = messagePrefix + sampleDocEnds[i];
             if (i < 3) {
@@ -121,6 +124,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
             DocumentBuilder docBuilder = docBuilderFactory.newDocumentBuilder();
             try (InputStream is = new ByteArrayInputStream(sampleDoc.getBytes(StandardCharsets.UTF_8))) {
                 sampleRecords.add(docToMap(docBuilder.parse(is)));
+                linesConsumed += numNewlinesIn(sampleDoc);
             } catch (SAXException e) {
                 // Tolerate an incomplete last record as long as we have one complete record
                 if (sampleRecords.isEmpty() || i < sampleDocEnds.length - 1) {
@@ -129,7 +133,11 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
             }
         }
 
-        createPreambleComment(preamble.toString());
+        createPreambleComment(linesConsumed, sampleRecords.size(), preamble.toString());
+    }
+
+    private static int numNewlinesIn(String str) {
+        return (int) str.chars().filter(c -> c == '\n').count();
     }
 
     private static Map<String, Object> docToMap(Document doc) {

@@ -203,6 +203,7 @@ file to be processed
 
 Option                     Description
 ------                     -----------
+-c, --sample-line-count    how many lines to analyze (default: 1000)
 -e, --elasticsearch-host   elasticsearch host (default: localhost)
 -f, --filebeat-module-dir  path to filebeat module directory (default:
                              $HOME/beats/filebeat/module or from installed

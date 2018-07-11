@@ -132,7 +132,8 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
             sampleRecords.add(parser.map());
         }
 
-        createPreambleComment(Arrays.stream(sampleLines).limit(2).collect(Collectors.joining("\n", "", "\n")));
+        createPreambleComment(sampleLines.length, sampleRecords.size(),
+            Arrays.stream(sampleLines).limit(2).collect(Collectors.joining("\n", "", "\n")));
     }
 
     void createConfigs() throws UserException {

@@ -83,6 +83,7 @@ public class LogConfigCreator extends Command {
             "path to filebeat module directory (default: $HOME/beats/filebeat/module or from installed filebeat)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("e", "elasticsearch-host"), "elasticsearch host (default: localhost)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("l", "logstash-host"), "logstash host (default: localhost)").withRequiredArg();
+        parser.acceptsAll(Arrays.asList("c", "sample-line-count"), "how many lines to analyze (default: 1000)").withRequiredArg();
         parser.acceptsAll(Arrays.asList("z", "timezone"),
             "timezone for logstash direct from file input (default: logstash server timezone)").withRequiredArg();
         parser.nonOptions("file to be processed");
@@ -107,6 +108,19 @@ public class LogConfigCreator extends Command {
 
         String logstashHost = getSingleOptionValueOrDefault(options, "l", "logstash-host", "logstash host", "localhost");
         validateHost(logstashHost, "Logstash host");
+
+        String sampleLinesStr = getSingleOptionValueOrDefault(options, "c", "sample-line-count", "value for the number of lines to analyze",
+            "1000");
+        int sampleLines;
+        try {
+            sampleLines = Integer.parseInt(sampleLinesStr);
+        } catch (NumberFormatException e) {
+            sampleLines = 0;
+        }
+        if (sampleLines <= 2) {
+            throw new UserException(ExitCodes.USAGE, "Number of lines to analyze must be an integer greater than 2, got [" +
+                sampleLinesStr + "]");
+        }
 
         Path filebeatModulePath;
         String filebeatModuleDir = getSingleOptionValueOrDefault(options, "f", "filebeat-module-dir", "filebeat module directory", null);
@@ -140,7 +154,7 @@ public class LogConfigCreator extends Command {
         try {
             LogFileStructureFinder structureFinder = new LogFileStructureFinder(terminal, filebeatModulePath,
                 file.toAbsolutePath().normalize().toString(), indexName, typeName, elasticsearchHost, logstashHost, timezone);
-            structureFinder.findLogFileConfigs(Files.newInputStream(file), outputDirectory);
+            structureFinder.findLogFileConfigs(sampleLines, Files.newInputStream(file), outputDirectory);
         } catch (IOException e) {
             throw new UserException(ExitCodes.DATA_ERROR, "Cannot determine format of file [" + file + "]: " + e.getMessage());
         }

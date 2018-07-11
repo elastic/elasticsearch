@@ -22,6 +22,8 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class LogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
+    private static final int IDEAL_SAMPLE_LINE_COUNT = 1000;
+
     private static final String TEST_TYPE = "various";
 
     private static final String FILEBEAT_TO_LOGSTASH_YML = TEST_TYPE + "-filebeat-to-logstash.yml";
@@ -92,7 +94,7 @@ public class LogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
         try (ByteArrayInputStream inputStream =
                  new ByteArrayInputStream(JSON_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinder.findLogFileConfigs(inputStream, outputDirectory);
+            structureFinder.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
         }
 
         assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));
@@ -110,7 +112,7 @@ public class LogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
         try (ByteArrayInputStream inputStream =
                  new ByteArrayInputStream(XML_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinder.findLogFileConfigs(inputStream, outputDirectory);
+            structureFinder.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
         }
 
         assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));
@@ -128,7 +130,7 @@ public class LogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
         try (ByteArrayInputStream inputStream =
                  new ByteArrayInputStream(CSV_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinder.findLogFileConfigs(inputStream, outputDirectory);
+            structureFinder.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
         }
 
         assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));
@@ -146,7 +148,7 @@ public class LogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
         try (ByteArrayInputStream inputStream =
                  new ByteArrayInputStream(TSV_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinder.findLogFileConfigs(inputStream, outputDirectory);
+            structureFinder.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
         }
 
         assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));
@@ -164,7 +166,7 @@ public class LogFileStructureFinderTests extends LogConfigCreatorTestCase {
 
         try (ByteArrayInputStream inputStream =
                  new ByteArrayInputStream(TEXT_SAMPLE.getBytes(StandardCharsets.UTF_8))) {
-            structureFinder.findLogFileConfigs(inputStream, outputDirectory);
+            structureFinder.findLogFileConfigs(IDEAL_SAMPLE_LINE_COUNT, inputStream, outputDirectory);
         }
 
         assertTrue(Files.isRegularFile(outputDirectory.resolve(FILEBEAT_TO_LOGSTASH_YML)));

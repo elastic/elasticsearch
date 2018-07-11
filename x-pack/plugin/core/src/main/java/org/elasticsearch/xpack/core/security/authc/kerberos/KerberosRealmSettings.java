@@ -27,8 +27,8 @@ public final class KerberosRealmSettings {
             Setting.simpleString("keytab.path", Property.NodeScope);
     public static final Setting<Boolean> SETTING_KRB_DEBUG_ENABLE =
             Setting.boolSetting("krb.debug", Boolean.FALSE, Property.NodeScope);
-    public static final Setting<Boolean> SETTING_STRIP_REALM_NAME =
-            Setting.boolSetting("strip.realm_name", Boolean.FALSE, Property.NodeScope);
+    public static final Setting<Boolean> SETTING_REMOVE_REALM_NAME =
+            Setting.boolSetting("remove_realm_name", Boolean.FALSE, Property.NodeScope);
 
     // Cache
     private static final TimeValue DEFAULT_TTL = TimeValue.timeValueMinutes(20);
@@ -45,6 +45,6 @@ public final class KerberosRealmSettings {
      */
     public static Set<Setting<?>> getSettings() {
         return Sets.newHashSet(HTTP_SERVICE_KEYTAB_PATH, CACHE_TTL_SETTING, CACHE_MAX_USERS_SETTING, SETTING_KRB_DEBUG_ENABLE,
-                SETTING_STRIP_REALM_NAME);
+                SETTING_REMOVE_REALM_NAME);
     }
 }

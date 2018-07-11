@@ -50,7 +50,8 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
     public void testAuthenticateWithValidTicketSucessAuthnWithUserDetails() throws LoginException, GSSException {
         final String username = randomPrincipalName();
         final KerberosRealm kerberosRealm = createKerberosRealm(username);
-        final User expectedUser = new User(stripRealmName(username), roles.toArray(new String[roles.size()]), null, null, null, true);
+        final String expectedUsername = maybeRemoveRealmName(username);
+        final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, null, true);
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
         final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
         final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
@@ -82,7 +83,7 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
         assertThat(e.getMessage(), equalTo(
-                "Expected UPN '" + Arrays.asList(stripRealmName(username)) + "' but was '" + stripRealmName("does-not-exist@REALM") + "'"));
+                "Expected UPN '" + Arrays.asList(maybeRemoveRealmName(username)) + "' but was '" + maybeRemoveRealmName("does-not-exist@REALM") + "'"));
     }
 
     public void testLookupUser() {

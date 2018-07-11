@@ -116,7 +116,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     protected NativeRoleMappingStore roleMappingStore(final List<String> userNames) {
-        final List<String> expectedUserNames = userNames.stream().map(this::stripRealmName).collect(Collectors.toList());
+        final List<String> expectedUserNames = userNames.stream().map(this::maybeRemoveRealmName).collect(Collectors.toList());
         final Client mockClient = mock(Client.class);
         when(mockClient.threadPool()).thenReturn(threadPool);
         when(mockClient.settings()).thenReturn(settings);
@@ -151,15 +151,16 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
     }
 
     /**
-     * If {@link KerberosRealmSettings#SETTING_STRIP_REALM_NAME} is {@code true}
-     * strips realm name from principal name and returns username. Checks for '@'
-     * separator in the given principalName string to strip realm name.
+     * Usually principal names are in the form 'user/instance@REALM'. This method
+     * removes '@REALM' part from the principal name if
+     * {@link KerberosRealmSettings#SETTING_REMOVE_REALM_NAME} is {@code true} else
+     * will return the input string.
      *
      * @param principalName user principal name
-     * @return result string after stripping realm name
+     * @return username after removal of realm
      */
-    protected String stripRealmName(final String principalName) {
-        if (KerberosRealmSettings.SETTING_STRIP_REALM_NAME.get(settings)) {
+    protected String maybeRemoveRealmName(final String principalName) {
+        if (KerberosRealmSettings.SETTING_REMOVE_REALM_NAME.get(settings)) {
             int foundAtIndex = principalName.indexOf('@');
             if (foundAtIndex > 0) {
                 return principalName.substring(0, foundAtIndex);

@@ -76,7 +76,8 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
             assertThat(result.getStatus(), is(equalTo(AuthenticationResult.Status.CONTINUE)));
         } else {
             if (validTicket) {
-                final User expectedUser = new User(stripRealmName(username), roles.toArray(new String[roles.size()]), null, null, null,
+                final String expectedUsername = maybeRemoveRealmName(username);
+                final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, null,
                         true);
                 assertSuccessAuthenticationResult(expectedUser, outToken, result);
             } else {

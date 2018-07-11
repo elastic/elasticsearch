@@ -32,16 +32,16 @@ public class KerberosRealmSettingsTests extends ESTestCase {
         final Integer maxUsers = randomInt();
         final String cacheTTL = randomLongBetween(10L, 100L) + "m";
         final boolean enableDebugLogs = randomBoolean();
-        final boolean stripRealmName = randomBoolean();
+        final boolean removeRealmName = randomBoolean();
         final Settings settings = KerberosTestCase.buildKerberosRealmSettings(keytabPathConfig, maxUsers, cacheTTL, enableDebugLogs,
-                stripRealmName);
+                removeRealmName);
 
         assertThat(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings), equalTo(keytabPathConfig));
         assertThat(KerberosRealmSettings.CACHE_TTL_SETTING.get(settings),
                 equalTo(TimeValue.parseTimeValue(cacheTTL, KerberosRealmSettings.CACHE_TTL_SETTING.getKey())));
         assertThat(KerberosRealmSettings.CACHE_MAX_USERS_SETTING.get(settings), equalTo(maxUsers));
         assertThat(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(settings), is(enableDebugLogs));
-        assertThat(KerberosRealmSettings.SETTING_STRIP_REALM_NAME.get(settings), is(stripRealmName));
+        assertThat(KerberosRealmSettings.SETTING_REMOVE_REALM_NAME.get(settings), is(removeRealmName));
     }
 
 }

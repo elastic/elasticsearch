@@ -206,16 +206,16 @@ public abstract class KerberosTestCase extends ESTestCase {
      * @param maxUsersInCache max users to be maintained in cache
      * @param cacheTTL time to live for cached entries
      * @param enableDebugging for krb5 logs
-     * @param stripRealmName {@code true} if we want to strip realm name from the username of form 'user@REALM'
+     * @param removeRealmName {@code true} if we want to remove realm name from the username of form 'user@REALM'
      * @return {@link Settings} for kerberos realm
      */
     public static Settings buildKerberosRealmSettings(final String keytabPath, final int maxUsersInCache, final String cacheTTL,
-            final boolean enableDebugging, final boolean stripRealmName) {
+            final boolean enableDebugging, final boolean removeRealmName) {
         final Settings.Builder builder = Settings.builder().put(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.getKey(), keytabPath)
                 .put(KerberosRealmSettings.CACHE_MAX_USERS_SETTING.getKey(), maxUsersInCache)
                 .put(KerberosRealmSettings.CACHE_TTL_SETTING.getKey(), cacheTTL)
                 .put(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.getKey(), enableDebugging)
-                .put(KerberosRealmSettings.SETTING_STRIP_REALM_NAME.getKey(), stripRealmName);
+                .put(KerberosRealmSettings.SETTING_REMOVE_REALM_NAME.getKey(), removeRealmName);
         return builder.build();
     }
 

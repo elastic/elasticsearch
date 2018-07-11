@@ -98,8 +98,10 @@ public class Cleanup {
         final Shell sh = new Shell();
 
         if (isRPM()) {
+            // Doing rpm erase on both packages in one command will remove neither since both cannot be installed
             // this may leave behind config files in /etc/elasticsearch, but a later step in this cleanup will get them
-            sh.runIgnoreExitCode("rpm --quiet -e elasticsearch elasticsearch-oss");
+            sh.runIgnoreExitCode("rpm --quiet -e elasticsearch");
+            sh.runIgnoreExitCode("rpm --quiet -e elasticsearch-oss");
         }
 
         if (isDPKG()) {

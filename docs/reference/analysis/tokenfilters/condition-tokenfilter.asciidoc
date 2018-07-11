@@ -20,7 +20,7 @@ You can set it up like:
 
 [source,js]
 --------------------------------------------------
-PUT /multiplexer_example
+PUT /condition_example
 {
     "settings" : {
         "analysis" : {
@@ -31,7 +31,7 @@ PUT /multiplexer_example
                 }
             },
             "filter" : {
-                "my_multiplexer" : {
+                "my_condition" : {
                     "type" : "condition",
                     "filters" : [ "lowercase" ],
                     "script" : {
@@ -52,7 +52,7 @@ And test it like:
 
 [source,js]
 --------------------------------------------------
-POST /multiplexer_example/_analyze
+POST /condition_example/_analyze
 {
   "analyzer" : "my_analyzer",
   "text" : "What Flapdoodle"

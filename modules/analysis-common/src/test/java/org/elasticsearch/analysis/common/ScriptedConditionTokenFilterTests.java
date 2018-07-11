@@ -9,9 +9,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.AnalysisScript;
+import org.elasticsearch.script.AnalysisPredicateScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -37,7 +35,7 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
 
-        AnalysisScript.Factory factory = () -> new AnalysisScript() {
+        AnalysisPredicateScript.Factory factory = () -> new AnalysisPredicateScript() {
             @Override
             public boolean execute(Term term) {
                 return "two".contentEquals(term.term);
@@ -47,7 +45,7 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
         ScriptService scriptService = new ScriptService(indexSettings, Collections.emptyMap(), Collections.emptyMap()){
             @Override
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
-                assertEquals(context, AnalysisScript.CONTEXT);
+                assertEquals(context, AnalysisPredicateScript.CONTEXT);
                 assertEquals(new Script("return \"two\".equals(term.term)"), script);
                 return (FactoryType) factory;
             }

@@ -19,8 +19,14 @@
 
 package org.elasticsearch.script;
 
-public abstract class AnalysisScript {
+/**
+ * A predicate based on the current token in a TokenStream
+ */
+public abstract class AnalysisPredicateScript {
 
+    /**
+     * Encapsulation of the state of the current token
+     */
     public static class Term {
         public CharSequence term;
         public int posInc;
@@ -31,10 +37,13 @@ public abstract class AnalysisScript {
         public boolean isKeyword;
     }
 
+    /**
+     * Returns {@code true} if the current term matches the predicate
+     */
     public abstract boolean execute(Term term);
 
     public interface Factory {
-        AnalysisScript newInstance();
+        AnalysisPredicateScript newInstance();
     }
 
     public static final String[] PARAMETERS = new String[]{ "term" };

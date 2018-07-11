@@ -1,7 +1,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.script.AnalysisScript;
+import org.elasticsearch.script.AnalysisPredicateScript;
 import org.elasticsearch.script.ScriptContext;
 
 import java.util.Collections;
@@ -14,16 +14,16 @@ public class AnalysisScriptTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(AnalysisScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(AnalysisPredicateScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         return contexts;
     }
 
     public void testAnalysisScript() {
-        AnalysisScript.Factory factory = scriptEngine.compile("test", "return \"one\".contentEquals(term.term)",
-            AnalysisScript.CONTEXT, Collections.emptyMap());
+        AnalysisPredicateScript.Factory factory = scriptEngine.compile("test", "return \"one\".contentEquals(term.term)",
+            AnalysisPredicateScript.CONTEXT, Collections.emptyMap());
 
-        AnalysisScript script = factory.newInstance();
-        AnalysisScript.Term term = new AnalysisScript.Term();
+        AnalysisPredicateScript script = factory.newInstance();
+        AnalysisPredicateScript.Term term = new AnalysisPredicateScript.Term();
         term.term = "one";
         assertTrue(script.execute(term));
         term.term = "two";

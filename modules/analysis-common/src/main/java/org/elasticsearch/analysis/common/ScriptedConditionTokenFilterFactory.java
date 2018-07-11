@@ -8,31 +8,32 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.ReferringFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.script.AnalysisScript;
+import org.elasticsearch.script.AnalysisPredicateScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * A factory for a conditional token filter that only applies child filters if the underlying token
+ * matches an {@link AnalysisPredicateScript}
+ */
 public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFactory implements ReferringFilterFactory {
 
-    private final AnalysisScript.Factory factory;
+    private final AnalysisPredicateScript.Factory factory;
     private final List<TokenFilterFactory> filters = new ArrayList<>();
     private final List<String> filterNames;
 
-    public ScriptedConditionTokenFilterFactory(IndexSettings indexSettings, String name,
+    ScriptedConditionTokenFilterFactory(IndexSettings indexSettings, String name,
                                                Settings settings, ScriptService scriptService) {
         super(indexSettings, name, settings);
 
@@ -41,7 +42,7 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
         if (script.getType() != ScriptType.INLINE) {
             throw new IllegalArgumentException("Cannot use stored scripts in tokenfilter [" + name + "]");
         }
-        this.factory = scriptService.compile(script, AnalysisScript.CONTEXT);
+        this.factory = scriptService.compile(script, AnalysisPredicateScript.CONTEXT);
 
         this.filterNames = settings.getAsList("filters");
     }
@@ -54,8 +55,8 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
             }
             return in;
         };
-        AnalysisScript script = factory.newInstance();
-        final AnalysisScript.Term term = new AnalysisScript.Term();
+        AnalysisPredicateScript script = factory.newInstance();
+        final AnalysisPredicateScript.Term term = new AnalysisPredicateScript.Term();
         return new ConditionalTokenFilter(tokenStream, filter) {
 
             CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);

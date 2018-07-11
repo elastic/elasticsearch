@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
@@ -15,7 +14,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ShrinkActionTests extends AbstractSerializingTestCase<ShrinkAction> {
+public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
     @Override
     protected ShrinkAction doParseInstance(XContentParser parser) throws IOException {
@@ -79,5 +78,10 @@ public class ShrinkActionTests extends AbstractSerializingTestCase<ShrinkAction>
         assertThat(steps.get(5).getKey(), equalTo(expectedSixthKey));
         assertThat(steps.get(5).getNextStepKey(), equalTo(nextStepKey));
         assertThat(((ShrunkenIndexCheckStep) steps.get(5)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+    }
+
+    @Override
+    protected boolean isSafeAction() {
+        return false;
     }
 }

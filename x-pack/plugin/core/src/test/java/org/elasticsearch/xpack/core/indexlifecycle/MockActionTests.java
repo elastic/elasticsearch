@@ -7,13 +7,12 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MockActionTests extends AbstractSerializingTestCase<MockAction> {
+public class MockActionTests extends AbstractActionTestCase<MockAction> {
 
     @Override
     protected MockAction createTestInstance() {
@@ -32,23 +31,40 @@ public class MockActionTests extends AbstractSerializingTestCase<MockAction> {
 
     @Override
     protected MockAction mutateInstance(MockAction instance) throws IOException {
-        List<Step> steps = new ArrayList<>(instance.getSteps());
-        if (steps.size() > 0) {
-            Step lastStep = steps.remove(steps.size() - 1);
-            if (randomBoolean()) {
-                Step.StepKey additionalStepKey = randomStepKey();
-                steps.add(new MockStep(lastStep.getKey(), additionalStepKey));
-                steps.add(new MockStep(additionalStepKey, null));
+        List<Step> steps = instance.getSteps();
+        boolean safe = instance.isSafeAction();
+        if (randomBoolean()) {
+            steps = new ArrayList<>(steps);
+            if (steps.size() > 0) {
+                Step lastStep = steps.remove(steps.size() - 1);
+                if (randomBoolean()) {
+                    Step.StepKey additionalStepKey = randomStepKey();
+                    steps.add(new MockStep(lastStep.getKey(), additionalStepKey));
+                    steps.add(new MockStep(additionalStepKey, null));
+                }
+            } else {
+                steps.add(new MockStep(randomStepKey(), null));
             }
         } else {
-            steps.add(new MockStep(randomStepKey(), null));
+            safe = safe == false;
         }
-        return new MockAction(steps);
+        return new MockAction(steps, safe);
     }
 
     private static Step.StepKey randomStepKey() {
         return new Step.StepKey(randomAlphaOfLength(5),
             randomAlphaOfLength(5), randomAlphaOfLength(5));
+    }
+
+    @Override
+    public void testToSteps() {
+        int numSteps = randomIntBetween(1, 10);
+        List<Step> steps = new ArrayList<>(numSteps);
+        for (int i = 0; i < numSteps; i++) {
+            steps.add(new MockStep(randomStepKey(), randomStepKey()));
+        }
+        MockAction action = new MockAction(steps);
+        assertEquals(action.getSteps(), action.toSteps(null, null, null));
     }
 }
 

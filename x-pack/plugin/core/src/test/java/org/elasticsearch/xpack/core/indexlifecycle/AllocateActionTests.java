@@ -9,7 +9,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.util.Collections;
@@ -19,7 +18,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AllocateActionTests extends AbstractSerializingTestCase<AllocateAction> {
+public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> {
 
     @Override
     protected AllocateAction doParseInstance(XContentParser parser) {

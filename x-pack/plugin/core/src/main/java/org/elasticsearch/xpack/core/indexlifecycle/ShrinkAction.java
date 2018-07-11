@@ -76,6 +76,11 @@ public class ShrinkAction implements LifecycleAction {
     }
 
     @Override
+    public boolean isSafeAction() {
+        return false;
+    }
+
+    @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         StepKey setSingleNodeKey = new StepKey(phase, NAME, SetSingleNodeAllocateStep.NAME);
         StepKey allocationRoutedKey = new StepKey(phase, NAME, AllocationRoutedStep.NAME);

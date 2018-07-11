@@ -44,6 +44,7 @@ import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
+import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
@@ -802,6 +803,18 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             exclude '**/*$*.class'
+
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                /*
+                 * If we make a shaded jar we test against it.
+                 */
+                classpath -= project.tasks.compileJava.outputs.files
+                classpath -= project.configurations.compile
+                classpath -= project.configurations.runtime
+                classpath += project.configurations.shadow
+                classpath += project.tasks.shadowJar.outputs.files
+                dependsOn project.tasks.shadowJar
+            }
         }
     }
 
@@ -824,7 +837,22 @@ class BuildPlugin implements Plugin<Project> {
             additionalTest.dependsOn(project.tasks.testClasses)
             test.dependsOn(additionalTest)
         });
-        return test
+
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            /*
+             * We need somewhere to configure dependencies that we don't wish
+             * to shade into the jar. The shadow plugin creates a "shadow"
+             * configuration which  is *almost* exactly that. It is never
+             * bundled into the shaded jar but is used for main source
+             * compilation. Unfortunately, by default it is not used for
+             * *test* source compilation and isn't used in tests at all. This
+             * change makes it available for test compilation.
+             */
+            SourceSet testSourceSet = project.sourceSets.findByName('test')
+            if (testSourceSet != null) {
+                testSourceSet.compileClasspath += project.configurations.shadow
+            }
+        }
     }
 
     private static configurePrecommit(Project project) {

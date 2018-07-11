@@ -19,9 +19,12 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.protocol.xpack.XPackUsageResponse;
 
 import java.io.IOException;
 
@@ -69,5 +72,26 @@ public final class XPackClient {
                                   ActionListener<XPackInfoResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::xPackInfo, options,
             XPackInfoResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Fetch usage information about X-Pack features from the cluster.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public XPackUsageResponse usage(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(new XPackUsageRequest(), RequestConverters::xpackUsage, options,
+            XPackUsageResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously fetch usage information about X-Pack features from the cluster.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void usageAsync(RequestOptions options, ActionListener<XPackUsageResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(new XPackUsageRequest(), RequestConverters::xpackUsage, options,
+            XPackUsageResponse::fromXContent, listener, emptySet());
     }
 }

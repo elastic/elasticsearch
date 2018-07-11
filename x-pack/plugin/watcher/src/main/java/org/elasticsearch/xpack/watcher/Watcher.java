@@ -633,15 +633,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
      *            retrievable, including the values stored in the node's keystore.
      *            The setting values are the initial ones, from when the node has be
      *            started, i.e. they don't follow dynamic updates.
-     * @throws Exception
      */
     @Override
     public void reload(Settings settings) {
         if (enabled == false || transportClient) {
             return;
         }
-        for (NotificationService service : reloadableServices) {
-            service.reload(settings);
-        }
+        reloadableServices.forEach(s -> s.reload(settings));
     }
 }

@@ -28,6 +28,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class WatcherPluginTests extends ESTestCase {
 
@@ -114,7 +115,6 @@ public class WatcherPluginTests extends ESTestCase {
         watcher.reloadableServices.clear();
         watcher.reloadableServices.add(mockService);
 
-        verify(mockService, times(0)).reload(settings);
         watcher.reload(settings);
         verify(mockService, times(1)).reload(settings);
     }
@@ -127,8 +127,7 @@ public class WatcherPluginTests extends ESTestCase {
         NotificationService mockService = mock(NotificationService.class);
         Watcher watcher = new Watcher(settings);
 
-        verify(mockService, times(0)).reload(settings);
         watcher.reload(settings);
-        verify(mockService, times(0)).reload(settings);
+        verifyNoMoreInteractions(mockService);
     }
 }

@@ -309,8 +309,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
         // actions
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
-        actionFactoryMap.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine,
-            emailAttachmentsParser));
+        actionFactoryMap.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, emailAttachmentsParser));
         actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient, httpTemplateParser, templateEngine));
         actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
         actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(settings, templateEngine));
@@ -377,8 +376,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
         return Arrays.asList(registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
                 watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
-                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService,
-            hipChatService);
+                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService, hipChatService);
     }
 
     protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
@@ -625,14 +623,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         IOUtils.closeWhileHandlingException(httpClient);
     }
 
-
     /**
-     * Reloads all reloadable services' settings.
-     * @param settings
-     *            Settings used while reloading the plugin. All values are
-     *            retrievable, including the values stored in the node's keystore.
-     *            The setting values are the initial ones, from when the node has be
-     *            started, i.e. they don't follow dynamic updates.
+     * Reloads all the reloadable services in watcher.
      */
     @Override
     public void reload(Settings settings) {

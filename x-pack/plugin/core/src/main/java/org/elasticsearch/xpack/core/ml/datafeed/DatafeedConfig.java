@@ -163,7 +163,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.scriptFields = scriptFields == null ? null : Collections.unmodifiableList(scriptFields);
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
-        this.headers = headers == null ? null : Collections.unmodifiableMap(headers);
+        this.headers = Collections.unmodifiableMap(headers);
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {

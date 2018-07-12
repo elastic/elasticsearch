@@ -1097,9 +1097,11 @@ final class RequestConverters {
         return request;
     }
 
-    @SuppressWarnings("unused")
-    static Request xpackUsage(XPackUsageRequest request) {
-        return new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
+    static Request xpackUsage(XPackUsageRequest usageRequest) {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
+        return request;
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {

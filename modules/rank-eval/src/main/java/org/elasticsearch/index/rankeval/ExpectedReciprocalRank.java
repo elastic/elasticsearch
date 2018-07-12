@@ -63,7 +63,7 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
 
     private final double two_pow_maxRelevance;
 
-    public static final String NAME = "err";
+    public static final String NAME = "expected_reciprocal_rank";
 
     public ExpectedReciprocalRank(int maxRelevance) {
         this(maxRelevance, null, DEFAULT_K);

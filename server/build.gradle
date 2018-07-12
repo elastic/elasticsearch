@@ -329,7 +329,7 @@ if (isEclipse == false || project.path == ":server-tests") {
   task integTest(type: RandomizedTestingTask,
                  group: JavaBasePlugin.VERIFICATION_GROUP,
                  description: 'Multi-node tests',
-                 dependsOn: test.dependsOn) {
+                 dependsOn: test.dependsOn.collect()) {
     configure(BuildPlugin.commonTestConfig(project))
     classpath = project.test.classpath
     testClassesDirs = project.test.testClassesDirs
@@ -337,4 +337,14 @@ if (isEclipse == false || project.path == ":server-tests") {
   }
   check.dependsOn integTest
   integTest.mustRunAfter test
+}
+
+// TODO: remove ScriptDocValuesMissingV6BehaviourTests in 7.0
+additionalTest('testScriptDocValuesMissingV6Behaviour'){
+  include '**/ScriptDocValuesMissingV6BehaviourTests.class'
+  systemProperty 'es.scripting.exception_for_missing_value', 'false'
+}
+test {
+  // these are tested explicitly in separate test tasks
+  exclude '**/*ScriptDocValuesMissingV6BehaviourTests.class'
 }

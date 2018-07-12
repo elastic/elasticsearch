@@ -278,7 +278,7 @@ public class CompositeRolesStore extends AbstractComponent {
 
         final Set<String> clusterPrivs = clusterPrivileges.isEmpty() ? null : clusterPrivileges;
         final Privilege runAsPrivilege = runAs.isEmpty() ? Privilege.NONE : new Privilege(runAs, runAs.toArray(Strings.EMPTY_ARRAY));
-        Role.Builder builder = Role.builder(roleNames.toArray(new String[roleNames.size()]), fieldPermissionsCache)
+        Role.Builder builder = Role.builder(roleNames.toArray(new String[roleNames.size()]))
                 .cluster(ClusterPrivilege.get(clusterPrivs))
                 .runAs(runAsPrivilege);
         indicesPrivilegesMap.entrySet().forEach((entry) -> {

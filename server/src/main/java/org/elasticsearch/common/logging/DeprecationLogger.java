@@ -131,7 +131,7 @@ public class DeprecationLogger {
     // LRU set of keys used to determine if a deprecation message should be emitted to the deprecation logs
     private Set<String> keys = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<String, Boolean>() {
         @Override
-        protected boolean removeEldestEntry(final Map.Entry eldest) {
+        protected boolean removeEldestEntry(final Map.Entry<String, Boolean> eldest) {
             return size() > 128;
         }
     }));
@@ -390,7 +390,7 @@ public class DeprecationLogger {
         final StringBuilder sb = new StringBuilder(s.length());
         boolean encodingNeeded = false;
         for (int i = 0; i < s.length();) {
-            int current = (int) s.charAt(i);
+            int current = s.charAt(i);
             /*
              * Either the character does not need encoding or it does; when the character does not need encoding we append the character to
              * a buffer and move to the next character and when the character does need encoding, we peel off as many characters as possible

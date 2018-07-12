@@ -21,10 +21,8 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
-import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -38,6 +36,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     protected final String format;
     protected final boolean expand;
+    protected final boolean lenient;
     protected final Settings settings;
 
     public SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env, AnalysisRegistry analysisRegistry,
@@ -52,6 +51,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
 
         this.expand = settings.getAsBoolean("expand", true);
+        this.lenient = settings.getAsBoolean("lenient", false);
         this.format = settings.get("format", "");
     }
 
@@ -93,11 +93,11 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             try {
                 SynonymMap.Builder parser;
                 if ("wordnet".equalsIgnoreCase(format)) {
-                    parser = new WordnetSynonymParser(true, expand, analyzerForParseSynonym);
-                    ((WordnetSynonymParser) parser).parse(rulesReader);
+                    parser = new ESWordnetSynonymParser(true, expand, lenient, analyzerForParseSynonym);
+                    ((ESWordnetSynonymParser) parser).parse(rulesReader);
                 } else {
-                    parser = new SolrSynonymParser(true, expand, analyzerForParseSynonym);
-                    ((SolrSynonymParser) parser).parse(rulesReader);
+                    parser = new ESSolrSynonymParser(true, expand, lenient, analyzerForParseSynonym);
+                    ((ESSolrSynonymParser) parser).parse(rulesReader);
                 }
                 synonymMap = parser.build();
             } catch (Exception e) {

@@ -5,9 +5,13 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
-public class FollowIndexRequestTests extends AbstractStreamableTestCase<FollowIndexAction.Request> {
+import java.io.IOException;
+
+public class FollowIndexRequestTests extends AbstractStreamableXContentTestCase<FollowIndexAction.Request> {
 
     @Override
     protected FollowIndexAction.Request createBlankInstance() {
@@ -19,13 +23,19 @@ public class FollowIndexRequestTests extends AbstractStreamableTestCase<FollowIn
         return createTestRequest();
     }
 
+    @Override
+    protected FollowIndexAction.Request doParseInstance(XContentParser parser) throws IOException {
+        return FollowIndexAction.Request.fromXContent(parser, null);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
     static FollowIndexAction.Request createTestRequest() {
-        FollowIndexAction.Request request = new FollowIndexAction.Request();
-        request.setLeaderIndex(randomAlphaOfLength(4));
-        request.setFollowIndex(randomAlphaOfLength(4));
-        request.setBatchSize(randomNonNegativeLong());
-        request.setConcurrentProcessors(randomIntBetween(0, Integer.MAX_VALUE));
-        request.setProcessorMaxTranslogBytes(randomNonNegativeLong());
-        return request;
+        return new FollowIndexAction.Request(randomAlphaOfLength(4), randomAlphaOfLength(4), randomIntBetween(1, Integer.MAX_VALUE),
+            randomIntBetween(1, Integer.MAX_VALUE), randomNonNegativeLong(), randomIntBetween(1, Integer.MAX_VALUE),
+            randomIntBetween(1, Integer.MAX_VALUE), TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(500));
     }
 }

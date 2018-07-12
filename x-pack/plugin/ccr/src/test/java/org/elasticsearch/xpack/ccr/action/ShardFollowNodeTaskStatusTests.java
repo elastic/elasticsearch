@@ -20,7 +20,8 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
 
     @Override
     protected ShardFollowNodeTask.Status createTestInstance() {
-        return new ShardFollowNodeTask.Status(randomNonNegativeLong());
+        return new ShardFollowNodeTask.Status(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+            randomIntBetween(0, Integer.MAX_VALUE), randomIntBetween(0, Integer.MAX_VALUE));
     }
 
     @Override

@@ -130,6 +130,7 @@ public abstract class TransportWriteAction<
             implements RespondingWriteResult {
         boolean finishedAsyncActions;
         public final Location location;
+        public final IndexShard primary;
         ActionListener<Response> listener = null;
 
         public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
@@ -137,6 +138,7 @@ public abstract class TransportWriteAction<
                                   IndexShard primary, Logger logger) {
             super(request, finalResponse, operationFailure);
             this.location = location;
+            this.primary = primary;
             assert location == null || operationFailure == null
                     : "expected either failure to be null or translog location to be null, " +
                     "but found: [" + location + "] translog location and [" + operationFailure + "] failure";

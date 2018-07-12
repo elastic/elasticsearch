@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
@@ -21,7 +20,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ForceMergeActionTests extends AbstractSerializingTestCase<ForceMergeAction> {
+public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeAction> {
 
     @Override
     protected ForceMergeAction doParseInstance(XContentParser parser) {

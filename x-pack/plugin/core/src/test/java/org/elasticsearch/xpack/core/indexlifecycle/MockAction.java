@@ -24,21 +24,28 @@ public class MockAction implements LifecycleAction {
     private List<Step> steps;
 
     private static final ObjectParser<MockAction, Void> PARSER = new ObjectParser<>(NAME, MockAction::new);
+    private final boolean safe;
 
     public static MockAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
     public MockAction() {
-        this.steps = Collections.emptyList();
+        this(Collections.emptyList());
     }
 
     public MockAction(List<Step> steps) {
+        this(steps, true);
+    }
+
+    public MockAction(List<Step> steps, boolean safe) {
         this.steps = steps;
+        this.safe = safe;
     }
 
     public MockAction(StreamInput in) throws IOException {
         this.steps = in.readList(MockStep::new);
+        this.safe = in.readBoolean();
     }
 
     @Override
@@ -58,6 +65,11 @@ public class MockAction implements LifecycleAction {
     }
 
     @Override
+    public boolean isSafeAction() {
+        return safe;
+    }
+
+    @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         return new ArrayList<>(steps);
     }
@@ -65,11 +77,12 @@ public class MockAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(steps.stream().map(MockStep::new).collect(Collectors.toList()));
+        out.writeBoolean(safe);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(steps);
+        return Objects.hash(steps, safe);
     }
 
     @Override
@@ -81,6 +94,7 @@ public class MockAction implements LifecycleAction {
             return false;
         }
         MockAction other = (MockAction) obj;
-        return Objects.equals(steps, other.steps);
+        return Objects.equals(steps, other.steps) && 
+                Objects.equals(safe, other.safe);
     }
 }

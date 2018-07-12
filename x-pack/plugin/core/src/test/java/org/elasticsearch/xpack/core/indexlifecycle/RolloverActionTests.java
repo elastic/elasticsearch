@@ -10,13 +10,12 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
 import java.util.List;
 
-public class RolloverActionTests extends AbstractSerializingTestCase<RolloverAction> {
+public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> {
 
     @Override
     protected RolloverAction doParseInstance(XContentParser parser) throws IOException {

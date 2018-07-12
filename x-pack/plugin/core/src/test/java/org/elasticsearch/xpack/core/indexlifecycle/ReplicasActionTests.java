@@ -8,13 +8,12 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
 import java.util.List;
 
-public class ReplicasActionTests extends AbstractSerializingTestCase<ReplicasAction> {
+public class ReplicasActionTests extends AbstractActionTestCase<ReplicasAction> {
 
     @Override
     protected ReplicasAction doParseInstance(XContentParser parser) {

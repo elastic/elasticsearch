@@ -112,6 +112,10 @@ public class AllocateAction implements LifecycleAction {
         return builder;
     }
 
+    @Override
+    public boolean isSafeAction() {
+        return true;
+    }
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {

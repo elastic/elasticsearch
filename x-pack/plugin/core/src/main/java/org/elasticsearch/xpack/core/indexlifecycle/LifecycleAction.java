@@ -28,4 +28,11 @@ public interface LifecycleAction extends ToXContentObject, NamedWriteable {
      * @return an ordered list of steps that represent the execution plan of the action
      */
     List<Step> toSteps(Client client, String phase, @Nullable Step.StepKey nextStepKey);
+
+    /**
+     * @return true if this action is considered safe. An action is not safe if
+     *         it will produce unwanted side effects or will get stuck when the
+     *         action configuration is changed while an index is in this action
+     */
+    boolean isSafeAction();
 }

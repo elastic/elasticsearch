@@ -126,6 +126,11 @@ public class RolloverAction implements LifecycleAction {
     }
 
     @Override
+    public boolean isSafeAction() {
+        return true;
+    }
+
+    @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         StepKey updateDateStepKey = new StepKey(phase, NAME, UpdateRolloverLifecycleDateStep.NAME);
         RolloverStep rolloverStep = new RolloverStep(new StepKey(phase, NAME, RolloverStep.NAME), updateDateStepKey, client,

@@ -28,8 +28,10 @@ import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
@@ -340,13 +342,31 @@ public class IndexLifecycleRunner {
             if (currentPolicy.isActionSafe(currentStepKey)) {
                 return true;
             } else {
-                // Index is in the shrink action so fail it
-                // NORELEASE also need to check if the shrink action has changed between oldPolicy and newPolicy
-                return false;
+                // Index is in an unsafe action so fail it if the action has changed between oldPolicy and newPolicy
+                return isActionChanged(currentStepKey, currentPolicy, newPolicy) == false;
             }
         } else {
             // Index not previously managed by ILM so safe to change policy
             return true;
+        }
+    }
+    
+    private static boolean isActionChanged(StepKey stepKey, LifecyclePolicy currentPolicy, LifecyclePolicy newPolicy) {
+        LifecycleAction currentAction = getActionFromPolicy(currentPolicy, stepKey.getPhase(), stepKey.getAction());
+        LifecycleAction newAction = getActionFromPolicy(newPolicy, stepKey.getPhase(), stepKey.getAction());
+        if (newAction == null) {
+            return true;
+        } else {
+            return currentAction.equals(newAction) == false;
+        }
+    }
+
+    private static LifecycleAction getActionFromPolicy(LifecyclePolicy policy, String phaseName, String actionName) {
+        Phase phase = policy.getPhases().get(phaseName);
+        if (phase != null) {
+            return phase.getActions().get(actionName);
+        } else {
+            return null;
         }
     }
 

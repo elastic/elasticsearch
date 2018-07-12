@@ -72,6 +72,9 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {
+        assumeFalse("Due to bug inside jdk, this test can't momentarily run with java 11. " +
+                "See: https://github.com/elastic/elasticsearch/issues/31940",
+            System.getProperty("java.version").contains("11"));
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             try (RestClient client = buildRestClient()) {

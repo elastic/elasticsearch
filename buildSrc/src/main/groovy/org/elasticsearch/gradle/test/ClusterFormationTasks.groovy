@@ -22,7 +22,7 @@ import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.Version
+import org.elasticsearch.model.Version
 import org.elasticsearch.gradle.VersionProperties
 
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin

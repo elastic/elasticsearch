@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.test.NodeInfo
 import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.Version
+import org.elasticsearch.model.Version
 
 import java.nio.charset.StandardCharsets
 import java.util.regex.Matcher

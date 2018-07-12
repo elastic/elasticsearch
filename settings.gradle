@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.Version
-
 String dirName = rootProject.projectDir.name
 rootProject.name = dirName
 

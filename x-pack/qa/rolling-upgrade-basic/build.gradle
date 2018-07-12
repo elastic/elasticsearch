@@ -1,8 +1,5 @@
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.test.NodeInfo
 import org.elasticsearch.gradle.test.RestIntegTestTask
-
-import java.nio.charset.StandardCharsets
+import org.elasticsearch.model.Version
 
 apply plugin: 'elasticsearch.standalone-test'
 

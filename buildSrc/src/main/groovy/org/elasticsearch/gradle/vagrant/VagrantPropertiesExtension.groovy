@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.gradle.vagrant
 
-import org.elasticsearch.gradle.Version
+import org.elasticsearch.model.Version
 import org.gradle.api.tasks.Input
 
 class VagrantPropertiesExtension {

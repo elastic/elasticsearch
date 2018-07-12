@@ -17,8 +17,7 @@
  * under the License.
  */
 
-import java.util.Locale
-import org.elasticsearch.gradle.Version
+import org.elasticsearch.model.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RestIntegTestTask
 

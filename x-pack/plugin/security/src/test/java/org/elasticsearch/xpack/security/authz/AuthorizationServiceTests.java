@@ -83,6 +83,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.GetLicenseAction;
@@ -90,6 +91,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequestBuilder;
@@ -114,6 +117,8 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -279,6 +284,40 @@ public class AuthorizationServiceTests extends ESTestCase {
             "cluster:admin/snapshot/status", SystemUser.INSTANCE.principal());
         verify(auditTrail).accessDenied(authentication, "cluster:admin/snapshot/status", request,
             new String[]{SystemUser.ROLE_NAME});
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testAuthorizeUsingPolicyConditionals() {
+        final DeletePrivilegesRequest request = new DeletePrivilegesRequest();
+        request.application("your-app");
+        final Authentication authentication = createAuthentication(new User("user1", "role1"));
+
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[]{
+            new ConditionalClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet("my-app", "your-app"))
+        };
+        RoleDescriptor role = new RoleDescriptor("role1", null, null, null, conditionalClusterPrivileges, null, null ,null);
+        roleMap.put("role1", role);
+
+        authorize(authentication, DeletePrivilegesAction.NAME, request);
+        verify(auditTrail).accessGranted(authentication, DeletePrivilegesAction.NAME, request, new String[]{role.getName()});
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testAuthorizationDeniedWhenPolicyConditionalsDoNotMatch() {
+        final DeletePrivilegesRequest request = new DeletePrivilegesRequest();
+        request.application("your-app");
+        final Authentication authentication = createAuthentication(new User("user1", "role1"));
+
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[]{
+            new ConditionalClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet("my-app"))
+        };
+        RoleDescriptor role = new RoleDescriptor("role1", null, null, null, conditionalClusterPrivileges, null, null ,null);
+        roleMap.put("role1", role);
+
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, DeletePrivilegesAction.NAME, request),
+            DeletePrivilegesAction.NAME, "user1");
+        verify(auditTrail).accessDenied(authentication, DeletePrivilegesAction.NAME, request, new String[]{role.getName()});
         verifyNoMoreInteractions(auditTrail);
     }
 

@@ -45,6 +45,14 @@ public final class PainlessLookup {
         return javaClassesToPainlessClasses.get(javaClass);
     }
 
+    public Class<?> painlessTypeNameToPainlessType(String painlessTypeName) {
+        return PainlessLookupUtility.painlessTypeNameToPainlessType(painlessTypeName, painlessClassNamesToJavaClasses);
+    }
+
+    public void validatePainlessType(Class<?> painlessType) {
+        PainlessLookupUtility.validatePainlessType(painlessType, javaClassesToPainlessClasses.keySet());
+    }
+
     public boolean isSimplePainlessType(String painlessType) {
         return painlessClassNamesToJavaClasses.containsKey(painlessType);
     }

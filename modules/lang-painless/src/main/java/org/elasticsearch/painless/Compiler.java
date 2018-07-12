@@ -90,7 +90,7 @@ final class Compiler {
          */
         @Override
         public Class<?> findClass(String name) throws ClassNotFoundException {
-            Class<?> found = painlessLookup.getClassFromBinaryName(name);
+            Class<?> found = painlessLookup.painlessTypeNameToPainlessType(name);
 
             return found != null ? found : super.findClass(name);
         }

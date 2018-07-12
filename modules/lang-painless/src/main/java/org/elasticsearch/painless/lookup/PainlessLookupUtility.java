@@ -129,7 +129,7 @@ public final class PainlessLookupUtility {
                 return painlessDefTypeNameArrayBuilder.toString();
             }
         } else if (anyType == def.class) {
-            return def.class.getSimpleName();
+            return DEF_PAINLESS_CLASS_NAME;
         }
 
         return anyType.getCanonicalName().replace('$', '.');

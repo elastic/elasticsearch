@@ -28,7 +28,7 @@ import org.elasticsearch.painless.spi.WhitelistMethod;
 import java.util.List;
 
 public class WhitelistsToPainlessLookup {
-    public static PainlessLookup whitelistsToPainlessLookup(List<Whitelist> whitelists) {
+    public static PainlessLookup build(List<Whitelist> whitelists) {
         PainlessLookupBuilder painlessLookupBuilder = new PainlessLookupBuilder();
         String origin = null;
 
@@ -37,7 +37,7 @@ public class WhitelistsToPainlessLookup {
                 for (WhitelistClass whitelistClass : whitelist.whitelistStructs) {
                     origin = whitelistClass.origin;
                     painlessLookupBuilder.addPainlessClass(
-                            whitelist.javaClassLoader, whitelistClass.javaClassName, whitelistClass.onlyFQNJavaClassName);
+                            whitelist.javaClassLoader, whitelistClass.javaClassName, whitelistClass.onlyFQNJavaClassName == false);
                 }
             }
 

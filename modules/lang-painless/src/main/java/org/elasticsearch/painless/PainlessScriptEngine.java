@@ -103,10 +103,10 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
             ScriptContext<?> context = entry.getKey();
             if (context.instanceClazz.equals(SearchScript.class) || context.instanceClazz.equals(ExecutableScript.class)) {
                 contextsToCompilers.put(context, new Compiler(GenericElasticsearchScript.class,
-                        WhitelistsToPainlessLookup.whitelistsToPainlessLookup(entry.getValue())));
+                        WhitelistsToPainlessLookup.build(entry.getValue())));
             } else {
                 contextsToCompilers.put(context, new Compiler(context.instanceClazz,
-                        WhitelistsToPainlessLookup.whitelistsToPainlessLookup(entry.getValue())));
+                        WhitelistsToPainlessLookup.build(entry.getValue())));
             }
         }
 

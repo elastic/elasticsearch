@@ -25,9 +25,8 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.objectweb.asm.Type;
 
 import java.util.Objects;
@@ -69,12 +68,15 @@ public final class EFunctionRef extends AExpression implements ILambda {
                     PainlessMethod interfaceMethod = locals.getPainlessLookup().getPainlessClassFromJavaClass(expected).functionalMethod;
                     if (interfaceMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                           "to [" + PainlessLookup.ClassToName(expected) + "], not a functional interface");
+                                                           "to [" + PainlessLookupUtility.anyTypeToPainlessTypeName(expected) + "], " +
+                                                           "not a functional interface");
                     }
-                    PainlessMethod delegateMethod = locals.getMethod(new PainlessMethodKey(call, interfaceMethod.arguments.size()));
+                    PainlessMethod delegateMethod = locals.getMethod(
+                        PainlessLookupUtility.buildPainlessMethodKey(call, interfaceMethod.arguments.size()));
                     if (delegateMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                           "to [" + PainlessLookup.ClassToName(expected) + "], function not found");
+                                                           "to [" + PainlessLookupUtility.anyTypeToPainlessTypeName(expected) + "], " +
+                                                           "function not found");
                     }
                     ref = new FunctionRef(expected, interfaceMethod, delegateMethod, 0);
 

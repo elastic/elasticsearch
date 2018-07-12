@@ -233,7 +233,7 @@ public final class PainlessLookupBuilder {
         }
 
         if (painlessClassName.equals(importedPainlessClassName)) {
-            if (importPainlessClassName == false) {
+            if (importPainlessClassName == true) {
                 throw new IllegalArgumentException(
                         "must use only_fqn parameter on painless class [" + painlessClassName + "] with no package");
             }
@@ -499,8 +499,13 @@ public final class PainlessLookupBuilder {
         }
 
         int parametersSize = painlessTypeParameters.size();
-        Class<?>[] javaTypeParameters = new Class<?>[parametersSize];
+        int augmentedParameterOffset = augmentedJavaClass == null ? 0 : 1;
+        Class<?>[] javaTypeParameters = new Class<?>[parametersSize + augmentedParameterOffset];
         int parameterIndex = 0;
+
+        if (augmentedJavaClass != null) {
+            javaTypeParameters[0] = javaClass;
+        }
 
         for (Class<?> painlessTypeParameter : painlessTypeParameters) {
             String anyTypeNameParameter = painlessTypeParameter.getCanonicalName();
@@ -514,7 +519,8 @@ public final class PainlessLookupBuilder {
                         "[[" + painlessClassName + "], " + anyTypesListToCanonicalString(painlessTypeParameters, true)  + "]", iae);
             }
 
-            javaTypeParameters[parameterIndex++] = painlessDefTypeToJavaObjectType(painlessTypeParameter);
+            javaTypeParameters[parameterIndex + augmentedParameterOffset] = painlessDefTypeToJavaObjectType(painlessTypeParameter);
+            ++parameterIndex;
         }
 
         String anyTypeNameReturn = painlessTypeReturn.getCanonicalName();
@@ -536,11 +542,20 @@ public final class PainlessLookupBuilder {
                                    Class<?> painlessTypeReturn, List<Class<?>> painlessTypeParameters, Class<?>[] javaTypeParameters) {
         java.lang.reflect.Method javaMethod;
 
-        try {
-            javaMethod = javaClass.getMethod(methodName, javaTypeParameters);
-        } catch (NoSuchMethodException nsme) {
-            throw new IllegalArgumentException("java method [[" + javaClass.getCanonicalName() + "], [" + methodName + "], " +
-                    anyTypesArrayToCanonicalString(javaTypeParameters, false) + "] reflection object not found", nsme);
+        if (augmentedJavaClass == null) {
+            try {
+                javaMethod = javaClass.getMethod(methodName, javaTypeParameters);
+            } catch (NoSuchMethodException nsme) {
+                throw new IllegalArgumentException("java method [[" + javaClass.getCanonicalName() + "], [" + methodName + "], " +
+                        anyTypesArrayToCanonicalString(javaTypeParameters, false) + "] reflection object not found", nsme);
+            }
+        } else {
+            try {
+                javaMethod = augmentedJavaClass.getMethod(methodName, javaTypeParameters);
+            } catch (NoSuchMethodException nsme) {
+                throw new IllegalArgumentException("java method [[" + augmentedJavaClass.getCanonicalName() + "], [" + methodName + "], " +
+                        anyTypesArrayToCanonicalString(javaTypeParameters, false) + "] reflection object not found", nsme);
+            }
         }
 
         if (javaMethod.getReturnType() != painlessDefTypeToJavaObjectType(painlessTypeReturn)) {
@@ -784,35 +799,36 @@ public final class PainlessLookupBuilder {
         Map<Class<?>, PainlessClassBuilder> javaClassesToPainlessClassBuilders = new HashMap<>(this.javaClassesToPainlessClassBuilders);
         Set<Class<?>> copiedJavaClasses = new HashSet<>();
 
-        for (Class<?> parentJavaClass : javaClassesToPainlessClassBuilders.keySet()) {
+        for (Class<?> parentJavaClass : this.javaClassesToPainlessClassBuilders.keySet()) {
             copyPainlessClassMembers(parentJavaClass, copiedJavaClasses, javaClassesToPainlessClassBuilders);
             copiedJavaClasses.add(parentJavaClass);
         }
 
-        for (Class<?> javaClass : javaClassesToPainlessClassBuilders.keySet()) {
+        for (Class<?> javaClass : this.javaClassesToPainlessClassBuilders.keySet()) {
             if (javaClass.isInterface()) {
-                copyPainlessClassMembers(Object.class, javaClass);
+                copyPainlessClassMembers(Object.class, javaClass, javaClassesToPainlessClassBuilders);
             }
         }
     }
 
     private void copyPainlessClassMembers(Class<?> parentJavaClass, Set<Class<?>> copiedJavaClasses,
                                           Map<Class<?>, PainlessClassBuilder> javaClassesToPainlessClassBuilders) {
-        if (parentJavaClass == null || copiedJavaClasses.contains(parentJavaClass)) {
+        Class<?> childJavaClass = parentJavaClass.getSuperclass();
+
+        if (childJavaClass == null || copiedJavaClasses.contains(childJavaClass)) {
             return;
         }
 
-        Class<?> childJavaClass = parentJavaClass.getSuperclass();
+        if (javaClassesToPainlessClassBuilders.containsKey(childJavaClass) == false) {
+            javaClassesToPainlessClassBuilders.put(childJavaClass,
+                new PainlessClassBuilder(TRANSIENT_JAVA_CLASS_NAME, childJavaClass, Type.getType(childJavaClass)));
+        }
+
         copyPainlessClassMembers(childJavaClass, copiedJavaClasses, javaClassesToPainlessClassBuilders);
         copyPainlessInterfaceMembers(childJavaClass, copiedJavaClasses, javaClassesToPainlessClassBuilders);
         copiedJavaClasses.add(childJavaClass);
 
-        if (javaClassesToPainlessClassBuilders.containsKey(childJavaClass) == false) {
-            javaClassesToPainlessClassBuilders.put(childJavaClass,
-                    new PainlessClassBuilder(TRANSIENT_JAVA_CLASS_NAME, childJavaClass, Type.getType(childJavaClass)));
-        }
-
-        copyPainlessClassMembers(childJavaClass, parentJavaClass);
+        copyPainlessClassMembers(childJavaClass, parentJavaClass, javaClassesToPainlessClassBuilders);
     }
 
     private void copyPainlessInterfaceMembers(Class<?> parentJavaClass, Set<Class<?>> copiedJavaClasses,
@@ -822,37 +838,38 @@ public final class PainlessLookupBuilder {
         }
 
         for (Class<?> childJavaClass : parentJavaClass.getInterfaces()) {
-            copyPainlessInterfaceMembers(parentJavaClass, copiedJavaClasses, javaClassesToPainlessClassBuilders);
-            copiedJavaClasses.add(parentJavaClass);
-
             if (javaClassesToPainlessClassBuilders.containsKey(childJavaClass) == false) {
                 javaClassesToPainlessClassBuilders.put(childJavaClass,
                     new PainlessClassBuilder(TRANSIENT_JAVA_CLASS_NAME, childJavaClass, Type.getType(childJavaClass)));
             }
 
-            copyPainlessClassMembers(childJavaClass, parentJavaClass);
+            copyPainlessInterfaceMembers(childJavaClass, copiedJavaClasses, javaClassesToPainlessClassBuilders);
+            copiedJavaClasses.add(parentJavaClass);
+
+            copyPainlessClassMembers(childJavaClass, parentJavaClass, javaClassesToPainlessClassBuilders);
         }
     }
 
-    private void copyPainlessClassMembers(Class<?> originalJavaClass, Class<?> targetJavaClass) {
-        PainlessClassBuilder originalPainlessClassBuilder = javaClassesToPainlessClassBuilders.get(originalJavaClass);
-        PainlessClassBuilder targetPainlessClassBuilder = javaClassesToPainlessClassBuilders.get(targetJavaClass);
+    private void copyPainlessClassMembers(Class<?> childJavaClass, Class<?> parentJavaClass,
+                                          Map<Class<?>, PainlessClassBuilder> javaClassesToPainlessClassBuilders) {
+        PainlessClassBuilder childPainlessClassBuilder = javaClassesToPainlessClassBuilders.get(childJavaClass);
+        PainlessClassBuilder parentPainlessClassBuilder = javaClassesToPainlessClassBuilders.get(parentJavaClass);
 
-        Objects.requireNonNull(originalPainlessClassBuilder);
-        Objects.requireNonNull(targetPainlessClassBuilder);
+        Objects.requireNonNull(childPainlessClassBuilder);
+        Objects.requireNonNull(parentPainlessClassBuilder);
 
-        for (Map.Entry<String, PainlessMethod> painlessMethodEntry : originalPainlessClassBuilder.methods.entrySet()) {
+        for (Map.Entry<String, PainlessMethod> painlessMethodEntry : childPainlessClassBuilder.methods.entrySet()) {
             String painlessMethodKey = painlessMethodEntry.getKey();
             PainlessMethod painlessMethod = painlessMethodEntry.getValue();
 
-            targetPainlessClassBuilder.methods.putIfAbsent(painlessMethodKey, painlessMethod);
+            parentPainlessClassBuilder.methods.putIfAbsent(painlessMethodKey, painlessMethod);
         }
 
-        for (Map.Entry<String, PainlessField> painlessFieldEntry : originalPainlessClassBuilder.members.entrySet()) {
+        for (Map.Entry<String, PainlessField> painlessFieldEntry : childPainlessClassBuilder.members.entrySet()) {
             String painlessFieldKey = painlessFieldEntry.getKey();
             PainlessField painlessField = painlessFieldEntry.getValue();
 
-            targetPainlessClassBuilder.members.putIfAbsent(painlessFieldKey, painlessField);
+            parentPainlessClassBuilder.members.putIfAbsent(painlessFieldKey, painlessField);
         }
     }
 
@@ -899,12 +916,14 @@ public final class PainlessLookupBuilder {
 
         if (javaClass.isInterface()) {
             List<java.lang.reflect.Method> javaMethods = new ArrayList<>();
-            List<java.lang.reflect.Method> objectJavaMethods = Arrays.asList(Object.class.getMethods());
 
             for (java.lang.reflect.Method javaMethod : javaClass.getMethods()) {
-                if (javaMethod.isDefault() == false && Modifier.isStatic(javaMethod.getModifiers()) == false &&
-                        objectJavaMethods.contains(javaMethod) == false) {
-                    javaMethods.add(javaMethod);
+                if (javaMethod.isDefault() == false && Modifier.isStatic(javaMethod.getModifiers()) == false) {
+                    try {
+                        Object.class.getMethod(javaMethod.getName(), javaMethod.getParameterTypes());
+                    } catch (ReflectiveOperationException roe) {
+                        javaMethods.add(javaMethod);
+                    }
                 }
             }
 

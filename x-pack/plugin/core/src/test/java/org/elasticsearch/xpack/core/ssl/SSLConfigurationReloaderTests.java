@@ -466,10 +466,8 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     private static void atomicMoveIfPossible(Path source, Path target) throws IOException {
         try {
             Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            System.out.println("f moved a");
         } catch (AtomicMoveNotSupportedException e) {
             Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
-            System.out.println("f moved b");
         }
     }
 

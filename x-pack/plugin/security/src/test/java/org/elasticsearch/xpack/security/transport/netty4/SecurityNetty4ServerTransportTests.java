@@ -201,7 +201,7 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         assertFalse(engine.getWantClientAuth());
 
         // get the global and verify that it is different in that it requires client auth
-        SSLConfiguration configuration = sslService.getSSLConfiguration("_global");
+        SSLConfiguration configuration = sslService.getSSLConfiguration("xpack.ssl");
         assertNotNull(configuration);
         final SSLEngine globalEngine = sslService.createSSLEngine(configuration, null, -1);
         assertTrue(globalEngine.getNeedClientAuth());

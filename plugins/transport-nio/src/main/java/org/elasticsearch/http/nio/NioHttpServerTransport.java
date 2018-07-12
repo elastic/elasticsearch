@@ -49,6 +49,8 @@ import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.nio.NioTransport;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -87,21 +89,21 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
             (s) -> Setting.parseInt(s, 1, "http.nio.worker_count"), Setting.Property.NodeScope);
 
-    private final PageCacheRecycler pageCacheRecycler;
+    protected final PageCacheRecycler pageCacheRecycler;
+    protected final NioCorsConfig corsConfig;
 
-    private final boolean tcpNoDelay;
-    private final boolean tcpKeepAlive;
-    private final boolean reuseAddress;
-    private final int tcpSendBufferSize;
-    private final int tcpReceiveBufferSize;
+    protected final boolean tcpNoDelay;
+    protected final boolean tcpKeepAlive;
+    protected final boolean reuseAddress;
+    protected final int tcpSendBufferSize;
+    protected final int tcpReceiveBufferSize;
 
     private NioGroup nioGroup;
-    private HttpChannelFactory channelFactory;
-    private final NioCorsConfig corsConfig;
+    private ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory;
 
     public NioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
                                   PageCacheRecycler pageCacheRecycler, ThreadPool threadPool, NamedXContentRegistry xContentRegistry,
-                                  HttpServerTransport.Dispatcher dispatcher) {
+                                  Dispatcher dispatcher) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
         this.pageCacheRecycler = pageCacheRecycler;
 
@@ -136,7 +138,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             nioGroup = new NioGroup(daemonThreadFactory(this.settings, HTTP_SERVER_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
                 daemonThreadFactory(this.settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX), workerCount,
                 (s) -> new EventHandler(this::onNonChannelException, s));
-            channelFactory = new HttpChannelFactory();
+            channelFactory = channelFactory();
             bindServer();
             success = true;
         } catch (IOException e) {
@@ -160,6 +162,10 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     @Override
     protected HttpServerChannel bind(InetSocketAddress socketAddress) throws IOException {
         return nioGroup.bindServerChannel(socketAddress, channelFactory);
+    }
+
+    protected ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory() {
+        return new HttpChannelFactory();
     }
 
     static NioCorsConfig buildCorsConfig(Settings settings) {
@@ -194,7 +200,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             .build();
     }
 
-    private void acceptChannel(NioSocketChannel socketChannel) {
+    protected void acceptChannel(NioSocketChannel socketChannel) {
         super.serverAcceptedChannel((HttpChannel) socketChannel);
     }
 

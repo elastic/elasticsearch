@@ -53,7 +53,6 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
         } else {
             this.sslConfiguration = null;
         }
-
     }
 
     @Override

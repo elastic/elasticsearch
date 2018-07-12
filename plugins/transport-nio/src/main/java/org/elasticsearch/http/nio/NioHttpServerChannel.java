@@ -28,7 +28,7 @@ import java.nio.channels.ServerSocketChannel;
 
 public class NioHttpServerChannel extends NioServerSocketChannel implements HttpServerChannel {
 
-    NioHttpServerChannel(ServerSocketChannel serverSocketChannel) throws IOException {
+    public NioHttpServerChannel(ServerSocketChannel serverSocketChannel) {
         super(serverSocketChannel);
     }
 

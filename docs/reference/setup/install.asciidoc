@@ -1,6 +1,11 @@
 [[install-elasticsearch]]
 == Installing Elasticsearch
 
+Elasticsearch can be run on your own hardware or using our hosted
+Elasticsearch Service on https://www.elastic.co/cloud[Elastic Cloud], which is
+available on AWS and GCP. You can
+https://www.elastic.co/cloud/elasticsearch-service/signup[try out the hosted service] for free.
+
 Elasticsearch is provided in the following package formats:
 
 [horizontal]
@@ -38,7 +43,7 @@ Elasticsearch on Windows. MSIs may be downloaded from the Elasticsearch website.
 `docker`::
 
 Images are available for running Elasticsearch as Docker containers. They may be
-downloaded from the Elastic Docker Registry. 
+downloaded from the Elastic Docker Registry.
 +
 {ref}/docker.html[Install {es} with Docker]
 

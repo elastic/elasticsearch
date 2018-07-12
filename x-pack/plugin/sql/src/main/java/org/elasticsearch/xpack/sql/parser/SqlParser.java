@@ -33,9 +33,12 @@ import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+
+import static java.lang.String.format;
 
 public class SqlParser {
     private static final Logger log = Loggers.getLogger(SqlParser.class);
@@ -102,16 +105,30 @@ public class SqlParser {
 
         if (DEBUG) {
             debug(parser);
+            tokenStream.fill();
+
+            for (Token t : tokenStream.getTokens()) {
+                String symbolicName = SqlBaseLexer.VOCABULARY.getSymbolicName(t.getType());
+                String literalName = SqlBaseLexer.VOCABULARY.getLiteralName(t.getType());
+                log.info(format(Locale.ROOT, "  %-15s '%s'",
+                        symbolicName == null ? literalName : symbolicName,
+                        t.getText()));
+            };
         }
 
         ParserRuleContext tree = parseFunction.apply(parser);
+
+        if (DEBUG) {
+            log.info("Parse tree {} " + tree.toStringTree());
+        }
 
         return visitor.apply(new AstBuilder(paramTokens), tree);
     }
 
     private void debug(SqlBaseParser parser) {
+        
         // when debugging, use the exact prediction mode (needed for diagnostics as well)
-        parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
+        parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
 
         parser.addParseListener(parser.new TraceListener());
 

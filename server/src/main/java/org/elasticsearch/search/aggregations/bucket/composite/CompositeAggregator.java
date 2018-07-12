@@ -200,7 +200,7 @@ final class CompositeAggregator extends BucketsAggregator {
 
     /**
      * Replay the documents that might contain a top bucket and pass top buckets to
-     * the {@link this#deferredCollectors}.
+     * the {@link #deferredCollectors}.
      */
     private void runDeferredCollections() throws IOException {
         final boolean needsScores = needsScores();

@@ -1457,7 +1457,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 topHits = result.getBuckets().get(2).getAggregations().get("top_hits");
                 assertNotNull(topHits);
                 assertEquals(topHits.getHits().getHits().length, 1);
-                assertEquals(topHits.getHits().getTotalHits(), 1L);;
+                assertEquals(topHits.getHits().getTotalHits(), 1L);
             }
         );
 

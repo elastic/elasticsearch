@@ -22,8 +22,8 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Def;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Parameter;
@@ -93,7 +93,7 @@ public final class SFunction extends AStatement {
 
     Class<?> rtnType = null;
     List<Parameter> parameters = new ArrayList<>();
-    Method method = null;
+    PainlessMethod method = null;
 
     private Variable loop = null;
 
@@ -117,9 +117,9 @@ public final class SFunction extends AStatement {
         throw new IllegalStateException("Illegal tree structure");
     }
 
-    void generateSignature(Definition definition) {
+    void generateSignature(PainlessLookup painlessLookup) {
         try {
-            rtnType = definition.getJavaClassFromPainlessType(rtnTypeStr);
+            rtnType = painlessLookup.getJavaClassFromPainlessType(rtnTypeStr);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Illegal return type [" + rtnTypeStr + "] for function [" + name + "]."));
         }
@@ -133,9 +133,9 @@ public final class SFunction extends AStatement {
 
         for (int param = 0; param < this.paramTypeStrs.size(); ++param) {
             try {
-                Class<?> paramType = definition.getJavaClassFromPainlessType(this.paramTypeStrs.get(param));
+                Class<?> paramType = painlessLookup.getJavaClassFromPainlessType(this.paramTypeStrs.get(param));
 
-                paramClasses[param] = Definition.defClassToObjectClass(paramType);
+                paramClasses[param] = PainlessLookup.defClassToObjectClass(paramType);
                 paramTypes.add(paramType);
                 parameters.add(new Parameter(location, paramNameStrs.get(param), paramType));
             } catch (IllegalArgumentException exception) {
@@ -145,8 +145,8 @@ public final class SFunction extends AStatement {
         }
 
         org.objectweb.asm.commons.Method method = new org.objectweb.asm.commons.Method(
-            name, MethodType.methodType(Definition.defClassToObjectClass(rtnType), paramClasses).toMethodDescriptorString());
-        this.method = new Method(name, null, null, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
+            name, MethodType.methodType(PainlessLookup.defClassToObjectClass(rtnType), paramClasses).toMethodDescriptorString());
+        this.method = new PainlessMethod(name, null, null, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
     }
 
     @Override

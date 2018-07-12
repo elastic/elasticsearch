@@ -18,7 +18,7 @@
  */
 
 /**
- * Request and Response objects for the default distribution's License
+ * Request and Response objects for the default distribution's Watcher
  * APIs.
  */
-package org.elasticsearch.protocol.license;
+package org.elasticsearch.protocol.xpack.watcher;

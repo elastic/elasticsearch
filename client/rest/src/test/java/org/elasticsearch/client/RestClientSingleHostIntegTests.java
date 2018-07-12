@@ -256,35 +256,51 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     public void testEncodeParams() throws IOException {
         {
-            Response response = restClient.performRequest("PUT", "/200", Collections.singletonMap("routing", "this/is/the/routing"));
+            Request request = new Request("PUT", "/200");
+            request.addParameter("routing", "this/is/the/routing");
+            Response response = restClient.performRequest(request);
             assertEquals(pathPrefix + "/200?routing=this%2Fis%2Fthe%2Frouting", response.getRequestLine().getUri());
         }
         {
-            Response response = restClient.performRequest("PUT", "/200", Collections.singletonMap("routing", "this|is|the|routing"));
+            Request request = new Request("PUT", "/200");
+            request.addParameter("routing", "this|is|the|routing");
+            Response response = restClient.performRequest(request);
             assertEquals(pathPrefix + "/200?routing=this%7Cis%7Cthe%7Crouting", response.getRequestLine().getUri());
         }
         {
-            Response response = restClient.performRequest("PUT", "/200", Collections.singletonMap("routing", "routing#1"));
+            Request request = new Request("PUT", "/200");
+            request.addParameter("routing", "routing#1");
+            Response response = restClient.performRequest(request);
             assertEquals(pathPrefix + "/200?routing=routing%231", response.getRequestLine().getUri());
         }
         {
-            Response response = restClient.performRequest("PUT", "/200", Collections.singletonMap("routing", "中文"));
+            Request request = new Request("PUT", "/200");
+            request.addParameter("routing", "中文");
+            Response response = restClient.performRequest(request);
             assertEquals(pathPrefix + "/200?routing=%E4%B8%AD%E6%96%87", response.getRequestLine().getUri());
         }
         {
-            Response response = restClient.performRequest("PUT", "/200", Collections.singletonMap("routing", "foo bar"));
+            Request request = new Request("PUT", "/200");
+            request.addParameter("routing", "foo bar");
+            Response response = restClient.performRequest(request);
             assertEquals(pathPrefix + "/200?routing=foo+bar", response.getRequestLine().getUri());
         }
         {
-            Response response = restClient.performRequest("PUT", "/200", Collections.singletonMap("routing", "foo+bar"));
+            Request request = new Request("PUT", "/200");
+            request.addParameter("routing", "foo+bar");
+            Response response = restClient.performRequest(request);
             assertEquals(pathPrefix + "/200?routing=foo%2Bbar", response.getRequestLine().getUri());
         }
         {
-            Response response = restClient.performRequest("PUT", "/200", Collections.singletonMap("routing", "foo/bar"));
+            Request request = new Request("PUT", "/200");
+            request.addParameter("routing", "foo/bar");
+            Response response = restClient.performRequest(request);
             assertEquals(pathPrefix + "/200?routing=foo%2Fbar", response.getRequestLine().getUri());
         }
         {
-            Response response = restClient.performRequest("PUT", "/200", Collections.singletonMap("routing", "foo^bar"));
+            Request request = new Request("PUT", "/200");
+            request.addParameter("routing", "foo^bar");
+            Response response = restClient.performRequest(request);
             assertEquals(pathPrefix + "/200?routing=foo%5Ebar", response.getRequestLine().getUri());
         }
     }
@@ -341,14 +357,14 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
     public void testUrlWithoutLeadingSlash() throws Exception {
         if (pathPrefix.length() == 0) {
             try {
-                restClient.performRequest("GET", "200");
+                restClient.performRequest(new Request("GET", "200"));
                 fail("request should have failed");
             } catch (ResponseException e) {
                 assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
             }
         } else {
             {
-                Response response = restClient.performRequest("GET", "200");
+                Response response = restClient.performRequest(new Request("GET", "200"));
                 //a trailing slash gets automatically added if a pathPrefix is configured
                 assertEquals(200, response.getStatusLine().getStatusCode());
             }
@@ -357,7 +373,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
                 try (RestClient restClient = RestClient.builder(
                     new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort()))
                     .setPathPrefix(pathPrefix.substring(1)).build()) {
-                    Response response = restClient.performRequest("GET", "200");
+                    Response response = restClient.performRequest(new Request("GET", "200"));
                     //a trailing slash gets automatically added if a pathPrefix is configured
                     assertEquals(200, response.getStatusLine().getStatusCode());
                 }

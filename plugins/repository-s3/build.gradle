@@ -98,19 +98,11 @@ String s3EC2Token = System.getenv("amazon_s3_token_ec2")
 // credentials hard-coded in.
 
 if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath
-        && !s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3TemporaryBasePath && !s3TemporarySessionToken
         && !s3EC2Bucket && !s3EC2BasePath && !s3EC2AccessKey && !s3EC2Token) {
-
   s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
   s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
   s3PermanentBucket = 'permanent-bucket-test'
   s3PermanentBasePath = 'integration_test'
-
-  s3TemporaryAccessKey = 's3_integration_test_temporary_access_key'
-  s3TemporarySecretKey = 's3_integration_test_temporary_secret_key'
-  s3TemporaryBucket = 'temporary-bucket-test'
-  s3TemporaryBasePath = 'integration_test'
-  s3TemporarySessionToken = 's3_integration_test_temporary_session_token'
 
   s3EC2Bucket = 'ec2-bucket-test'
   s3EC2BasePath = 'integration_test'
@@ -118,9 +110,20 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
   s3EC2Token = 'ec2_tkn'
 
   useFixture = true
+
 } else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath
-        || !s3TemporaryAccessKey || !s3TemporarySecretKey || !s3TemporaryBucket || !s3TemporaryBasePath || !s3TemporarySessionToken
         || !s3EC2Bucket || !s3EC2BasePath || !s3EC2AccessKey || !s3EC2Token) {
+  throw new IllegalArgumentException("not all options specified to run against external S3 service")
+}
+
+if (!s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3TemporaryBasePath && !s3TemporarySessionToken) {
+  s3TemporaryAccessKey = 's3_integration_test_temporary_access_key'
+  s3TemporarySecretKey = 's3_integration_test_temporary_secret_key'
+  s3TemporaryBucket = 'temporary-bucket-test'
+  s3TemporaryBasePath = 'integration_test'
+  s3TemporarySessionToken = 's3_integration_test_temporary_session_token'
+
+} else if (!s3TemporaryAccessKey || !s3TemporarySecretKey || !s3TemporaryBucket || !s3TemporaryBasePath || !s3TemporarySessionToken) {
   throw new IllegalArgumentException("not all options specified to run against external S3 service")
 }
 
@@ -320,6 +323,13 @@ Map<String, Object> expansions = [
 processTestResources {
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
+}
+
+project.afterEvaluate {
+  if (useFixture == false) {
+    // 30_repository_temporary_credentials is not ready for CI yet
+    integTestRunner.systemProperty 'tests.rest.blacklist', 'repository_s3/30_repository_temporary_credentials/*'
+  }
 }
 
 integTestCluster {

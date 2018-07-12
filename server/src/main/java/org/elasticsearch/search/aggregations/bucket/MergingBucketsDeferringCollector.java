@@ -37,6 +37,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * A specialization of {@link DeferringBucketCollector} that collects all
+ * matches and then is able to replay a given subset of buckets. Exposes
+ * mergeBuckets, which can be invoked by the aggregator when increasing the
+ * rounding interval.
+ */
 public class MergingBucketsDeferringCollector extends DeferringBucketCollector {
 
     List<Entry> entries = new ArrayList<>();
@@ -92,7 +98,7 @@ public class MergingBucketsDeferringCollector extends DeferringBucketCollector {
             int lastDoc = 0;
 
             @Override
-            public void collect(int doc, long bucket) throws IOException {
+            public void collect(int doc, long bucket) {
                 docDeltas.add(doc - lastDoc);
                 buckets.add(bucket);
                 lastDoc = doc;
@@ -103,12 +109,12 @@ public class MergingBucketsDeferringCollector extends DeferringBucketCollector {
 
     public void mergeBuckets(long[] mergeMap) {
 
-        List<Entry> newEntries = new ArrayList<>();
+        List<Entry> newEntries = new ArrayList<>(entries.size());
         for (Entry sourceEntry : entries) {
             PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
             for (PackedLongValues.Iterator itr = sourceEntry.buckets.iterator(); itr.hasNext();) {
                 long bucket = itr.next();
-                newBuckets.add(mergeMap[(int) bucket]);
+                newBuckets.add(mergeMap[Math.toIntExact(bucket)]);
             }
             newEntries.add(new Entry(sourceEntry.context, sourceEntry.docDeltas, newBuckets.build()));
         }
@@ -121,14 +127,14 @@ public class MergingBucketsDeferringCollector extends DeferringBucketCollector {
             PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
             for (PackedLongValues.Iterator itr = currentBuckets.iterator(); itr.hasNext();) {
                 long bucket = itr.next();
-                newBuckets.add(mergeMap[(int) bucket]);
+                newBuckets.add(mergeMap[Math.toIntExact(bucket)]);
             }
             buckets = newBuckets;
         }
     }
 
     @Override
-    public void postCollection() throws IOException {
+    public void postCollection() {
         finishLeaf();
         finished = true;
     }
@@ -138,7 +144,7 @@ public class MergingBucketsDeferringCollector extends DeferringBucketCollector {
      */
     @Override
     public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
-        if (!finished) {
+        if (finished == false) {
             throw new IllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
         }
         if (this.selectedBuckets != null) {

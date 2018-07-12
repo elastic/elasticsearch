@@ -29,6 +29,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -57,7 +58,7 @@ public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
         if ((arrayKeepTypes == null)) {
             throw new IllegalArgumentException("keep_types requires `" + KEEP_TYPES_KEY + "` to be configured");
         }
-        final String modeParameter = settings.get(KEEP_TYPES_MODE, KEEP_TYPES_MODE_INCLUDE).toLowerCase();
+        final String modeParameter = settings.get(KEEP_TYPES_MODE, KEEP_TYPES_MODE_INCLUDE).toLowerCase(Locale.ROOT);
         if (modeParameter.equals(KEEP_TYPES_MODE_INCLUDE) == false && modeParameter.equals(KEEP_TYPES_MODE_EXCLUDE) == false) {
             throw new IllegalArgumentException(
                     "keep_types mode can only be `" + KEEP_TYPES_MODE_INCLUDE + "` or `" + KEEP_TYPES_MODE_INCLUDE + "`");

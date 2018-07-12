@@ -2608,7 +2608,6 @@ public class InternalEngine extends Engine {
             searcher.setQueryCache(null);
             final FieldsVisitor fields;
             final Query currentVersionQuery = LongPoint.newExactQuery(SeqNoFieldMapper.NAME, newOp.seqNo());
-
             try (ReleasableLock ignored = readLock.acquire()) {
                 final TopDocs collidingDocs = searcher.search(currentVersionQuery, 1,
                     new Sort(new SortedNumericSortField(SeqNoFieldMapper.PRIMARY_TERM_NAME, SortField.Type.LONG, true)));
@@ -2661,25 +2660,31 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private boolean restorePreviousVersion(IndexSearcher searcher, BytesRef uid, long seqNo) throws IOException {
-        final BooleanQuery newerVersionQuery = new BooleanQuery.Builder()
-            .add(new TermQuery(new Term(IdFieldMapper.NAME, uid)), BooleanClause.Occur.FILTER)
-            .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, seqNo + 1, Long.MAX_VALUE), BooleanClause.Occur.FILTER)
-            .build();
+    private void restorePreviousVersion(IndexSearcher searcher, BytesRef uid, long seqNo) throws IOException {
         // we should only restore if the current is the latest version.
-        if (searcher.count(newerVersionQuery) > 0) {
-            return false;
+        final VersionValue versionValue = versionMap.getUnderLock(uid);
+        if (versionValue != null) {
+            assert versionValue.seqNo >= seqNo : "stale version_map seqno=" + seqNo + ",uid=" + uid + ",version_value=" + versionValue;
+            if (versionValue.seqNo > seqNo) {
+                return;
+            }
+        } else {
+            final BooleanQuery newerVersionQuery = new BooleanQuery.Builder()
+                .add(new TermQuery(new Term(IdFieldMapper.NAME, uid)), BooleanClause.Occur.FILTER)
+                .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, seqNo + 1, Long.MAX_VALUE), BooleanClause.Occur.FILTER).build();
+            if (searcher.count(newerVersionQuery) > 0) {
+                return;
+            }
         }
         final BooleanQuery prevVersionQuery = new BooleanQuery.Builder()
             .add(new TermQuery(new Term(IdFieldMapper.NAME, uid)), BooleanClause.Occur.FILTER)
-            .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, 0, seqNo - 1), BooleanClause.Occur.FILTER)
-            .build();
+            .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, 0, seqNo - 1), BooleanClause.Occur.FILTER).build();
         final TopDocs prevDocs = searcher.search(prevVersionQuery, 1,
             new Sort(new SortedNumericSortField(SeqNoFieldMapper.NAME, SortField.Type.LONG, true)));
         if (prevDocs.totalHits == 0) {
-            // this is the latest version and was rolled back - remove its tombstone
+            // this is the latest version and was rolled back - remove its versionMap/tombstone
             versionMap.removeIndexAndDeleteUnderLock(uid);
-            return false;
+            return;
         }
         final List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         final LeafReaderContext prevSegment = leaves.get(ReaderUtil.subIndex(prevDocs.scoreDocs[0].doc, leaves));
@@ -2716,7 +2721,7 @@ public class InternalEngine extends Engine {
             versionMap.putDeleteUnderLock(uid, new DeleteVersionValue(
                 prevVersion, prevSeqNo, prevTerm, config().getThreadPool().relativeTimeInMillis()));
         }
-        return true;
+        return;
     }
 
     /** @return false if the update was aborted due to merges, the caller need to refresh an engine, then retry */

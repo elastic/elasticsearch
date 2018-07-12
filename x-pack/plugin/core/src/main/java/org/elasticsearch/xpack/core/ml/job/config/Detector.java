@@ -253,7 +253,7 @@ public class Detector implements ToXContentObject, Writeable {
         useNull = in.readBoolean();
         excludeFrequent = in.readBoolean() ? ExcludeFrequent.readFromStream(in) : null;
         if (in.getVersion().onOrAfter(DetectionRule.VERSION_INTRODUCED)) {
-            rules = in.readList(DetectionRule::new);
+            rules = Collections.unmodifiableList(in.readList(DetectionRule::new));
         } else {
             in.readList(DetectionRule::readOldFormat);
             rules = Collections.emptyList();
@@ -513,7 +513,7 @@ public class Detector implements ToXContentObject, Writeable {
             partitionFieldName = detector.partitionFieldName;
             useNull = detector.useNull;
             excludeFrequent = detector.excludeFrequent;
-            rules = new ArrayList<>(detector.getRules());
+            rules = new ArrayList<>(detector.rules);
             detectorIndex = detector.detectorIndex;
         }
 

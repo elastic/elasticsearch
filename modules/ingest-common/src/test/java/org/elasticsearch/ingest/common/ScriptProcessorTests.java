@@ -57,7 +57,9 @@ public class ScriptProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         doAnswer(invocationOnMock ->  {
-            ingestDocument.setFieldValue("bytes_total", randomBytesTotal);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> ctx = (Map<String, Object>) invocationOnMock.getArguments()[0];
+            ctx.put("bytes_total", randomBytesTotal);
             return null;
         }).when(executableScript).execute(anyMapOf(String.class, Object.class));
 

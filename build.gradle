@@ -308,31 +308,32 @@ subprojects {
           return
         }
         Project upstreamProject = dependencyToProject(dep)
-        if (upstreamProject != null) {
-          if (project.plugins.hasPlugin(ShadowPlugin)) {
-            /*
-             * Include the source of shadowed upstream projects so we don't
-             * to publish their javadoc.
-             */
-            project.evaluationDependsOn(upstreamProject.path)   // TODO use when plugin added?
-            project.javadoc.source += upstreamProject.javadoc.source
-            /*
-             * Do not add those projects to the javadoc classpath because
-             * we are going to resolve them with their source instead.
-             */
-            project.javadoc.classpath = project.javadoc.classpath.filter { f ->
-              false == upstreamProject.configurations.archives.artifacts.files.files.contains(f)
-            }
-            /*
-             * Instead we need the upstream project's javadoc classpath so
-             * we don't barf on the classes that it references.
-             */
-            project.javadoc.classpath += upstreamProject.javadoc.classpath
-          } else {
-            project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
-            String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
-            project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
+        if (upstreamProject == null) {
+          return
+        }
+        if (project.plugins.hasPlugin(ShadowPlugin)) {
+          /*
+           * Include the source of shadowed upstream projects so we don't
+           * to publish their javadoc.
+           */
+          project.evaluationDependsOn(upstreamProject.path)
+          project.javadoc.source += upstreamProject.javadoc.source
+          /*
+           * Do not add those projects to the javadoc classpath because
+           * we are going to resolve them with their source instead.
+           */
+          project.javadoc.classpath = project.javadoc.classpath.filter { f ->
+            false == upstreamProject.configurations.archives.artifacts.files.files.contains(f)
           }
+          /*
+           * Instead we need the upstream project's javadoc classpath so
+           * we don't barf on the classes that it references.
+           */
+          project.javadoc.classpath += upstreamProject.javadoc.classpath
+        } else {
+          project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
+          String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
+          project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
         }
       }
       project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)

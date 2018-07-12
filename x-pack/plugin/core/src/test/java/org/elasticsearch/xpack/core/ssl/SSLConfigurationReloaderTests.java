@@ -449,6 +449,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 super.reloadSSLContext(configuration);
+                reloadLatch.countDown();
             }
         };
         // Baseline checks

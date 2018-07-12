@@ -31,12 +31,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.Stack;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.CONSTRUCTOR_ANY_NAME;
@@ -773,7 +770,7 @@ public final class PainlessLookupBuilder {
                         key -> new PainlessField(fieldName, javaField.getName(), javaClass,
                                                  painlessTypeField, javaField.getModifiers(), methodHandleGetter, methodHandleSetter));
 
-                painlessClassBuilder.staticMembers.put(fieldName, painlessField);
+                painlessClassBuilder.members.put(fieldName, painlessField);
             } else if (painlessField.clazz != painlessTypeField) {
                 throw new IllegalArgumentException("illegal duplicate painless fields [" + fieldName + "] found " +
                         "[[" + painlessClassName + "], [" + fieldName + "], [" + painlessTypeNameField + "] and " +

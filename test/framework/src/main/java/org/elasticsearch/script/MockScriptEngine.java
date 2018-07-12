@@ -92,9 +92,7 @@ public class MockScriptEngine implements ScriptEngine {
             IngestScript.Factory factory = parameters -> new IngestScript(parameters) {
                 @Override
                 public void execute(Map<String, Object> ctx) {
-                    if (script != null) {
-                        script.apply(ctx);
-                    }
+                    script.apply(ctx);
                 }
             };
             return context.factoryClazz.cast(factory);

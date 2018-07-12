@@ -221,15 +221,17 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                             verifyAction.verify(repositoryName, verificationToken, new ActionListener<VerifyResponse>() {
                                 @Override
                                 public void onResponse(VerifyResponse verifyResponse) {
-                                    try {
-                                        repository.endVerification(verificationToken);
-                                    } catch (Exception e) {
-                                        logger.warn(() -> new ParameterizedMessage(
-                                            "[{}] failed to finish repository verification", repositoryName), e);
-                                        listener.onFailure(e);
-                                        return;
-                                    }
-                                    listener.onResponse(verifyResponse);
+                                    threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                                        try {
+                                            repository.endVerification(verificationToken);
+                                        } catch (Exception e) {
+                                            logger.warn(() -> new ParameterizedMessage(
+                                                "[{}] failed to finish repository verification", repositoryName), e);
+                                            listener.onFailure(e);
+                                            return;
+                                        }
+                                        listener.onResponse(verifyResponse);
+                                    });
                                 }
 
                                 @Override
@@ -238,14 +240,16 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                                 }
                             });
                         } catch (Exception e) {
-                            try {
-                                repository.endVerification(verificationToken);
-                            } catch (Exception inner) {
-                                inner.addSuppressed(e);
-                                logger.warn(() -> new ParameterizedMessage(
-                                    "[{}] failed to finish repository verification", repositoryName), inner);
-                            }
-                            listener.onFailure(e);
+                            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                                try {
+                                    repository.endVerification(verificationToken);
+                                } catch (Exception inner) {
+                                    inner.addSuppressed(e);
+                                    logger.warn(() -> new ParameterizedMessage(
+                                        "[{}] failed to finish repository verification", repositoryName), inner);
+                                }
+                                listener.onFailure(e);
+                            });
                         }
                     } else {
                         listener.onResponse(new VerifyResponse(new DiscoveryNode[0], new VerificationFailure[0]));

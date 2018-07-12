@@ -24,10 +24,16 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -37,8 +43,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
@@ -50,6 +58,25 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
+    static final String REPO_TYPE = "fsLike";
+
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Arrays.asList(FsLikeRepoPlugin.class);
+    }
+
+    public static class FsLikeRepoPlugin extends org.elasticsearch.plugins.Plugin implements RepositoryPlugin {
+
+        @Override
+        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+            return Collections.singletonMap(REPO_TYPE,
+                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry) {
+                    @Override
+                    protected void verificationThreadCheck() {
+                    }
+                });
+        }
+    }
+
     public void testRetrieveSnapshots() throws Exception {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
@@ -58,7 +85,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         logger.info("-->  creating repository");
         PutRepositoryResponse putRepositoryResponse =
             client.admin().cluster().preparePutRepository(repositoryName)
-                                    .setType("fs")
+                                    .setType(REPO_TYPE)
                                     .setSettings(Settings.builder().put(node().settings()).put("location", location))
                                     .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -210,7 +237,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         PutRepositoryResponse putRepositoryResponse =
             client.admin().cluster().preparePutRepository(repositoryName)
-                                    .setType("fs")
+                                    .setType(REPO_TYPE)
                                     .setSettings(Settings.builder().put(node().settings()).put("location", location))
                                     .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));

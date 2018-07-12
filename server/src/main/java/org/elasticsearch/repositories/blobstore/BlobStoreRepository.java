@@ -298,6 +298,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * maintains single lazy instance of {@link BlobContainer}
      */
     protected BlobContainer blobContainer() {
+        verificationThreadCheck();
+
         BlobContainer blobContainer = this.blobContainer.get();
         if (blobContainer == null) {
            synchronized (lock) {
@@ -316,6 +318,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * maintains single lazy instance of {@link BlobStore}
      */
     protected BlobStore blobStore() {
+        verificationThreadCheck();
+
         BlobStore store = blobStore.get();
         if (store == null) {
             synchronized (lock) {
@@ -324,7 +328,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     if (lifecycle.started() == false) {
                         throw new RepositoryException(metadata.name(), "repository is not in started state");
                     }
-                    verificationThreadCheck();
                     try {
                         store = createBlobStore();
                     } catch (RepositoryException e) {

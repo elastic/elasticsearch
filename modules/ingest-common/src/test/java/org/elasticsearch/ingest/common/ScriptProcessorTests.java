@@ -19,23 +19,22 @@
 
 package org.elasticsearch.ingest.common;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.script.IngestScript;
+import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.anyMapOf;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ScriptProcessorTests extends ESTestCase {
 
@@ -43,25 +42,27 @@ public class ScriptProcessorTests extends ESTestCase {
         int randomBytesIn = randomInt();
         int randomBytesOut = randomInt();
         int randomBytesTotal = randomBytesIn + randomBytesOut;
-
-        ScriptService scriptService = mock(ScriptService.class);
-        Script script = mockScript("_script");
-        IngestScript.Factory factory = mock(IngestScript.Factory.class);
-        IngestScript executableScript = mock(IngestScript.class);
-        when(scriptService.compile(script, IngestScript.CONTEXT)).thenReturn(factory);
-        when(factory.newInstance(any())).thenReturn(executableScript);
+        String scriptName = "script";
+        ScriptService scriptService = new ScriptService(Settings.builder().build(),
+            Collections.singletonMap(
+                Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(
+                    Script.DEFAULT_SCRIPT_LANG,
+                    Collections.singletonMap(
+                        scriptName, ctx -> {
+                            ctx.put("bytes_total", randomBytesTotal);
+                            return null;
+                        }
+                    )
+                )
+            ),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        );
+        Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap());
 
         Map<String, Object> document = new HashMap<>();
         document.put("bytes_in", randomInt());
         document.put("bytes_out", randomInt());
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-
-        doAnswer(invocationOnMock ->  {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> ctx = (Map<String, Object>) invocationOnMock.getArguments()[0];
-            ctx.put("bytes_total", randomBytesTotal);
-            return null;
-        }).when(executableScript).execute(anyMapOf(String.class, Object.class));
 
         ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), script, scriptService);
 

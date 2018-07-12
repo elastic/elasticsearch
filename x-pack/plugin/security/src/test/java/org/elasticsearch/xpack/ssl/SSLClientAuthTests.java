@@ -135,7 +135,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
             KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
                 (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), "testclient"::toCharArray), "testclient".toCharArray());
             SSLContext context = SSLContext.getInstance("TLSv1.2");
-            context.init(new KeyManager[]{km}, new TrustManager[]{tm}, new SecureRandom());
+            context.init(new KeyManager[] { km }, new TrustManager[] { tm }, new SecureRandom());
             return context;
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize SSLContext", e);

@@ -212,9 +212,9 @@ public class SSLDriverTests extends ESTestCase {
             (certPath))));
         KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
             (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), "testclient"::toCharArray), "testclient".toCharArray());
-            sslContext = SSLContext.getInstance("TLSv1.2");
-        sslContext.init(new KeyManager[]{km}, new TrustManager[]{tm}, new SecureRandom());
-            return sslContext;
+        sslContext = SSLContext.getInstance("TLSv1.2");
+        sslContext.init(new KeyManager[] { km }, new TrustManager[] { tm }, new SecureRandom());
+        return sslContext;
     }
 
     private void normalClose(SSLDriver sendDriver, SSLDriver receiveDriver) throws IOException {

@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.license.LicenseStatus;
+import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;

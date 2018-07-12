@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.HitExtractorProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,6 +47,8 @@ public final class Processors {
         entries.add(new Entry(Processor.class, DateTimeProcessor.NAME, DateTimeProcessor::new));
         // math
         entries.add(new Entry(Processor.class, MathProcessor.NAME, MathProcessor::new));
+        // string
+        entries.add(new Entry(Processor.class, StringProcessor.NAME, StringProcessor::new));
         return entries;
     }
 }

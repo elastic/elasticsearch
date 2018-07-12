@@ -245,14 +245,16 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path tempDir = createTempDir();
         Path serverCertPath = tempDir.resolve("testnode.crt");
         Path serverKeyPath = tempDir.resolve("testnode.pem");
+        Path updatedCert = tempDir.resolve("updated.crt");
         //Our keystore contains two Certificates it can present. One build from the RSA keypair and one build from the EC keypair. EC is
         // used since it keyManager presents the first one in alias alphabetical order (and testnode_ec comes before testnode_rsa)
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"), serverCertPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"), serverKeyPath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt"), updatedCert);
         Settings settings = Settings.builder()
-            .putList("xpack.ssl.certificate_authorities", serverCertPath.toString())
-                .put("path.home", createTempDir())
-                .build();
+            .put("xpack.ssl.certificate_authorities", serverCertPath)
+            .put("path.home", createTempDir())
+            .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         // Create the MockWebServer once for both pre and post checks
         try (MockWebServer server = getSslServer(serverKeyPath, serverCertPath, "testnode")) {
@@ -266,9 +268,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
             final Runnable modifier = () -> {
                 try {
-                    Path updatedCert = tempDir.resolve("updated.crt");
-                    Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt"),
-                        updatedCert, StandardCopyOption.REPLACE_EXISTING);
                     atomicMoveIfPossible(updatedCert, serverCertPath);
                 } catch (Exception e) {
                     throw new RuntimeException("failed to modify file", e);
@@ -301,10 +300,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.path", keystorePath)
-                .setSecureSettings(secureSettings)
-                .put("path.home", createTempDir())
-                .build();
+            .put("xpack.ssl.keystore.path", keystorePath)
+            .setSecureSettings(secureSettings)
+            .put("path.home", createTempDir())
+            .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
@@ -340,12 +339,12 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.key", keyPath)
-                .put("xpack.ssl.certificate", certPath)
-                .putList("xpack.ssl.certificate_authorities", certPath.toString(), clientCertPath.toString())
-                .put("path.home", createTempDir())
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.ssl.key", keyPath)
+            .put("xpack.ssl.certificate", certPath)
+            .putList("xpack.ssl.certificate_authorities", certPath.toString(), clientCertPath.toString())
+            .put("path.home", createTempDir())
+            .setSecureSettings(secureSettings)
+            .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
@@ -377,10 +376,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.truststore.path", trustStorePath)
-                .put("path.home", createTempDir())
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.ssl.truststore.path", trustStorePath)
+            .put("path.home", createTempDir())
+            .setSecureSettings(secureSettings)
+            .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
@@ -467,8 +466,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     private static void atomicMoveIfPossible(Path source, Path target) throws IOException {
         try {
             Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            System.out.println("f moved a");
         } catch (AtomicMoveNotSupportedException e) {
             Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+            System.out.println("f moved b");
         }
     }
 

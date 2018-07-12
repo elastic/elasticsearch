@@ -702,6 +702,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(fields.get("test_field").getValue(), equalTo("foobar"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31992")
     public void testDocValueFields() throws Exception {
         createIndex("test");
 

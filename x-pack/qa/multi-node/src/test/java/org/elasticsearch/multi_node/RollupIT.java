@@ -183,15 +183,14 @@ public class RollupIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertRollUpJob(final String rollupJob) throws Exception {
-        final Matcher<?> expectedStates = anyOf(equalTo("indexing"), equalTo("started"));
-        waitForRollUpJob(rollupJob, expectedStates);
+        waitForRollUpJob(rollupJob, anyOf(equalTo("indexing"), equalTo("started")));
 
         // check that the rollup job is started using the RollUp API
         final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
         Map<String, Object> getRollupJobResponse = toMap(client().performRequest(getRollupJobRequest));
         Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
         if (job != null) {
-            assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
+            assertThat(ObjectPath.eval("status.job_state", job), anyOf(equalTo("indexing"), equalTo("started")));
         }
 
         // check that the rollup job is started using the Tasks API
@@ -203,7 +202,7 @@ public class RollupIT extends ESRestTestCase {
         Map<String, Object> taskResponseNode = (Map<String, Object>) taskResponseNodes.values().iterator().next();
         Map<String, Object> taskResponseTasks = (Map<String, Object>) taskResponseNode.get("tasks");
         Map<String, Object> taskResponseStatus = (Map<String, Object>) taskResponseTasks.values().iterator().next();
-        assertThat(ObjectPath.eval("status.job_state", taskResponseStatus), expectedStates);
+        assertThat(ObjectPath.eval("status.job_state", taskResponseStatus), anyOf(equalTo("indexing"), equalTo("started")));
 
         // check that the rollup job is started using the Cluster State API
         final Request clusterStateRequest = new Request("GET", "_cluster/state/metadata");
@@ -217,7 +216,7 @@ public class RollupIT extends ESRestTestCase {
 
                 final String jobStateField = "task.xpack/rollup/job.state.job_state";
                 assertThat("Expected field [" + jobStateField + "] to be started or indexing in " + task.get("id"),
-                    ObjectPath.eval(jobStateField, task), expectedStates);
+                    ObjectPath.eval(jobStateField, task), anyOf(equalTo("indexing"), equalTo("started")));
                 break;
             }
         }

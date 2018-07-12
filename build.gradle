@@ -302,9 +302,8 @@ subprojects {
     // their own artifacts.
     if (project.plugins.hasPlugin(BuildPlugin)) {
       String artifactsHost = VersionProperties.elasticsearch.isSnapshot() ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
-      Closure addDependencyToJavadoc
-      Closure addConfigurationToJavadoc
-      addDependencyToJavadoc = { dep ->
+      Closure sortClosure = { a, b -> b.group <=> a.group }
+      Closure depJavadocClosure = { dep ->
         if (dep.group == null || false == dep.group.startsWith('org.elasticsearch')) {
           return
         }
@@ -336,18 +335,8 @@ subprojects {
           }
         }
       }
-      addConfigurationToJavadoc = { configuration ->
-        configuration.dependencies
-          .findAll()
-          .toSorted({ a, b -> b.group <=> a.group })
-          .each(addDependencyToJavadoc)
-      }
-      addConfigurationToJavadoc(project.configurations.compile)
-      addConfigurationToJavadoc(project.configurations.compileOnly)
-      // todo probably also want shadow
-    //   if (hasShadow) {
-    //     addConfigurationToJavadoc(project.configurations.runtime)
-    //   }
+      project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+      project.configurations.compileOnly.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
     }
   }
 }

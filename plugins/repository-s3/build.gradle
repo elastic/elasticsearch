@@ -92,23 +92,26 @@ String s3TemporaryBasePath = System.getenv("amazon_s3_base_path_temporary")
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
 
-if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath
-        && !s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3TemporaryBasePath && !s3TemporarySessionToken) {
-
+if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
   s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
   s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
   s3PermanentBucket = 'permanent-bucket-test'
   s3PermanentBasePath = 'integration_test'
 
+  useFixture = true
+
+} else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath) {
+  throw new IllegalArgumentException("not all options specified to run against external S3 service")
+}
+
+if (!s3TemporaryAccessKey && !s3TemporarySecretKey && !s3TemporaryBucket && !s3TemporaryBasePath && !s3TemporarySessionToken) {
   s3TemporaryAccessKey = 's3_integration_test_temporary_access_key'
   s3TemporarySecretKey = 's3_integration_test_temporary_secret_key'
   s3TemporaryBucket = 'temporary-bucket-test'
   s3TemporaryBasePath = 'integration_test'
   s3TemporarySessionToken = 's3_integration_test_temporary_session_token'
 
-  useFixture = true
-} else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath
-        || !s3TemporaryAccessKey || !s3TemporarySecretKey || !s3TemporaryBucket || !s3TemporaryBasePath || !s3TemporarySessionToken) {
+} else if (!s3TemporaryAccessKey || !s3TemporarySecretKey || !s3TemporaryBucket || !s3TemporaryBasePath || !s3TemporarySessionToken) {
   throw new IllegalArgumentException("not all options specified to run against external S3 service")
 }
 
@@ -294,6 +297,13 @@ Map<String, Object> expansions = [
 processTestResources {
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
+}
+
+project.afterEvaluate {
+  if (useFixture == false) {
+    // 30_repository_temporary_credentials is not ready for CI yet
+    integTestRunner.systemProperty 'tests.rest.blacklist', 'repository_s3/30_repository_temporary_credentials/*'
+  }
 }
 
 integTestCluster {

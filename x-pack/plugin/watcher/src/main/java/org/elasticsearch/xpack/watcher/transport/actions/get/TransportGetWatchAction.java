@@ -18,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
@@ -43,9 +42,9 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
     private final Client client;
 
     @Inject
-    public TransportGetWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportGetWatchAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
                                    XPackLicenseState licenseState, WatchParser parser, Clock clock, Client client) {
-        super(settings, GetWatchAction.NAME, transportService, threadPool, actionFilters, licenseState, GetWatchRequest::new);
+        super(settings, GetWatchAction.NAME, transportService, actionFilters, licenseState, GetWatchRequest::new);
         this.parser = parser;
         this.clock = clock;
         this.client = client;

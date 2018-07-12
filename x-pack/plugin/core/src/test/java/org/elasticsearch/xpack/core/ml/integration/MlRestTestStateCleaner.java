@@ -20,18 +20,16 @@ public class MlRestTestStateCleaner {
 
     private final Logger logger;
     private final RestClient adminClient;
-    private final ESRestTestCase testCase;
 
-    public MlRestTestStateCleaner(Logger logger, RestClient adminClient, ESRestTestCase testCase) {
+    public MlRestTestStateCleaner(Logger logger, RestClient adminClient) {
         this.logger = logger;
         this.adminClient = adminClient;
-        this.testCase = testCase;
     }
 
     public void clearMlMetadata() throws IOException {
         deleteAllDatafeeds();
         deleteAllJobs();
-        // indices will be deleted by the ESIntegTestCase class
+        // indices will be deleted by the ESRestTestCase class
     }
 
     @SuppressWarnings("unchecked")
@@ -41,7 +39,7 @@ public class MlRestTestStateCleaner {
         final Response datafeedsResponse = adminClient.performRequest(datafeedsRequest);
         @SuppressWarnings("unchecked")
         final List<Map<String, Object>> datafeeds =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("datafeeds", testCase.entityAsMap(datafeedsResponse));
+                (List<Map<String, Object>>) XContentMapValues.extractValue("datafeeds", ESRestTestCase.entityAsMap(datafeedsResponse));
         if (datafeeds == null) {
             return;
         }
@@ -83,7 +81,7 @@ public class MlRestTestStateCleaner {
         final Response response = adminClient.performRequest(jobsRequest);
         @SuppressWarnings("unchecked")
         final List<Map<String, Object>> jobConfigs =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", testCase.entityAsMap(response));
+                (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", ESRestTestCase.entityAsMap(response));
         if (jobConfigs == null) {
             return;
         }

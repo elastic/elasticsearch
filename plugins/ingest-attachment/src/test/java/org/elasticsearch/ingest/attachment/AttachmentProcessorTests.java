@@ -21,6 +21,7 @@ package org.elasticsearch.ingest.attachment;
 
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -214,6 +215,12 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
     }
 
+    // See (https://issues.apache.org/jira/browse/COMPRESS-432) for information
+    // about the issue that causes a zip file to hang in Tika versions prior to 1.18.
+    public void testZipFileDoesNotHang() {
+        expectThrows(Exception.class, () -> parseDocument("bad_tika.zip", processor));
+    }
+
     public void testParseAsBytesArray() throws Exception {
         String path = "/org/elasticsearch/ingest/attachment/test/sample-files/text-in-english.txt";
         byte[] bytes;
@@ -290,6 +297,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testIndexedChars() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/31305", JavaVersion.current().equals(JavaVersion.parse("11")));
         processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
             "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, null);
 

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.locationtech.jts.geom.Coordinate;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.geo.parsers.CoordinateNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.locationtech.jts.geom.Coordinate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -48,7 +48,7 @@ import java.util.Map;
 public enum GeoShapeType {
     POINT("point") {
         @Override
-        public ShapeBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+        public PointBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                        Orientation orientation, boolean coerce) {
             return new PointBuilder().coordinate(validate(coordinates, coerce).coordinate);
         }
@@ -66,7 +66,7 @@ public enum GeoShapeType {
     },
     MULTIPOINT("multipoint") {
         @Override
-        public ShapeBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+        public MultiPointBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                        Orientation orientation, boolean coerce) {
             validate(coordinates, coerce);
             CoordinatesBuilder coordinatesBuilder = new CoordinatesBuilder();
@@ -96,7 +96,7 @@ public enum GeoShapeType {
     },
     LINESTRING("linestring") {
         @Override
-        public ShapeBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+        public LineStringBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                        Orientation orientation, boolean coerce) {
             validate(coordinates, coerce);
             CoordinatesBuilder line = new CoordinatesBuilder();
@@ -117,7 +117,7 @@ public enum GeoShapeType {
     },
     MULTILINESTRING("multilinestring") {
         @Override
-        public ShapeBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+        public MultiLineStringBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                        Orientation orientation, boolean coerce) {
             validate(coordinates, coerce);
             MultiLineStringBuilder multiline = new MultiLineStringBuilder();
@@ -138,7 +138,7 @@ public enum GeoShapeType {
     },
     POLYGON("polygon") {
         @Override
-        public ShapeBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+        public PolygonBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                        Orientation orientation, boolean coerce) {
             validate(coordinates, coerce);
             // build shell
@@ -199,7 +199,7 @@ public enum GeoShapeType {
     },
     MULTIPOLYGON("multipolygon") {
         @Override
-        public ShapeBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+        public MultiPolygonBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                        Orientation orientation, boolean coerce) {
             validate(coordinates, coerce);
             MultiPolygonBuilder polygons = new MultiPolygonBuilder(orientation);
@@ -217,7 +217,7 @@ public enum GeoShapeType {
     },
     ENVELOPE("envelope") {
         @Override
-        public ShapeBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+        public EnvelopeBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                        Orientation orientation, boolean coerce) {
             validate(coordinates, coerce);
             // verify coordinate bounds, correct if necessary
@@ -249,7 +249,7 @@ public enum GeoShapeType {
     },
     CIRCLE("circle") {
         @Override
-        public ShapeBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+        public CircleBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                        Orientation orientation, boolean coerce) {
             return new CircleBuilder().center(coordinates.coordinate).radius(radius);
 
@@ -263,7 +263,7 @@ public enum GeoShapeType {
     },
     GEOMETRYCOLLECTION("geometrycollection") {
         @Override
-        public ShapeBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+        public ShapeBuilder<?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                        Orientation orientation, boolean coerce) {
             // noop, handled in parser
             return null;
@@ -303,7 +303,7 @@ public enum GeoShapeType {
         throw new IllegalArgumentException("unknown geo_shape ["+geoshapename+"]");
     }
 
-    public abstract ShapeBuilder getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+    public abstract ShapeBuilder<?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                             ShapeBuilder.Orientation orientation, boolean coerce);
     abstract CoordinateNode validate(CoordinateNode coordinates, boolean coerce);
 

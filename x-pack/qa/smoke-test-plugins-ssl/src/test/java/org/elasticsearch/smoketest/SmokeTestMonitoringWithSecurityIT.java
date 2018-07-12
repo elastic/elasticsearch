@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.smoketest;
 
+import io.netty.util.ThreadDeathWatcher;
+import io.netty.util.concurrent.GlobalEventExecutor;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -19,12 +21,15 @@ import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
 
 import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,6 +47,36 @@ import static org.hamcrest.Matchers.is;
  * indexed in the cluster.
  */
 public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
+
+    /**
+     * A JUnit class level rule that runs after the AfterClass method in {@link ESIntegTestCase},
+     * which stops the cluster. After the cluster is stopped, there are a few netty threads that
+     * can linger, so we wait for them to finish otherwise these lingering threads can intermittently
+     * trigger the thread leak detector
+     */
+    @ClassRule
+    public static final ExternalResource STOP_NETTY_RESOURCE = new ExternalResource() {
+        @Override
+        protected void after() {
+            try {
+                GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IllegalStateException e) {
+                if (e.getMessage().equals("thread was not started") == false) {
+                    throw e;
+                }
+                // ignore since the thread was never started
+            }
+
+            try {
+                ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    };
+
     private static final String USER = "test_user";
     private static final String PASS = "x-pack-test-password";
     private static final String MONITORING_PATTERN = ".monitoring-*";

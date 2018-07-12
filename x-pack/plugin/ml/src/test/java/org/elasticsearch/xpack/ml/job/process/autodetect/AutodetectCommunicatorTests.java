@@ -95,11 +95,12 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         List<JobUpdate.DetectorUpdate> detectorUpdates = Collections.singletonList(
                 new JobUpdate.DetectorUpdate(0, "updated description", Collections.singletonList(updatedRule)));
 
-        UpdateParams updateParams = UpdateParams.builder("foo").detectorUpdates(detectorUpdates).build();
         List<ScheduledEvent> events = Collections.singletonList(
                 ScheduledEventTests.createScheduledEvent(randomAlphaOfLength(10)));
+        UpdateProcessMessage.Builder updateProcessMessage = new UpdateProcessMessage.Builder().setDetectorUpdates(detectorUpdates);
+        updateProcessMessage.setScheduledEvents(events);
 
-        communicator.writeUpdateProcessMessage(updateParams, events, ((aVoid, e) -> {}));
+        communicator.writeUpdateProcessMessage(updateProcessMessage.build(), ((aVoid, e) -> {}));
 
         verify(process).writeUpdateDetectorRulesMessage(eq(0), eq(Collections.singletonList(updatedRule)));
         verify(process).writeUpdateScheduledEventsMessage(events, AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN);
@@ -229,6 +230,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         return process;
     }
 
+    @SuppressWarnings("unchecked")
     private AutodetectCommunicator createAutodetectCommunicator(ExecutorService executorService, AutodetectProcess autodetectProcess,
                                                                 AutoDetectResultProcessor autoDetectResultProcessor,
                                                                 Consumer<Exception> finishHandler) throws IOException {
@@ -242,12 +244,13 @@ public class AutodetectCommunicatorTests extends ESTestCase {
                 new NamedXContentRegistry(Collections.emptyList()), executorService);
     }
 
+    @SuppressWarnings("unchecked")
     private AutodetectCommunicator createAutodetectCommunicator(AutodetectProcess autodetectProcess,
                                                                 AutoDetectResultProcessor autoDetectResultProcessor) throws IOException {
         ExecutorService executorService = mock(ExecutorService.class);
         when(executorService.submit(any(Callable.class))).thenReturn(mock(Future.class));
         doAnswer(invocationOnMock -> {
-            Callable runnable = (Callable) invocationOnMock.getArguments()[0];
+            Callable<Void> runnable = (Callable<Void>) invocationOnMock.getArguments()[0];
             runnable.call();
             return mock(Future.class);
         }).when(executorService).submit(any(Callable.class));

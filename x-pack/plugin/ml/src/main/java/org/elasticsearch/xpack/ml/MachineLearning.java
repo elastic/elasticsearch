@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
@@ -148,6 +149,7 @@ import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportStopDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateDatafeedAction;
+import org.elasticsearch.xpack.ml.action.TransportUpdateFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
@@ -196,6 +198,7 @@ import org.elasticsearch.xpack.ml.rest.datafeeds.RestUpdateDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestDeleteFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestGetFiltersAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
+import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestFlushJobAction;
@@ -460,6 +463,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new RestOpenJobAction(settings, restController),
             new RestGetFiltersAction(settings, restController),
             new RestPutFilterAction(settings, restController),
+            new RestUpdateFilterAction(settings, restController),
             new RestDeleteFilterAction(settings, restController),
             new RestGetInfluencersAction(settings, restController),
             new RestGetRecordsAction(settings, restController),
@@ -511,6 +515,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(OpenJobAction.INSTANCE, TransportOpenJobAction.class),
                 new ActionHandler<>(GetFiltersAction.INSTANCE, TransportGetFiltersAction.class),
                 new ActionHandler<>(PutFilterAction.INSTANCE, TransportPutFilterAction.class),
+                new ActionHandler<>(UpdateFilterAction.INSTANCE, TransportUpdateFilterAction.class),
                 new ActionHandler<>(DeleteFilterAction.INSTANCE, TransportDeleteFilterAction.class),
                 new ActionHandler<>(KillProcessAction.INSTANCE, TransportKillProcessAction.class),
                 new ActionHandler<>(GetBucketsAction.INSTANCE, TransportGetBucketsAction.class),

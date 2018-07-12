@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -256,7 +257,7 @@ public class AggregationPath {
         Aggregator aggregator = root;
         for (int i = 0; i < pathElements.size(); i++) {
             AggregationPath.PathElement token = pathElements.get(i);
-            aggregator = aggregator.subAggregator(token.name);
+            aggregator = ProfilingAggregator.unwrap(aggregator.subAggregator(token.name));
             assert (aggregator instanceof SingleBucketAggregator && i <= pathElements.size() - 1)
                     || (aggregator instanceof NumericMetricsAggregator && i == pathElements.size() - 1) :
                     "this should be picked up before aggregation execution - on validate";
@@ -272,7 +273,7 @@ public class AggregationPath {
      */
     public Aggregator resolveTopmostAggregator(Aggregator root) {
         AggregationPath.PathElement token = pathElements.get(0);
-        Aggregator aggregator = root.subAggregator(token.name);
+        Aggregator aggregator = ProfilingAggregator.unwrap(root.subAggregator(token.name));
         assert (aggregator instanceof SingleBucketAggregator )
                 || (aggregator instanceof NumericMetricsAggregator) : "this should be picked up before aggregation execution - on validate";
         return aggregator;
@@ -287,7 +288,7 @@ public class AggregationPath {
     public void validate(Aggregator root) throws AggregationExecutionException {
         Aggregator aggregator = root;
         for (int i = 0; i < pathElements.size(); i++) {
-            aggregator = aggregator.subAggregator(pathElements.get(i).name);
+            aggregator = ProfilingAggregator.unwrap(aggregator.subAggregator(pathElements.get(i).name));
             if (aggregator == null) {
                 throw new AggregationExecutionException("Invalid aggregator order path [" + this + "]. Unknown aggregation ["
                         + pathElements.get(i).name + "]");

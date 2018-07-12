@@ -13,7 +13,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
@@ -30,15 +30,15 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
     private final ClusterService clusterService;
 
     @Inject
-    public TransportMlInfoAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportMlInfoAction(Settings settings, TransportService transportService,
                                  ActionFilters actionFilters, ClusterService clusterService) {
-        super(settings, MlInfoAction.NAME, threadPool, transportService, actionFilters,
+        super(settings, MlInfoAction.NAME, transportService, actionFilters,
             (Supplier<MlInfoAction.Request>) MlInfoAction.Request::new);
         this.clusterService = clusterService;
     }
 
     @Override
-    protected void doExecute(MlInfoAction.Request request, ActionListener<MlInfoAction.Response> listener) {
+    protected void doExecute(Task task, MlInfoAction.Request request, ActionListener<MlInfoAction.Response> listener) {
         Map<String, Object> info = new HashMap<>();
         info.put("defaults", defaults());
         info.put("limits", limits());

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.ScalarSubquery;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
+import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Add;
@@ -48,14 +49,19 @@ import org.elasticsearch.xpack.sql.expression.regex.RLike;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ColumnReferenceContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ComparisonContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DateEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DecimalLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DereferenceContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExistsContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExtractContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FunctionCallContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExtractExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExtractTemplateContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FunctionExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FunctionTemplateContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.GuidEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.IntegerLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalNotContext;
@@ -66,6 +72,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.OrderByContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ParamLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ParenthesizedExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PatternContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PatternEscapeContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PredicateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PredicatedContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PrimitiveDataTypeContext;
@@ -76,10 +83,16 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimeEscapedLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimestampEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.DateTimeFormatterBuilder;
+import org.joda.time.format.ISODateTimeFormat;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -222,17 +235,18 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         char escape = 0;
-        String escapeString = string(ctx.escape);
+        PatternEscapeContext escapeCtx = ctx.patternEscape();
+        String escapeString = escapeCtx == null ? null : string(escapeCtx.escape);
 
         if (Strings.hasText(escapeString)) {
             // shouldn't happen but adding validation in case the string parsing gets wonky
             if (escapeString.length() > 1) {
-                throw new ParsingException(source(ctx.escape), "A character not a string required for escaping; found [{}]", escapeString);
+                throw new ParsingException(source(escapeCtx), "A character not a string required for escaping; found [{}]", escapeString);
             } else if (escapeString.length() == 1) {
                 escape = escapeString.charAt(0);
                 // these chars already have a meaning
                 if (escape == '*' || escape == '%' || escape == '_') {
-                    throw new ParsingException(source(ctx.escape), "Char [{}] cannot be used for escaping", escape);
+                    throw new ParsingException(source(escapeCtx.escape), "Char [{}] cannot be used for escaping", escape);
                 }
                 // lastly validate that escape chars (if present) are followed by special chars
                 for (int i = 0; i < pattern.length(); i++) {
@@ -325,11 +339,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Object visitCast(CastContext ctx) {
-        return new Cast(source(ctx), expression(ctx.expression()), typedParsing(ctx.dataType(), DataType.class));
-    }
-
-    @Override
     public DataType visitPrimitiveDataType(PrimitiveDataTypeContext ctx) {
         String type = visitIdentifier(ctx.identifier()).toLowerCase(Locale.ROOT);
 
@@ -367,20 +376,32 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
     }
 
+    //
+    // Functions template
+    //
     @Override
-    public Object visitFunctionCall(FunctionCallContext ctx) {
-        String name = visitIdentifier(ctx.identifier());
-        boolean isDistinct = ctx.setQuantifier() != null && ctx.setQuantifier().DISTINCT() != null;
-        UnresolvedFunction.ResolutionType resolutionType =
-                isDistinct ? UnresolvedFunction.ResolutionType.DISTINCT : UnresolvedFunction.ResolutionType.STANDARD;
-        return new UnresolvedFunction(source(ctx), name, resolutionType, expressions(ctx.expression()));
+    public Cast visitCastExpression(CastExpressionContext ctx) {
+        CastTemplateContext ctc = ctx.castTemplate();
+        return new Cast(source(ctc), expression(ctc.expression()), typedParsing(ctc.dataType(), DataType.class));
     }
 
     @Override
-    public Object visitExtract(ExtractContext ctx) {
-        String fieldString = visitIdentifier(ctx.field);
-        return new UnresolvedFunction(source(ctx), fieldString,
-                UnresolvedFunction.ResolutionType.EXTRACT, singletonList(expression(ctx.valueExpression())));
+    public Function visitExtractExpression(ExtractExpressionContext ctx) {
+        ExtractTemplateContext template = ctx.extractTemplate();
+        String fieldString = visitIdentifier(template.field);
+        return new UnresolvedFunction(source(template), fieldString,
+                UnresolvedFunction.ResolutionType.EXTRACT, singletonList(expression(template.valueExpression())));
+    }
+
+    @Override
+    public Function visitFunctionExpression(FunctionExpressionContext ctx) {
+        FunctionTemplateContext template = ctx.functionTemplate();
+
+        String name = visitIdentifier(template.identifier());
+        boolean isDistinct = template.setQuantifier() != null && template.setQuantifier().DISTINCT() != null;
+        UnresolvedFunction.ResolutionType resolutionType =
+                isDistinct ? UnresolvedFunction.ResolutionType.DISTINCT : UnresolvedFunction.ResolutionType.STANDARD;
+        return new UnresolvedFunction(source(ctx), name, resolutionType, expressions(template.expression()));
     }
 
     @Override
@@ -445,12 +466,12 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Object visitDecimalLiteral(DecimalLiteralContext ctx) {
+    public Literal visitDecimalLiteral(DecimalLiteralContext ctx) {
         return new Literal(source(ctx), new BigDecimal(ctx.getText()).doubleValue(), DataType.DOUBLE);
     }
 
     @Override
-    public Object visitIntegerLiteral(IntegerLiteralContext ctx) {
+    public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
         BigDecimal bigD = new BigDecimal(ctx.getText());
 
         long value = bigD.longValueExact();
@@ -463,7 +484,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Object visitParamLiteral(ParamLiteralContext ctx) {
+    public Literal visitParamLiteral(ParamLiteralContext ctx) {
         SqlTypedParamValue param = param(ctx.PARAM());
         Location loc = source(ctx);
         if (param.value == null) {
@@ -521,5 +542,101 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         return params.get(token);
+    }
+
+    @Override
+    public Literal visitDateEscapedLiteral(DateEscapedLiteralContext ctx) {
+        String string = string(ctx.string());
+        Location loc = source(ctx);
+        // parse yyyy-MM-dd
+        DateTime dt = null;
+        try {
+            dt = ISODateTimeFormat.date().parseDateTime(string);
+        } catch(IllegalArgumentException ex) {
+            throw new ParsingException(loc, "Invalid date received; {}", ex.getMessage());
+        }
+        return new Literal(loc, dt, DataType.DATE);
+    }
+
+    @Override
+    public Literal visitTimeEscapedLiteral(TimeEscapedLiteralContext ctx) {
+        String string = string(ctx.string());
+        Location loc = source(ctx);
+
+        // parse HH:mm:ss
+        DateTime dt = null;
+        try {
+            dt = ISODateTimeFormat.hourMinuteSecond().parseDateTime(string);
+        } catch (IllegalArgumentException ex) {
+            throw new ParsingException(loc, "Invalid time received; {}", ex.getMessage());
+        }
+
+        throw new SqlIllegalArgumentException("Time (only) literals are not supported; a date component is required as well");
+    }
+
+    @Override
+    public Literal visitTimestampEscapedLiteral(TimestampEscapedLiteralContext ctx) {
+        String string = string(ctx.string());
+
+        Location loc = source(ctx);
+        // parse yyyy-mm-dd hh:mm:ss(.f...)
+        DateTime dt = null;
+        try {
+            DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+                    .append(ISODateTimeFormat.date())
+                    .appendLiteral(" ")
+                    .append(ISODateTimeFormat.hourMinuteSecondFraction())
+                    .toFormatter();
+            dt = formatter.parseDateTime(string);
+        } catch (IllegalArgumentException ex) {
+            throw new ParsingException(loc, "Invalid timestamp received; {}", ex.getMessage());
+        }
+        return new Literal(loc, dt, DataType.DATE);
+    }
+
+    @Override
+    public Literal visitGuidEscapedLiteral(GuidEscapedLiteralContext ctx) {
+        String string = string(ctx.string());
+
+        Location loc = source(ctx.string());
+        // basic validation
+        String lowerCase = string.toLowerCase(Locale.ROOT);
+        // needs to be format nnnnnnnn-nnnn-nnnn-nnnn-nnnnnnnnnnnn
+        // since the length is fixed, the validation happens on absolute values
+        // not pretty but it's fast and doesn't create any extra objects
+
+        String errorPrefix = "Invalid GUID, ";
+
+        if (lowerCase.length() != 36) {
+            throw new ParsingException(loc, "{}too {}", errorPrefix, lowerCase.length() > 36 ? "long" : "short");
+        }
+
+        int[] separatorPos = { 8, 13, 18, 23 };
+        for (int pos : separatorPos) {
+            if (lowerCase.charAt(pos) != '-') {
+                throw new ParsingException(loc, "{}expected group separator at offset [{}], found [{}]",
+                        errorPrefix, pos, string.charAt(pos));
+            }
+        }
+
+        String HEXA = "0123456789abcdef";
+
+        for (int i = 0; i < lowerCase.length(); i++) {
+            // skip separators
+            boolean inspect = true;
+            for (int pos : separatorPos) {
+                if (i == pos) {
+                    inspect = false;
+                    break;
+                } else if (pos > i) {
+                    break;
+                }
+            }
+            if (inspect && HEXA.indexOf(lowerCase.charAt(i)) < 0) {
+                throw new ParsingException(loc, "{}expected hexadecimal at offset[{}], found [{}]", errorPrefix, i, string.charAt(i));
+            }
+        }
+
+        return new Literal(source(ctx), string, DataType.KEYWORD);
     }
 }

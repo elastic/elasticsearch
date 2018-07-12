@@ -159,4 +159,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:44: Cannot order by non-grouped column [SCORE()], expected [int]",
                 verify("SELECT int FROM test GROUP BY int ORDER BY SCORE()"));
     }
+
+    public void testHavingOnColumn() {
+        assertEquals("1:42: Cannot filter HAVING on non-aggregate [int]; consider using WHERE instead",
+                verify("SELECT int FROM test GROUP BY int HAVING int > 2"));
+    }
+
+    public void testHavingOnScalar() {
+        assertEquals("1:42: Cannot filter HAVING on non-aggregate [int]; consider using WHERE instead",
+                verify("SELECT int FROM test GROUP BY int HAVING 2 < ABS(int)"));
+    }
 }

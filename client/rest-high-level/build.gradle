@@ -64,17 +64,3 @@ forbiddenApisMain {
   signaturesURLs += [PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
   signaturesURLs += [file('src/main/resources/forbidden/rest-high-level-signatures.txt').toURI().toURL()]
 }
-
-javadoc {
-  /*
-   * Bundle all of the javadoc from all of the shaded projects into this one
-   * so we don't *have* to publish javadoc for all of the "client" jars.
-   */
-  configurations.compile.dependencies.all { Dependency dep ->
-    Project p = dependencyToProject(dep)
-    if (p != null) {
-      evaluationDependsOn(p.path)
-      source += p.sourceSets.main.allJava
-    }
-  }
-}

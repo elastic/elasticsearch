@@ -615,6 +615,25 @@ class BuildPlugin implements Plugin<Project> {
              * that the default will change to html5 in the future.
              */
             javadoc.options.addBooleanOption('html5', true)
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                /*
+                 * Bundle all of the javadoc from all of the shaded projects
+                 * into this one so we don't *have* to publish javadoc for
+                 * them all.
+                 */
+                project.configurations.compile.dependencies.all { Dependency dep ->
+                    Project p = project.dependencyToProject(dep)
+                    if (p != null) {
+                        /*
+                         * We need the other project evaluated so we can
+                         * reference its sourceSets.
+                         */
+                        project.evaluationDependsOn(p.path)
+                        javadoc.source += p.sourceSets.main.allJava
+                    }
+                }
+                // TODO add shadow config to classpath
+            }
         }
         configureJavadocJar(project)
     }

@@ -203,6 +203,7 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
+import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTransport;
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -867,8 +868,14 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
-        return Collections.singletonMap(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings,
-                networkService, bigArrays, ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher));
+
+        Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
+        httpTransports.put(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
+            ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher));
+        httpTransports.put(SecurityField.NIO, () -> new SecurityNioHttpServerTransport(settings, networkService, bigArrays,
+            pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService()));
+
+        return httpTransports;
     }
 
     @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.transport.HttpExceptionHandler;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
 import javax.net.ssl.SSLEngine;
@@ -31,6 +32,7 @@ import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper
 
 public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport {
 
+    private final HttpExceptionHandler exceptionHandler;
     private final IPFilter ipFilter;
     private final Settings sslSettings;
     private final SSLService sslService;
@@ -40,6 +42,7 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
                                              SSLService sslService, ThreadPool threadPool, NamedXContentRegistry xContentRegistry,
                                              Dispatcher dispatcher) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
+        this.exceptionHandler = new HttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
         this.sslSettings = SSLService.getHttpTransportSSLSettings(settings);
@@ -57,36 +60,7 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
 
     @Override
     protected void onException(HttpChannel channel, Exception e) {
-        if (!lifecycle.started()) {
-            return;
-        }
-
-        if (isNotSslRecordException(e)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("received plaintext http traffic on a https channel, closing connection {}",
-                    channel), e);
-            } else {
-                logger.warn("received plaintext http traffic on a https channel, closing connection {}", channel);
-            }
-            CloseableChannel.closeChannel(channel);
-        } else if (isCloseDuringHandshakeException(e)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("connection {} closed during ssl handshake", channel), e);
-            } else {
-                logger.warn("connection {} closed during ssl handshake", channel);
-            }
-            CloseableChannel.closeChannel(channel);
-        } else if (isReceivedCertificateUnknownException(e)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("http client did not trust server's certificate, closing connection {}",
-                    channel), e);
-            } else {
-                logger.warn("http client did not trust this server's certificate, closing connection {}", channel);
-            }
-            CloseableChannel.closeChannel(channel);
-        } else {
-            super.onException(channel, e);
-        }
+        exceptionHandler.accept(channel, e);
     }
 
     @Override

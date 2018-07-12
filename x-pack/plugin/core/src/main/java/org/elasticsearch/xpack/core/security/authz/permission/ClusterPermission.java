@@ -3,7 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.transport.TransportRequest;
@@ -21,7 +20,7 @@ import java.util.stream.Collectors;
 public abstract class ClusterPermission {
     private final ClusterPrivilege privilege;
 
-    public ClusterPermission(ClusterPrivilege privilege) {
+    ClusterPermission(ClusterPrivilege privilege) {
         this.privilege = privilege;
     }
 
@@ -86,7 +85,7 @@ public abstract class ClusterPermission {
         }
 
         private static ClusterPrivilege buildPrivilege(Collection<ClusterPermission> children) {
-            Set<String> names = children.stream()
+            final Set<String> names = children.stream()
                 .map(ClusterPermission::privilege)
                 .map(ClusterPrivilege::name)
                 .flatMap(Set::stream)

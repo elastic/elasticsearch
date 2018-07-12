@@ -29,7 +29,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -106,6 +105,11 @@ public final class ConditionalClusterPrivileges {
         }
     }
 
+    /**
+     * The {@code ManageApplicationPrivileges} privilege is a {@link ConditionalClusterPrivilege} that grants the
+     * ability to execute actions related to the management of application privileges (Get, Put, Delete) for a subset
+     * of applications (identified by a wildcard-aware application-name).
+     */
     public static class ManageApplicationPrivileges implements ConditionalClusterPrivilege {
 
         private static final ClusterPrivilege PRIVILEGE = ClusterPrivilege.get(
@@ -222,7 +226,7 @@ public final class ConditionalClusterPrivileges {
 
         @Override
         public int hashCode() {
-            return Objects.hash(applicationNames);
+            return applicationNames.hashCode();
         }
 
         private interface Fields {

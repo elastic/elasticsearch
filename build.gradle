@@ -435,6 +435,9 @@ allprojects {
     if (isEclipse) {
       // set this so generated dirs will be relative to eclipse build
       project.buildDir = eclipseBuild
+      // Work around https://docs.gradle.org/current/userguide/java_gradle_plugin.html confusing Eclipse by the metadata
+      // it adds to the  classpath
+      project.file("$buildDir/pluginUnderTestMetadata").mkdirs()
     }
     eclipse.classpath.file.whenMerged { classpath ->
       // give each source folder a unique corresponding output folder

@@ -5,7 +5,6 @@ import org.elasticsearch.gradle.test.NodeInfo
 
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.KeyManager
-import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
 import java.nio.charset.StandardCharsets
@@ -76,7 +75,7 @@ integTestCluster {
   keystoreSetting 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
 
   setting 'xpack.ml.enabled', 'false'
-
+  // copy keystores, keys and certificates into config/
   extraConfigFile nodeKeystore.name, nodeKeystore
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert

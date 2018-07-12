@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbcx.JdbcDataSource;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
-import org.junit.ClassRule;
-import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -86,7 +84,7 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     public static void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
         index(index, "1", body);
     }
-    
+
     public static void index(String index, String documentId, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
         Request request = new Request("PUT", "/" + index + "/doc/" + documentId);
         request.addParameter("refresh", "true");

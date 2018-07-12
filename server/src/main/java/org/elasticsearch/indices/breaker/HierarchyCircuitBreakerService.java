@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.lang.management.ManagementFactory;
@@ -52,10 +51,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private final ConcurrentMap<String, CircuitBreaker> breakers = new ConcurrentHashMap<>();
 
     public static final Setting<Boolean> USE_REAL_MEMORY_USAGE_SETTING =
-        Setting.boolSetting("indices.breaker.total.use_real_memory", settings -> {
-            ByteSizeValue maxHeapSize = new ByteSizeValue(MEMORY_MX_BEAN.getHeapMemoryUsage().getMax());
-            return Boolean.toString(maxHeapSize.compareTo(new ByteSizeValue(1, ByteSizeUnit.GB)) < 0);
-        }, Property.NodeScope);
+        Setting.boolSetting("indices.breaker.total.use_real_memory", true, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING =
         Setting.memorySizeSetting("indices.breaker.total.limit", settings -> {

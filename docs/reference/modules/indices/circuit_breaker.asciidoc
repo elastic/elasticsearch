@@ -18,8 +18,7 @@ The parent-level breaker can be configured with the following settings:
 `indices.breaker.total.use_real_memory`::
 
     Whether the parent breaker should take real memory usage into account (`true`) or only
-    consider the amount that is reserved by child circuit breakers (`false`). Defaults to `true`
-    if the JVM heap size is smaller than 1GB, otherwise `false`.
+    consider the amount that is reserved by child circuit breakers (`false`). Defaults to `true`.
 
 `indices.breaker.total.limit`::
 

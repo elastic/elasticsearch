@@ -303,7 +303,7 @@ subprojects {
     if (project.plugins.hasPlugin(BuildPlugin)) {
       String artifactsHost = VersionProperties.elasticsearch.isSnapshot() ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
       Closure sortClosure = { a, b -> b.group <=> a.group }
-      Closure depJavadocClosure = { dep ->
+      Closure depJavadocClosure = { shadowed, dep ->
         if (dep.group == null || false == dep.group.startsWith('org.elasticsearch')) {
           return
         }
@@ -311,7 +311,7 @@ subprojects {
         if (upstreamProject == null) {
           return
         }
-        if (project.plugins.hasPlugin(ShadowPlugin)) {
+        if (shadowed) {
           /*
            * Include the source of shadowed upstream projects so we don't
            * to publish their javadoc.
@@ -331,13 +331,27 @@ subprojects {
            */
           project.javadoc.classpath += upstreamProject.javadoc.classpath
         } else {
+          // Link to non-shadowed dependant projects
           project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
           String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
           project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
         }
       }
-      project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
-      project.configurations.compileOnly.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+      boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
+      project.configurations.compile.dependencies
+          .findAll()
+          .toSorted(sortClosure)
+          .each({ c -> depJavadocClosure(hasShadow, c) })
+      project.configurations.compileOnly.dependencies
+          .findAll()
+          .toSorted(sortClosure)
+          .each({ c -> depJavadocClosure(hasShadow, c) })
+      if (hasShadow) {
+        project.configurations.shadow.dependencies
+            .findAll()
+            .toSorted(sortClosure)
+            .each({ c -> depJavadocClosure(false, c) })
+      }
     }
   }
 }

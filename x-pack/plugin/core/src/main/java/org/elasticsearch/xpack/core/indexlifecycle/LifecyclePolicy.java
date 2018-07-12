@@ -228,6 +228,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     }
 
     public boolean isActionSafe(StepKey stepKey) {
+        if ("new".equals(stepKey.getPhase())) {
+            return true;
+        }
         Phase phase = phases.get(stepKey.getPhase());
         if (phase != null) {
             LifecycleAction action = phase.getActions().get(stepKey.getAction());

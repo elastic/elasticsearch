@@ -208,7 +208,6 @@ public class TextLogFileStructure extends AbstractLogFileStructure implements Lo
 
         mappings = new TreeMap<>();
         mappings.put("message", "text");
-        mappings.put(DEFAULT_TIMESTAMP_FIELD, "date");
 
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
         String interimTimestampField;

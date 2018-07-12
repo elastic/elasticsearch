@@ -127,7 +127,6 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
             }
         }
 
-        mappings.put(DEFAULT_TIMESTAMP_FIELD, "date");
         return mappings;
     }
 

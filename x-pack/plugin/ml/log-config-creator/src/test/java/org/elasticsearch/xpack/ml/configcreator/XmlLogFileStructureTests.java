@@ -31,7 +31,7 @@ public class XmlLogFileStructureTests extends LogConfigCreatorTestCase {
         }
         assertThat(structure.getFilebeatToLogstashConfig(), containsString("multiline.pattern: '^\\s*<log4j:event'\n"));
         assertThat(structure.getFilebeatToLogstashConfig(), containsString(logstashHost));
-        assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
+        assertThat(structure.getLogstashFromFilebeatConfig(), containsString("match => [ \"[log4j:event][timestamp]\", \"UNIX_MS\" ]\n"));
         assertThat(structure.getLogstashFromFilebeatConfig(), containsString(elasticsearchHost));
         if (charset.equals(StandardCharsets.UTF_8.name())) {
             assertThat(structure.getLogstashFromFileConfig(), not(containsString("charset =>")));
@@ -39,7 +39,7 @@ public class XmlLogFileStructureTests extends LogConfigCreatorTestCase {
             assertThat(structure.getLogstashFromFileConfig(), containsString("charset => \"" + charset + "\""));
         }
         assertThat(structure.getLogstashFromFileConfig(), containsString("pattern => \"^\\s*<log4j:event\"\n"));
-        assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"timestamp\", \"UNIX_MS\" ]\n"));
+        assertThat(structure.getLogstashFromFileConfig(), containsString("match => [ \"[log4j:event][timestamp]\", \"UNIX_MS\" ]\n"));
         assertThat(structure.getLogstashFromFileConfig(), not(containsString("timezone =>")));
         assertThat(structure.getLogstashFromFileConfig(), containsString(elasticsearchHost));
     }

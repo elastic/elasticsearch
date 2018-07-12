@@ -70,14 +70,23 @@ public abstract class AbstractLogFileStructure {
 
     private static final String INGEST_PIPELINE_DATE_PARSE_TIMEZONE = "        \"timezone\": \"{{ " + BEAT_TIMEZONE_FIELD + " }}\",\n";
 
-    private static final String FIELD_MAPPING_TEMPLATE = "        \"%s\": {\n" +
-        "          \"type\": \"%s\"\n" +
+    private static final String FIELD_MAPPING_TEMPLATE = "%s\"%s\": {\n" +
+        "%s  \"type\": \"%s\"\n" +
+        "%s}";
+    private static final String TOP_LEVEL_OBJECT_FIELD_MAPPING_TEMPLATE = "        \"%s\": {\n" +
+        "          \"type\": \"object\",\n" +
+        "          \"properties\": {\n" +
+        "%s\n" +
+        "          }\n" +
         "        }";
     private static final String INDEX_MAPPINGS_TEMPLATE = "PUT %s\n" +
         "{\n" +
         "  \"mappings\": {\n" +
         "    \"_doc\": {\n" +
         "      \"properties\": {\n" +
+        "        \"" + DEFAULT_TIMESTAMP_FIELD + "\": {\n" +
+        "          \"type\": \"date\"\n" +
+        "        },\n" +
         "%s\n" +
         "      }\n" +
         "    }\n" +
@@ -127,9 +136,18 @@ public abstract class AbstractLogFileStructure {
     }
 
     protected void writeMappingsConfigs(Path directory, SortedMap<String, String> fieldTypes) throws IOException {
+        writeMappingsConfigs(directory, null, fieldTypes);
+    }
+
+    protected void writeMappingsConfigs(Path directory, String topLevelObjectName, SortedMap<String, String> fieldTypes)
+        throws IOException {
         terminal.println(Verbosity.VERBOSE, "---");
-        String fieldTypeMappings = fieldTypes.entrySet().stream().map(entry -> String.format(Locale.ROOT, FIELD_MAPPING_TEMPLATE,
-            entry.getKey(), entry.getValue())).collect(Collectors.joining(",\n"));
+        String indent = (topLevelObjectName == null) ? "        " : "            ";
+        String fieldTypeMappings = fieldTypes.entrySet().stream().map(entry -> String.format(Locale.ROOT, FIELD_MAPPING_TEMPLATE, indent,
+            entry.getKey(), indent, entry.getValue(), indent)).collect(Collectors.joining(",\n"));
+        if (topLevelObjectName != null) {
+            fieldTypeMappings = String.format(Locale.ROOT, TOP_LEVEL_OBJECT_FIELD_MAPPING_TEMPLATE, topLevelObjectName, fieldTypeMappings);
+        }
         writeRestCallConfigs(directory, "index-mappings.console", String.format(Locale.ROOT, INDEX_MAPPINGS_TEMPLATE, indexName,
             fieldTypeMappings));
     }

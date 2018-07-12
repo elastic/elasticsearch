@@ -52,7 +52,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         "  xml {\n" +
         "    source => \"message\"\n" +
         "    remove_field => [ \"message\" ]\n" +
-        "    target => \"doc\"\n" +
+        "    target => \"%s\"\n" +
         "  }\n" +
         "%s" +
         "}\n" +
@@ -77,7 +77,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         "  xml {\n" +
         "    source => \"message\"\n" +
         "    remove_field => [ \"message\" ]\n" +
-        "    target => \"doc\"\n" +
+        "    target => \"%s\"\n" +
         "  }\n" +
         "%s" +
         "}\n" +
@@ -91,7 +91,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         "  }\n" +
         "}\n";
 
-    private final String messagePrefix;
+    private final String topLevelTag;
     private final List<Map<String, ?>> sampleRecords;
     private SortedMap<String, String> mappings;
     private String filebeatToLogstashConfig;
@@ -103,6 +103,7 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         throws IOException, ParserConfigurationException, SAXException {
         super(terminal, sampleFileName, indexName, typeName, elasticsearchHost, logstashHost, logstashFileTimezone, charsetName);
 
+        String messagePrefix;
         try (Scanner scanner = new Scanner(sample)) {
             messagePrefix = scanner.next();
         }
@@ -132,6 +133,10 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
                 }
             }
         }
+
+        // If we get here the XML parser should have confirmed this
+        assert messagePrefix.charAt(0) == '<';
+        topLevelTag = messagePrefix.substring(1);
 
         createPreambleComment(linesConsumed, sampleRecords.size(), preamble.toString());
     }
@@ -188,17 +193,19 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
         String logstashFromFileDateFilter = "";
         if (timeField != null) {
             hasTimezoneDependentParsing = timeField.v2().hasTimezoneDependentParsing();
-            logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), true);
-            logstashFromFileDateFilter = makeLogstashDateFilter(timeField.v1(), timeField.v2(), false);
+            String timeFieldPath = "[" + topLevelTag + "][" + timeField.v1() + "]";
+            logstashFromFilebeatDateFilter = makeLogstashDateFilter(timeFieldPath, timeField.v2(), true);
+            logstashFromFileDateFilter = makeLogstashDateFilter(timeFieldPath, timeField.v2(), false);
         }
 
+        String multilineStartRegex = "^\\s*<" + topLevelTag;
         filebeatToLogstashConfig = String.format(Locale.ROOT, FILEBEAT_TO_LOGSTASH_TEMPLATE,
-            makeFilebeatInputOptions("^\\s*" + messagePrefix, null), makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing),
+            makeFilebeatInputOptions(multilineStartRegex, null), makeFilebeatAddLocaleSetting(hasTimezoneDependentParsing),
             logstashHost);
-        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, logstashFromFilebeatDateFilter,
-            elasticsearchHost);
-        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput("^\\s*" + messagePrefix),
-            logstashFromFileDateFilter, elasticsearchHost, indexName);
+        logstashFromFilebeatConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILEBEAT_TEMPLATE, topLevelTag,
+            logstashFromFilebeatDateFilter, elasticsearchHost);
+        logstashFromFileConfig = String.format(Locale.ROOT, LOGSTASH_FROM_FILE_TEMPLATE, makeLogstashFileInput(multilineStartRegex),
+            topLevelTag, logstashFromFileDateFilter, elasticsearchHost, indexName);
     }
 
     String getFilebeatToLogstashConfig() {
@@ -219,10 +226,10 @@ public class XmlLogFileStructure extends AbstractStructuredLogFileStructure impl
             createConfigs();
         }
 
-        writeMappingsConfigs(directory, mappings);
+        writeMappingsConfigs(directory, topLevelTag, mappings);
 
         writeConfigFile(directory, "filebeat-to-logstash.yml", filebeatToLogstashConfig);
         writeConfigFile(directory, "logstash-from-filebeat.conf", logstashFromFilebeatConfig);
         writeConfigFile(directory, "logstash-from-file.conf", logstashFromFileConfig);
-        }
+    }
 }

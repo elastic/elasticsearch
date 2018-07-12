@@ -198,13 +198,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void authenticationSuccess(String realm, User user, RestRequest request) {
         if (events.contains(AUTHENTICATION_SUCCESS) && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), Optional.empty())) == false) {
-            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
             logEntry.with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
-                    .with(REALM_FIELD_NAME, realm)
-                    .with(URL_PATH_FIELD_NAME, request.path())
-                    // TODO this is probably wrong, params are decoded and they might contain the delimiter
-                    .with(URL_QUERY_FIELD_NAME, Strings.collectionToDelimitedString(request.params().entrySet(), "&"));
+                    .with(REALM_FIELD_NAME, realm);
+            restUri(request, logEntry);
             principal(user, logEntry);
             restOrigin(request, logEntry);
             if (includeRequestBody) {
@@ -221,7 +219,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), indices)) == false) {
-                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
                         .with(REALM_FIELD_NAME, realm)
@@ -244,7 +242,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
-                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
                         .with(ACTION_FIELD_NAME, action)
@@ -263,12 +261,10 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void anonymousAccessDenied(RestRequest request) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)
                 && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
-            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
             logEntry.with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                    .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
-                    .with(URL_PATH_FIELD_NAME, request.path())
-                    // TODO this is probably wrong, params are decoded and they might contain the delimiter
-                    .with(URL_QUERY_FIELD_NAME, Strings.collectionToDelimitedString(request.params().entrySet(), "&"));
+                    .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied");
+            restUri(request, logEntry);
             restOrigin(request, logEntry);
             if (includeRequestBody) {
                 logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
@@ -284,7 +280,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), indices)) == false) {
-                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                         .with(ACTION_FIELD_NAME, action)
@@ -303,12 +299,10 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     @Override
     public void authenticationFailed(RestRequest request) {
         if (events.contains(AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
-            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
             logEntry.with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                    .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
-                    .with(URL_PATH_FIELD_NAME, request.path())
-                    // TODO this is probably wrong, params are decoded and they might contain the delimiter
-                    .with(URL_QUERY_FIELD_NAME, Strings.collectionToDelimitedString(request.params().entrySet(), "&"));
+                    .with(EVENT_ACTION_FIELD_NAME, "authentication_failed");
+            restUri(request, logEntry);
             restOrigin(request, logEntry);
             if (includeRequestBody) {
                 logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
@@ -324,7 +318,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
-                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                         .with(ACTION_FIELD_NAME, action)
@@ -343,13 +337,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void authenticationFailed(AuthenticationToken token, RestRequest request) {
         if (events.contains(AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), Optional.empty())) == false) {
-            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
             logEntry.with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
-                    .with(PRINCIPAL_FIELD_NAME, token.principal())
-                    .with(URL_PATH_FIELD_NAME, request.path())
-                    // TODO this is probably wrong, params are decoded and they might contain the delimiter
-                    .with(URL_QUERY_FIELD_NAME, Strings.collectionToDelimitedString(request.params().entrySet(), "&"));
+                    .with(PRINCIPAL_FIELD_NAME, token.principal());
+            restUri(request, logEntry);
             restOrigin(request, logEntry);
             if (includeRequestBody) {
                 logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
@@ -365,7 +357,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), indices)) == false) {
-                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "realm_authentication_failed")
                         .with(REALM_FIELD_NAME, realm)
@@ -386,15 +378,12 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
         if (events.contains(REALM_AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty())) == false) {
-            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
             logEntry.with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "realm_authentication_failed")
                     .with(REALM_FIELD_NAME, realm)
-                    .with(PRINCIPAL_FIELD_NAME, token.principal())
-                    .with(URL_PATH_FIELD_NAME, request.path())
-                    // TODO this is probably wrong, params are decoded and they might contain the
-                    // delimiter
-                    .with(URL_QUERY_FIELD_NAME, Strings.collectionToDelimitedString(request.params().entrySet(), "&"));
+                    .with(PRINCIPAL_FIELD_NAME, token.principal());
+            restUri(request, logEntry);
             restOrigin(request, logEntry);
             if (includeRequestBody) {
                 logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
@@ -412,7 +401,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(user),
                     Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
-                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "access_granted")
                         .with(PRINCIPAL_ROLES_FIELD_NAME, arrayToCommaDelimitedString(roleNames))
@@ -435,7 +424,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
                     Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
-                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "access_denied")
                         .with(PRINCIPAL_ROLES_FIELD_NAME, arrayToCommaDelimitedString(roleNames))
@@ -455,12 +444,10 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     @Override
     public void tamperedRequest(RestRequest request) {
         if (events.contains(TAMPERED_REQUEST) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
-            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
             logEntry.with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                    .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
-                    .with(URL_PATH_FIELD_NAME, request.path())
-                    // TODO this is probably wrong, params are decoded and they might contain the delimiter
-                    .with(URL_QUERY_FIELD_NAME, Strings.collectionToDelimitedString(request.params().entrySet(), "&"));
+                    .with(EVENT_ACTION_FIELD_NAME, "tampered_request");
+            restUri(request, logEntry);
             restOrigin(request, logEntry);
             if (includeRequestBody) {
                 logEntry.with(REQUEST_BODY_FIELD_NAME, restRequestContent(request));
@@ -476,7 +463,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
-                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
                         .with(ACTION_FIELD_NAME, action)
@@ -497,7 +484,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.empty(), indices)) == false) {
-                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
                         .with(ACTION_FIELD_NAME, action)
@@ -516,7 +503,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     @Override
     public void connectionGranted(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
         if (events.contains(CONNECTION_GRANTED) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
-            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
             logEntry.with(EVENT_TYPE_FIELD_NAME, IP_FILTER_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "connection_granted")
                     .with(ORIGIN_TYPE_FIELD_NAME, IP_FILTER_ORIGIN_FIELD_VALUE)
@@ -531,7 +518,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     @Override
     public void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
         if (events.contains(CONNECTION_DENIED) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
-            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
             logEntry.with(EVENT_TYPE_FIELD_NAME, IP_FILTER_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "connection_denied")
                     .with(ORIGIN_TYPE_FIELD_NAME, IP_FILTER_ORIGIN_FIELD_VALUE)
@@ -549,7 +536,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
                     Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
-                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_granted")
                         .with(PRINCIPAL_ROLES_FIELD_NAME, arrayToCommaDelimitedString(roleNames))
@@ -572,7 +559,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
                     Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
-                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+                final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
                 logEntry.with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
                         .with(PRINCIPAL_ROLES_FIELD_NAME, arrayToCommaDelimitedString(roleNames))
@@ -594,13 +581,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         if (events.contains(RUN_AS_DENIED)
                 && eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
                         Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), Optional.empty())) == false) {
-            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.rootFields);
+            final StringMapMessage logEntry = new StringMapMessage(this.entryCommonFields.commonFields);
             logEntry.with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
-                    .with(PRINCIPAL_ROLES_FIELD_NAME, arrayToCommaDelimitedString(roleNames))
-                    .with(URL_PATH_FIELD_NAME, request.path())
-                    // TODO this is probably wrong, params are decoded and they might contain the delimiter
-                    .with(URL_QUERY_FIELD_NAME, Strings.collectionToDelimitedString(request.params().entrySet(), "&"));
+                    .with(PRINCIPAL_ROLES_FIELD_NAME, arrayToCommaDelimitedString(roleNames));
+            restUri(request, logEntry);
             runAsSubject(authentication, logEntry);
             restOrigin(request, logEntry);
             if (includeRequestBody) {
@@ -646,6 +631,16 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE).with(ORIGIN_ADDRESS_FIELD_NAME, formattedAddress);
         }
         // fall through to local_node default
+    }
+
+    private static void restUri(RestRequest request, StringMapMessage logEntry) {
+        if (Strings.hasLength(request.path())) {
+            logEntry.with(URL_PATH_FIELD_NAME, request.path());
+        }
+        if (request.params().isEmpty() == false) {
+            // TODO this is probably wrong, params are decoded and they might contain the delimiter
+            logEntry.with(URL_QUERY_FIELD_NAME, Strings.collectionToDelimitedString(request.params().entrySet(), "&"));
+        }
     }
 
     private static void restOrTransportOrigin(TransportMessage message, ThreadContext threadContext, StringMapMessage logEntry) {
@@ -895,7 +890,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     static class EntryCommonFields {
         private final Settings settings;
         private final DiscoveryNode localNode;
-        final Map<String, String> rootFields;
+        final Map<String, String> commonFields;
 
         EntryCommonFields(Settings settings, @Nullable DiscoveryNode newLocalNode) {
             this.settings = settings;
@@ -909,10 +904,10 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 }
             }
             if (newLocalNode != null) {
-                if (HOST_ADDRESS_SETTING.get(settings)) {
+                if (HOST_ADDRESS_SETTING.get(settings) && Strings.hasLength(newLocalNode.getHostAddress())) {
                     rootFieldsBuilder.put(HOST_ADDRESS_FIELD_NAME, newLocalNode.getHostAddress());
                 }
-                if (HOST_NAME_SETTING.get(settings)) {
+                if (HOST_NAME_SETTING.get(settings) && Strings.hasLength(newLocalNode.getHostName())) {
                     rootFieldsBuilder.put(HOST_NAME_FIELD_NAME, newLocalNode.getHostName());
                 }
             }
@@ -921,7 +916,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             if (newLocalNode != null) {
                 rootFieldsBuilder.put(ORIGIN_ADDRESS_FIELD_NAME, newLocalNode.getHostAddress());
             }
-            this.rootFields = rootFieldsBuilder.immutableMap();
+            this.commonFields = rootFieldsBuilder.immutableMap();
         }
 
         EntryCommonFields withNewSettings(Settings newSettings) {

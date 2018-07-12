@@ -84,6 +84,11 @@ public class ForceMergeAction implements LifecycleAction {
     }
 
     @Override
+    public boolean isSafeAction() {
+        return true;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(MAX_NUM_SEGMENTS_FIELD.getPreferredName(), maxNumSegments);

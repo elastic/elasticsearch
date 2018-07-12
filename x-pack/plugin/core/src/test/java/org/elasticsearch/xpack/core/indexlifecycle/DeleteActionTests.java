@@ -7,13 +7,12 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
 import java.util.List;
 
-public class DeleteActionTests extends AbstractSerializingTestCase<DeleteAction> {
+public class DeleteActionTests extends AbstractActionTestCase<DeleteAction> {
 
     @Override
     protected DeleteAction doParseInstance(XContentParser parser) throws IOException {

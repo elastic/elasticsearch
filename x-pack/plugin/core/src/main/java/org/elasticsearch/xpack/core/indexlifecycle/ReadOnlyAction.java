@@ -55,6 +55,11 @@ public class ReadOnlyAction implements LifecycleAction {
     }
 
     @Override
+    public boolean isSafeAction() {
+        return true;
+    }
+
+    @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         Step.StepKey key = new Step.StepKey(phase, NAME, NAME);
         Settings readOnlySettings = Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true).build();

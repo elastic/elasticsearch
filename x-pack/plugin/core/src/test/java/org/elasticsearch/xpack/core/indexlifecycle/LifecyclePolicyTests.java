@@ -186,4 +186,30 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertThat(steps.get(5), equalTo(secondActionStep));
         assertSame(steps.get(6), TerminalPolicyStep.INSTANCE);
     }
+
+    public void testIsActionSafe() {
+        Map<String, Phase> phases = new LinkedHashMap<>();
+        LifecycleAction firstAction = new MockAction(Collections.emptyList(), true);
+        LifecycleAction secondAction = new MockAction(Collections.emptyList(), false);
+        Map<String, LifecycleAction> firstActions = Collections.singletonMap(MockAction.NAME, firstAction);
+        Map<String, LifecycleAction> secondActions = Collections.singletonMap(MockAction.NAME, secondAction);
+        Phase firstPhase = new Phase("first_phase", TimeValue.ZERO, firstActions);
+        Phase secondPhase = new Phase("second_phase", TimeValue.ZERO, secondActions);
+        phases.put(firstPhase.getName(), firstPhase);
+        phases.put(secondPhase.getName(), secondPhase);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+
+        assertTrue(policy.isActionSafe(new StepKey("first_phase", MockAction.NAME, randomAlphaOfLength(10))));
+
+        assertFalse(policy.isActionSafe(new StepKey("second_phase", MockAction.NAME, randomAlphaOfLength(10))));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> policy.isActionSafe(new StepKey("non_existant_phase", MockAction.NAME, randomAlphaOfLength(10))));
+        assertEquals("Phase [non_existant_phase]  does not exist in policy [" + policy.getName() + "]", exception.getMessage());
+
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> policy.isActionSafe(new StepKey("first_phase", "non_existant_action", randomAlphaOfLength(10))));
+        assertEquals("Action [non_existant_action] in phase [first_phase]  does not exist in policy [" + policy.getName() + "]",
+                exception.getMessage());
+    }
 }

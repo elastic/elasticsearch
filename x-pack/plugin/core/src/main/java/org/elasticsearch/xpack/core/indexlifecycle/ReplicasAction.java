@@ -74,6 +74,11 @@ public class ReplicasAction implements LifecycleAction {
     }
 
     @Override
+    public boolean isSafeAction() {
+        return true;
+    }
+
+    @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         StepKey updateReplicasKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
         StepKey enoughKey = new StepKey(phase, NAME, ReplicasAllocatedStep.NAME);

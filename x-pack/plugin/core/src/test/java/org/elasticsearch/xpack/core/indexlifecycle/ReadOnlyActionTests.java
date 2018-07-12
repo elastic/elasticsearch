@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ReadOnlyActionTests extends AbstractSerializingTestCase<ReadOnlyAction> {
+public class ReadOnlyActionTests extends AbstractActionTestCase<ReadOnlyAction> {
 
     @Override
     protected ReadOnlyAction doParseInstance(XContentParser parser) {

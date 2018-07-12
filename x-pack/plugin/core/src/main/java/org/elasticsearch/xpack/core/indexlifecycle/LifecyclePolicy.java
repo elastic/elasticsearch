@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -224,6 +225,24 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         }
 
         return steps;
+    }
+
+    public boolean isActionSafe(StepKey stepKey) {
+        if ("new".equals(stepKey.getPhase())) {
+            return true;
+        }
+        Phase phase = phases.get(stepKey.getPhase());
+        if (phase != null) {
+            LifecycleAction action = phase.getActions().get(stepKey.getAction());
+            if (action != null) {
+                return action.isSafeAction();
+            } else {
+                throw new IllegalArgumentException("Action [" + stepKey.getAction() + "] in phase [" + stepKey.getPhase()
+                        + "]  does not exist in policy [" + name + "]");
+            }
+        } else {
+            throw new IllegalArgumentException("Phase [" + stepKey.getPhase() + "]  does not exist in policy [" + name + "]");
+        }
     }
 
     @Override

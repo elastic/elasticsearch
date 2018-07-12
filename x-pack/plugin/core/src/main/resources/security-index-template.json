@@ -108,6 +108,24 @@
         "application" : {
           "type" : "keyword"
         },
+        "policy": {
+          "type": "object",
+          "properties": {
+            "application": {
+              "type": "object",
+              "properties": {
+                "manage": {
+                  "type": "object",
+                  "properties": {
+                    "applications": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "name" : {
           "type" : "keyword"
         },

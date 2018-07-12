@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -35,6 +36,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
 
     private String name;
     private String[] clusterPrivileges = Strings.EMPTY_ARRAY;
+    private ConditionalClusterPrivilege[] conditionalClusterPrivileges = ConditionalClusterPrivileges.EMPTY_ARRAY;
     private List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
     private List<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges = new ArrayList<>();
     private String[] runAs = Strings.EMPTY_ARRAY;
@@ -79,6 +81,10 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
 
     public void cluster(String... clusterPrivileges) {
         this.clusterPrivileges = clusterPrivileges;
+    }
+
+    void conditionalCluster(ConditionalClusterPrivilege... conditionalClusterPrivileges) {
+        this.conditionalClusterPrivileges = conditionalClusterPrivileges;
     }
 
     void addIndex(RoleDescriptor.IndicesPrivileges... privileges) {
@@ -135,6 +141,14 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         return indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]);
     }
 
+    public List<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges() {
+        return Collections.unmodifiableList(applicationPrivileges);
+    }
+
+    public ConditionalClusterPrivilege[] conditionalClusterPrivileges() {
+        return conditionalClusterPrivileges;
+    }
+
     public String[] runAs() {
         return runAs;
     }
@@ -155,6 +169,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         }
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             applicationPrivileges = in.readList(RoleDescriptor.ApplicationResourcePrivileges::createFrom);
+            conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
         }
         runAs = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
@@ -172,6 +187,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeStreamableList(applicationPrivileges);
+            ConditionalClusterPrivileges.writeArray(out, this.conditionalClusterPrivileges);
         }
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
@@ -183,9 +199,10 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
                 clusterPrivileges,
                 indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]),
                 applicationPrivileges.toArray(new RoleDescriptor.ApplicationResourcePrivileges[applicationPrivileges.size()]),
-                ConditionalClusterPrivileges.EMPTY_ARRAY,
+                conditionalClusterPrivileges,
                 runAs,
                 metadata,
                 Collections.emptyMap());
     }
+
 }

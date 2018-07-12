@@ -215,6 +215,10 @@ public class RoleDescriptor implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean docCreation) throws IOException {
         builder.startObject();
         builder.array(Fields.CLUSTER.getPreferredName(), clusterPrivileges);
+        if (conditionalClusterPrivileges.length != 0) {
+            builder.field(Fields.POLICY.getPreferredName());
+            ConditionalClusterPrivileges.toXContent(builder, params, Arrays.asList(conditionalClusterPrivileges));
+        }
         builder.array(Fields.INDICES.getPreferredName(), (Object[]) indicesPrivileges);
         builder.array(Fields.APPLICATIONS.getPreferredName(), (Object[]) applicationPrivileges);
         if (runAs != null) {
@@ -324,6 +328,8 @@ public class RoleDescriptor implements ToXContentObject {
             } else if (Fields.APPLICATIONS.match(currentFieldName, parser.getDeprecationHandler())
                     || Fields.APPLICATION.match(currentFieldName, parser.getDeprecationHandler())) {
                 applicationPrivileges = parseApplicationPrivileges(name, parser);
+            } else if (Fields.POLICY.match(currentFieldName, parser.getDeprecationHandler())) {
+                conditionalClusterPrivileges = ConditionalClusterPrivileges.parse(parser);
             } else if (Fields.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new ElasticsearchParseException(
@@ -960,6 +966,7 @@ public class RoleDescriptor implements ToXContentObject {
 
     public interface Fields {
         ParseField CLUSTER = new ParseField("cluster");
+        ParseField POLICY = new ParseField("policy");
         ParseField INDEX = new ParseField("index");
         ParseField INDICES = new ParseField("indices");
         ParseField APPLICATIONS = new ParseField("applications");

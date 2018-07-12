@@ -336,6 +336,7 @@ public class AuthorizationService extends AbstractComponent {
         auditTrail.accessGranted(authentication, action, request, permission.names());
     }
 
+
     private boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
         for (String index : SecurityIndexManager.indexNames()) {
             final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);

@@ -266,7 +266,7 @@ public class CompositeRolesStore extends AbstractComponent {
             if (descriptor.getClusterPrivileges() != null) {
                 clusterPrivileges.addAll(Arrays.asList(descriptor.getClusterPrivileges()));
             }
-            if(descriptor.getConditionalClusterPrivileges() != null) {
+            if (descriptor.getConditionalClusterPrivileges() != null) {
                 conditionalClusterPrivileges.addAll(Arrays.asList(descriptor.getConditionalClusterPrivileges()));
             }
             if (descriptor.getRunAs() != null) {

@@ -33,7 +33,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 /**
- * Static utility class for parsing/rendering {@link ConditionalClusterPrivilege} instances
+ * Static utility class for working with {@link ConditionalClusterPrivilege} instances
  */
 public final class ConditionalClusterPrivileges {
 
@@ -42,15 +42,25 @@ public final class ConditionalClusterPrivileges {
     private ConditionalClusterPrivileges() {
     }
 
+    /**
+     * Utility method to read an array of {@link ConditionalClusterPrivilege} objects from a {@link StreamInput}
+     */
     public static ConditionalClusterPrivilege[] readArray(StreamInput in) throws IOException {
         return in.readArray(in1 ->
             in1.readNamedWriteable(ConditionalClusterPrivilege.class), ConditionalClusterPrivilege[]::new);
     }
 
+    /**
+     * Utility method to write an array of {@link ConditionalClusterPrivilege} objects to a {@link StreamOutput}
+     */
     public static void writeArray(StreamOutput out, ConditionalClusterPrivilege[] privileges) throws IOException {
         out.writeArray((out1, value) -> out1.writeNamedWriteable(value), privileges);
     }
 
+    /**
+     * Writes a single object value to the {@code builder} that contains each of the provided privileges.
+     * The privileges are grouped according to their {@link ConditionalClusterPrivilege#getCategory() categories}
+     */
     public static XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params,
                                              Collection<ConditionalClusterPrivilege> privileges) throws IOException {
         builder.startObject();
@@ -66,6 +76,10 @@ public final class ConditionalClusterPrivileges {
         return builder.endObject();
     }
 
+    /**
+     * Read a list of privileges from the parser. The parse should be positioned at the
+     * {@link XContentParser.Token#START_OBJECT} token for the privileges value
+     */
     public static List<ConditionalClusterPrivilege> parse(XContentParser parser) throws IOException {
         List<ConditionalClusterPrivilege> privileges = new ArrayList<>();
 

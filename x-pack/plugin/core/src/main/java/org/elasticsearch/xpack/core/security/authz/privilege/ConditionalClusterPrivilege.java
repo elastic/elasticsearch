@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.function.Predicate;
 
 /**
@@ -44,12 +45,12 @@ public interface ConditionalClusterPrivilege extends NamedWriteable, ToXContentF
     @Override
     XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
 
-        /**
-         * Categories exist for to segment privileges for the purposes of rendering to XContent.
-         * A {@link org.elasticsearch.xpack.core.security.authz.RoleDescriptor} builds an XContent object
-         * for the set of {@link ConditionalClusterPrivilege} instances, with the top level fields built from
-         * the categories.
-         */
+    /**
+     * Categories exist for to segment privileges for the purposes of rendering to XContent.
+     * {@link ConditionalClusterPrivileges#toXContent(XContentBuilder, Params, Collection)} builds one XContent
+     * object for a collection of {@link ConditionalClusterPrivilege} instances, with the top level fields built
+     * from the categories.
+     */
     enum Category {
         APPLICATION(new ParseField("application"));
 

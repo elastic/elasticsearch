@@ -19,6 +19,8 @@ public final class XPackField {
     public static final String MACHINE_LEARNING = "ml";
     /** Name constant for the Logstash feature. */
     public static final String LOGSTASH = "logstash";
+    /** Name constant for the Beats feature. */
+    public static final String BEATS = "beats";
     /** Name constant for the Deprecation API feature. */
     public static final String DEPRECATION = "deprecation";
     /** Name constant for the upgrade feature. */

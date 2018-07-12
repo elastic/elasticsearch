@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
 import com.unboundid.ldap.sdk.Attribute;
+import com.unboundid.ldap.sdk.FailoverServerSet;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
+import com.unboundid.ldap.sdk.SingleServerSet;
 import com.unboundid.ldap.sdk.schema.Schema;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -51,9 +54,11 @@ import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFa
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
@@ -353,6 +358,48 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         assertEquals("(objectClass=default)", sessionFactory.defaultADAuthenticator.getUserSearchFilter());
         assertEquals("(objectClass=upn)", sessionFactory.upnADAuthenticator.getUserSearchFilter());
         assertEquals("(objectClass=down level)", sessionFactory.downLevelADAuthenticator.getUserSearchFilter());
+    }
+
+    public void testBuildUrlFromDomainNameAndDefaultPort() throws Exception {
+        Settings settings = Settings.builder()
+            .put(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING, "ad.test.elasticsearch.com")
+            .build();
+        RealmConfig config = new RealmConfig("testBuildUrlFromDomainNameAndDefaultPort", settings, globalSettings,
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
+        assertSingleLdapServer(sessionFactory, "ad.test.elasticsearch.com", 389);
+    }
+
+    public void testBuildUrlFromDomainNameAndCustomPort() throws Exception {
+        Settings settings = Settings.builder()
+            .put(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING, "ad.test.elasticsearch.com")
+            .put(ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING.getKey(), 10389)
+            .build();
+        RealmConfig config = new RealmConfig("testBuildUrlFromDomainNameAndCustomPort", settings, globalSettings,
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
+        assertSingleLdapServer(sessionFactory, "ad.test.elasticsearch.com", 10389);
+    }
+
+    public void testUrlConfiguredInSettings() throws Exception {
+        Settings settings = Settings.builder()
+            .put(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING, "ad.test.elasticsearch.com")
+            .put(SessionFactorySettings.URLS_SETTING, "ldap://ad01.testing.elastic.co:20389/")
+            .build();
+        RealmConfig config = new RealmConfig("testBuildUrlFromDomainNameAndCustomPort", settings, globalSettings,
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
+        assertSingleLdapServer(sessionFactory, "ad01.testing.elastic.co", 20389);
+    }
+
+    private void assertSingleLdapServer(ActiveDirectorySessionFactory sessionFactory, String hostname, int port) {
+        assertThat(sessionFactory.getServerSet(), instanceOf(FailoverServerSet.class));
+        FailoverServerSet fss = (FailoverServerSet) sessionFactory.getServerSet();
+        assertThat(fss.getServerSets(), arrayWithSize(1));
+        assertThat(fss.getServerSets()[0], instanceOf(SingleServerSet.class));
+        SingleServerSet sss = (SingleServerSet) fss.getServerSets()[0];
+        assertThat(sss.getAddress(), equalTo(hostname));
+        assertThat(sss.getPort(), equalTo(port));
     }
 
     private Settings settings() throws Exception {

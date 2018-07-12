@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
@@ -44,7 +45,6 @@ import java.net.URL;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -70,8 +70,10 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
      **/
     @Before
     public void registerRepositories() throws IOException {
-        Response clusterSettingsResponse = client().performRequest("GET", "/_cluster/settings?include_defaults=true" +
-            "&filter_path=defaults.path.repo,defaults.repositories.url.allowed_urls");
+        Request clusterSettingsRequest = new Request("GET", "/_cluster/settings");
+        clusterSettingsRequest.addParameter("include_defaults", "true");
+        clusterSettingsRequest.addParameter("filter_path", "defaults.path.repo,defaults.repositories.url.allowed_urls");
+        Response clusterSettingsResponse = client().performRequest(clusterSettingsRequest);
         Map<String, Object> clusterSettings = entityAsMap(clusterSettingsResponse);
 
         @SuppressWarnings("unchecked")
@@ -83,13 +85,17 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
         final URI pathRepoUri = PathUtils.get(pathRepo).toUri().normalize();
 
         // Create a FS repository using the path.repo location
-        Response createFsRepositoryResponse = client().performRequest("PUT", "_snapshot/repository-fs", emptyMap(),
-            buildRepositorySettings(FsRepository.TYPE, Settings.builder().put("location", pathRepo).build()));
+        Request createFsRepositoryRequest = new Request("PUT", "/_snapshot/repository-fs");
+        createFsRepositoryRequest.setEntity(buildRepositorySettings(FsRepository.TYPE,
+                Settings.builder().put("location", pathRepo).build()));
+        Response createFsRepositoryResponse = client().performRequest(createFsRepositoryRequest);
         assertThat(createFsRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
         // Create a URL repository using the file://{path.repo} URL
-        Response createFileRepositoryResponse = client().performRequest("PUT", "_snapshot/repository-file", emptyMap(),
-            buildRepositorySettings(URLRepository.TYPE, Settings.builder().put("url", pathRepoUri.toString()).build()));
+        Request createFileRepositoryRequest = new Request("PUT", "/_snapshot/repository-file");
+        createFileRepositoryRequest.setEntity(buildRepositorySettings(URLRepository.TYPE,
+                Settings.builder().put("url", pathRepoUri.toString()).build()));
+        Response createFileRepositoryResponse = client().performRequest(createFileRepositoryRequest);
         assertThat(createFileRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
         // Create a URL repository using the http://{fixture} URL
@@ -99,8 +105,10 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
             try {
                 InetAddress inetAddress = InetAddress.getByName(new URL(allowedUrl).getHost());
                 if (inetAddress.isAnyLocalAddress() || inetAddress.isLoopbackAddress()) {
-                    Response createUrlRepositoryResponse = client().performRequest("PUT", "_snapshot/repository-url", emptyMap(),
-                        buildRepositorySettings(URLRepository.TYPE, Settings.builder().put("url", allowedUrl).build()));
+                    Request createUrlRepositoryRequest = new Request("PUT", "/_snapshot/repository-url");
+                    createUrlRepositoryRequest.setEntity(buildRepositorySettings(URLRepository.TYPE,
+                            Settings.builder().put("url", allowedUrl).build()));
+                    Response createUrlRepositoryResponse = client().performRequest(createUrlRepositoryRequest);
                     assertThat(createUrlRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
                     break;
                 }
@@ -126,4 +134,3 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
         }
     }
 }
-

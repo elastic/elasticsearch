@@ -63,11 +63,7 @@ public final class Role {
     }
 
     public static Builder builder(String... names) {
-        return new Builder(names, null);
-    }
-
-    public static Builder builder(String[] names, FieldPermissionsCache fieldPermissionsCache) {
-        return new Builder(names, fieldPermissionsCache);
+        return new Builder(names);
     }
 
     public static Builder builder(RoleDescriptor rd, FieldPermissionsCache fieldPermissionsCache) {
@@ -102,17 +98,14 @@ public final class Role {
         private ClusterPermission cluster = ClusterPermission.NONE;
         private RunAsPermission runAs = RunAsPermission.NONE;
         private List<IndicesPermission.Group> groups = new ArrayList<>();
-        private FieldPermissionsCache fieldPermissionsCache = null;
         private List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
 
-        private Builder(String[] names, FieldPermissionsCache fieldPermissionsCache) {
+        private Builder(String[] names) {
             this.names = names;
-            this.fieldPermissionsCache = fieldPermissionsCache;
         }
 
         private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache) {
-            this.names = new String[]{rd.getName()};
-            this.fieldPermissionsCache = fieldPermissionsCache;
+            this.names = new String[] { rd.getName() };
             if (rd.getClusterPrivileges().length == 0) {
                 cluster = ClusterPermission.NONE;
             } else {

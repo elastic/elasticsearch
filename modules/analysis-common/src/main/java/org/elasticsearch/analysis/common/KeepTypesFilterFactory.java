@@ -43,7 +43,12 @@ import java.util.Set;
  */
 public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
     private final Set<String> keepTypes;
-    private static final String KEEP_TYPES_KEY = "types";
+    private final boolean includeMode;
+    static final String KEEP_TYPES_KEY = "types";
+    static final String KEEP_TYPES_MODE = "mode";
+    static final String KEEP_TYPES_MODE_INCLUDE = "include";
+    static final String KEEP_TYPES_MODE_EXCLUDE = "exclude";
+
 
     KeepTypesFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -52,12 +57,18 @@ public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
         if ((arrayKeepTypes == null)) {
             throw new IllegalArgumentException("keep_types requires `" + KEEP_TYPES_KEY + "` to be configured");
         }
+        final String modeParameter = settings.get(KEEP_TYPES_MODE, KEEP_TYPES_MODE_INCLUDE).toLowerCase();
+        if (modeParameter.equals(KEEP_TYPES_MODE_INCLUDE) == false && modeParameter.equals(KEEP_TYPES_MODE_EXCLUDE) == false) {
+            throw new IllegalArgumentException(
+                    "keep_types mode can only be `" + KEEP_TYPES_MODE_INCLUDE + "` or `" + KEEP_TYPES_MODE_INCLUDE + "`");
+        }
 
         this.keepTypes = new HashSet<>(arrayKeepTypes);
+        this.includeMode = modeParameter.equals(KEEP_TYPES_MODE_INCLUDE);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new TypeTokenFilter(tokenStream, keepTypes, true);
+        return new TypeTokenFilter(tokenStream, keepTypes, includeMode);
     }
 }

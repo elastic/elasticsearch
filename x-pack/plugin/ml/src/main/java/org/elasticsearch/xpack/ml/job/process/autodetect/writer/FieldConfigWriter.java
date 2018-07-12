@@ -10,7 +10,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DefaultDetectorDescription;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -59,6 +59,7 @@ public class FieldConfigWriter {
     /**
      * Write the Ml autodetect field options to the outputIndex stream.
      */
+    @SuppressWarnings("unused") // CATEGORIZATION_TOKENIZATION_IN_JAVA seems to be used for performance testing
     public void write() throws IOException {
         StringBuilder contents = new StringBuilder();
 

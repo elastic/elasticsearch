@@ -42,7 +42,7 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
     }
 
     public void testAuthenticateDifferentFailureScenarios() throws LoginException, GSSException {
-        final String username = randomAlphaOfLength(5);
+        final String username = randomPrincipalName();
         final String outToken = randomAlphaOfLength(10);
         final KerberosRealm kerberosRealm = createKerberosRealm(username);
         final boolean validTicket = rarely();
@@ -76,7 +76,9 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
             assertThat(result.getStatus(), is(equalTo(AuthenticationResult.Status.CONTINUE)));
         } else {
             if (validTicket) {
-                final User expectedUser = new User(username, roles.toArray(new String[roles.size()]), null, null, null, true);
+                final String expectedUsername = maybeRemoveRealmName(username);
+                final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, null,
+                        true);
                 assertSuccessAuthenticationResult(expectedUser, outToken, result);
             } else {
                 assertThat(result.getStatus(), is(equalTo(AuthenticationResult.Status.TERMINATE)));

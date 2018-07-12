@@ -48,13 +48,14 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
     }
 
     public void testAuthenticateWithValidTicketSucessAuthnWithUserDetails() throws LoginException, GSSException {
-        final KerberosRealm kerberosRealm = createKerberosRealm("test@REALM");
-
-        final User expectedUser = new User("test@REALM", roles.toArray(new String[roles.size()]), null, null, null, true);
+        final String username = randomPrincipalName();
+        final KerberosRealm kerberosRealm = createKerberosRealm(username);
+        final String expectedUsername = maybeRemoveRealmName(username);
+        final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, null, true);
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
         final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
         final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
-        mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>("test@REALM", "out-token"), null);
+        mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(username, "out-token"), null);
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
 
         final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
@@ -69,7 +70,8 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
     }
 
     public void testFailedAuthorization() throws LoginException, GSSException {
-        final KerberosRealm kerberosRealm = createKerberosRealm("test@REALM");
+        final String username = randomPrincipalName();
+        final KerberosRealm kerberosRealm = createKerberosRealm(username);
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
         final Path keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
         final boolean krbDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
@@ -80,13 +82,15 @@ public class KerberosRealmTests extends KerberosRealmTestCase {
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
-        assertThat(e.getMessage(), equalTo("Expected UPN '" + Arrays.asList("test@REALM") + "' but was 'does-not-exist@REALM'"));
+        assertThat(e.getMessage(), equalTo("Expected UPN '" + Arrays.asList(maybeRemoveRealmName(username)) + "' but was '"
+                + maybeRemoveRealmName("does-not-exist@REALM") + "'"));
     }
 
     public void testLookupUser() {
-        final KerberosRealm kerberosRealm = createKerberosRealm("test@REALM");
+        final String username = randomPrincipalName();
+        final KerberosRealm kerberosRealm = createKerberosRealm(username);
         final PlainActionFuture<User> future = new PlainActionFuture<>();
-        kerberosRealm.lookupUser("test@REALM", future);
+        kerberosRealm.lookupUser(username, future);
         assertThat(future.actionGet(), is(nullValue()));
     }
 

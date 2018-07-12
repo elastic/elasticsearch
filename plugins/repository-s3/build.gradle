@@ -294,24 +294,32 @@ if (useFixture && minioDistribution) {
   project.check.dependsOn(integTestMinio)
 }
 
+File parentFixtures = new File(project.buildDir, "fixtures")
+File s3FixtureFile = new File(parentFixtures, 's3Fixture.properties')
+
+task s3FixtureProperties {
+  outputs.file(s3FixtureFile)
+  def s3FixtureOptions = [
+      "s3Fixture.permanent_bucket_name"  : s3PermanentBucket,
+      "s3Fixture.permanent_key"          : s3PermanentAccessKey,
+      "s3Fixture.temporary_bucket_name"  : s3TemporaryBucket,
+      "s3Fixture.temporary_key"          : s3TemporaryAccessKey,
+      "s3Fixture.temporary_session_token": s3TemporarySessionToken,
+      "s3Fixture.ec2_bucket_name"        : s3EC2Bucket,
+      "s3Fixture.ec2_key"                : s3EC2AccessKey,
+      "s3Fixture.ec2_token"              : s3EC2Token
+  ]
+
+  doLast {
+    file(s3FixtureFile).text = s3FixtureOptions.collect { k, v -> "$k = $v" }.join("\n")
+  }
+}
+
 /** A task to start the AmazonS3Fixture which emulates an S3 service **/
 task s3Fixture(type: AntFixture) {
   dependsOn testClasses
-
-  def s3FixtureOptions = [
-    "s3Fixture.permanent_bucket_name": s3PermanentBucket,
-    "s3Fixture.permanent_key": s3PermanentAccessKey,
-    "s3Fixture.temporary_bucket_name": s3TemporaryBucket,
-    "s3Fixture.temporary_key": s3TemporaryAccessKey,
-    "s3Fixture.temporary_session_token": s3TemporarySessionToken,
-    "s3Fixture.ec2_bucket_name": s3EC2Bucket,
-    "s3Fixture.ec2_key": s3EC2AccessKey,
-    "s3Fixture.ec2_token": s3EC2Token
-  ]
-
-  File parentFixtures = new File(project.buildDir, "fixtures")
-  File s3FixtureFile = new File(parentFixtures, 's3Fixture.properties')
-  s3FixtureFile.setText(s3FixtureOptions.collect{ k, v -> "$k = $v"}.join("\n"), 'UTF-8')
+  dependsOn s3FixtureProperties
+  inputs.file(s3FixtureFile)
 
   env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
   executable = new File(project.runtimeJavaHome, 'bin/java')

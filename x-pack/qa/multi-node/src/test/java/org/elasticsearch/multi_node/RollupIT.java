@@ -95,7 +95,7 @@ public class RollupIT extends ESRestTestCase {
             + "\"index_pattern\":\"rollup-*\","
             + "\"rollup_index\":\"results-rollup\","
             + "\"cron\":\"*/1 * * * * ?\","             // fast cron and big page size so test runs quickly
-            + "\"page_size\":200,"
+            + "\"page_size\":20,"
             + "\"groups\":{"
             + "    \"date_histogram\":{"
             + "        \"field\":\"timestamp\","

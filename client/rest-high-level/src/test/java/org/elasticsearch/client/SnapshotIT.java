@@ -32,12 +32,16 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SnapshotIT extends ESRestHighLevelClientTestCase {
@@ -133,6 +137,40 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         CreateSnapshotResponse response = createTestSnapshot(request);
         assertEquals(waitForCompletion ? RestStatus.OK : RestStatus.ACCEPTED, response.status());
+    }
+
+    public void testGetSnapshots() throws IOException {
+        String repository = "test_repository";
+        String snapshot1 = "test_snapshot1";
+        String snapshot2 = "test_snapshot2";
+
+        PutRepositoryResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        CreateSnapshotRequest createSnapshotRequest1 = new CreateSnapshotRequest(repository, snapshot1);
+        createSnapshotRequest1.waitForCompletion(true);
+        CreateSnapshotResponse putSnapshotResponse1 = createTestSnapshot(createSnapshotRequest1);
+        CreateSnapshotRequest createSnapshotRequest2 = new CreateSnapshotRequest(repository, snapshot2);
+        createSnapshotRequest2.waitForCompletion(true);
+        CreateSnapshotResponse putSnapshotResponse2 = createTestSnapshot(createSnapshotRequest2);
+        // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
+        assertEquals(RestStatus.OK, putSnapshotResponse1.status());
+        assertEquals(RestStatus.OK, putSnapshotResponse2.status());
+
+        GetSnapshotsRequest request;
+        if (randomBoolean()) {
+            request = new GetSnapshotsRequest(repository);
+        } else if (randomBoolean()) {
+            request = new GetSnapshotsRequest(repository, new String[] {"_all"});
+
+        } else {
+            request = new GetSnapshotsRequest(repository, new String[] {snapshot1, snapshot2});
+        }
+        GetSnapshotsResponse response = execute(request, highLevelClient().snapshot()::get, highLevelClient().snapshot()::getAsync);
+
+        assertEquals(2, response.getSnapshots().size());
+        assertThat(response.getSnapshots().stream().map((s) -> s.snapshotId().getName()).collect(Collectors.toList()),
+            contains("test_snapshot1", "test_snapshot2"));
     }
 
     public void testDeleteSnapshot() throws IOException {

@@ -1460,7 +1460,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(seqno.maxSeqNo));
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(seqno.maxSeqNo));
-            logger.debug("bootstrap a new history_uuid [{}]", map);
+            logger.debug("bootstrap a new history_uuid [{}], user_data [{}]", map, userData);
             updateCommitData(writer, map);
         } finally {
             metadataLock.writeLock().unlock();
@@ -1512,7 +1512,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 maps.put(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
             }
             if (maps.isEmpty() == false) {
-                logger.debug("bootstrap 6.x commit tags [{}]", maps);
+                logger.debug("bootstrap 6.x commit tags [{}], user_data [{}]", maps, userData);
                 updateCommitData(writer, maps);
                 return true;
             }
@@ -1583,6 +1583,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     + startingIndexCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY) + "] is not equal to last commit's translog uuid ["
                     + translogUUID + "]");
             }
+            logger.debug("starting index commit [{}]", startingIndexCommit.getUserData());
             if (startingIndexCommit.equals(existingCommits.get(existingCommits.size() - 1)) == false) {
                 try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, startingIndexCommit)) {
                     // this achieves two things:

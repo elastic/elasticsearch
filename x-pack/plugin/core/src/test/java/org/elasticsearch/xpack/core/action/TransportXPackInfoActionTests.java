@@ -9,15 +9,17 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
+import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -62,7 +64,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         License license = mock(License.class);
         long expiryDate = randomLong();
         when(license.expiryDate()).thenReturn(expiryDate);
-        License.Status status = randomFrom(License.Status.values());
+        LicenseStatus status = randomFrom(LicenseStatus.values());
         when(license.status()).thenReturn(status);
         String type = randomAlphaOfLength(10);
         when(license.type()).thenReturn(type);

@@ -18,14 +18,15 @@
  */
 package org.elasticsearch.repositories.s3;
 
-import org.elasticsearch.test.fixture.AbstractHttpFixture;
 import com.amazonaws.util.DateUtils;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.fixture.AbstractHttpFixture;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -93,23 +94,21 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
                 return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad access key", "");
             }
 
-            if (handler != null) {
-                final String bucket = request.getParam("bucket");
-                if (bucket != null && permittedBucket.equals(bucket) == false) {
-                    // allow a null bucket to support the multi-object-delete API which
-                    // passes the bucket name in the host header instead of the URL.
-                    if (buckets.containsKey(bucket)) {
-                        return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad bucket", "");
-                    } else {
-                        return newBucketNotFoundError(request.getId(), bucket);
-                    }
+            final String bucket = request.getParam("bucket");
+            if (bucket != null && permittedBucket.equals(bucket) == false) {
+                // allow a null bucket to support the multi-object-delete API which
+                // passes the bucket name in the host header instead of the URL.
+                if (buckets.containsKey(bucket)) {
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad bucket", "");
+                } else {
+                    return newBucketNotFoundError(request.getId(), bucket);
                 }
-                return handler.handle(request);
-            } else {
-                return newInternalError(request.getId(), "No handler defined for request [" + request + "]");
             }
+            return handler.handle(request);
+
+        } else {
+            return newInternalError(request.getId(), "No handler defined for request [" + request + "]");
         }
-        return null;
     }
 
     public static void main(final String[] args) throws Exception {

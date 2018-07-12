@@ -64,7 +64,6 @@ for (Version version : bwcVersions.wireCompatible) {
     clusterName = 'rolling-upgrade'
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
     setting 'node.attr.gen', 'old'
-    // debug logging for testHistoryUUIDIsGenerated
     setting 'logger.level', 'DEBUG'
     if (version.onOrAfter('5.3.0')) {
       setting 'http.content_type.required', 'true'
@@ -88,6 +87,7 @@ for (Version version : bwcVersions.wireCompatible) {
       dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
       setting 'node.name', "upgraded-node-${stopNode}"
+      setting 'logger.level', 'DEBUG'
     }
   }
 

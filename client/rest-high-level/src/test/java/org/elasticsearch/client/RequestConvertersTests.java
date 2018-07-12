@@ -40,6 +40,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -122,6 +123,7 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptType;
@@ -149,6 +151,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -2141,6 +2144,66 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(createSnapshotRequest, request.getEntity());
     }
 
+    public void testGetSnapshots() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String snapshot1 = "snapshot1-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+        String snapshot2 = "snapshot2-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+
+        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s,%s", repository, snapshot1, snapshot2);
+
+        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest();
+        getSnapshotsRequest.repository(repository);
+        getSnapshotsRequest.snapshots(Arrays.asList(snapshot1, snapshot2).toArray(new String[0]));
+        setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
+
+        if (randomBoolean()) {
+            boolean ignoreUnavailable = randomBoolean();
+            getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
+            expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+        } else {
+            expectedParams.put("ignore_unavailable", Boolean.FALSE.toString());
+        }
+
+        if (randomBoolean()) {
+            boolean verbose = randomBoolean();
+            getSnapshotsRequest.verbose(verbose);
+            expectedParams.put("verbose", Boolean.toString(verbose));
+        } else {
+            expectedParams.put("verbose", Boolean.TRUE.toString());
+        }
+
+        Request request = RequestConverters.getSnapshots(getSnapshotsRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertNull(request.getEntity());
+    }
+
+    public void testGetAllSnapshots() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+
+        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/_all", repository);
+
+        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(repository);
+        setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
+
+        boolean ignoreUnavailable = randomBoolean();
+        getSnapshotsRequest.ignoreUnavailable(ignoreUnavailable);
+        expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+
+        boolean verbose = randomBoolean();
+        getSnapshotsRequest.verbose(verbose);
+        expectedParams.put("verbose", Boolean.toString(verbose));
+
+        Request request = RequestConverters.getSnapshots(getSnapshotsRequest);
+        assertThat(endpoint, equalTo(request.getEndpoint()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
+        assertNull(request.getEntity());
+    }
+
     public void testDeleteSnapshot() {
         Map<String, String> expectedParams = new HashMap<>();
         String repository = randomIndicesNames(1, 1)[0];
@@ -2435,6 +2498,37 @@ public class RequestConvertersTests extends ESTestCase {
                 () -> enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), requestContentType), xContentType));
         assertEquals("Mismatching content-type found for request with content-type [" + requestContentType + "], "
                 + "previous requests have content-type [" + xContentType + "]", exception.getMessage());
+    }
+
+    public void testXPackInfo() {
+        XPackInfoRequest infoRequest = new XPackInfoRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        infoRequest.setVerbose(randomBoolean());
+        if (false == infoRequest.isVerbose()) {
+            expectedParams.put("human", "false");
+        }
+        int option = between(0, 2);
+        switch (option) {
+        case 0:
+            infoRequest.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
+            break;
+        case 1:
+            infoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
+            expectedParams.put("categories", "features");
+            break;
+        case 2:
+            infoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES, XPackInfoRequest.Category.BUILD));
+            expectedParams.put("categories", "build,features");
+            break;
+        default:
+            throw new IllegalArgumentException("invalid option [" + option + "]");
+        }
+
+        Request request = RequestConverters.xPackInfo(infoRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack", request.getEndpoint());
+        assertNull(request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
     }
 
     /**

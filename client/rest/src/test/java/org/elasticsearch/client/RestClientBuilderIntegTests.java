@@ -76,7 +76,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
         try {
             try (RestClient client = buildRestClient()) {
                 try {
-                    client.performRequest("GET", "/");
+                    client.performRequest(new Request("GET", "/"));
                     fail("connection should have been rejected due to SSL handshake");
                 } catch (Exception e) {
                     assertThat(e.getMessage(), containsString("General SSLEngine problem"));
@@ -85,7 +85,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
 
             SSLContext.setDefault(getSslContext());
             try (RestClient client = buildRestClient()) {
-                Response response = client.performRequest("GET", "/");
+                Response response = client.performRequest(new Request("GET", "/"));
                 assertEquals(200, response.getStatusLine().getStatusCode());
             }
         } finally {

@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.protocol.xpack;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 
-/** A dummy request object solely for the purpose of boilerplate. */
-public class XPackUsageRequest extends ActionRequest {
+public class XPackUsageRequest extends MasterNodeRequest<XPackUsageRequest> {
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
     }
+
 }

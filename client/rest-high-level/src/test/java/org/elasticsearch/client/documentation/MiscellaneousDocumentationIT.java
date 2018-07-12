@@ -138,8 +138,9 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
         {
             //tag::x-pack-usage-execute
-            XPackUsageResponse response = client.xpack().usage(RequestOptions.DEFAULT);
-            //end::x-pack-info-execute
+            XPackUsageRequest request = new XPackUsageRequest();
+            XPackUsageResponse response = client.xpack().usage(request, RequestOptions.DEFAULT);
+            //end::x-pack-usage-execute
 
             //tag::x-pack-usage-response
             Map<String, Map<String, Object>> usages = response.getUsages();
@@ -147,8 +148,10 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
             assertThat(monitoringUsage.get("available"), is(true));
             assertThat(monitoringUsage.get("enabled"), is(true));
             assertThat(monitoringUsage.get("collection_enabled"), is(false));
+            //end::x-pack-usage-response
         }
         {
+            XPackUsageRequest request = new XPackUsageRequest();
             // tag::x-pack-usage-execute-listener
             ActionListener<XPackUsageResponse> listener = new ActionListener<XPackUsageResponse>() {
                 @Override
@@ -168,7 +171,7 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::x-pack-usage-execute-async
-            client.xpack().usageAsync(RequestOptions.DEFAULT, listener); // <1>
+            client.xpack().usageAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::x-pack-usage-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

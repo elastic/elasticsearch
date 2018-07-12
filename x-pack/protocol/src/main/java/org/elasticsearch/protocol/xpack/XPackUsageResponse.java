@@ -22,10 +22,14 @@ package org.elasticsearch.protocol.xpack;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Response object from calling the xpack usage api.
+ *
+ * Usage information for each feature is accessible through {@link #getUsages()}.
+ */
 public class XPackUsageResponse {
 
     private final Map<String, Map<String, Object>> usages;

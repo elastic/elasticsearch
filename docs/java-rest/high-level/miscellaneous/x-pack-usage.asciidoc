@@ -5,7 +5,7 @@
 ==== Execution
 
 Detailed information about the usage of features from {xpack} can be
-retrieved using the `xpackUsage()` method:
+retrieved using the `usage()` method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

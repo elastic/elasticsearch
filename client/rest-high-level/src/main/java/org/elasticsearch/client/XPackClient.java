@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -80,8 +79,8 @@ public final class XPackClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public XPackUsageResponse usage(RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(new XPackUsageRequest(), RequestConverters::xpackUsage, options,
+    public XPackUsageResponse usage(XPackUsageRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::xpackUsage, options,
             XPackUsageResponse::fromXContent, emptySet());
     }
 
@@ -90,8 +89,8 @@ public final class XPackClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void usageAsync(RequestOptions options, ActionListener<XPackUsageResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(new XPackUsageRequest(), RequestConverters::xpackUsage, options,
+    public void usageAsync(XPackUsageRequest request, RequestOptions options, ActionListener<XPackUsageResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::xpackUsage, options,
             XPackUsageResponse::fromXContent, listener, emptySet());
     }
 }

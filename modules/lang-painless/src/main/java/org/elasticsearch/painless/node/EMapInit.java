@@ -19,9 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.def;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.PainlessMethodKey;
+import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -38,8 +38,8 @@ public final class EMapInit extends AExpression {
     private final List<AExpression> keys;
     private final List<AExpression> values;
 
-    private Method constructor = null;
-    private Method method = null;
+    private PainlessMethod constructor = null;
+    private PainlessMethod method = null;
 
     public EMapInit(Location location, List<AExpression> keys, List<AExpression> values) {
         super(location);
@@ -67,13 +67,14 @@ public final class EMapInit extends AExpression {
 
         actual = HashMap.class;
 
-        constructor = locals.getDefinition().getPainlessStructFromJavaClass(actual).constructors.get(new MethodKey("<init>", 0));
+        constructor =
+                locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).constructors.get(new PainlessMethodKey("<init>", 0));
 
         if (constructor == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        method = locals.getDefinition().getPainlessStructFromJavaClass(actual).methods.get(new MethodKey("put", 2));
+        method = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).methods.get(new PainlessMethodKey("put", 2));
 
         if (method == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));

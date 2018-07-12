@@ -49,7 +49,7 @@ public class SlackMessageTests extends ESTestCase {
         }
         String icon = randomBoolean() ? null : randomAlphaOfLength(10);
         String text = randomBoolean() ? null : randomAlphaOfLength(50);
-        Attachment[] attachments = randomBoolean() ? null : new Attachment[randomIntBetween(0, 2)];
+        Attachment[] attachments = (text != null && randomBoolean()) ? null : new Attachment[randomIntBetween(0, 2)];
         if (attachments != null) {
             for (int i = 0; i < attachments.length; i++) {
                 String fallback = randomBoolean() ? null : randomAlphaOfLength(10);
@@ -461,6 +461,7 @@ public class SlackMessageTests extends ESTestCase {
         assertThat(parsed, equalTo(template));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31948")
     public void testTemplateRender() throws Exception {
         Settings settings = SlackMessageDefaultsTests.randomSettings();
         SlackMessageDefaults defaults = new SlackMessageDefaults(settings);
@@ -481,7 +482,7 @@ public class SlackMessageTests extends ESTestCase {
         if (randomBoolean()) {
             templateBuilder.setText(randomAlphaOfLength(10));
         }
-        if (randomBoolean()) {
+        if (templateBuilder.text == null || randomBoolean()) {
             int count = randomIntBetween(0, 3);
             for (int i = 0; i < count; i++) {
                 Attachment.Template.Builder attachmentBuilder = createRandomAttachmentTemplateBuilder();
@@ -598,6 +599,22 @@ public class SlackMessageTests extends ESTestCase {
                 parser.map();
             }
         }
+    }
+
+    public void testCanHaveNullText()  throws Exception {
+        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", null, new Attachment[1]);
+        assertNull(slackMessage.getText());
+        assertNotNull(slackMessage.getAttachments());
+    }
+
+    public void testCanHaveNullAttachments()  throws Exception {
+        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", "text", null);
+        assertNotNull(slackMessage.getText());
+        assertNull(slackMessage.getAttachments());
+    }
+
+    public void testCannotHaveNullAttachmentsAndNullText() throws Exception {
+        expectThrows(IllegalArgumentException.class, () -> new SlackMessage("from", new String[]{"to"}, "icon", null, null));
     }
 
     private static void writeFieldIfNotNull(XContentBuilder builder, String field, Object value) throws IOException {

@@ -60,7 +60,7 @@ public class RuleScope implements ToXContentObject, Writeable {
     }
 
     public RuleScope(Map<String, FilterRef> scope) {
-        this.scope = Objects.requireNonNull(scope);
+        this.scope = Collections.unmodifiableMap(scope);
     }
 
     public RuleScope(StreamInput in) throws IOException {

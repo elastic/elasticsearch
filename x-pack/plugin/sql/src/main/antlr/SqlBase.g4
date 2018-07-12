@@ -74,9 +74,14 @@ queryNoWith
     : queryTerm
     /** we could add sort by - sort per partition */
       (ORDER BY orderBy (',' orderBy)*)?
-      (LIMIT limit=(INTEGER_VALUE | ALL))?
+      limitClause?
     ;
 
+limitClause
+    : LIMIT limit=(INTEGER_VALUE | ALL)                                                                   
+    | LIMIT_ESC limit=(INTEGER_VALUE | ALL) ESC_END                                              
+    ;
+    
 queryTerm
     : querySpecification                   #queryPrimaryDefault
     | '(' queryNoWith  ')'                 #subquery
@@ -185,7 +190,12 @@ predicate
     ;
 
 pattern
-    : value=string (ESCAPE escape=string)?
+    : value=string patternEscape?
+    ;
+    
+patternEscape
+    : ESCAPE escape=string
+    | ESCAPE_ESC escape=string '}'
     ;
 
 valueExpression
@@ -197,18 +207,44 @@ valueExpression
     ;
 
 primaryExpression
-    : CAST '(' expression AS dataType ')'                                            #cast
-    | EXTRACT '(' field=identifier FROM valueExpression ')'                          #extract
+    : castExpression                                                                 #cast
+    | extractExpression                                                              #extract
     | constant                                                                       #constantDefault
     | ASTERISK                                                                       #star
     | (qualifiedName DOT)? ASTERISK                                                  #star
-    | identifier '(' (setQuantifier? expression (',' expression)*)? ')'              #functionCall
+    | functionExpression                                                             #function
     | '(' query ')'                                                                  #subqueryExpression
     | identifier                                                                     #columnReference
     | qualifiedName                                                                  #dereference
     | '(' expression ')'                                                             #parenthesizedExpression
     ;
 
+castExpression
+    : castTemplate                                                                   
+    | FUNCTION_ESC castTemplate ESC_END                                              
+    ;
+    
+castTemplate
+    : CAST '(' expression AS dataType ')'
+    ;
+    
+extractExpression
+    : extractTemplate
+    | FUNCTION_ESC extractTemplate ESC_END
+    ;
+    
+extractTemplate
+    : EXTRACT '(' field=identifier FROM valueExpression ')'
+    ;
+
+functionExpression
+    : functionTemplate
+    | FUNCTION_ESC functionTemplate '}'
+    ;
+    
+functionTemplate
+    : identifier '(' (setQuantifier? expression (',' expression)*)? ')'
+    ;
     
 constant
     : NULL                                                                                     #nullLiteral
@@ -216,6 +252,10 @@ constant
     | booleanValue                                                                             #booleanLiteral
     | STRING+                                                                                  #stringLiteral
     | PARAM                                                                                    #paramLiteral
+    | DATE_ESC string ESC_END                                                                  #dateEscapedLiteral
+    | TIME_ESC string ESC_END                                                                  #timeEscapedLiteral
+    | TIMESTAMP_ESC string ESC_END                                                             #timestampEscapedLiteral
+    | GUID_ESC string ESC_END                                                                  #guidEscapedLiteral
     ;
 
 comparisonOperator
@@ -350,6 +390,18 @@ USING: 'USING';
 VERIFY: 'VERIFY';
 WHERE: 'WHERE';
 WITH: 'WITH';
+
+// Escaped Sequence
+ESCAPE_ESC: '{ESCAPE';
+FUNCTION_ESC: '{FN';
+LIMIT_ESC:'{LIMIT';
+DATE_ESC: '{D';
+TIME_ESC: '{T';
+TIMESTAMP_ESC: '{TS';
+// mapped to string literal
+GUID_ESC: '{GUID';
+
+ESC_END: '}';
 
 EQ  : '=';
 NEQ : '<>' | '!=' | '<=>';

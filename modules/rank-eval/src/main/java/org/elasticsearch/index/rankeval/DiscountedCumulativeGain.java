@@ -326,9 +326,9 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
                 return false;
             }
             DiscountedCumulativeGain.Detail other = (DiscountedCumulativeGain.Detail) obj;
-            return (this.dcg == other.dcg &&
-                    this.idcg == other.idcg &&
-                    this.unratedDocs == other.unratedDocs);
+            return Double.compare(this.dcg, other.dcg) == 0 &&
+                   Double.compare(this.idcg, other.idcg) == 0 &&
+                   this.unratedDocs == other.unratedDocs;
         }
 
         @Override

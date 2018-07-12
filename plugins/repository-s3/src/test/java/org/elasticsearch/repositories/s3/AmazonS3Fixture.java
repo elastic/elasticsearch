@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
 import com.amazonaws.util.DateUtils;
 import org.elasticsearch.common.Strings;
@@ -36,7 +37,9 @@ import org.elasticsearch.rest.RestUtils;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -44,6 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -72,15 +76,12 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     /**
      * Creates a {@link AmazonS3Fixture}
      */
-    private AmazonS3Fixture(final String workingDir) {
+    private AmazonS3Fixture(final String workingDir, Properties properties) {
         super(workingDir);
-        this.permanentBucket = new Bucket("S3FIXTURE_PERMANENT", false);
-        this.temporaryBucket = new Bucket("S3FIXTURE_TEMPORARY");
-        this.ec2Bucket = new Bucket("S3FIXTURE_EC2");
+        this.permanentBucket = new Bucket(properties, buckets, "s3Fixture.permanent", false);
+        this.temporaryBucket = new Bucket(properties, buckets, "s3Fixture.temporary");
+        this.ec2Bucket = new Bucket(properties, buckets, "s3Fixture.ec2");
 
-        for (Bucket bucket : new Bucket[]{permanentBucket, temporaryBucket, ec2Bucket}) {
-            this.buckets.put(bucket.name, bucket);
-        }
         this.handlers = defaultHandlers(buckets);
     }
 
@@ -161,10 +162,14 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     }
 
     public static void main(final String[] args) throws Exception {
-        if (args == null || args.length != 1) {
-            throw new IllegalArgumentException("AmazonS3Fixture <working directory>");
+        if (args == null || args.length != 2) {
+            throw new IllegalArgumentException("AmazonS3Fixture <working directory> <property file>");
         }
-        final AmazonS3Fixture fixture = new AmazonS3Fixture(args[0]);
+        final Properties properties = new Properties();
+        try (InputStream is = Files.newInputStream(PathUtils.get(args[1]))) {
+            properties.load(is);
+        }
+        final AmazonS3Fixture fixture = new AmazonS3Fixture(args[0], properties);
         fixture.listen();
     }
 
@@ -398,8 +403,9 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         return handlers;
     }
 
-    private static String envVar(String varName) {
-        return Objects.requireNonNull(System.getenv(varName), "env variable '" + varName + "' is missing");
+    private static String prop(Properties properties, String propertyName) {
+        return Objects.requireNonNull(properties.getProperty(propertyName),
+            "property '" + propertyName + "' is missing");
     }
 
     /**
@@ -417,17 +423,20 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         /** Blobs contained in the bucket **/
         final Map<String, byte[]> objects;
 
-        Bucket(final String envPrefix) {
-            this(envPrefix, true);
+        Bucket(final Properties properties, Map<String, Bucket> buckets, final String prefix) {
+            this(properties, buckets, prefix, true);
         }
 
-        Bucket(final String envPrefix, final boolean tokenRequired) {
-            this.name = envVar(envPrefix + "_BUCKET_NAME");
-            this.key = envVar(envPrefix + "_KEY");
-            this.token = tokenRequired ? System.getenv(envPrefix + "_TOKEN") !=  null
-                ? envVar(envPrefix + "_TOKEN") : envVar(envPrefix + "_SESSION_TOKEN")
+        Bucket(final Properties properties, Map<String, Bucket> buckets, final String prefix, final boolean tokenRequired) {
+            this.name = prop(properties, prefix + "_bucket_name");
+            this.key = prop(properties, prefix + "_key");
+            this.token = tokenRequired
+                ? prop(properties, prefix + (properties.getProperty(prefix + "_token") != null ? "_token" : "_session_token"))
                 : null;
             this.objects = ConcurrentCollections.newConcurrentMap();
+            if (buckets.put(name, this) != null) {
+                throw new IllegalArgumentException("bucket " + name + " is already registered");
+            }
         }
     }
 

@@ -297,18 +297,25 @@ if (useFixture && minioDistribution) {
 /** A task to start the AmazonS3Fixture which emulates an S3 service **/
 task s3Fixture(type: AntFixture) {
   dependsOn testClasses
+
+  def s3FixtureOptions = [
+    "s3Fixture.permanent_bucket_name": s3PermanentBucket,
+    "s3Fixture.permanent_key": s3PermanentAccessKey,
+    "s3Fixture.temporary_bucket_name": s3TemporaryBucket,
+    "s3Fixture.temporary_key": s3TemporaryAccessKey,
+    "s3Fixture.temporary_session_token": s3TemporarySessionToken,
+    "s3Fixture.ec2_bucket_name": s3EC2Bucket,
+    "s3Fixture.ec2_key": s3EC2AccessKey,
+    "s3Fixture.ec2_token": s3EC2Token
+  ]
+
+  File parentFixtures = new File(project.buildDir, "fixtures")
+  File s3FixtureFile = new File(parentFixtures, 's3Fixture.properties')
+  s3FixtureFile.setText(s3FixtureOptions.collect{ k, v -> "$k = $v"}.join("\n"), 'UTF-8')
+
   env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-  env 'S3FIXTURE_WORKINGDIR', "${baseDir}"
-  env 'S3FIXTURE_PERMANENT_BUCKET_NAME', s3PermanentBucket
-  env 'S3FIXTURE_PERMANENT_KEY', s3PermanentAccessKey
-  env 'S3FIXTURE_TEMPORARY_BUCKET_NAME', s3TemporaryBucket
-  env 'S3FIXTURE_TEMPORARY_KEY', s3TemporaryAccessKey
-  env 'S3FIXTURE_TEMPORARY_SESSION_TOKEN', s3TemporarySessionToken
-  env 'S3FIXTURE_EC2_BUCKET_NAME', s3EC2Bucket
-  env 'S3FIXTURE_EC2_KEY', s3EC2AccessKey
-  env 'S3FIXTURE_EC2_TOKEN', s3EC2Token
   executable = new File(project.runtimeJavaHome, 'bin/java')
-  args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir
+  args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3FixtureFile.getAbsolutePath()
 }
 
 Map<String, Object> expansions = [

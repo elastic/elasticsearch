@@ -144,34 +144,6 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         assertThat(customEngine.getEnabledProtocols(), not(equalTo(defaultEngine.getEnabledProtocols())));
     }
 
-    public void testDisablesCompressionByDefaultForSsl() throws Exception {
-        Settings settings = Settings.builder()
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
-
-        Settings.Builder pluginSettingsBuilder = Settings.builder();
-        SecurityNetty4HttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
-        assertThat(HttpTransportSettings.SETTING_HTTP_COMPRESSION.get(pluginSettingsBuilder.build()), is(false));
-    }
-
-    public void testLeavesCompressionOnIfNotSsl() throws Exception {
-        Settings settings = Settings.builder()
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), false).build();
-        Settings.Builder pluginSettingsBuilder = Settings.builder();
-        SecurityNetty4HttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
-        assertThat(pluginSettingsBuilder.build().isEmpty(), is(true));
-    }
-
-    public void testDoesNotChangeExplicitlySetCompression() throws Exception {
-        Settings settings = Settings.builder()
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-                .put(HttpTransportSettings.SETTING_HTTP_COMPRESSION.getKey(), true)
-                .build();
-
-        Settings.Builder pluginSettingsBuilder = Settings.builder();
-        SecurityNetty4HttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
-        assertThat(pluginSettingsBuilder.build().isEmpty(), is(true));
-    }
-
     public void testThatExceptionIsThrownWhenConfiguredWithoutSslKey() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");

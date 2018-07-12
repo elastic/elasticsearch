@@ -20,11 +20,13 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TaskTransportChannel;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
+import org.elasticsearch.transport.nio.NioTcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
@@ -115,13 +117,13 @@ public interface ServerTransportFilter {
                 unwrappedChannel = ((TaskTransportChannel) unwrappedChannel).getChannel();
             }
 
-            if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel) &&
-                ((TcpTransportChannel) unwrappedChannel).getChannel() instanceof Netty4TcpChannel) {
-                Channel channel = ((Netty4TcpChannel) ((TcpTransportChannel) unwrappedChannel).getChannel()).getLowLevelChannel();
-                SslHandler sslHandler = channel.pipeline().get(SslHandler.class);
-                if (channel.isOpen()) {
-                    assert sslHandler != null : "channel [" + channel + "] did not have a ssl handler. pipeline " + channel.pipeline();
-                    extractClientCertificates(logger, threadContext, sslHandler.engine(), channel);
+            if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel)) {
+                TcpChannel tcpChannel = ((TcpTransportChannel) unwrappedChannel).getChannel();
+                if (tcpChannel instanceof Netty4TcpChannel || tcpChannel instanceof NioTcpChannel) {
+                    SSLEngine sslEngine = SSLEngineUtils.getSSLEngine(tcpChannel);
+                    if (tcpChannel.isOpen()) {
+                        extractClientCertificates(logger, threadContext, sslEngine, tcpChannel);
+                    }
                 }
             }
 
@@ -172,7 +174,8 @@ public interface ServerTransportFilter {
         }
     }
 
-    static void extractClientCertificates(Logger logger, ThreadContext threadContext, SSLEngine sslEngine, Channel channel) {
+    // Channel is only used for logging, which is why it is okay to just be of type Object
+    static void extractClientCertificates(Logger logger, ThreadContext threadContext, SSLEngine sslEngine, Object channel) {
         try {
             Certificate[] certs = sslEngine.getSession().getPeerCertificates();
             if (certs instanceof X509Certificate[]) {

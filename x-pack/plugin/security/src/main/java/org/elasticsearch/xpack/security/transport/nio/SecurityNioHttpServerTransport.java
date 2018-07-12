@@ -25,7 +25,7 @@ import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.transport.HttpExceptionHandler;
+import org.elasticsearch.xpack.security.transport.SecurityHttpExceptionHandler;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
 import javax.net.ssl.SSLEngine;
@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 
 public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
 
-    private final HttpExceptionHandler exceptionHandler;
+    private final SecurityHttpExceptionHandler securityExceptionHandler;
     private final IPFilter ipFilter;
     private final NioIPFilter nioIpFilter;
     private final SSLService sslService;
@@ -53,7 +53,7 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, IPFilter ipFilter,
                                           SSLService sslService) {
         super(settings, networkService, bigArrays, pageCacheRecycler, threadPool, xContentRegistry, dispatcher);
-        this.exceptionHandler = new HttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
+        this.securityExceptionHandler = new SecurityHttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
         this.nioIpFilter = new NioIPFilter(ipFilter, IPFilter.HTTP_PROFILE_NAME);
         this.sslEnabled = HTTP_SSL_ENABLED.get(settings);
@@ -95,7 +95,7 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
             HttpReadWriteHandler httpHandler = new HttpReadWriteHandler(httpChannel,SecurityNioHttpServerTransport.this,
                 handlingSettings, corsConfig);
             InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
-            Consumer<Exception> exceptionHandler = (e) -> SecurityNioHttpServerTransport.this.exceptionHandler.accept(httpChannel, e);
+            Consumer<Exception> exceptionHandler = (e) -> securityExceptionHandler.accept(httpChannel, e);
 
             SocketChannelContext context;
             if (sslEnabled) {
@@ -119,7 +119,7 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
         }
 
         @Override
-        public NioHttpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
+        public NioHttpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) {
             NioHttpServerChannel httpServerChannel = new NioHttpServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> onServerException(httpServerChannel, e);
             Consumer<NioSocketChannel> acceptor = SecurityNioHttpServerTransport.this::acceptChannel;

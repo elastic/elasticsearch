@@ -14,6 +14,7 @@ import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.WriteOperation;
 
+import javax.net.ssl.SSLEngine;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -162,6 +163,10 @@ public final class SSLChannelContext extends SocketChannelContext {
         if (channel.isOpen()) {
             IOUtils.close(super::closeFromSelector, sslDriver::close);
         }
+    }
+
+    public SSLEngine getSSLEngine() {
+        return sslDriver.getSSLEngine();
     }
 
     private static class CloseNotifyOperation implements WriteOperation {

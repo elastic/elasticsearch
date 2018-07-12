@@ -17,13 +17,13 @@ import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper
 import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isNotSslRecordException;
 import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isReceivedCertificateUnknownException;
 
-public class HttpExceptionHandler implements BiConsumer<HttpChannel, Exception> {
+public class SecurityHttpExceptionHandler implements BiConsumer<HttpChannel, Exception> {
 
     private final Lifecycle lifecycle;
     private final Logger logger;
     private final BiConsumer<HttpChannel, Exception> fallback;
 
-    public HttpExceptionHandler(Logger logger, Lifecycle lifecycle, BiConsumer<HttpChannel, Exception> fallback) {
+    public SecurityHttpExceptionHandler(Logger logger, Lifecycle lifecycle, BiConsumer<HttpChannel, Exception> fallback) {
         this.lifecycle = lifecycle;
         this.logger = logger;
         this.fallback = fallback;

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
-import io.netty.channel.Channel;
-import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -40,7 +38,6 @@ import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLPeerUnverifiedException;
-
 import java.io.IOException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;

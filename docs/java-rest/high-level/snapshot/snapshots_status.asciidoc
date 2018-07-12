@@ -1,0 +1,97 @@
+[[java-rest-high-snapshot-snapshots-status]]
+=== Snapshots Status API
+
+The Snapshots Status API allows to retrieve detailed information about snapshots in progress.
+
+[[java-rest-high-snapshot-snapshots-status-request]]
+==== Snapshots Status Request
+
+A `SnapshotsStatusRequest`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[snapshots-status-request]
+--------------------------------------------------
+
+==== Required Arguments
+The following arguments must be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[snapshots-status-request-repository]
+--------------------------------------------------
+<1> Sets the repository to check for snapshot statuses
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[snapshots-status-request-snapshots]
+--------------------------------------------------
+<1> The list of snapshot names to check the status of
+
+==== Optional Arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[snapshots-status-request-ignoreUnavailable]
+--------------------------------------------------
+<1> The command will fail if some of the snapshots are unavailable. The `ignore_unavailable` flag
+set to true will return all snapshots that are currently available.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[snapshots-status-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+[[java-rest-high-snapshot-snapshots-status-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[snapshots-status-execute]
+--------------------------------------------------
+
+[[java-rest-high-snapshot-snapshots-status-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of retrieving snapshot statuses requires both the
+`SnapshotsStatusRequest` instance and an `ActionListener` instance to be
+passed to the asynchronous method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[snapshots-status-execute-async]
+--------------------------------------------------
+<1> The `SnapshotsStatusRequest` to execute and the `ActionListener`
+to use when the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `SnapshotsStatusResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[snapshots-status-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of a failure. The raised exception is provided as an argument
+
+[[java-rest-high-snapshot-snapshots-status-response]]
+==== Snapshots Status Response
+
+The returned `SnapshotsStatusResponse` allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[snapshots-status-response]
+--------------------------------------------------
+<1> Request contains a list of snapshot statuses
+<2> Each status contains information about the snapshot
+<3> Example of reading snapshot statistics about a specific index and shard

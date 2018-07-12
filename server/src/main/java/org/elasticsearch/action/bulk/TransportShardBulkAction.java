@@ -205,7 +205,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             return primaryResponse;
 
         } else if (operationResult.getResultType() == Engine.Result.Type.FAILURE) {
-            DocWriteRequest docWriteRequest = replicaRequest.request();
+            DocWriteRequest<?> docWriteRequest = replicaRequest.request();
             Exception failure = operationResult.getFailure();
             if (isConflictException(failure)) {
                 logger.trace(() -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
@@ -240,7 +240,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                                     int requestIndex, UpdateHelper updateHelper,
                                                     LongSupplier nowInMillisSupplier,
                                                     final MappingUpdatePerformer mappingUpdater) throws Exception {
-        final DocWriteRequest itemRequest = request.items()[requestIndex].request();
+        final DocWriteRequest<?> itemRequest = request.items()[requestIndex].request();
         final DocWriteRequest.OpType opType = itemRequest.opType();
         final BulkItemResultHolder responseHolder;
         switch (itemRequest.opType()) {
@@ -486,7 +486,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
             final Engine.Result operationResult;
-            DocWriteRequest docWriteRequest = item.request();
+            DocWriteRequest<?> docWriteRequest = item.request();
             switch (replicaItemExecutionMode(item, i)) {
                 case NORMAL:
                     final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
@@ -510,7 +510,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return location;
     }
 
-    private static Engine.Result performOpOnReplica(DocWriteResponse primaryResponse, DocWriteRequest docWriteRequest,
+    private static Engine.Result performOpOnReplica(DocWriteResponse primaryResponse, DocWriteRequest<?> docWriteRequest,
                                                     IndexShard replica) throws Exception {
         final Engine.Result result;
         switch (docWriteRequest.opType()) {
@@ -605,6 +605,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     class ConcreteMappingUpdatePerformer implements MappingUpdatePerformer {
 
+        @Override
         public void updateMappings(final Mapping update, final ShardId shardId, final String type) {
             assert update != null;
             assert shardId != null;

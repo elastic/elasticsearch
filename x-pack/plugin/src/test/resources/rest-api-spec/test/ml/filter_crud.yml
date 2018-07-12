@@ -109,6 +109,18 @@ setup:
         filter_id: "filter-foo"
         from: 0
         size: 1
+
+---
+"Test create filter given invalid filter_id":
+  - do:
+      catch: bad_request
+      xpack.ml.put_filter:
+        filter_id: Invalid
+        body:  >
+          {
+            "description": "this id is invalid due to an upper case character"
+          }
+
 ---
 "Test create filter api":
   - do:

@@ -221,6 +221,7 @@ public class RollupIT extends ESIntegTestCase {
         Assert.assertThat(getIndexResponse.indices().length, Matchers.greaterThan(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30290")
     public void testTwoJobsStartStopDeleteOne() throws Exception {
         MetricConfig metricConfig = new MetricConfig.Builder()
                 .setField("foo")

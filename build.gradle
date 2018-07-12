@@ -125,7 +125,10 @@ Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectE
 allprojects {
   project.ext {
     // for ide hacks...
-    isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
+    isEclipse = System.getProperty("eclipse.launcher") != null ||   // Detects gradle launched from Eclipse's IDE
+            System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
+            gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
+            gradle.startParameter.taskNames.contains('cleanEclipse')
     isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
 
     // for BWC testing
@@ -171,7 +174,7 @@ task verifyVersions {
  * after the backport of the backcompat code is complete.
  */
 final boolean bwc_tests_enabled = true
-final String bwc_tests_disabled_issue = "" /* place a PR link here when commiting bwc changes */
+final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -432,6 +435,9 @@ allprojects {
     if (isEclipse) {
       // set this so generated dirs will be relative to eclipse build
       project.buildDir = eclipseBuild
+      // Work around https://docs.gradle.org/current/userguide/java_gradle_plugin.html confusing Eclipse by the metadata
+      // it adds to the  classpath
+      project.file("$buildDir/pluginUnderTestMetadata").mkdirs()
     }
     eclipse.classpath.file.whenMerged { classpath ->
       // give each source folder a unique corresponding output folder
@@ -445,12 +451,19 @@ allprojects {
   }
 
   File licenseHeaderFile;
-  if (eclipse.project.name.startsWith(':x-pack')) {
+  String prefix = ':x-pack';
+
+  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+    prefix = prefix.replace(':', '_')
+  }
+  if (eclipse.project.name.startsWith(prefix)) {
       licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/elastic-license-header.txt')
   } else {
       licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/oss-license-header.txt')
   }
-  String licenseHeader = licenseHeaderFile.getText('UTF-8').replace('\n', '\\\\n')
+
+  String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'
+  String licenseHeader = licenseHeaderFile.getText('UTF-8').replace(System.lineSeparator(), lineSeparator)
   task copyEclipseSettings(type: Copy) {
     // TODO: "package this up" for external builds
     from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')

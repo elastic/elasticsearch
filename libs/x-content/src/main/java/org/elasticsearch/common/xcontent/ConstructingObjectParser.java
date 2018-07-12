@@ -413,7 +413,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         private void queue(Consumer<Value> queueMe) {
             assert targetObject == null: "Don't queue after the targetObject has been built! Just apply the consumer directly.";
             if (queuedFields == null) {
-                @SuppressWarnings({"unchecked", "rawtypes"})
+                @SuppressWarnings({"unchecked"})
                 Consumer<Value>[] queuedFields = new Consumer[numberOfFields];
                 this.queuedFields = queuedFields;
             }

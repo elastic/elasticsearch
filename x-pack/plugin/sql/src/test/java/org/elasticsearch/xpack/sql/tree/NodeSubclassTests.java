@@ -286,7 +286,6 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      * checks if they are subclasses of {@link Node}.
      */
     @ParametersFactory
-    @SuppressWarnings("rawtypes")
     public static List<Object[]> nodeSubclasses() throws IOException {
         return subclassesOf(Node.class).stream()
             .filter(c -> testClassFor(c) == null)
@@ -460,7 +459,6 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
              * and emulate them we just try and instantiate an
              * appropriate subclass
              */
-            @SuppressWarnings("unchecked") // safe because this is the lowest possible bounds for Node
             Class<? extends Node<?>> asNodeSubclass = (Class<? extends Node<?>>) argType;
             return makeNode(asNodeSubclass);
         }

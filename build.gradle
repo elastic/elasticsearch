@@ -125,7 +125,10 @@ Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectE
 allprojects {
   project.ext {
     // for ide hacks...
-    isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
+    isEclipse = System.getProperty("eclipse.launcher") != null ||   // Detects gradle launched from Eclipse's IDE
+            System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
+            gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
+            gradle.startParameter.taskNames.contains('cleanEclipse')
     isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
 
     // for BWC testing
@@ -171,7 +174,7 @@ task verifyVersions {
  * after the backport of the backcompat code is complete.
  */
 final boolean bwc_tests_enabled = true
-final String bwc_tests_disabled_issue = "" /* place a PR link here when commiting bwc changes */
+final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -326,6 +329,9 @@ gradle.projectsEvaluated {
       // :test:framework:test cannot run before and after :server:test
       return
     }
+    if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
+      integTest.mustRunAfter test
+    }
     configurations.all { Configuration configuration ->
       /*
        * The featureAwarePlugin configuration has a dependency on x-pack:plugin:core and x-pack:plugin:core has a dependency on the
@@ -442,12 +448,19 @@ allprojects {
   }
 
   File licenseHeaderFile;
-  if (eclipse.project.name.startsWith(':x-pack')) {
+  String prefix = ':x-pack';
+
+  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+    prefix = prefix.replace(':', '_')
+  }
+  if (eclipse.project.name.startsWith(prefix)) {
       licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/elastic-license-header.txt')
   } else {
       licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/oss-license-header.txt')
   }
-  String licenseHeader = licenseHeaderFile.getText('UTF-8').replace('\n', '\\\\n')
+
+  String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'
+  String licenseHeader = licenseHeaderFile.getText('UTF-8').replace(System.lineSeparator(), lineSeparator)
   task copyEclipseSettings(type: Copy) {
     // TODO: "package this up" for external builds
     from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
@@ -483,25 +496,17 @@ task run(type: Run) {
   impliesSubProjects = true
 }
 
-task wrapper(type: Wrapper)
-
-gradle.projectsEvaluated {
-
-  allprojects {
-    tasks.withType(Wrapper) { Wrapper wrapper ->
-      wrapper.distributionType = DistributionType.ALL
-
-      wrapper.doLast {
+wrapper {
+    distributionType = DistributionType.ALL
+    doLast {
         final DistributionLocator locator = new DistributionLocator()
         final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
         final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
         final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
         final String sha256Sum = new String(sha256Uri.toURL().bytes)
         wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
-      }
+        println "Added checksum to wrapper properties"
     }
-  }
-
 }
 
 static void assertLinesInFile(final Path path, final List<String> expectedLines) {
@@ -572,6 +577,31 @@ gradle.projectsEvaluated {
         project.tasks.remove(dependenciesInfo)
         project.precommit.dependsOn.remove('dependenciesInfo')
       }
+    }
+  }
+}
+
+if (System.properties.get("build.compare") != null) {
+  apply plugin: 'compare-gradle-builds'
+  compareGradleBuilds {
+    ext.referenceProject = System.properties.get("build.compare")
+    doFirst {
+      if (file(referenceProject).exists() == false) {
+        throw new GradleException(
+                "Use git worktree to check out a version to compare against to ../elasticsearch_build_reference"
+        )
+      }
+    }
+    sourceBuild {
+      gradleVersion = "4.8.1" // does not default to gradle weapper of project dir, but current version
+      projectDir = referenceProject
+      tasks = ["clean", "assemble"]
+      arguments = ["-Dbuild.compare_friendly=true"]
+    }
+    targetBuild {
+      tasks = ["clean", "assemble"]
+      // use -Dorg.gradle.java.home= to alter jdk versions
+      arguments = ["-Dbuild.compare_friendly=true"]
     }
   }
 }

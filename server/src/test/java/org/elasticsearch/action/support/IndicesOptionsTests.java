@@ -20,12 +20,27 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.IndicesOptions.Option;
+import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent.MapParams;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
@@ -241,5 +256,72 @@ public class IndicesOptionsTests extends ESTestCase {
             return IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed,
                 allowAliasesToMulti, forbidClosed, ignoreAliases);
         });
+    }
+
+    public void testFromMap() {
+        IndicesOptions defaults = IndicesOptions.strictExpandOpen();
+        Collection<String> wildcardStates = randomBoolean() ?
+                null : randomSubsetOf(Arrays.asList("open", "closed"));
+        Boolean ignoreUnavailable = randomBoolean() ? null : randomBoolean();
+        Boolean allowNoIndices = randomBoolean() ? null : randomBoolean();
+
+        Map<String, Object> settings = new HashMap<>();
+
+        if (wildcardStates != null) {
+            settings.put("expand_wildcards", wildcardStates);
+        }
+
+        if (ignoreUnavailable != null) {
+            settings.put("ignore_unavailable", ignoreUnavailable);
+        }
+
+        if (allowNoIndices != null) {
+            settings.put("allow_no_indices", allowNoIndices);
+        }
+
+        IndicesOptions fromMap = IndicesOptions.fromMap(settings, defaults);
+
+        boolean open = wildcardStates != null ? wildcardStates.contains("open") : defaults.expandWildcardsOpen();
+        assertEquals(fromMap.expandWildcardsOpen(), open);
+        boolean closed = wildcardStates != null ? wildcardStates.contains("closed") : defaults.expandWildcardsClosed();
+        assertEquals(fromMap.expandWildcardsClosed(), closed);
+
+        assertEquals(fromMap.ignoreUnavailable(), ignoreUnavailable == null ? defaults.ignoreUnavailable() : ignoreUnavailable);
+        assertEquals(fromMap.allowNoIndices(), allowNoIndices == null ? defaults.allowNoIndices() : allowNoIndices);
+    }
+
+    public void testToXContent() throws IOException {
+        Collection<WildcardStates> wildcardStates = randomSubsetOf(Arrays.asList(WildcardStates.values()));
+        Collection<Option> options = randomSubsetOf(Arrays.asList(Option.values()));
+
+        IndicesOptions indicesOptions = new IndicesOptions(
+                options.isEmpty() ? Option.NONE : EnumSet.copyOf(options),
+                wildcardStates.isEmpty() ? WildcardStates.NONE : EnumSet.copyOf(wildcardStates));
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        indicesOptions.toXContent(builder, new MapParams(Collections.emptyMap()));
+        builder.endObject();
+        XContentParser parser = XContentType.JSON.xContent().createParser(
+            NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
+        Map<String, Object> map = parser.mapOrdered();
+
+        boolean open = wildcardStates.contains(WildcardStates.OPEN);
+        if (open) {
+            assertTrue(((List<?>) map.get("expand_wildcards")).contains("open"));
+        } else {
+            assertFalse(((List<?>) map.get("expand_wildcards")).contains("open"));
+        }
+        boolean closed = wildcardStates.contains(WildcardStates.CLOSED);
+        if (closed) {
+            assertTrue(((List<?>) map.get("expand_wildcards")).contains("closed"));
+        } else {
+            assertFalse(((List<?>) map.get("expand_wildcards")).contains("closed"));
+        }
+        assertEquals(map.get("ignore_unavailable"), options.contains(Option.IGNORE_UNAVAILABLE));
+        assertEquals(map.get("allow_no_indices"), options.contains(Option.ALLOW_NO_INDICES));
+        assertEquals(map.get("forbid_aliases_to_multiple_indices"), options.contains(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES));
+        assertEquals(map.get("forbid_closed_indices"), options.contains(Option.FORBID_CLOSED_INDICES));
+        assertEquals(map.get("ignore_aliases"), options.contains(Option.IGNORE_ALIASES));
     }
 }

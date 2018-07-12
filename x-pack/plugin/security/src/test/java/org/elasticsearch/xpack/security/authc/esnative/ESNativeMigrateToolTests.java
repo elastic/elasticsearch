@@ -77,7 +77,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         Set<String> addedUsers = new HashSet(numToAdd);
         for (int i = 0; i < numToAdd; i++) {
             String uname = randomAlphaOfLength(5);
-            c.preparePutUser(uname, "s3kirt".toCharArray(), "role1", "user").get();
+            c.preparePutUser(uname, "s3kirt".toCharArray(), getFastStoredHashAlgoForTests(), "role1", "user").get();
             addedUsers.add(uname);
         }
         logger.error("--> waiting for .security index");
@@ -142,7 +142,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         OptionParser parser = muor.getParser();
         OptionSet options = parser.parse("-u", username, "-p", password, "-U", url);
         Set<String> roles = muor.getRolesThatExist(t, settings, new Environment(settings, conf), options);
-        logger.info("--> output: \n{}", t.getOutput());;
+        logger.info("--> output: \n{}", t.getOutput());
         for (String r : addedRoles) {
             assertThat("expected list to contain: " + r, roles.contains(r), is(true));
         }

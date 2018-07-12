@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -46,6 +49,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ChainInputTests extends ESTestCase {
 
@@ -219,5 +223,25 @@ public class ChainInputTests extends ESTestCase {
         ElasticsearchParseException e =
                 expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser));
         assertThat(e.getMessage(), containsString("Expected starting JSON object after [first] in watch [test]"));
+    }
+
+    public void testThatXContentParametersArePassedToInputs() throws Exception {
+        ToXContent.Params randomParams = new ToXContent.MapParams(Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+        ChainInput chainInput = new ChainInput(Collections.singletonList(Tuple.tuple("whatever", new Input() {
+            @Override
+            public String type() {
+                return "test";
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+                assertThat(params, sameInstance(randomParams));
+                return builder;
+            }
+        })));
+
+        try (XContentBuilder builder = jsonBuilder()) {
+            chainInput.toXContent(builder, randomParams);
+        }
     }
 }

@@ -432,7 +432,7 @@ public class SearchTransportService extends AbstractComponent {
             });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, FetchSearchResult::new);
 
-        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ShardFetchSearchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ShardFetchSearchRequest::new, ThreadPool.Names.SEARCH, true, true,
             new TaskAwareTransportRequestHandler<ShardFetchSearchRequest>() {
                 @Override
                 public void messageReceived(ShardFetchSearchRequest request, TransportChannel channel, Task task) throws Exception {

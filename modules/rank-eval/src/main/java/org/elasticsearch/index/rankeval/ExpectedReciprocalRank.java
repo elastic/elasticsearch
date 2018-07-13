@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,27 +30,23 @@ import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRatings;
 
 /**
- * Metric implementing Discounted Cumulative Gain.
- * The `normalize` parameter can be set to calculate the normalized NDCG (set to {@code false} by default).<br>
- * The optional `unknown_doc_rating` parameter can be used to specify a default rating for unlabeled documents.
- * @see <a href="https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Discounted_Cumulative_Gain">Discounted Cumulative Gain</a><br>
+ * Implementation of the Expected Reciprocal Rank metric described in:<p>
+ *
+ * Chapelle, O., Metlzer, D., Zhang, Y., &amp; Grinspan, P. (2009).<br>
+ * Expected reciprocal rank for graded relevance.<br>
+ * Proceeding of the 18th ACM Conference on Information and Knowledge Management - CIKM ’09, 621.<br>
+ * https://doi.org/10.1145/1645953.1646033
  */
-public class DiscountedCumulativeGain implements EvaluationMetric {
-
-    /** If set to true, the dcg will be normalized (ndcg) */
-    private final boolean normalize;
+public class ExpectedReciprocalRank implements EvaluationMetric {
 
     /** the default search window size */
     private static final int DEFAULT_K = 10;
@@ -62,37 +59,44 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
      */
     private final Integer unknownDocRating;
 
-    public static final String NAME = "dcg";
-    private static final double LOG2 = Math.log(2.0);
+    private final int maxRelevance;
 
-    public DiscountedCumulativeGain() {
-        this(false, null, DEFAULT_K);
+    private final double two_pow_maxRelevance;
+
+    public static final String NAME = "expected_reciprocal_rank";
+
+    public ExpectedReciprocalRank(int maxRelevance) {
+        this(maxRelevance, null, DEFAULT_K);
     }
 
     /**
-     * @param normalize
-     *            If set to true, dcg will be normalized (ndcg) See
-     *            https://en.wikipedia.org/wiki/Discounted_cumulative_gain
+     * @param maxRelevance
+     *            the maximal relevance judgment in the evaluation dataset
      * @param unknownDocRating
      *            the rating for documents the user hasn't supplied an explicit
-     *            rating for
-     * @param k the search window size all request use.
+     *            rating for. Can be {@code null}, in which case document is
+     *            skipped.
+     * @param k
+     *            the search window size all request use.
      */
-    public DiscountedCumulativeGain(boolean normalize, Integer unknownDocRating, int k) {
-        this.normalize = normalize;
+    public ExpectedReciprocalRank(int maxRelevance, @Nullable Integer unknownDocRating, int k) {
+        this.maxRelevance = maxRelevance;
         this.unknownDocRating = unknownDocRating;
         this.k = k;
+        // we can pre-calculate the constant used in metric calculation
+        this.two_pow_maxRelevance = Math.pow(2, this.maxRelevance);
     }
 
-    DiscountedCumulativeGain(StreamInput in) throws IOException {
-        normalize = in.readBoolean();
-        unknownDocRating = in.readOptionalVInt();
-        k = in.readVInt();
+    ExpectedReciprocalRank(StreamInput in) throws IOException {
+        this.maxRelevance = in.readVInt();
+        this.unknownDocRating = in.readOptionalVInt();
+        this.k = in.readVInt();
+        this.two_pow_maxRelevance = Math.pow(2, this.maxRelevance);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(normalize);
+        out.writeVInt(maxRelevance);
         out.writeOptionalVInt(unknownDocRating);
         out.writeVInt(k);
     }
@@ -102,12 +106,12 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         return NAME;
     }
 
-    boolean getNormalize() {
-        return this.normalize;
-    }
-
     int getK() {
         return this.k;
+    }
+
+    int getMaxRelevance() {
+        return this.maxRelevance;
     }
 
     /**
@@ -124,70 +128,63 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
     }
 
     @Override
-    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits,
-            List<RatedDocument> ratedDocs) {
-        List<Integer> allRatings = ratedDocs.stream().mapToInt(RatedDocument::getRating).boxed()
-                .collect(Collectors.toList());
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
         List<RatedSearchHit> ratedHits = joinHitsWithRatings(hits, ratedDocs);
+        if (ratedHits.size() > this.k) {
+            ratedHits = ratedHits.subList(0, k);
+        }
         List<Integer> ratingsInSearchHits = new ArrayList<>(ratedHits.size());
         int unratedResults = 0;
         for (RatedSearchHit hit : ratedHits) {
-            // unknownDocRating might be null, in which case unrated docs will be ignored in the dcg calculation.
+            // unknownDocRating might be null, in which case unrated will be ignored in the calculation.
             // we still need to add them as a placeholder so the rank of the subsequent ratings is correct
             ratingsInSearchHits.add(hit.getRating().orElse(unknownDocRating));
             if (hit.getRating().isPresent() == false) {
                 unratedResults++;
             }
         }
-        final double dcg = computeDCG(ratingsInSearchHits);
-        double result = dcg;
-        double idcg = 0;
 
-        if (normalize) {
-            Collections.sort(allRatings, Comparator.nullsLast(Collections.reverseOrder()));
-            idcg = computeDCG(allRatings.subList(0, Math.min(ratingsInSearchHits.size(), allRatings.size())));
-            if (idcg != 0) {
-                result = dcg / idcg;
-            } else {
-                result = 0;
-            }
-        }
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, result);
-        evalQueryQuality.addHitsAndRatings(ratedHits);
-        evalQueryQuality.setMetricDetails(new Detail(dcg, idcg, unratedResults));
-        return evalQueryQuality;
-    }
-
-    private static double computeDCG(List<Integer> ratings) {
+        double p = 1;
+        double err = 0;
         int rank = 1;
-        double dcg = 0;
-        for (Integer rating : ratings) {
+        for (Integer rating : ratingsInSearchHits) {
             if (rating != null) {
-                dcg += (Math.pow(2, rating) - 1) / ((Math.log(rank + 1) / LOG2));
+                double probR = probabilityOfRelevance(rating);
+                err = err + (p * probR / rank);
+                p = p * (1 - probR);
             }
             rank++;
         }
-        return dcg;
+
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, err);
+        evalQueryQuality.addHitsAndRatings(ratedHits);
+        evalQueryQuality.setMetricDetails(new Detail(unratedResults));
+        return evalQueryQuality;
+    }
+
+    double probabilityOfRelevance(Integer rating) {
+        return (Math.pow(2, rating) - 1) / this.two_pow_maxRelevance;
     }
 
     private static final ParseField K_FIELD = new ParseField("k");
-    private static final ParseField NORMALIZE_FIELD = new ParseField("normalize");
     private static final ParseField UNKNOWN_DOC_RATING_FIELD = new ParseField("unknown_doc_rating");
-    private static final ConstructingObjectParser<DiscountedCumulativeGain, Void> PARSER = new ConstructingObjectParser<>("dcg", false,
+    private static final ParseField MAX_RELEVANCE_FIELD = new ParseField("maximum_relevance");
+    private static final ConstructingObjectParser<ExpectedReciprocalRank, Void> PARSER = new ConstructingObjectParser<>("dcg", false,
             args -> {
-                Boolean normalized = (Boolean) args[0];
+                int maxRelevance = (Integer) args[0];
                 Integer optK = (Integer) args[2];
-                return new DiscountedCumulativeGain(normalized == null ? false : normalized, (Integer) args[1],
+                return new ExpectedReciprocalRank(maxRelevance, (Integer) args[1],
                         optK == null ? DEFAULT_K : optK);
             });
 
+
     static {
-        PARSER.declareBoolean(optionalConstructorArg(), NORMALIZE_FIELD);
+        PARSER.declareInt(constructorArg(), MAX_RELEVANCE_FIELD);
         PARSER.declareInt(optionalConstructorArg(), UNKNOWN_DOC_RATING_FIELD);
         PARSER.declareInt(optionalConstructorArg(), K_FIELD);
     }
 
-    public static DiscountedCumulativeGain fromXContent(XContentParser parser) {
+    public static ExpectedReciprocalRank fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -195,7 +192,7 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject(NAME);
-        builder.field(NORMALIZE_FIELD.getPreferredName(), this.normalize);
+        builder.field(MAX_RELEVANCE_FIELD.getPreferredName(), this.maxRelevance);
         if (unknownDocRating != null) {
             builder.field(UNKNOWN_DOC_RATING_FIELD.getPreferredName(), this.unknownDocRating);
         }
@@ -213,36 +210,27 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        DiscountedCumulativeGain other = (DiscountedCumulativeGain) obj;
-        return Objects.equals(normalize, other.normalize)
-                && Objects.equals(unknownDocRating, other.unknownDocRating)
-                && Objects.equals(k, other.k);
+        ExpectedReciprocalRank other = (ExpectedReciprocalRank) obj;
+        return this.k == other.k &&
+                this.maxRelevance == other.maxRelevance
+                && Objects.equals(unknownDocRating, other.unknownDocRating);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(normalize, unknownDocRating, k);
+        return Objects.hash(unknownDocRating, k, maxRelevance);
     }
 
     public static final class Detail implements MetricDetail {
 
-        private static ParseField DCG_FIELD = new ParseField("dcg");
-        private static ParseField IDCG_FIELD = new ParseField("ideal_dcg");
-        private static ParseField NDCG_FIELD = new ParseField("normalized_dcg");
         private static ParseField UNRATED_FIELD = new ParseField("unrated_docs");
-        private final double dcg;
-        private final double idcg;
         private final int unratedDocs;
 
-        Detail(double dcg, double idcg, int unratedDocs) {
-            this.dcg = dcg;
-            this.idcg = idcg;
+        Detail(int unratedDocs) {
             this.unratedDocs = unratedDocs;
         }
 
         Detail(StreamInput in) throws IOException {
-            this.dcg = in.readDouble();
-            this.idcg = in.readDouble();
             this.unratedDocs = in.readVInt();
         }
 
@@ -254,22 +242,14 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
 
         @Override
         public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DCG_FIELD.getPreferredName(), this.dcg);
-            if (this.idcg != 0) {
-                builder.field(IDCG_FIELD.getPreferredName(), this.idcg);
-                builder.field(NDCG_FIELD.getPreferredName(), this.dcg / this.idcg);
-            }
-            builder.field(UNRATED_FIELD.getPreferredName(), this.unratedDocs);
-            return builder;
+            return builder.field(UNRATED_FIELD.getPreferredName(), this.unratedDocs);
         }
 
         private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
-            return new Detail((Double) args[0], (Double) args[1] != null ? (Double) args[1] : 0.0d, (Integer) args[2]);
+            return new Detail((Integer) args[0]);
         });
 
         static {
-            PARSER.declareDouble(constructorArg(), DCG_FIELD);
-            PARSER.declareDouble(optionalConstructorArg(), IDCG_FIELD);
             PARSER.declareInt(constructorArg(), UNRATED_FIELD);
         }
 
@@ -279,35 +259,12 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(this.dcg);
-            out.writeDouble(this.idcg);
             out.writeVInt(this.unratedDocs);
         }
 
         @Override
         public String getWriteableName() {
             return NAME;
-        }
-
-        /**
-         * @return the discounted cumulative gain
-         */
-        public double getDCG() {
-            return this.dcg;
-        }
-
-        /**
-         * @return the ideal discounted cumulative gain, can be 0 if nothing was computed, e.g. because no normalization was required
-         */
-        public double getIDCG() {
-            return this.idcg;
-        }
-
-        /**
-         * @return the normalized discounted cumulative gain, can be 0 if nothing was computed, e.g. because no normalization was required
-         */
-        public double getNDCG() {
-            return (this.idcg != 0) ? this.dcg / this.idcg : 0;
         }
 
         /**
@@ -325,15 +282,13 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
             if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            DiscountedCumulativeGain.Detail other = (DiscountedCumulativeGain.Detail) obj;
-            return Double.compare(this.dcg, other.dcg) == 0 &&
-                   Double.compare(this.idcg, other.idcg) == 0 &&
-                   this.unratedDocs == other.unratedDocs;
+            ExpectedReciprocalRank.Detail other = (ExpectedReciprocalRank.Detail) obj;
+            return this.unratedDocs == other.unratedDocs;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(this.dcg, this.idcg, this.unratedDocs);
+            return Objects.hash(this.unratedDocs);
         }
     }
 }

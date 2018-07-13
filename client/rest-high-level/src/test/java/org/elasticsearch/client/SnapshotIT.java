@@ -61,8 +61,8 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
     private CreateSnapshotResponse createTestSnapshot(CreateSnapshotRequest createSnapshotRequest) throws IOException {
         // assumes the repository already exists
 
-        return execute(createSnapshotRequest, highLevelClient().snapshot()::createSnapshot,
-            highLevelClient().snapshot()::createSnapshotAsync);
+        return execute(createSnapshotRequest, highLevelClient().snapshot()::create,
+            highLevelClient().snapshot()::createAsync);
     }
 
     public void testCreateRepository() throws IOException {

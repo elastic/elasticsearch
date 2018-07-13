@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
@@ -79,18 +78,19 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     static final Setting<TimeValue> HTTP_CONNECT_TIMEOUT =
             timeSetting("http.connect_timeout", NO_TIMEOUT, Property.NodeScope, Property.Dynamic);
 
-    private final ByteSizeValue chunkSize;
-    private final boolean compress;
+    private final GoogleCloudStorageService storageService;
     private final BlobPath basePath;
-    private final GoogleCloudStorageBlobStore blobStore;
+    private final boolean compress;
+    private final ByteSizeValue chunkSize;
+    private final String bucket;
+    private final String clientName;
 
     GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
                                         NamedXContentRegistry namedXContentRegistry,
-                                        GoogleCloudStorageService storageService) throws Exception {
+                                        GoogleCloudStorageService storageService) {
         super(metadata, environment.settings(), namedXContentRegistry);
+        this.storageService = storageService;
 
-        String bucket = getSetting(BUCKET, metadata);
-        String clientName = CLIENT_NAME.get(metadata.settings());
         String basePath = BASE_PATH.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();
@@ -104,7 +104,8 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
 
         this.compress = getSetting(COMPRESS, metadata);
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
-
+        this.bucket = getSetting(BUCKET, metadata);
+        this.clientName = CLIENT_NAME.get(metadata.settings());
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, compress);
 
         final String applicationName = APPLICATION_NAME.get(metadata.settings());
@@ -127,13 +128,11 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
                 "it must be specified in the client settings instead");
             storageService.setOverrideReadTimeout(readTimeout);
         }
-
-        this.blobStore = new GoogleCloudStorageBlobStore(settings, bucket, clientName, storageService);
     }
 
     @Override
-    protected BlobStore blobStore() {
-        return blobStore;
+    protected GoogleCloudStorageBlobStore createBlobStore() {
+        return new GoogleCloudStorageBlobStore(settings, bucket, clientName, storageService);
     }
 
     @Override

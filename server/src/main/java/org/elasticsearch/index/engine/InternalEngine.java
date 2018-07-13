@@ -94,6 +94,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -648,65 +649,25 @@ public class InternalEngine extends Engine {
         }
     }
 
-    /**
-     * the status of the current doc version in lucene, compared to the version in an incoming
-     * operation
-     */
-    enum OpVsLuceneDocStatus {
-        /** the op is more recent than the one that last modified the doc found in lucene*/
-        OP_NEWER,
-        /** the op is older or the same as the one that last modified the doc found in lucene*/
-        OP_STALE_OR_EQUAL,
-        /** no doc was found in lucene */
-        LUCENE_DOC_NOT_FOUND
-    }
-
-    static final class OpVsLuceneLookupResult {
-        final OpVsLuceneDocStatus status;
-        final long seqNoOfNewerDoc; //seqno of a newer version found in Lucene; otherwise -1
-        OpVsLuceneLookupResult(OpVsLuceneDocStatus status, long seqNoOfNewerDoc) {
-            this.status = status;
-            this.seqNoOfNewerDoc = seqNoOfNewerDoc;
-            assert (status == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL && seqNoOfNewerDoc >= 0) ||
-                   (status != OpVsLuceneDocStatus.OP_STALE_OR_EQUAL && seqNoOfNewerDoc == -1) :
-                   "status=" + status + " ,seqno_newer_doc=" + seqNoOfNewerDoc;
-        }
-    }
-
-    private OpVsLuceneLookupResult compareOpToLuceneDocBasedOnSeqNo(final Operation op) throws IOException {
+    /** resolves the last seqno of the document, returning empty if not found */
+    private OptionalLong resolveDocSeqNo(final Operation op) throws IOException {
+        //TODO: Assert that if prev_seqno equals to op's seqno, they should have the same term after rollback is implemented.
         assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "resolving ops based on seq# but no seqNo is found";
-        final OpVsLuceneLookupResult result;
-        VersionValue versionValue = getVersionFromMap(op.uid().bytes());
+        final VersionValue versionValue = getVersionFromMap(op.uid().bytes());
         assert incrementVersionLookup();
         if (versionValue != null) {
-            if (op.seqNo() > versionValue.seqNo || (op.seqNo() == versionValue.seqNo && op.primaryTerm() > versionValue.term)) {
-                result = new OpVsLuceneLookupResult(OpVsLuceneDocStatus.OP_NEWER, -1);
-            } else {
-                result = new OpVsLuceneLookupResult(OpVsLuceneDocStatus.OP_STALE_OR_EQUAL, versionValue.seqNo);
-            }
+            return OptionalLong.of(versionValue.seqNo);
         } else {
-            // load from index
             assert incrementIndexVersionLookup();
             try (Searcher searcher = acquireSearcher("load_seq_no", SearcherScope.INTERNAL)) {
-                DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), op.uid());
+                final DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), op.uid());
                 if (docAndSeqNo == null) {
-                    result = new OpVsLuceneLookupResult(OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, -1);
-                } else if (op.seqNo() > docAndSeqNo.seqNo) {
-                    result = new OpVsLuceneLookupResult(OpVsLuceneDocStatus.OP_NEWER, -1);
-                } else if (op.seqNo() == docAndSeqNo.seqNo) {
-                    // load term to tie break
-                    final long existingTerm = VersionsAndSeqNoResolver.loadPrimaryTerm(docAndSeqNo, op.uid().field());
-                    if (op.primaryTerm() > existingTerm) {
-                        result = new OpVsLuceneLookupResult(OpVsLuceneDocStatus.OP_NEWER, -1);
-                    } else {
-                        result = new OpVsLuceneLookupResult(OpVsLuceneDocStatus.OP_STALE_OR_EQUAL, docAndSeqNo.seqNo);
-                    }
+                    return OptionalLong.empty();
                 } else {
-                    result = new OpVsLuceneLookupResult(OpVsLuceneDocStatus.OP_STALE_OR_EQUAL, docAndSeqNo.seqNo);
+                    return OptionalLong.of(docAndSeqNo.seqNo);
                 }
             }
         }
-        return result;
     }
 
     /** resolves the current version of the document, returning null if not found */
@@ -938,12 +899,11 @@ public class InternalEngine extends Engine {
                 // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
                 plan = IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
             } else {
-                final OpVsLuceneLookupResult opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
-                if (opVsLucene.status == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
-                    plan = IndexingStrategy.processAsStaleOp(softDeleteEnabled, index.seqNo(), index.version(), opVsLucene.seqNoOfNewerDoc);
+                final OptionalLong prevSeqNo = resolveDocSeqNo(index);
+                if (prevSeqNo.isPresent() == false || prevSeqNo.getAsLong() < index.seqNo()) {
+                    plan = IndexingStrategy.processNormally(prevSeqNo.isPresent() == false, index.seqNo(), index.version());
                 } else {
-                    plan = IndexingStrategy.processNormally(opVsLucene.status == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
-                        index.seqNo(), index.version());
+                    plan = IndexingStrategy.processAsStaleOp(softDeleteEnabled, index.seqNo(), index.version(), prevSeqNo.getAsLong());
                 }
             }
         }
@@ -1276,12 +1236,11 @@ public class InternalEngine extends Engine {
             // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
             plan = DeletionStrategy.processButSkipLucene(false, delete.seqNo(), delete.version());
         } else {
-            final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete).status;
-            if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
-                plan = DeletionStrategy.processAsStaleOp(softDeleteEnabled, false, delete.seqNo(), delete.version());
+            final OptionalLong prevSeqNo = resolveDocSeqNo(delete);
+            if (prevSeqNo.isPresent() == false || prevSeqNo.getAsLong() < delete.seqNo()) {
+                plan = DeletionStrategy.processNormally(prevSeqNo.isPresent() == false, delete.seqNo(), delete.version());
             } else {
-                plan = DeletionStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
-                    delete.seqNo(), delete.version());
+                plan = DeletionStrategy.processAsStaleOp(softDeleteEnabled, false, delete.seqNo(), delete.version());
             }
         }
         return plan;

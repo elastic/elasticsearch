@@ -91,14 +91,12 @@ String s3TemporaryBasePath = System.getenv("amazon_s3_base_path_temporary")
 
 String s3EC2Bucket = System.getenv("amazon_s3_bucket_ec2")
 String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
-String s3EC2AccessKey = System.getenv("amazon_s3_access_key_ec2")
-String s3EC2Token = System.getenv("amazon_s3_token_ec2")
 
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
 
 if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath
-        && !s3EC2Bucket && !s3EC2BasePath && !s3EC2AccessKey && !s3EC2Token) {
+        && !s3EC2Bucket && !s3EC2BasePath) {
   s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
   s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
   s3PermanentBucket = 'permanent-bucket-test'
@@ -106,13 +104,11 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
 
   s3EC2Bucket = 'ec2-bucket-test'
   s3EC2BasePath = 'integration_test'
-  s3EC2AccessKey = 'ec2_accessKey'
-  s3EC2Token = 'ec2_tkn'
 
   useFixture = true
 
 } else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath
-        || !s3EC2Bucket || !s3EC2BasePath || !s3EC2AccessKey || !s3EC2Token) {
+        || !s3EC2Bucket || !s3EC2BasePath) {
   throw new IllegalArgumentException("not all options specified to run against external S3 service")
 }
 
@@ -300,14 +296,13 @@ File s3FixtureFile = new File(parentFixtures, 's3Fixture.properties')
 task s3FixtureProperties {
   outputs.file(s3FixtureFile)
   def s3FixtureOptions = [
+      "tests.seed"                       : project.testSeed,
       "s3Fixture.permanent_bucket_name"  : s3PermanentBucket,
       "s3Fixture.permanent_key"          : s3PermanentAccessKey,
       "s3Fixture.temporary_bucket_name"  : s3TemporaryBucket,
       "s3Fixture.temporary_key"          : s3TemporaryAccessKey,
       "s3Fixture.temporary_session_token": s3TemporarySessionToken,
-      "s3Fixture.ec2_bucket_name"        : s3EC2Bucket,
-      "s3Fixture.ec2_key"                : s3EC2AccessKey,
-      "s3Fixture.ec2_token"              : s3EC2Token
+      "s3Fixture.ec2_bucket_name"        : s3EC2Bucket
   ]
 
   doLast {

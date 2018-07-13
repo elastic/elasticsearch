@@ -34,7 +34,6 @@ import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
-import org.elasticsearch.test.fixture.AbstractHttpFixture;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -48,11 +47,13 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Properties;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLength;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Objects.requireNonNull;
 
 /**
  * {@link AmazonS3Fixture} emulates an AWS S3 service
@@ -80,9 +81,10 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
      */
     private AmazonS3Fixture(final String workingDir, Properties properties) {
         super(workingDir);
+        Random random = new Random(Long.parseUnsignedLong(requireNonNull(properties.getProperty("tests.seed")), 16));
         this.permanentBucket = new Bucket(properties, buckets, "s3Fixture.permanent", false);
         this.temporaryBucket = new Bucket(properties, buckets, "s3Fixture.temporary");
-        this.ec2Bucket = new Bucket(properties, buckets, "s3Fixture.ec2");
+        this.ec2Bucket = new Bucket(properties, buckets, "s3Fixture.ec2", random);
 
         this.handlers = defaultHandlers(buckets);
     }
@@ -404,7 +406,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     }
 
     private static String prop(Properties properties, String propertyName) {
-        return Objects.requireNonNull(properties.getProperty(propertyName),
+        return requireNonNull(properties.getProperty(propertyName),
             "property '" + propertyName + "' is missing");
     }
 
@@ -427,12 +429,33 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
             this(properties, buckets, prefix, true);
         }
 
-        Bucket(final Properties properties, Map<String, Bucket> buckets, final String prefix, final boolean tokenRequired) {
+        Bucket(final Properties properties,
+               final Map<String, Bucket> buckets,
+               final String prefix,
+               final boolean tokenRequired) {
+            this(properties, buckets, prefix, tokenRequired, null);
+        }
+
+        Bucket(final Properties properties,
+               final Map<String, Bucket> buckets,
+               final String prefix,
+               final Random random) {
+            this(properties, buckets, prefix, false, random);
+        }
+
+        private Bucket(final Properties properties,
+               final Map<String, Bucket> buckets,
+               final String prefix,
+               final boolean tokenRequired,
+               final Random random) {
             this.name = prop(properties, prefix + "_bucket_name");
-            this.key = prop(properties, prefix + "_key");
-            this.token = tokenRequired
-                ? prop(properties, prefix + (properties.getProperty(prefix + "_token") != null ? "_token" : "_session_token"))
-                : null;
+            if (random != null) {
+                this.key = randomAsciiAlphanumOfLength(random, 10);
+                this.token = randomAsciiAlphanumOfLength(random, 10);
+            } else {
+                this.key = prop(properties, prefix + "_key");
+                this.token = tokenRequired ? prop(properties, prefix + "_session_token") : null;
+            }
             this.objects = ConcurrentCollections.newConcurrentMap();
             if (buckets.put(name, this) != null) {
                 throw new IllegalArgumentException("bucket " + name + " is already registered");

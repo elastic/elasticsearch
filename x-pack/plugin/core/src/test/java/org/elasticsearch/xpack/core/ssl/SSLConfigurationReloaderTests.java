@@ -306,7 +306,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
@@ -347,7 +347,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
@@ -382,7 +382,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
@@ -414,7 +414,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
@@ -443,7 +443,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         final CountDownLatch reloadLatch = new CountDownLatch(1);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {

@@ -461,6 +461,7 @@ public class SlackMessageTests extends ESTestCase {
         assertThat(parsed, equalTo(template));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31948")
     public void testTemplateRender() throws Exception {
         Settings settings = SlackMessageDefaultsTests.randomSettings();
         SlackMessageDefaults defaults = new SlackMessageDefaults(settings);

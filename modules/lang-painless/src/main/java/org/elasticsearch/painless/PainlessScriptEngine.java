@@ -403,9 +403,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
     void compile(Compiler compiler, Loader loader, MainMethodReserved reserved,
                  String scriptName, String source, Map<String, String> params) {
-        final CompilerSettings compilerSettings;
-
-        compilerSettings = buildCompilerSettings(params);
+        final CompilerSettings compilerSettings = buildCompilerSettings(params);
 
         try {
             // Drop all permissions to actually compile the code itself.

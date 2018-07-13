@@ -34,6 +34,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -49,6 +50,7 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A {@link Translog.Snapshot} from changes in a Lucene index
@@ -88,6 +90,12 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         if (searchBatchSize < 0) {
             throw new IllegalArgumentException("Search_batch_size must not be negative [" + searchBatchSize + "]");
         }
+        final AtomicBoolean closed = new AtomicBoolean();
+        this.onClose = () -> {
+            if (closed.compareAndSet(false, true)) {
+                IOUtils.close(engineSearcher);
+            }
+        };
         this.mapperService = mapperService;
         this.searchBatchSize = searchBatchSize;
         this.fromSeqNo = fromSeqNo;
@@ -98,10 +106,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         this.indexSearcher.setQueryCache(null);
         this.parallelArray = new ParallelArray(searchBatchSize);
         final TopDocs topDocs = searchOperations(null);
-
         this.totalHits = Math.toIntExact(topDocs.totalHits);
         this.scoreDocs = topDocs.scoreDocs;
-        this.onClose = engineSearcher;
         fillParallelArray(scoreDocs, parallelArray);
     }
 

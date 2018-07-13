@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -63,6 +65,10 @@ public class EmailService extends NotificationService<Account> {
             Setting.affixKeySetting("xpack.notification.email.account.", "smtp.password",
                     (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
 
+    private static final Setting.AffixSetting<SecureString> SETTING_SECURE_PASSWORD =
+        Setting.affixKeySetting("xpack.notification.email.account.", "smtp.secure_password",
+            (key) -> SecureSetting.secureString(key, null));
+
     private static final Setting.AffixSetting<TimeValue> SETTING_SMTP_TIMEOUT =
             Setting.affixKeySetting("xpack.notification.email.account.", "smtp.timeout",
                     (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(2), Property.Dynamic, Property.NodeScope));
@@ -111,6 +117,7 @@ public class EmailService extends NotificationService<Account> {
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_PORT, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_USER, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_PASSWORD, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SECURE_PASSWORD, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_TIMEOUT, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_CONNECTION_TIMEOUT, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_WRITE_TIMEOUT, (s, o) -> {}, (s, o) -> {});
@@ -120,7 +127,7 @@ public class EmailService extends NotificationService<Account> {
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_SEND_PARTIAL, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_WAIT_ON_QUIT, (s, o) -> {}, (s, o) -> {});
         // do an initial load
-        setAccountSetting(settings);
+        reload(settings);
     }
 
     @Override
@@ -172,7 +179,8 @@ public class EmailService extends NotificationService<Account> {
         return Arrays.asList(SETTING_DEFAULT_ACCOUNT, SETTING_PROFILE, SETTING_EMAIL_DEFAULTS, SETTING_SMTP_AUTH, SETTING_SMTP_HOST,
                 SETTING_SMTP_PASSWORD, SETTING_SMTP_PORT, SETTING_SMTP_STARTTLS_ENABLE, SETTING_SMTP_USER, SETTING_SMTP_STARTTLS_REQUIRED,
                 SETTING_SMTP_TIMEOUT, SETTING_SMTP_CONNECTION_TIMEOUT, SETTING_SMTP_WRITE_TIMEOUT, SETTING_SMTP_LOCAL_ADDRESS,
-                SETTING_SMTP_LOCAL_PORT, SETTING_SMTP_SEND_PARTIAL, SETTING_SMTP_WAIT_ON_QUIT, SETTING_SMTP_SSL_TRUST_ADDRESS);
+                SETTING_SMTP_LOCAL_PORT, SETTING_SMTP_SEND_PARTIAL, SETTING_SMTP_WAIT_ON_QUIT, SETTING_SMTP_SSL_TRUST_ADDRESS,
+                SETTING_SECURE_PASSWORD);
     }
 
 }

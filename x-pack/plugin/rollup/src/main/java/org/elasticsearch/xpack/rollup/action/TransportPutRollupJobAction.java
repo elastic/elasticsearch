@@ -173,6 +173,14 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             }
 
             Map<String, Object> rollupMeta = (Map<String, Object>)((Map<String, Object>) m).get(RollupField.ROLLUP_META);
+
+            String stringVersion = (String)((Map<String, Object>) m).get(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD);
+            if (stringVersion == null) {
+                listener.onFailure(new IllegalStateException("Could not determine version of existing rollup metadata for index ["
+                    + indexName + "]"));
+                return;
+            }
+
             if (rollupMeta.get(job.getConfig().getId()) != null) {
                 String msg = "Cannot create rollup job [" + job.getConfig().getId()
                         + "] because job was previously created (existing metadata).";

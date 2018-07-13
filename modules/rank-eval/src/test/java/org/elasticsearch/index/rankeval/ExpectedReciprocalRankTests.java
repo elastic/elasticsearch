@@ -69,7 +69,7 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
      * 4    | 1         | 0.03125   | 0.078125 | 0.00244140625 |
      * }</pre>
      *
-     * err => sum of last column
+     * err = sum of last column
      */
     public void testERRAt() {
         List<RatedDocument> rated = new ArrayList<>();
@@ -94,7 +94,7 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
      * 4    | 1         | 0.03125   | 0.125    | 0.00390625 |
      * }</pre>
      *
-     * err => sum of last column
+     * err = sum of last column
      */
     public void testERRMissingRatings() {
         List<RatedDocument> rated = new ArrayList<>();

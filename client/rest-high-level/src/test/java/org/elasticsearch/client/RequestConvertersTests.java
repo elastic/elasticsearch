@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
@@ -125,6 +126,7 @@ import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptType;
@@ -145,6 +147,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.hamcrest.CoreMatchers;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -2521,6 +2524,35 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack", request.getEndpoint());
         assertNull(request.getEntity());
         assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testXPackPutWatch() throws Exception {
+        PutWatchRequest putWatchRequest = new PutWatchRequest();
+        String watchId = randomAlphaOfLength(10);
+        putWatchRequest.setId(watchId);
+        String body = randomAlphaOfLength(20);
+        putWatchRequest.setSource(new BytesArray(body), XContentType.JSON);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            putWatchRequest.setActive(false);
+            expectedParams.put("active", "false");
+        }
+
+        if (randomBoolean()) {
+            long version = randomLongBetween(10, 100);
+            putWatchRequest.setVersion(version);
+            expectedParams.put("version", String.valueOf(version));
+        }
+
+        Request request = RequestConverters.xPackWatcherPutWatch(putWatchRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        request.getEntity().writeTo(bos);
+        assertThat(bos.toString("UTF-8"), is(body));
     }
 
     /**

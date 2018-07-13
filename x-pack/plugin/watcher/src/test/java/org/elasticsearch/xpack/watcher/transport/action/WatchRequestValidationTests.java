@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRequest;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateW
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -69,7 +69,8 @@ public class WatchRequestValidationTests extends ESTestCase {
     }
 
     public void testPutWatchInvalidWatchId() {
-        ActionRequestValidationException e = new PutWatchRequest("id with whitespaces", BytesArray.EMPTY, XContentType.JSON).validate();
+        ActionRequestValidationException e =
+            new PutWatchRequest("id with whitespaces", BytesArray.EMPTY, XContentType.JSON).validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(), hasItem("watch id contains whitespace"));
     }

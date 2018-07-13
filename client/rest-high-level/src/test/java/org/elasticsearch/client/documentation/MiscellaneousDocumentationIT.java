@@ -37,9 +37,13 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.EnumSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Documentation for miscellaneous APIs in the high level java client.
@@ -92,8 +96,7 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
             //tag::x-pack-info-response
             BuildInfo build = response.getBuildInfo();                 // <1>
             LicenseInfo license = response.getLicenseInfo();           // <2>
-            assertEquals(XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS,
-                    license.getExpiryDate());                          // <3>
+            assertThat(license.getExpiryDate(), is(greaterThan(Instant.now().toEpochMilli())));  // <3>
             FeatureSetsInfo features = response.getFeatureSetsInfo();  // <4>
             //end::x-pack-info-response
 

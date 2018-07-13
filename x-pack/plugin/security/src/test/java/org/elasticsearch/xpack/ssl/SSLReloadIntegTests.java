@@ -96,7 +96,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.pem"), keyPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt"), certPath);
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put("xpack.ssl.key", keyPath)

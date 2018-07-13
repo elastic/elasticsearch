@@ -25,6 +25,7 @@ import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
 import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctions;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -89,9 +90,9 @@ public class MockScriptEngine implements ScriptEngine {
             ExecutableScript.Factory factory = mockCompiled::createExecutableScript;
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(IngestScript.class)) {
-            IngestScript.Factory factory = parameters -> new IngestScript(parameters) {
+            IngestScript.Factory factory = (parameters, extraProcessors) -> new IngestScript(parameters, extraProcessors) {
                 @Override
-                public void execute(Map<String, Object> ctx) {
+                public void execute(Map<String, Object> ctx, IngestDocument document) {
                     script.apply(ctx);
                 }
             };

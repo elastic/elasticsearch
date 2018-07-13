@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.common;
 
 import com.fasterxml.jackson.core.JsonFactory;
-
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.ExtraProcessors;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.IngestScript;
@@ -38,10 +38,11 @@ import org.elasticsearch.script.ScriptService;
 
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
-import static org.elasticsearch.ingest.ConfigurationUtils.readMap;
+import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalMap;
 
 /**
  * Processor that evaluates a script with an ingest document in its context.
@@ -53,6 +54,7 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     private final Script script;
     private final ScriptService scriptService;
+    private final ExtraProcessors extraProcessors;
 
     /**
      * Processor that evaluates a script with an ingest document in its context
@@ -62,9 +64,21 @@ public final class ScriptProcessor extends AbstractProcessor {
      * @param scriptService The {@link ScriptService} used to execute the script.
      */
     ScriptProcessor(String tag, Script script, ScriptService scriptService)  {
+        this(tag, script,scriptService, new ExtraProcessors(Collections.emptyMap()));
+    }
+
+    /**
+     * Processor that evaluates a script with an ingest document in its context
+     *
+     * @param tag The processor's tag.
+     * @param script The {@link Script} to execute.
+     * @param scriptService The {@link ScriptService} used to execute the script.
+     */
+    private ScriptProcessor(String tag, Script script, ScriptService scriptService, ExtraProcessors extraProcessors)  {
         super(tag);
         this.script = script;
         this.scriptService = scriptService;
+        this.extraProcessors = extraProcessors;
     }
 
     /**
@@ -75,7 +89,7 @@ public final class ScriptProcessor extends AbstractProcessor {
     @Override
     public void execute(IngestDocument document) {
         IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
-        factory.newInstance(script.getParams()).execute(document.getSourceAndMetadata());
+        factory.newInstance(script.getParams(), extraProcessors).execute(document.getSourceAndMetadata(), document);
     }
 
     @Override
@@ -97,8 +111,10 @@ public final class ScriptProcessor extends AbstractProcessor {
         @Override
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
-            Map<String, Map<String, Object>> processorConfig =
-                readMap(TYPE, processorTag, config, "extra_processors");
+            ExtraProcessors extraProcessors = ExtraProcessors.create(
+                readOptionalMap(TYPE, processorTag, config, "extra_processors"),
+                processorTag, registry
+            );
             try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
                  InputStream stream = BytesReference.bytes(builder).streamInput();
                  XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
@@ -114,7 +130,7 @@ public final class ScriptProcessor extends AbstractProcessor {
                     throw newConfigurationException(TYPE, processorTag, null, e);
                 }
 
-                return new ScriptProcessor(processorTag, script, scriptService);
+                return new ScriptProcessor(processorTag, script, scriptService, extraProcessors);
             }
         }
     }

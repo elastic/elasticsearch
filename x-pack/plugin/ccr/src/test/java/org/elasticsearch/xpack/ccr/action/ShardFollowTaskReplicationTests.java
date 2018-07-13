@@ -188,8 +188,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     for (IndexShard indexShard : indexShards) {
                         long globalCheckpoint = indexShard.getGlobalCheckpoint();
                         try {
-                            Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, globalCheckpoint, from, maxOperationCount,
-                                params.getMaxBatchSizeInBytes());
+                            Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, globalCheckpoint, from,
+                                maxOperationCount, params.getMaxBatchSizeInBytes());
                             // Hard code index metadata version, this is ok, as mapping updates are not tested here.
                             handler.accept(new ShardChangesAction.Response(1L, globalCheckpoint, ops));
                             return;

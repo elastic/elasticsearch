@@ -19,25 +19,9 @@
 
 package org.elasticsearch.painless.lookup;
 
-import java.lang.invoke.MethodHandle;
+/** Marker class for def type to be used during type analysis. */
+public final class def {
+    private def() {
 
-public final class PainlessField {
-    public final String name;
-    public final Class<?> target;
-    public final Class<?> clazz;
-    public final String javaName;
-    public final int modifiers;
-    public final MethodHandle getter;
-    public final MethodHandle setter;
-
-    PainlessField(String name, String javaName, Class<?> target, Class<?> clazz, int modifiers,
-                  MethodHandle getter, MethodHandle setter) {
-        this.name = name;
-        this.javaName = javaName;
-        this.target = target;
-        this.clazz = clazz;
-        this.modifiers = modifiers;
-        this.getter = getter;
-        this.setter = setter;
     }
 }

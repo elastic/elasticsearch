@@ -19,10 +19,10 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessClass;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
@@ -184,10 +184,10 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
     static PainlessMethod lookupMethodInternal(PainlessLookup painlessLookup, Class<?> receiverClass, String name, int arity) {
-        PainlessMethodKey key = new PainlessMethodKey(name, arity);
+        String key = PainlessLookupUtility.buildPainlessMethodKey(name, arity);
         // check whitelist for matching method
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
+            PainlessClass struct = painlessLookup.getPainlessClassFromJavaClass(clazz);
 
             if (struct != null) {
                 PainlessMethod method = struct.methods.get(key);
@@ -197,7 +197,7 @@ public final class Def {
             }
 
             for (Class<?> iface : clazz.getInterfaces()) {
-                struct = painlessLookup.getPainlessStructFromJavaClass(iface);
+                struct = painlessLookup.getPainlessClassFromJavaClass(iface);
 
                 if (struct != null) {
                     PainlessMethod method = struct.methods.get(key);
@@ -302,7 +302,7 @@ public final class Def {
                                                               nestedType,
                                                               0,
                                                               DefBootstrap.REFERENCE,
-                                                              PainlessLookup.ClassToName(interfaceType));
+                                                              PainlessLookupUtility.anyTypeToPainlessTypeName(interfaceType));
                      filter = nested.dynamicInvoker();
                  } else {
                      throw new AssertionError();
@@ -326,15 +326,15 @@ public final class Def {
       */
     static MethodHandle lookupReference(PainlessLookup painlessLookup, MethodHandles.Lookup methodHandlesLookup, String interfaceClass,
                                         Class<?> receiverClass, String name) throws Throwable {
-         Class<?> interfaceType = painlessLookup.getJavaClassFromPainlessType(interfaceClass);
-         PainlessMethod interfaceMethod = painlessLookup.getPainlessStructFromJavaClass(interfaceType).functionalMethod;
+         Class<?> interfaceType = painlessLookup.painlessTypeNameToPainlessType(interfaceClass);
+         PainlessMethod interfaceMethod = painlessLookup.getPainlessClassFromJavaClass(interfaceType).functionalMethod;
          if (interfaceMethod == null) {
              throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
          }
          int arity = interfaceMethod.arguments.size();
          PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
-        return lookupReferenceInternal(painlessLookup, methodHandlesLookup, interfaceType, implMethod.owner.name,
-                implMethod.name, receiverClass);
+        return lookupReferenceInternal(painlessLookup, methodHandlesLookup, interfaceType,
+                PainlessLookupUtility.anyTypeToPainlessTypeName(implMethod.target), implMethod.name, receiverClass);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
@@ -344,10 +344,10 @@ public final class Def {
          final FunctionRef ref;
          if ("this".equals(type)) {
              // user written method
-             PainlessMethod interfaceMethod = painlessLookup.getPainlessStructFromJavaClass(clazz).functionalMethod;
+             PainlessMethod interfaceMethod = painlessLookup.getPainlessClassFromJavaClass(clazz).functionalMethod;
              if (interfaceMethod == null) {
-                 throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                    "to [" + PainlessLookup.ClassToName(clazz) + "], not a functional interface");
+                 throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] to [" +
+                         PainlessLookupUtility.anyTypeToPainlessTypeName(clazz) + "], not a functional interface");
              }
              int arity = interfaceMethod.arguments.size() + captures.length;
              final MethodHandle handle;
@@ -418,7 +418,7 @@ public final class Def {
     static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
+            PainlessClass struct = painlessLookup.getPainlessClassFromJavaClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.getters.get(name);
@@ -428,7 +428,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = painlessLookup.getPainlessStructFromJavaClass(iface);
+                struct = painlessLookup.getPainlessClassFromJavaClass(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.getters.get(name);
@@ -489,7 +489,7 @@ public final class Def {
     static MethodHandle lookupSetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
+            PainlessClass struct = painlessLookup.getPainlessClassFromJavaClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.setters.get(name);
@@ -499,7 +499,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = painlessLookup.getPainlessStructFromJavaClass(iface);
+                struct = painlessLookup.getPainlessClassFromJavaClass(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.setters.get(name);

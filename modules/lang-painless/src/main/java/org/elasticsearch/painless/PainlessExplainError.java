@@ -56,7 +56,7 @@ public class PainlessExplainError extends Error {
         if (objectToExplain != null) {
             toString = objectToExplain.toString();
             javaClassName = objectToExplain.getClass().getName();
-            PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(objectToExplain.getClass());
+            PainlessClass struct = painlessLookup.getPainlessClassFromJavaClass(objectToExplain.getClass());
             if (struct != null) {
                 painlessClassName = struct.name;
             }

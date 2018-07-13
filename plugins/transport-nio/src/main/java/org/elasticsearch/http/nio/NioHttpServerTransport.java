@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpServerChannel;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.nio.BytesChannelContext;
@@ -49,8 +48,6 @@ import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.nio.NioTransport;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;

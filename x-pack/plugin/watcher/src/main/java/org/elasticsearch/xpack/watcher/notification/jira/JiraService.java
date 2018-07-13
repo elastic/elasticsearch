@@ -75,7 +75,7 @@ public class JiraService extends NotificationService<JiraAccount> {
         clusterSettings.addAffixUpdateConsumer(SETTING_SECURE_PASSWORD, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_DEFAULTS, (s, o) -> {}, (s, o) -> {});
         // do an initial load
-        setAccountSetting(settings);
+        reload(settings);
     }
 
     @Override

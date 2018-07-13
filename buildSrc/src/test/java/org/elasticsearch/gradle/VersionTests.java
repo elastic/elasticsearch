@@ -19,7 +19,6 @@ package org.elasticsearch.gradle;
  * under the License.
  */
 
-import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
@@ -172,9 +171,9 @@ public class VersionTests extends GradleUnitTestCase {
         assertEquals(minor, version.getMinor());
         assertEquals(revision, version.getRevision());
         if (snapshot) {
-            assertTrue("Expected version to be a snapshot but it was not", version.getSnapshot());
+            assertTrue("Expected version to be a snapshot but it was not", version.isSnapshot());
         } else {
-            assertFalse("Expected version not to be a snapshot but it was", version.getSnapshot());
+            assertFalse("Expected version not to be a snapshot but it was", version.isSnapshot());
         }
         assertEquals(sufix, version.getSuffix());
     }

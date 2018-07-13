@@ -7,7 +7,7 @@ import java.util.regex.Pattern;
 /**
  * Encapsulates comparison and printing logic for an x.y.z version.
  */
-public class Version implements Comparable<Version> {
+public final class Version implements Comparable<Version> {
     private final int major;
     private final int minor;
     private final int revision;
@@ -32,7 +32,7 @@ public class Version implements Comparable<Version> {
         this.suffix = suffix == null ? "" : suffix;
 
         int suffixOffset = 0;
-        if (this.suffix == null || this.suffix.isEmpty()) {
+        if (this.suffix.isEmpty()) {
             // no suffix will be considered smaller, uncomment to change that
             // suffixOffset = 100;
         } else {
@@ -148,31 +148,27 @@ public class Version implements Comparable<Version> {
         return Objects.hash(major, minor, revision, id, snapshot, suffix);
     }
 
-    public final int getMajor() {
+    public int getMajor() {
         return major;
     }
 
-    public final int getMinor() {
+    public int getMinor() {
         return minor;
     }
 
-    public final int getRevision() {
+    public int getRevision() {
         return revision;
     }
 
-    protected final int getId() {
+    protected int getId() {
         return id;
     }
 
-    public final boolean getSnapshot() {
+    public boolean isSnapshot() {
         return snapshot;
     }
 
-    public final boolean isSnapshot() {
-        return snapshot;
-    }
-
-    public final String getSuffix() {
+    public String getSuffix() {
         return suffix;
     }
 

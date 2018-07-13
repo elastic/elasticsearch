@@ -20,10 +20,8 @@ dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-dependencyLicenses {
-    ignoreSha 'x-pack-core'
-}
-
 run {
     plugin xpackModule('core')
 }
+
+integTest.enabled = false

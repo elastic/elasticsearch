@@ -25,8 +25,11 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessField;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.spi.Whitelist;
+
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.reflect.Modifier;
@@ -49,7 +52,7 @@ import static org.elasticsearch.painless.spi.Whitelist.BASE_WHITELISTS;
  */
 public class PainlessDocGenerator {
 
-    private static final PainlessLookup PAINLESS_LOOKUP = new PainlessLookup(BASE_WHITELISTS);
+    private static final PainlessLookup PAINLESS_LOOKUP = new PainlessLookupBuilder(Whitelist.BASE_WHITELISTS).build();
     private static final Logger logger = ESLoggerFactory.getLogger(PainlessDocGenerator.class);
     private static final Comparator<PainlessField> FIELD_NAME = comparing(f -> f.name);
     private static final Comparator<PainlessMethod> METHOD_NAME = comparing(m -> m.name);

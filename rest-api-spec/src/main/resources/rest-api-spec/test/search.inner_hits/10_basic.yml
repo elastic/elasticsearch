@@ -13,8 +13,9 @@ setup:
 ---
 "Nested inner hits":
     - skip:
-        version: " - 6.1.99"
-        reason: "<= 6.1 nodes don't always include index or id in nested inner hits"
+        version: "all"
+        reason: "https://github.com/elastic/elasticsearch/issues/32055"
+
     - do:
         index:
           index: test
@@ -45,8 +46,8 @@ setup:
 "Nested doc version and seqIDs":
 
     - skip:
-        version: " - 6.3.99"
-        reason:  "object notation for docvalue_fields was introduced in 6.4"
+        version: "all"
+        reason: "https://github.com/elastic/elasticsearch/issues/32055"
 
     - do:
         index:

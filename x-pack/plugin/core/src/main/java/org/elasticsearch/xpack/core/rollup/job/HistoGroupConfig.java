@@ -96,6 +96,7 @@ public class HistoGroupConfig implements Writeable, ToXContentFragment {
                     = new HistogramValuesSourceBuilder(RollupField.formatIndexerAggName(f, HistogramAggregationBuilder.NAME));
             vsBuilder.interval(interval);
             vsBuilder.field(f);
+            vsBuilder.missingBucket(true);
             return vsBuilder;
         }).collect(Collectors.toList());
     }

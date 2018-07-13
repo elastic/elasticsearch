@@ -82,7 +82,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
 
     public void resync(final IndexShard indexShard, final ActionListener<ResyncTask> listener) {
         ActionListener<ResyncTask> resyncListener = null;
-        Translog.Snapshot snapshot = null;
+        Translog.Snapshot wrappedSnapshot = null;
         try {
             final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
             final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
@@ -90,19 +90,16 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
             // Even though those calls are not concurrent, snapshot.next() uses non-synchronized state and is not multi-thread-compatible
             // Also fail the resync early if the shard is shutting down
-            snapshot = new Translog.Snapshot() {
-                final AtomicBoolean closed = new AtomicBoolean(); // closed once
-                final Translog.Snapshot originalSnapshot = indexShard.newTranslogSnapshotFromMinSeqNo(startingSeqNo);
+            Translog.Snapshot snapshot = indexShard.newTranslogSnapshotFromMinSeqNo(startingSeqNo);
+            wrappedSnapshot = new Translog.Snapshot() {
                 @Override
                 public synchronized void close() throws IOException {
-                    if (closed.compareAndSet(false, true)) {
-                        originalSnapshot.close();
-                    }
+                    snapshot.close();
                 }
 
                 @Override
                 public synchronized int totalOperations() {
-                    return originalSnapshot.totalOperations();
+                    return snapshot.totalOperations();
                 }
 
                 @Override
@@ -113,15 +110,14 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                     } else {
                         assert state == IndexShardState.STARTED : "resync should only happen on a started shard, but state was: " + state;
                     }
-                    return originalSnapshot.next();
+                    return snapshot.next();
                 }
             };
-            Translog.Snapshot wrappedSnapshot = snapshot;
             resyncListener = new ActionListener<ResyncTask>() {
                 @Override
                 public void onResponse(final ResyncTask resyncTask) {
                     try {
-                        wrappedSnapshot.close();
+                        snapshot.close();
                         listener.onResponse(resyncTask);
                     } catch (final Exception e) {
                         onFailure(e);
@@ -131,7 +127,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 @Override
                 public void onFailure(final Exception e) {
                     try {
-                        wrappedSnapshot.close();
+                        snapshot.close();
                     } catch (final Exception inner) {
                         e.addSuppressed(inner);
                     } finally {
@@ -144,7 +140,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 startingSeqNo, maxSeqNo, resyncListener);
         } catch (Exception e) {
             try {
-                IOUtils.close(snapshot);
+                IOUtils.close(wrappedSnapshot);
             } catch (IOException inner) {
                 e.addSuppressed(inner);
             }

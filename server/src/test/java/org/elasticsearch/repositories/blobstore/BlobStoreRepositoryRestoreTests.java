@@ -178,7 +178,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final FsRepository repository = new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry()) {
             @Override
-            protected void verificationThreadCheck() {
+            protected void assertSnapshotOrGenericThread() {
                 // eliminate thread name check as we create repo manually
             }
         };

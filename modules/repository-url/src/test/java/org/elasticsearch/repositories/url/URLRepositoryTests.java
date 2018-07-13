@@ -41,7 +41,8 @@ public class URLRepositoryTests extends ESTestCase {
         return new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
             new NamedXContentRegistry(Collections.emptyList())) {
             @Override
-            protected void verificationThreadCheck() {
+            protected void assertSnapshotOrGenericThread() {
+                // eliminate thread name check as we create repo manually on test/main threads
             }
         };
     }

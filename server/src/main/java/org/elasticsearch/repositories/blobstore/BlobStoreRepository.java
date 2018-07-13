@@ -298,7 +298,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * maintains single lazy instance of {@link BlobContainer}
      */
     protected BlobContainer blobContainer() {
-        verificationThreadCheck();
+        assertSnapshotOrGenericThread();
 
         BlobContainer blobContainer = this.blobContainer.get();
         if (blobContainer == null) {
@@ -318,7 +318,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * maintains single lazy instance of {@link BlobStore}
      */
     protected BlobStore blobStore() {
-        verificationThreadCheck();
+        assertSnapshotOrGenericThread();
 
         BlobStore store = blobStore.get();
         if (store == null) {
@@ -613,7 +613,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return restoreRateLimitingTimeInNanos.count();
     }
 
-    protected void verificationThreadCheck() {
+    protected void assertSnapshotOrGenericThread() {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.SNAPSHOT)
             || Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC) :
             "Expected current thread [" + Thread.currentThread() + "] to be the snapshot or generic thread.";
@@ -881,7 +881,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void verify(String seed, DiscoveryNode localNode) {
-        verificationThreadCheck();
+        assertSnapshotOrGenericThread();
         BlobContainer testBlobContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
         if (testBlobContainer.blobExists("master.dat")) {
             try  {

@@ -131,7 +131,8 @@ public class S3RepositoryTests extends ESTestCase {
     private S3Repository createS3Repo(RepositoryMetaData metadata) {
         return new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service()) {
             @Override
-            protected void verificationThreadCheck() {
+            protected void assertSnapshotOrGenericThread() {
+                // eliminate thread name check as we create repo manually on test/main threads
             }
         };
     }

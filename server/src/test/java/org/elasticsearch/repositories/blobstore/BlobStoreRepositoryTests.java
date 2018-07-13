@@ -64,6 +64,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         return Arrays.asList(FsLikeRepoPlugin.class);
     }
 
+    // the reason for this plug-in is to drop any assertSnapshotOrGenericThread as mostly all access in this test goes from test threads
     public static class FsLikeRepoPlugin extends org.elasticsearch.plugins.Plugin implements RepositoryPlugin {
 
         @Override
@@ -71,7 +72,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             return Collections.singletonMap(REPO_TYPE,
                 (metadata) -> new FsRepository(metadata, env, namedXContentRegistry) {
                     @Override
-                    protected void verificationThreadCheck() {
+                    protected void assertSnapshotOrGenericThread() {
+                        // eliminate thread name check as we access blobStore on test/main threads
                     }
                 });
         }

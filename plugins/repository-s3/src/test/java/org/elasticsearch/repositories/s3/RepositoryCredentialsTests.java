@@ -85,8 +85,8 @@ public class RepositoryCredentialsTests extends ESTestCase {
         protected S3Repository createRepository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry registry) {
             return new S3Repository(metadata, settings, registry, service){
                 @Override
-                protected void verificationThreadCheck() {
-
+                protected void assertSnapshotOrGenericThread() {
+                    // eliminate thread name check as we create repo manually on test/main threads
                 }
             };
         }

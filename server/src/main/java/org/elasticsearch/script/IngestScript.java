@@ -38,7 +38,7 @@ public abstract class IngestScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    private final Object extraProcessors;
+    private final ExtraProcessors extraProcessors;
 
     public IngestScript(Map<String, Object> params, ExtraProcessors extraProcessors) {
         this.params = params;
@@ -50,7 +50,7 @@ public abstract class IngestScript {
         return params;
     }
 
-    public Object getExtraProcessors() {
+    public ExtraProcessors getExtraProcessors() {
         return extraProcessors;
     }
 

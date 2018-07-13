@@ -156,6 +156,9 @@ public abstract class WatchRecord implements ToXContentObject {
         builder.field(NODE.getPreferredName(), nodeId);
         builder.field(STATE.getPreferredName(), state.id());
 
+        if (user != null) {
+            builder.field(USER.getPreferredName(), user);
+        }
         if (watch != null && watch.status() != null) {
             builder.field(STATUS.getPreferredName(), watch.status(), params);
         }
@@ -182,9 +185,6 @@ public abstract class WatchRecord implements ToXContentObject {
         }
         if (executionResult != null) {
             builder.field(EXECUTION_RESULT.getPreferredName(), executionResult, params);
-        }
-        if (user != null) {
-            builder.field(USER.getPreferredName(), user);
         }
         innerToXContent(builder, params);
         builder.endObject();

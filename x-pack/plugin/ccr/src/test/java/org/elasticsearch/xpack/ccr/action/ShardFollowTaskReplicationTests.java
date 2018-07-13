@@ -178,16 +178,25 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             protected void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,
                                                         Consumer<Exception> errorHandler) {
                 Runnable task = () -> {
-                    IndexShard indexShard = getRandomIndexShard(leaderGroup);
-                    long globalCheckpoint = indexShard.getGlobalCheckpoint();
-                    try {
-                        Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, globalCheckpoint, from, maxOperationCount,
-                            params.getMaxBatchSizeInBytes());
-                        // Hard code index metadata version, this is ok, as mapping updates are not tested here.
-                        handler.accept(new ShardChangesAction.Response(1L, globalCheckpoint, ops));
-                    } catch (Exception e) {
-                        errorHandler.accept(e);
+                    List<IndexShard> indexShards = new ArrayList<>(leaderGroup.getReplicas());
+                    indexShards.add(leaderGroup.getPrimary());
+                    Collections.shuffle(indexShards, random());
+
+                    Exception exception = null;
+                    for (IndexShard indexShard : indexShards) {
+                        long globalCheckpoint = indexShard.getGlobalCheckpoint();
+                        try {
+                            Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, globalCheckpoint, from, maxOperationCount,
+                                params.getMaxBatchSizeInBytes());
+                            // Hard code index metadata version, this is ok, as mapping updates are not tested here.
+                            handler.accept(new ShardChangesAction.Response(1L, globalCheckpoint, ops));
+                            return;
+                        } catch (Exception e) {
+                            exception = e;
+                        }
                     }
+                    assert exception != null;
+                    errorHandler.accept(exception);
                 };
                 Thread thread = new Thread(task);
                 thread.start();
@@ -208,11 +217,6 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 stopped.set(true);
             }
 
-            private IndexShard getRandomIndexShard(ReplicationGroup replicationGroup) {
-                List<IndexShard> indexShards = new ArrayList<>(replicationGroup.getReplicas());
-                indexShards.add(replicationGroup.getPrimary());
-                return randomFrom(indexShards);
-            }
         };
     }
 

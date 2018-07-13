@@ -5,17 +5,20 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
@@ -26,11 +29,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
+@TestLogging("org.elasticsearch.xpack.ccr.action:TRACE")
 public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTestCase {
 
     public void testSimpleCcrReplication() throws Exception {
@@ -105,6 +110,21 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
     }
 
+    protected IndexMetaData buildIndexMetaData(int replicas, Settings indexSettings, Map<String, String> mappings) throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, replicas)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10000)
+            .put(indexSettings)
+            .build();
+        IndexMetaData.Builder metaData = IndexMetaData.builder(index.getName()).settings(settings);
+        for (Map.Entry<String, String> typeMapping : mappings.entrySet()) {
+            metaData.putMapping(typeMapping.getKey(), typeMapping.getValue());
+        }
+        return metaData.build();
+    }
+
     private ReplicationGroup createFollowGroup(int replicas) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
@@ -139,7 +159,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     try {
                         IndexShard primaryShard = followerGroup.getPrimary();
                         TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> result =
-                            TransportBulkShardOperationsAction.shardOperationOnPrimary(primaryShard.shardId(), operations, primaryShard, logger);
+                            TransportBulkShardOperationsAction.shardOperationOnPrimary(primaryShard.shardId(), operations,
+                                primaryShard, logger);
                         List<Translog.Operation> replicaOps = result.replicaRequest().getOperations();
                         for (IndexShard replicaShard : followerGroup.getReplicas()) {
                             TransportBulkShardOperationsAction.applyTranslogOperations(replicaOps, replicaShard, Origin.REPLICA);
@@ -157,7 +178,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             protected void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,
                                                         Consumer<Exception> errorHandler) {
                 Runnable task = () -> {
-                    IndexShard indexShard = getIndexShard(leaderGroup);
+                    IndexShard indexShard = getRandomIndexShard(leaderGroup);
                     long globalCheckpoint = indexShard.getGlobalCheckpoint();
                     try {
                         Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, globalCheckpoint, from, maxOperationCount,
@@ -187,7 +208,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 stopped.set(true);
             }
 
-            private IndexShard getIndexShard(ReplicationGroup replicationGroup) {
+            private IndexShard getRandomIndexShard(ReplicationGroup replicationGroup) {
                 List<IndexShard> indexShards = new ArrayList<>(replicationGroup.getReplicas());
                 indexShards.add(replicationGroup.getPrimary());
                 return randomFrom(indexShards);

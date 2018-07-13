@@ -415,7 +415,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert currentRouting.active() == false : "we are in POST_RECOVERY, but our shard routing is active " + currentRouting;
                 assert currentRouting.isRelocationTarget()  == false || currentRouting.primary() == false ||
                         replicationTracker.isPrimaryMode() :
-                    "a primary relocation is completed by the master, but primary more is not active " + currentRouting;
+                    "a primary relocation is completed by the master, but primary mode is not active " + currentRouting;
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
             } else if (currentRouting.primary() && currentRouting.relocating() && replicationTracker.isPrimaryMode() == false &&

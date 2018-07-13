@@ -26,7 +26,7 @@ public class Power extends BinaryNumericFunction {
     }
 
     @Override
-    protected NodeInfo<? extends Expression> info() {
+    protected NodeInfo<Power> info() {
         return NodeInfo.create(this, Power::new, left(), right());
     }
 

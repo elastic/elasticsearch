@@ -21,11 +21,14 @@ package org.elasticsearch.packaging.util;
 
 import org.elasticsearch.core.internal.io.IOUtils;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileOwnerAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -63,6 +66,22 @@ public class FileUtils {
         }
     }
 
+    public static Path mkdir(Path path) {
+        try {
+            return Files.createDirectories(path);
+         } catch (IOException e) {
+            throw new RuntimeException(e);
+         }
+     }
+
+     public static Path cp(Path source, Path target) {
+        try {
+            return Files.copy(source, target);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static Path mv(Path source, Path target) {
         try {
             return Files.move(source, target);
@@ -71,9 +90,19 @@ public class FileUtils {
         }
     }
 
+    public static void append(Path file, String text) {
+        try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8,
+            StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
+
+            writer.write(text);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static String slurp(Path file) {
         try {
-            return String.join("\n", Files.readAllLines(file));
+            return String.join("\n", Files.readAllLines(file, StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

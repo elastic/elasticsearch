@@ -21,7 +21,6 @@ package org.elasticsearch.painless;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1070,7 +1069,7 @@ public class DefMath {
         }
     }
 
-    private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+    private static final MethodHandles.Lookup PRIVATE_METHOD_HANDLES_LOOKUP = MethodHandles.lookup();
 
     private static final Map<Class<?>,Map<String,MethodHandle>> TYPE_OP_MAPPING = Collections.unmodifiableMap(
         Stream.of(boolean.class, int.class, long.class, float.class, double.class, Object.class)
@@ -1081,26 +1080,26 @@ public class DefMath {
                     MethodType binary = MethodType.methodType(type, type, type);
                     MethodType comparison = MethodType.methodType(boolean.class, type, type);
                     MethodType shift = MethodType.methodType(type, type, long.class);
-                    Class<?> clazz = PRIV_LOOKUP.lookupClass();
-                    map.put("not",   PRIV_LOOKUP.findStatic(clazz, "not",  unary));
-                    map.put("neg",   PRIV_LOOKUP.findStatic(clazz, "neg",  unary));
-                    map.put("plus",  PRIV_LOOKUP.findStatic(clazz, "plus", unary));
-                    map.put("mul",   PRIV_LOOKUP.findStatic(clazz, "mul",  binary));
-                    map.put("div",   PRIV_LOOKUP.findStatic(clazz, "div",  binary));
-                    map.put("rem",   PRIV_LOOKUP.findStatic(clazz, "rem",  binary));
-                    map.put("add",   PRIV_LOOKUP.findStatic(clazz, "add",  binary));
-                    map.put("sub",   PRIV_LOOKUP.findStatic(clazz, "sub",  binary));
-                    map.put("and",   PRIV_LOOKUP.findStatic(clazz, "and",  binary));
-                    map.put("or",    PRIV_LOOKUP.findStatic(clazz, "or",   binary));
-                    map.put("xor",   PRIV_LOOKUP.findStatic(clazz, "xor",  binary));
-                    map.put("eq",    PRIV_LOOKUP.findStatic(clazz, "eq",   comparison));
-                    map.put("lt",    PRIV_LOOKUP.findStatic(clazz, "lt",   comparison));
-                    map.put("lte",   PRIV_LOOKUP.findStatic(clazz, "lte",  comparison));
-                    map.put("gt",    PRIV_LOOKUP.findStatic(clazz, "gt",   comparison));
-                    map.put("gte",   PRIV_LOOKUP.findStatic(clazz, "gte",  comparison));
-                    map.put("lsh",   PRIV_LOOKUP.findStatic(clazz, "lsh",  shift));
-                    map.put("rsh",   PRIV_LOOKUP.findStatic(clazz, "rsh",  shift));
-                    map.put("ush",   PRIV_LOOKUP.findStatic(clazz, "ush",  shift));
+                    Class<?> clazz = PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass();
+                    map.put("not",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "not",  unary));
+                    map.put("neg",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "neg",  unary));
+                    map.put("plus",  PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "plus", unary));
+                    map.put("mul",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "mul",  binary));
+                    map.put("div",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "div",  binary));
+                    map.put("rem",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "rem",  binary));
+                    map.put("add",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "add",  binary));
+                    map.put("sub",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "sub",  binary));
+                    map.put("and",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "and",  binary));
+                    map.put("or",    PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "or",   binary));
+                    map.put("xor",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "xor",  binary));
+                    map.put("eq",    PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "eq",   comparison));
+                    map.put("lt",    PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "lt",   comparison));
+                    map.put("lte",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "lte",  comparison));
+                    map.put("gt",    PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "gt",   comparison));
+                    map.put("gte",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "gte",  comparison));
+                    map.put("lsh",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "lsh",  shift));
+                    map.put("rsh",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "rsh",  shift));
+                    map.put("ush",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "ush",  shift));
                     return map;
                 } catch (ReflectiveOperationException e) {
                     throw new AssertionError(e);
@@ -1188,14 +1187,14 @@ public class DefMath {
     private static final MethodHandle DYNAMIC_CAST;
     private static final MethodHandle DYNAMIC_RECEIVER_CAST;
     static {
-        final Lookup lookup = MethodHandles.lookup();
+        final MethodHandles.Lookup methodHandlesLookup = MethodHandles.lookup();
         try {
-            DYNAMIC_CAST = lookup.findStatic(lookup.lookupClass(),
-                                            "dynamicCast",
-                                            MethodType.methodType(Object.class, Class.class, Object.class));
-            DYNAMIC_RECEIVER_CAST = lookup.findStatic(lookup.lookupClass(),
-                                                     "dynamicReceiverCast",
-                                                     MethodType.methodType(Object.class, Object.class, Object.class));
+            DYNAMIC_CAST = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(),
+                                                          "dynamicCast",
+                                                          MethodType.methodType(Object.class, Class.class, Object.class));
+            DYNAMIC_RECEIVER_CAST = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(),
+                                                                   "dynamicReceiverCast",
+                                                                   MethodType.methodType(Object.class, Object.class, Object.class));
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }

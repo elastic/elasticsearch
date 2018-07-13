@@ -72,11 +72,14 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {
+        assumeFalse("Due to bug inside jdk, this test can't momentarily run with java 11. " +
+                "See: https://github.com/elastic/elasticsearch/issues/31940",
+            System.getProperty("java.version").contains("11"));
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             try (RestClient client = buildRestClient()) {
                 try {
-                    client.performRequest("GET", "/");
+                    client.performRequest(new Request("GET", "/"));
                     fail("connection should have been rejected due to SSL handshake");
                 } catch (Exception e) {
                     assertThat(e.getMessage(), containsString("General SSLEngine problem"));
@@ -85,7 +88,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
 
             SSLContext.setDefault(getSslContext());
             try (RestClient client = buildRestClient()) {
-                Response response = client.performRequest("GET", "/");
+                Response response = client.performRequest(new Request("GET", "/"));
                 assertEquals(200, response.getStatusLine().getStatusCode());
             }
         } finally {

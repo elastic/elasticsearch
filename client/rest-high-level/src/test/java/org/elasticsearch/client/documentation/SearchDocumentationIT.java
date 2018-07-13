@@ -295,6 +295,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     @SuppressWarnings({ "unused" })
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32029")
     public void testSearchRequestAggregations() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -829,21 +830,21 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
-    
+
     public void testMultiSearchTemplateWithInlineScript() throws Exception {
         indexSearchTestData();
         RestHighLevelClient client = highLevelClient();
 
         // tag::multi-search-template-request-inline
         String [] searchTerms = {"elasticsearch", "logstash", "kibana"};
-        
+
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest(); // <1>
         for (String searchTerm : searchTerms) {
             SearchTemplateRequest request = new SearchTemplateRequest();  // <2>
-            request.setRequest(new SearchRequest("posts")); 
+            request.setRequest(new SearchRequest("posts"));
 
             request.setScriptType(ScriptType.INLINE);
-            request.setScript( 
+            request.setScript(
                 "{" +
                 "  \"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" } }," +
                 "  \"size\" : \"{{size}}\"" +
@@ -854,15 +855,15 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             scriptParams.put("value", searchTerm);
             scriptParams.put("size", 5);
             request.setScriptParams(scriptParams);
-            
-            multiRequest.add(request);  // <3> 
+
+            multiRequest.add(request);  // <3>
         }
         // end::multi-search-template-request-inline
 
         // tag::multi-search-template-request-sync
         MultiSearchTemplateResponse multiResponse = client.multiSearchTemplate(multiRequest, RequestOptions.DEFAULT);
         // end::multi-search-template-request-sync
-        
+
         // tag::multi-search-template-response
         for (Item item : multiResponse.getResponses()) { // <1>
             if (item.isFailure()) {
@@ -882,7 +883,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(searchResponse.getHits().totalHits > 0);
 
     }
-    
+
     public void testMultiSearchTemplateWithStoredScript() throws Exception {
         indexSearchTestData();
         RestHighLevelClient client = highLevelClient();
@@ -892,16 +893,16 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::multi-search-template-request-stored
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
-        
+
         String [] searchTerms = {"elasticsearch", "logstash", "kibana"};
         for (String searchTerm : searchTerms) {
-        
+
             SearchTemplateRequest request = new SearchTemplateRequest();
             request.setRequest(new SearchRequest("posts"));
-    
+
             request.setScriptType(ScriptType.STORED);
             request.setScript("title_search");
-    
+
             Map<String, Object> params = new HashMap<>();
             params.put("field", "title");
             params.put("value", searchTerm);
@@ -911,8 +912,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         // end::multi-search-template-request-stored
 
-        
-        
+
+
 
         // tag::multi-search-template-execute
         MultiSearchTemplateResponse multiResponse = client.multiSearchTemplate(multiRequest, RequestOptions.DEFAULT);
@@ -966,7 +967,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::register-script
         assertEquals(RestStatus.OK.getStatus(), scriptResponse.getStatusLine().getStatusCode());
     }
-    
+
 
     public void testExplain() throws Exception {
         indexSearchTestData();

@@ -20,6 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
 
@@ -200,7 +201,9 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         assertFalse(engine.getWantClientAuth());
 
         // get the global and verify that it is different in that it requires client auth
-        final SSLEngine globalEngine = sslService.createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+        SSLConfiguration configuration = sslService.getSSLConfiguration("xpack.ssl");
+        assertNotNull(configuration);
+        final SSLEngine globalEngine = sslService.createSSLEngine(configuration, null, -1);
         assertTrue(globalEngine.getNeedClientAuth());
         assertFalse(globalEngine.getWantClientAuth());
     }

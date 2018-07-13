@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
@@ -342,21 +343,17 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
     }
 
     protected ForecastRequestStats getForecastStats(String jobId, String forecastId) {
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-                .setQuery(QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
-                        .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-                        .filter(QueryBuilders.termQuery(ForecastRequestStats.FORECAST_ID.getPreferredName(), forecastId)))
+        GetResponse getResponse = client().prepareGet()
+                .setIndex(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+                .setId(ForecastRequestStats.documentId(jobId, forecastId))
                 .execute().actionGet();
-        SearchHits hits = searchResponse.getHits();
-        if (hits.getTotalHits() == 0) {
+
+        if (getResponse.isExists() == false) {
             return null;
         }
-        assertThat(hits.getTotalHits(), equalTo(1L));
-        try {
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
                     NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    hits.getHits()[0].getSourceRef().streamInput());
+                    getResponse.getSourceAsBytesRef().streamInput())) {
             return ForecastRequestStats.STRICT_PARSER.apply(parser, null);
         } catch (IOException e) {
             throw new IllegalStateException(e);

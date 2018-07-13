@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -38,6 +39,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testTooManyPartitions() throws Exception {
+        assumeFalse("AwaitsFix(bugUrl = \"https://github.com/elastic/elasticsearch/issues/32033\")", Constants.WINDOWS);
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setPartitionFieldName("user");
 

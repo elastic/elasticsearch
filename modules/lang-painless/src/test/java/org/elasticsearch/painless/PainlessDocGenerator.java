@@ -20,14 +20,14 @@
 package org.elasticsearch.painless;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessField;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.spi.Whitelist;
 
 import java.io.IOException;
@@ -45,7 +45,6 @@ import java.util.function.Consumer;
 
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.painless.spi.Whitelist.BASE_WHITELISTS;
 
 /**
  * Generates an API reference from the method and type whitelists in {@link PainlessLookup}.

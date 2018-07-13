@@ -22,6 +22,9 @@ package org.elasticsearch.script;
 
 import java.util.Map;
 
+/**
+ * A script used by the Ingest Script Processor.
+ */
 public abstract class IngestScript {
 
     public static final String[] PARAMETERS = { "ctx" };

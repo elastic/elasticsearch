@@ -86,7 +86,7 @@ public abstract class WatchExecutionContext {
         return watch;
     }
 
-    public void ensureWatchExists(CheckedSupplier<Watch, Exception> supplier) throws Exception {
+    public final void ensureWatchExists(CheckedSupplier<Watch, Exception> supplier) throws Exception {
         if (watch == null) {
             watch = supplier.get();
             user = WatchExecutionContext.getUsernameFromWatch(watch);

@@ -20,6 +20,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.ingest.ExtraProcessors;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.util.Map;
@@ -39,7 +40,7 @@ public abstract class IngestScript {
 
     private final Object extraProcessors;
 
-    public IngestScript(Map<String, Object> params, Object extraProcessors) {
+    public IngestScript(Map<String, Object> params, ExtraProcessors extraProcessors) {
         this.params = params;
         this.extraProcessors = extraProcessors;
     }
@@ -56,6 +57,6 @@ public abstract class IngestScript {
     public abstract void execute(Map<String, Object> ctx, IngestDocument doc);
 
     public interface Factory {
-        IngestScript newInstance(Map<String, Object> params, Object extraProcessors);
+        IngestScript newInstance(Map<String, Object> params, ExtraProcessors extraProcessors);
     }
 }

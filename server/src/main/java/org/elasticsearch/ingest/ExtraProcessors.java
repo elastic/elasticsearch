@@ -62,7 +62,7 @@ public final class ExtraProcessors {
         this.processors = processors;
     }
 
-    public void invoke(String name, Object document) throws Exception {
+    public void invoke(String name, Object document) {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             try {
                 processors.get(name).execute((IngestDocument) document);

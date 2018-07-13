@@ -30,6 +30,8 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -219,6 +221,35 @@ public final class SnapshotClient {
     public void getAsync(GetSnapshotsRequest getSnapshotsRequest, RequestOptions options, ActionListener<GetSnapshotsResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(getSnapshotsRequest, RequestConverters::getSnapshots, options,
             GetSnapshotsResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Gets the status of requested snapshots.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     * @param snapshotsStatusRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public SnapshotsStatusResponse status(SnapshotsStatusRequest snapshotsStatusRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(snapshotsStatusRequest, RequestConverters::snapshotsStatus, options,
+            SnapshotsStatusResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously gets the status of requested snapshots.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     * @param snapshotsStatusRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void statusAsync(SnapshotsStatusRequest snapshotsStatusRequest, RequestOptions options,
+                            ActionListener<SnapshotsStatusResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(snapshotsStatusRequest, RequestConverters::snapshotsStatus, options,
+            SnapshotsStatusResponse::fromXContent, listener, emptySet());
     }
 
     /**

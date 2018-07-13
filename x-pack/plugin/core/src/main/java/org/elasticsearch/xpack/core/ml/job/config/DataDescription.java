@@ -353,7 +353,8 @@ public class DataDescription implements ToXContentObject, Writeable {
                     try {
                         DateTimeFormatterTimestampConverter.ofPattern(format, ZoneOffset.UTC);
                     } catch (IllegalArgumentException e) {
-                        throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, format));
+                        throw ExceptionsHelper.badRequestException(
+                                    Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, format), e.getCause());
                     }
             }
             timeFormat = format;

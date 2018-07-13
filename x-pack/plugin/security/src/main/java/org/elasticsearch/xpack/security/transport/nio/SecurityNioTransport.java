@@ -42,7 +42,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -74,22 +73,12 @@ public class SecurityNioTransport extends NioTransport {
         this.authenticator = authenticator;
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
         if (sslEnabled) {
-            Map<String, Settings> profileSettingsMap = settings.getGroups("transport.profiles.", true);
-            Map<String, SSLConfiguration> profileConfiguration = new HashMap<>(profileSettingsMap.size() + 1);
-            for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
-                Settings profileSettings = entry.getValue();
-                final Settings profileSslSettings = SecurityNetty4Transport.profileSslSettings(profileSettings);
-                SSLConfiguration configuration = sslService.sslConfiguration(profileSslSettings, transportSSLSettings);
-                profileConfiguration.put(entry.getKey(), configuration);
-            }
-
-            if (profileConfiguration.containsKey(TcpTransport.DEFAULT_PROFILE) == false) {
-                profileConfiguration.put(TcpTransport.DEFAULT_PROFILE, sslService.sslConfiguration(transportSSLSettings, Settings.EMPTY));
-            }
-
+            final SSLConfiguration transportConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
+            Map<String, SSLConfiguration> profileConfiguration = SecurityNetty4Transport.getTransportProfileConfigurations(settings,
+                sslService, transportConfiguration);
             this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
+
         } else {
             profileConfiguration = Collections.emptyMap();
         }

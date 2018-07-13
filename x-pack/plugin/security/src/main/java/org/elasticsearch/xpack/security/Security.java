@@ -117,16 +117,17 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
-import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TLSLicenseBootstrapCheck;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.elasticsearch.xpack.security.action.interceptor.BulkShardRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.IndicesAliasesRequestInterceptor;
@@ -172,6 +173,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.ingest.HashProcessor;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
@@ -232,9 +234,9 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
 
 public class Security extends Plugin implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
@@ -286,7 +288,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             final List<BootstrapCheck> checks = new ArrayList<>();
             checks.addAll(Arrays.asList(
                 new TokenSSLBootstrapCheck(),
-                new PkiRealmBootstrapCheck(settings, getSslService()),
+                new PkiRealmBootstrapCheck(getSslService()),
                 new TLSLicenseBootstrapCheck(),
                 new PasswordHashingAlgorithmBootstrapCheck()));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
@@ -877,10 +879,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             return null;
         }
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
-        Settings httpSSLSettings = SSLService.getHttpTransportSSLSettings(settings);
-        boolean extractClientCertificate = ssl && getSslService().isSSLClientAuthEnabled(httpSSLSettings);
-        return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), handler,
-                extractClientCertificate);
+        final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
+        boolean extractClientCertificate = ssl && getSslService().isSSLClientAuthEnabled(httpSSLConfig);
+        return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), handler, extractClientCertificate);
     }
 
     @Override

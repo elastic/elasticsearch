@@ -92,18 +92,22 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 });
                 logger.info("Opened {}th job", i);
             } catch (ElasticsearchStatusException e) {
-                assertTrue(e.getMessage(),
-                        e.getMessage().startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
+                assertEquals("Could not open job because no ML nodes with sufficient capacity were found", e.getMessage());
+                IllegalStateException detail = (IllegalStateException) e.getCause();
+                assertNotNull(detail);
+                String detailedMessage = detail.getMessage();
+                assertTrue(detailedMessage,
+                    detailedMessage.startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
                 if (expectMemoryLimitBeforeCountLimit) {
                     int expectedJobsAlreadyOpenOnNode = (i - 1) / numNodes;
-                    assertTrue(e.getMessage(),
-                            e.getMessage().endsWith("because this node has insufficient available memory. Available memory for ML [" +
-                                    maxMlMemoryPerNode + "], memory required by existing jobs [" +
-                                    (expectedJobsAlreadyOpenOnNode * memoryFootprintPerJob) +
-                                    "], estimated memory required for this job [" + memoryFootprintPerJob + "]]"));
+                    assertTrue(detailedMessage,
+                        detailedMessage.endsWith("because this node has insufficient available memory. Available memory for ML [" +
+                            maxMlMemoryPerNode + "], memory required by existing jobs [" +
+                            (expectedJobsAlreadyOpenOnNode * memoryFootprintPerJob) + "], estimated memory required for this job [" +
+                            memoryFootprintPerJob + "]]"));
                 } else {
-                    assertTrue(e.getMessage(), e.getMessage().endsWith("because this node is full. Number of opened jobs [" +
-                            maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "]]"));
+                    assertTrue(detailedMessage, detailedMessage.endsWith("because this node is full. Number of opened jobs [" +
+                        maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "]]"));
                 }
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 

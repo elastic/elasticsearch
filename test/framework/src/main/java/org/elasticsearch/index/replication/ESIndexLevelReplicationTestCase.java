@@ -98,7 +98,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
     protected final Index index = new Index("test", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
-    private final Map<String, String> indexMapping = Collections.singletonMap("type", "{ \"type\": {} }");
+    protected final Map<String, String> indexMapping = Collections.singletonMap("type", "{ \"type\": {} }");
 
     protected ReplicationGroup createGroup(int replicas) throws IOException {
         return createGroup(replicas, Settings.EMPTY);
@@ -157,7 +157,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 }
             });
 
-        ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
+        protected ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
             primary = newShard(primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting), () -> {});
             replicas = new CopyOnWriteArrayList<>();

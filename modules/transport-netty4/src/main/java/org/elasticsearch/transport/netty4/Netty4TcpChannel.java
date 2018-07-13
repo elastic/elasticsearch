@@ -112,7 +112,7 @@ public class Netty4TcpChannel implements TcpChannel {
         }
     }
 
-    public Channel getLowLevelChannel() {
+    public Channel getNettyChannel() {
         return channel;
     }
 

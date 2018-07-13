@@ -215,7 +215,7 @@ the specified time zone.
     "by_day": {
       "buckets": [
         {
-          "key_as_string": "2015-09-30T23:00:00.000-01:00",
+          "key_as_string": "2015-09-30T23:00:00.000-01:00", <1>
           "key": 1443657600000,
           "doc_count": 1
         },

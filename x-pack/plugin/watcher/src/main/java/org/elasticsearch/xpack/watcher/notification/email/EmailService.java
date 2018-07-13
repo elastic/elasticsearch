@@ -127,7 +127,7 @@ public class EmailService extends NotificationService<Account> {
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_SEND_PARTIAL, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_WAIT_ON_QUIT, (s, o) -> {}, (s, o) -> {});
         // do an initial load
-        setAccountSetting(settings);
+        reload(settings);
     }
 
     @Override

@@ -41,7 +41,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -61,12 +60,21 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
         if (context.collapse() != null) {
             // retrieve the `doc_value` associated with the collapse field
-            String name = context.collapse().getFieldType().name();
+            //String name = context.collapse().getFieldType().name();
+            String[] fieldNames = context.collapse().getFieldNames();
             if (context.docValueFieldsContext() == null) {
-                context.docValueFieldsContext(new DocValueFieldsContext(
-                        Collections.singletonList(new FieldAndFormat(name, DocValueFieldsContext.USE_DEFAULT_FORMAT))));
-            } else if (context.docValueFieldsContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
-                context.docValueFieldsContext().fields().add(new FieldAndFormat(name, DocValueFieldsContext.USE_DEFAULT_FORMAT));
+                List<FieldAndFormat> ff = new ArrayList<>(fieldNames.length);
+                for(int i=0; i<fieldNames.length; i++) {
+                    ff.add(new FieldAndFormat(fieldNames[i], DocValueFieldsContext.USE_DEFAULT_FORMAT));
+                }
+                context.docValueFieldsContext(new DocValueFieldsContext(ff));
+            } else  {
+                for(int i=0; i<fieldNames.length; i++) {
+                    if (context.docValueFieldsContext().fields().stream().map(ff -> ff.field).anyMatch(fieldNames[i]::equals) == false) {
+                        context.docValueFieldsContext().fields().add(
+                            new FieldAndFormat(fieldNames[i], DocValueFieldsContext.USE_DEFAULT_FORMAT));
+                    }
+                }
             }
         }
 

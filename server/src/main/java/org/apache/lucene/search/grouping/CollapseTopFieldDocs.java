@@ -27,6 +27,7 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.PriorityQueue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -36,14 +37,14 @@ import java.util.Set;
  */
 public final class CollapseTopFieldDocs extends TopFieldDocs {
     /** The field used for collapsing **/
-    public final String field;
+    public final String[] collapseFields;
     /** The collapse value for each top doc */
     public final Object[] collapseValues;
 
-    public CollapseTopFieldDocs(String field, long totalHits, ScoreDoc[] scoreDocs,
+    public CollapseTopFieldDocs(String[] collapseFields, long totalHits, ScoreDoc[] scoreDocs,
                                 SortField[] sortFields, Object[] values, float maxScore) {
         super(totalHits, scoreDocs, sortFields, maxScore);
-        this.field = field;
+        this.collapseFields = collapseFields;
         this.collapseValues = values;
     }
 
@@ -161,11 +162,11 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
      **/
     public static CollapseTopFieldDocs merge(Sort sort, int start, int size,
                                              CollapseTopFieldDocs[] shardHits, boolean setShardIndex) {
-        String collapseField = shardHits[0].field;
+        String[] shardCollapseFields = shardHits[0].collapseFields;
         for (int i = 1; i < shardHits.length; i++) {
-            if (collapseField.equals(shardHits[i].field) == false) {
-                throw new IllegalArgumentException("collapse field differ across shards [" +
-                    collapseField + "] != [" + shardHits[i].field + "]");
+            if (Arrays.equals(shardCollapseFields, shardHits[i].collapseFields) == false) {
+                throw new IllegalArgumentException("collapse fields differ across shards [" +
+                    Arrays.toString(shardCollapseFields) + "] != [" + Arrays.toString(shardHits[i].collapseFields) + "]");
             }
         }
         final PriorityQueue<ShardRef> queue = new MergeSortQueue(sort, shardHits);
@@ -237,6 +238,6 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
             hits = hitList.toArray(new ScoreDoc[0]);
             values = collapseList.toArray(new Object[0]);
         }
-        return new CollapseTopFieldDocs(collapseField, totalHitCount, hits, sort.getSort(), values, maxScore);
+        return new CollapseTopFieldDocs(shardCollapseFields, totalHitCount, hits, sort.getSort(), values, maxScore);
     }
 }

@@ -32,22 +32,29 @@ import java.util.List;
  * Context used for field collapsing
  */
 public class CollapseContext {
-    private final MappedFieldType fieldType;
     private final List<InnerHitBuilder> innerHits;
+    private final String[] fieldNames;
+    private final MappedFieldType[] fieldTypes;
 
-    public CollapseContext(MappedFieldType fieldType, InnerHitBuilder innerHit) {
-        this.fieldType = fieldType;
+    public CollapseContext(String[] fieldNames, MappedFieldType[] fieldTypes, InnerHitBuilder innerHit) {
+        this.fieldNames = fieldNames;
+        this.fieldTypes = fieldTypes;
         this.innerHits = Collections.singletonList(innerHit);
     }
 
-    public CollapseContext(MappedFieldType fieldType, List<InnerHitBuilder> innerHits) {
-        this.fieldType = fieldType;
+    public CollapseContext(String[] fieldNames, MappedFieldType[] fieldTypes, List<InnerHitBuilder> innerHits) {
+        this.fieldNames = fieldNames;
+        this.fieldTypes = fieldTypes;
         this.innerHits = innerHits;
     }
 
-    /** The field type used for collapsing **/
-    public MappedFieldType getFieldType() {
-        return fieldType;
+    /** The field types used for collapsing **/
+    public MappedFieldType[] getFieldTypes() {
+        return fieldTypes;
+    }
+
+    public String[] getFieldNames() {
+        return fieldNames;
     }
 
     /** The inner hit options to expand the collapsed results **/
@@ -56,13 +63,25 @@ public class CollapseContext {
     }
 
     public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, boolean trackMaxScore) {
-        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            return CollapsingTopDocsCollector.createKeyword(fieldType.name(), sort, topN, trackMaxScore);
-        } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-            return CollapsingTopDocsCollector.createNumeric(fieldType.name(), sort, topN, trackMaxScore);
+        //TODO: limit the number of fields to collapse on
+        byte keywordsCount = 0;
+        byte numericCount = 0;
+        for (int i = 0; i<fieldTypes.length; i++) {
+            if (fieldTypes[i] instanceof KeywordFieldMapper.KeywordFieldType) {
+                keywordsCount++;
+            } else if (fieldTypes[i] instanceof NumberFieldMapper.NumberFieldType) {
+               numericCount++;
+            } else {
+                throw new IllegalStateException("Unknown type for collapse field ["  + fieldNames[i] +
+                    "], only keywords and numbers are accepted");
+            }
+        }
+        if (keywordsCount == fieldTypes.length){
+            return CollapsingTopDocsCollector.createMultipleKeyword(fieldNames, sort, topN, trackMaxScore);
+        } else if (numericCount == fieldTypes.length) {
+            return CollapsingTopDocsCollector.createMultipleNumeric(fieldNames, sort, topN, trackMaxScore);
         } else {
-            throw new IllegalStateException("unknown type for collapse field " + fieldType.name() +
-                ", only keywords and numbers are accepted");
+            throw new IllegalStateException("All fields for multiple collapse should be of the same type, either [keyword] or [numeric]!");
         }
     }
 }

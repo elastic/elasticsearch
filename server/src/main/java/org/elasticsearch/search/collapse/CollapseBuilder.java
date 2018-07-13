@@ -22,7 +22,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Arrays;
 
 /**
  * A builder that enables field collapsing on search request.
@@ -55,7 +55,22 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         new ObjectParser<>("collapse", CollapseBuilder::new);
 
     static {
-        PARSER.declareString(CollapseBuilder::setField, FIELD_FIELD);
+        PARSER.declareField((parser, builder, context) -> {
+            List<String> collapseFields = new ArrayList<>(1);
+            XContentParser.Token token = parser.currentToken();
+            if (token == XContentParser.Token.VALUE_STRING) {
+                collapseFields.add(parser.text());
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        collapseFields.add(parser.text());
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "Invalid token in the field array");
+                    }
+                }
+            }
+            builder.setFields(collapseFields);
+        }, FIELD_FIELD, ObjectParser.ValueType.STRING_ARRAY);
         PARSER.declareInt(CollapseBuilder::setMaxConcurrentGroupRequests, MAX_CONCURRENT_GROUP_REQUESTS_FIELD);
         PARSER.declareField((parser, builder, context) -> {
             XContentParser.Token currentToken = parser.currentToken();
@@ -76,7 +91,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         }, INNER_HITS_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
     }
 
-    private String field;
+    private String[] fields;
     private List<InnerHitBuilder> innerHits = Collections.emptyList();
     private int maxConcurrentGroupRequests = 0;
 
@@ -84,15 +99,21 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
 
     /**
      * Public constructor
-     * @param field The name of the field to collapse on
+     * @param fields The name of the fields to collapse on
      */
-    public CollapseBuilder(String field) {
-        Objects.requireNonNull(field, "field must be non-null");
-        this.field = field;
+    public CollapseBuilder(String[] fields) {
+        for (int i = 0; i<fields.length; i++) {
+            Objects.requireNonNull(fields[i], "field must be non-null");
+        }
+        this.fields = fields;
     }
 
     public CollapseBuilder(StreamInput in) throws IOException {
-        this.field = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            this.fields = in.readStringArray();
+        } else {
+            this.fields = new String[] {in.readString()};
+        }
         this.maxConcurrentGroupRequests = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
             this.innerHits = in.readList(InnerHitBuilder::new);
@@ -108,7 +129,11 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(field);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeStringArray(fields);
+        } else {
+            out.writeString(fields[0]);
+        }
         out.writeVInt(maxConcurrentGroupRequests);
         if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
             out.writeList(innerHits);
@@ -125,14 +150,14 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    // for object parser only
-    private CollapseBuilder setField(String field) {
-        if (Strings.isEmpty(field)) {
-            throw new IllegalArgumentException("field name is null or empty");
+    private CollapseBuilder setFields(List<String> collapseFields) {
+        if (collapseFields.isEmpty()) {
+            throw new IllegalArgumentException("field name(s) is empty");
         }
-        this.field = field;
+        fields = collapseFields.toArray(new String[collapseFields.size()]);
         return this;
     }
+
 
     public CollapseBuilder setInnerHits(InnerHitBuilder innerHit) {
         this.innerHits = Collections.singletonList(innerHit);
@@ -155,8 +180,8 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     /**
      * The name of the field to collapse against
      */
-    public String getField() {
-        return this.field;
+    public String[] getFields() {
+        return this.fields;
     }
 
     /**
@@ -182,7 +207,15 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     }
 
     private void innerToXContent(XContentBuilder builder) throws IOException {
-        builder.field(FIELD_FIELD.getPreferredName(), field);
+        if (fields.length == 1) {
+            builder.field(FIELD_FIELD.getPreferredName(), fields[0]);
+        } else {
+            builder.startArray(FIELD_FIELD.getPreferredName());
+            for (int i=0; i<fields.length; i++){
+                builder.value(fields[i]);
+            }
+            builder.endArray();
+        }
         if (maxConcurrentGroupRequests > 0) {
             builder.field(MAX_CONCURRENT_GROUP_REQUESTS_FIELD.getPreferredName(), maxConcurrentGroupRequests);
         }
@@ -203,17 +236,15 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         CollapseBuilder that = (CollapseBuilder) o;
-
         if (maxConcurrentGroupRequests != that.maxConcurrentGroupRequests) return false;
-        if (!field.equals(that.field)) return false;
+        if (Arrays.equals(fields, that.fields) == false) return false;
         return Objects.equals(innerHits, that.innerHits);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(field, innerHits);
+        int result = Objects.hash(Arrays.hashCode(fields), innerHits);
         result = 31 * result + maxConcurrentGroupRequests;
         return result;
     }
@@ -229,24 +260,26 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
             throw new SearchContextException(context, "cannot use `collapse` in conjunction with `rescore`");
         }
 
-        MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(field);
-        if (fieldType == null) {
-            throw new SearchContextException(context, "no mapping found for `" + field + "` in order to collapse on");
+        MappedFieldType[] fieldTypes = new MappedFieldType[fields.length];
+        for (int i=0; i<fields.length; i++){
+            MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(fields[i]);
+            if (fieldType == null) {
+                throw new SearchContextException(context, "no mapping found for `" + fields[i] + "` in order to collapse on");
+            }
+            if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false &&
+                fieldType instanceof NumberFieldMapper.NumberFieldType == false) {
+                throw new SearchContextException(context, "unknown type for collapse field `" + fields[i] +
+                    "`, only keywords and numbers are accepted");
+            }
+            if (fieldType.hasDocValues() == false) {
+                throw new SearchContextException(context, "cannot collapse on field `" + fields[i] + "` without `doc_values`");
+            }
+            if (fieldType.indexOptions() == IndexOptions.NONE && (innerHits != null && !innerHits.isEmpty())) {
+                throw new SearchContextException(context, "cannot expand `inner_hits` for collapse field `"
+                    + fields[i] + "`, " + "only indexed field can retrieve `inner_hits`");
+            }
+            fieldTypes[i] = fieldType;
         }
-        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false &&
-            fieldType instanceof NumberFieldMapper.NumberFieldType == false) {
-            throw new SearchContextException(context, "unknown type for collapse field `" + field +
-                "`, only keywords and numbers are accepted");
-        }
-
-        if (fieldType.hasDocValues() == false) {
-            throw new SearchContextException(context, "cannot collapse on field `" + field + "` without `doc_values`");
-        }
-        if (fieldType.indexOptions() == IndexOptions.NONE && (innerHits != null && !innerHits.isEmpty())) {
-            throw new SearchContextException(context, "cannot expand `inner_hits` for collapse field `"
-                + field + "`, " + "only indexed field can retrieve `inner_hits`");
-        }
-
-        return new CollapseContext(fieldType, innerHits);
+        return new CollapseContext(fields, fieldTypes, innerHits);
     }
 }

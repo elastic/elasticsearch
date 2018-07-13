@@ -293,7 +293,15 @@ public class Lucene {
             long totalHits = in.readVLong();
             float maxScore = in.readFloat();
 
-            String field = in.readString();
+            String[] collapseFields;
+            if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+                collapseFields = new String[in.readVInt()];
+                for (int i = 0; i < collapseFields.length; i++) {
+                    collapseFields[i] = (String) readSortValue(in);
+                }
+            } else {
+                collapseFields = new String[] {in.readString()};
+            }
             SortField[] fields = new SortField[in.readVInt()];
             for (int i = 0; i < fields.length; i++) {
                fields[i] = readSortField(in);
@@ -303,9 +311,13 @@ public class Lucene {
             FieldDoc[] fieldDocs = new FieldDoc[size];
             for (int i = 0; i < fieldDocs.length; i++) {
                 fieldDocs[i] = readFieldDoc(in);
-                collapseValues[i] = readSortValue(in);
+                if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+                    collapseValues[i] = readCollapseValue(in);
+                } else {
+                    collapseValues[i] = Collections.singletonList(readSortValue(in));
+                }
             }
-            return new CollapseTopFieldDocs(field, totalHits, fieldDocs, fields, collapseValues, maxScore);
+            return new CollapseTopFieldDocs(collapseFields, totalHits, fieldDocs, fields, collapseValues, maxScore);
         } else {
             throw new IllegalStateException("Unknown type " + type);
         }
@@ -369,6 +381,15 @@ public class Lucene {
         }
     }
 
+    public static ArrayList<Comparable> readCollapseValue(StreamInput in) throws IOException {
+        final int size = in.readVInt();
+        ArrayList<Comparable> collapseFieldsValues = new ArrayList(size);
+        for (int i = 0; i < size; i++){
+            collapseFieldsValues.add(readSortValue(in));
+        }
+        return collapseFieldsValues;
+    }
+
     public static ScoreDoc readScoreDoc(StreamInput in) throws IOException {
         return new ScoreDoc(in.readVInt(), in.readFloat());
     }
@@ -383,7 +404,14 @@ public class Lucene {
             out.writeVLong(topDocs.totalHits);
             out.writeFloat(topDocs.getMaxScore());
 
-            out.writeString(collapseDocs.field);
+            if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+                out.writeInt(collapseDocs.collapseFields.length);
+                for (int i = 0; i < collapseDocs.collapseFields.length; i++) {
+                    writeSortValue(out, collapseDocs.collapseFields[i]);
+                }
+            } else {
+                out.writeString(collapseDocs.collapseFields[0]);
+            }
 
             out.writeVInt(collapseDocs.fields.length);
             for (SortField sortField : collapseDocs.fields) {
@@ -394,7 +422,11 @@ public class Lucene {
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                 ScoreDoc doc = collapseDocs.scoreDocs[i];
                 writeFieldDoc(out, (FieldDoc) doc);
-                writeSortValue(out, collapseDocs.collapseValues[i]);
+                if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+                    writeCollapseValue(out, (ArrayList) collapseDocs.collapseValues[i]);
+                } else {
+                    writeSortValue(out, ((ArrayList) collapseDocs.collapseValues[i]).get(0));
+                }
             }
         } else if (topDocs instanceof TopFieldDocs) {
             out.writeByte((byte) 1);
@@ -503,6 +535,14 @@ public class Lucene {
         }
         out.writeVInt(scoreDoc.doc);
         out.writeFloat(scoreDoc.score);
+    }
+
+
+    public static void writeCollapseValue(StreamOutput out, ArrayList collapseFieldsValues) throws IOException {
+        out.writeVInt(collapseFieldsValues.size());
+        for (Object collapseFieldValue : collapseFieldsValues) {
+            writeSortValue(out, collapseFieldValue);
+        }
     }
 
     // LUCENE 4 UPGRADE: We might want to maintain our own ordinal, instead of Lucene's ordinal

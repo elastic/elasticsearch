@@ -1248,7 +1248,7 @@ public class RequestConvertersTests extends ESTestCase {
                             new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10))));
                 }
                 if (randomBoolean()) {
-                    searchSourceBuilder.collapse(new CollapseBuilder(randomAlphaOfLengthBetween(3, 10)));
+                    searchSourceBuilder.collapse(new CollapseBuilder(new String[] {randomAlphaOfLengthBetween(3, 10)}));
                 }
             }
             searchRequest.source(searchSourceBuilder);

@@ -1,0 +1,185 @@
+---
+"multiple keyword fields collapsing":
+    - skip:
+        version: " - 6.99.99"
+        reason: using multiple field collapsing from 7.0 on
+    - do:
+        indices.create:
+          index: addresses
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              _doc:
+                properties:
+                  country: {"type": "keyword"}
+                  city: {"type": "keyword"}
+                  address: {"type": "text"}
+
+    - do:
+        bulk:
+          refresh: true
+          body:
+            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "1" } }'
+            - '{"country" : "Canada", "city" : "Saskatoon", "address" : "701 Victoria Avenue" }'
+            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "2" } }'
+            - '{"country" : "Canada", "city" : "Toronto", "address" : "74 Victoria Street, Suite, 74 Victoria Street, Suite 300" }'
+            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "3" } }'
+            - '{"country" : "Canada", "city" : "Toronto", "address" : "350 Victoria St" }'
+            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "4" } }'
+            - '{"country" : "Canada", "city" : "Toronto", "address" : "20 Victoria Street" }'
+            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "5" } }'
+            - '{"country" : "UK", "city" : "London", "address" : "58 Victoria Street" }'
+            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "6" } }'
+            - '{"country" : "UK", "city" : "London", "address" : "Victoria Street Victoria Palace Theatre" }'
+            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "7" } }'
+            - '{"country" : "UK", "city" : "London", "address" : "75 Victoria street Westminster" }'
+            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "8" } }'
+            - '{"country" : "UK", "city" : "London", "address" : "Victoria Station Victoria Arcade" }'
+            - '{ "index" : { "_index" : "addresses", "_type" : "_doc", "_id" : "9" } }'
+            - '{"city" : "Unknown", "address" : "address without country and unknown city" }'
+
+
+  # collapsing - top scored
+    - do:
+        search:
+          index: addresses
+          body:
+            query: { "match" : { "address" : "victoria" }}
+            collapse: { field: ["country", "city"] }
+
+    - match: { hits.total: 8 }
+    - length: { hits.hits: 3 }
+    - match: { hits.hits.0.fields.country: ["UK"] }
+    - match: { hits.hits.0.fields.city : ["London"] }
+
+    - match: { hits.hits.1.fields.country: ["Canada"] }
+    - match: { hits.hits.1.fields.city : ["Saskatoon"] }
+
+    - match: { hits.hits.2.fields.country: ["Canada"] }
+    - match: { hits.hits.2.fields.city : ["Toronto"] }
+
+    # collapsing - top sorted
+    - do:
+        search:
+          index: addresses
+          body:
+            query: { "match_all" : {}}
+            collapse: { field: ["country", "city"] }
+            sort: [{ country: asc, city: asc }]
+
+    - match: { hits.total: 9 }
+    - length: { hits.hits: 4 }
+    - match: { hits.hits.0.fields.country: ["Canada"] }
+    - match: { hits.hits.0.fields.city: ["Saskatoon"] }
+
+    - match: { hits.hits.1.fields.country : ["Canada"] }
+    - match: { hits.hits.1.fields.city: ["Toronto"] }
+
+    - match: { hits.hits.2.fields.country : ["UK"] }
+    - match: { hits.hits.2.fields.city: ["London"] }
+
+    - match: { hits.hits.3.fields.city : ["Unknown"] }
+
+    # collapsing - top sorted and inner hits
+    - do:
+        search:
+          index: addresses
+          body:
+            query: { "match_all" : {}}
+            collapse: { field: ["country", "city"], inner_hits: { name: by_location, size: 2 } }
+            sort: [{ country: asc, city: asc }]
+
+    - match: { hits.total: 9 }
+    - length: { hits.hits: 4 }
+    - match: { hits.hits.0.fields.country: ["Canada"] }
+    - match: { hits.hits.0.fields.city: ["Saskatoon"] }
+    - match: { hits.hits.0.inner_hits.by_location.hits.total: 1 }
+    - match: { hits.hits.0.inner_hits.by_location.hits.hits.0._id: "1" }
+
+    - match: { hits.hits.1.fields.country : ["Canada"] }
+    - match: { hits.hits.1.fields.city: ["Toronto"] }
+    - match: { hits.hits.1.inner_hits.by_location.hits.total: 3 }
+    - match: { hits.hits.1.inner_hits.by_location.hits.hits.0._id: "2" }
+    - match: { hits.hits.1.inner_hits.by_location.hits.hits.1._id: "3" }
+
+    - match: { hits.hits.2.fields.country : ["UK"] }
+    - match: { hits.hits.2.fields.city: ["London"] }
+    - match: { hits.hits.2.inner_hits.by_location.hits.total: 4 }
+    - match: { hits.hits.2.inner_hits.by_location.hits.hits.0._id: "5" }
+    - match: { hits.hits.2.inner_hits.by_location.hits.hits.1._id: "6" }
+
+    - match: { hits.hits.3.fields.city : ["Unknown"] }
+    - match: { hits.hits.3.inner_hits.by_location.hits.total: 1 }
+    - match: { hits.hits.3.inner_hits.by_location.hits.hits.0._id: "9" }
+
+
+---
+"multiple numeric fields collapsing":
+    - skip:
+        version: " - 6.99.99"
+        reason: using multiple field collapsing from 7.0 on
+    - do:
+        indices.create:
+          index: events
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              _doc:
+                properties:
+                  year : {"type" : "integer"}
+                  month : {"type" : "integer"}
+                  day : {"type" : "integer"}
+                  event: {"type": "text"}
+
+    - do:
+        bulk:
+          refresh: true
+          body:
+            - '{ "index" : { "_index" : "events", "_type" : "_doc", "_id" : "1" } }'
+            - '{ "year" : 2018, "month": 1, "day": 1, "event" : "New Year Day" }'
+            - '{ "index" : { "_index" : "events", "_type" : "_doc", "_id" : "2" } }'
+            - '{ "year" : 2018, "month": 1, "day": 14, "event" : "Old New Year" }'
+            - '{  "index" : { "_index" : "events", "_type" : "_doc", "_id" : "3" } }'
+            - '{ "year" : 2018, "month": 1, "day": 14, "event" : "Carrie birthday" }'
+            - '{  "index" : { "_index" : "events", "_type" : "_doc", "_id" : "4" } }'
+            - '{ "year" : 2018, "month": 2, "day": 14, "event" : "Valentine day" }'
+            - '{  "index" : { "_index" : "events", "_type" : "_doc", "_id" : "5" } }'
+            - '{ "year" : 2018, "month": 2, "day": 19, "event" : "Island day" }'
+            - '{  "index" : { "_index" : "events", "_type" : "_doc", "_id" : "6" } }'
+            - '{ "year" : 2018, "month": 2, "day": 19, "event" : "Louis Riel day" }'
+            - '{  "index" : { "_index" : "events", "_type" : "_doc", "_id" : "7" } }'
+            - '{ "year" : 2018, "month": 2, "day": 19, "event" : "Heritage day" }'
+            - '{  "index" : { "_index" : "events", "_type" : "_doc", "_id" : "8" } }'
+            - '{ "year" : 2018, "month": 2, "day": 19, "event" : "Family day" }'
+            - '{  "index" : { "_index" : "events", "_type" : "_doc", "_id" : "9" } }'
+            - '{ "year" : 2018, "month": 3, "day": 25, "event" : "Lisa birthday" }'
+
+
+    # collapsing - collapse on 3 fields and inner hits and from parameter
+    - do:
+        search:
+          index: events
+          body:
+            query: { "match_all" : {}}
+            collapse: { field: ["year", "month", "day"], inner_hits: { name: by_date, size: 2, sort: [{ day: asc }] } }
+            from : 3
+
+    - match: { hits.total: 9 }
+    - length: { hits.hits: 2 }
+
+    - match: { hits.hits.0.fields.year: [2018] }
+    - match: { hits.hits.0.fields.month: [2] }
+    - match: { hits.hits.0.fields.day: [19] }
+    - match: { hits.hits.0.inner_hits.by_date.hits.total: 4 }
+    - match: { hits.hits.0.inner_hits.by_date.hits.hits.0._id: "5" }
+    - match: { hits.hits.0.inner_hits.by_date.hits.hits.1._id: "6" }
+
+    - match: { hits.hits.1.fields.year: [2018] }
+    - match: { hits.hits.1.fields.month: [3] }
+    - match: { hits.hits.1.fields.day: [25] }
+    - match: { hits.hits.1.inner_hits.by_date.hits.total: 1 }
+    - match: { hits.hits.1.inner_hits.by_date.hits.hits.0._id: "9" }

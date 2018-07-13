@@ -32,6 +32,88 @@ The total number of distinct group is unknown.
 
 The field used for collapsing must be a single valued <<keyword, `keyword`>> or <<number, `numeric`>> field with <<doc-values, `doc_values`>> activated
 
+Collapsing on multiple fields is also supported as long all the fields
+in the field collapsing request are of the same type, either all are of
+the <<keyword, `keyword`>> or <<number, `numeric`>> type.
+
+For example, the query below retrieves the most relevant tweet for each group,
+and outputs the top 3 groups. A group here is a
+combination of a country and a user.
+
+[source,js]
+--------------------------------------------------
+GET /twitter/_search
+{
+    "query": {
+        "match": {
+            "message": "elasticsearch"
+        }
+    },
+    "collapse" : {
+        "field" : ["country", "user"]
+    },
+    "size" : 3
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+Response:
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "hits": [
+        {
+            "_index": "twitter",
+            "_type": "_doc",
+            "_id": "9",
+            "_score": ...,
+            "_source": {...},
+            "fields": {
+                "country": [
+                    "UK"
+                ],
+                "user": [
+                    "user25"
+                ]
+            }
+        },
+        {
+            "_index": "twitter",
+            "_type": "_doc",
+            "_id": "8",
+            "_score": ...,
+            "_source": { ...},
+            "fields": {
+                "country": [
+                    "UK"
+                ],
+                "user": [
+                    "user256"
+                ]
+            }
+        },
+        {
+            "_index": "twitter",
+            "_type": "_doc",
+            "_id": "1",
+            "_score": ..,
+            "_source": {...},
+            "fields": {
+                "country": [
+                    "Canada"
+                ],
+                "user": [
+                    "user3"
+                ]
+            }
+        }
+    ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
 NOTE: The collapsing is applied to the top hits only and does not affect aggregations.
 
 

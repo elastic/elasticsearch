@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 abstract class StringFunctionUtils {
-    
+
     /**
-     * Trims the trailing whitespace characters from the given String. Uses {@link java.lang.Character.isWhitespace(char)}
+     * Trims the trailing whitespace characters from the given String. Uses {@link Character#isWhitespace(char)}
      * to determine if a character is whitespace or not.
      *
      * @param s       the original String
@@ -18,16 +18,16 @@ abstract class StringFunctionUtils {
         if (!hasLength(s)) {
             return s;
         }
-        
+
         StringBuilder sb = new StringBuilder(s);
         while (sb.length() > 0 && Character.isWhitespace(sb.charAt(sb.length() - 1))) {
             sb.deleteCharAt(sb.length() - 1);
         }
         return sb.toString();
     }
-    
+
     /**
-     * Trims the leading whitespace characters from the given String. Uses {@link java.lang.Character.isWhitespace(char)}
+     * Trims the leading whitespace characters from the given String. Uses {@link Character#isWhitespace(char)}
      * to determine if a character is whitespace or not.
      *
      * @param s       the original String
@@ -37,7 +37,7 @@ abstract class StringFunctionUtils {
         if (!hasLength(s)) {
             return s;
         }
-        
+
         StringBuilder sb = new StringBuilder(s);
         while (sb.length() > 0 && Character.isWhitespace(sb.charAt(0))) {
             sb.deleteCharAt(0);

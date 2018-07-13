@@ -26,6 +26,7 @@ POST ledger/_search?size=0
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:ledger]
+// TEST[warning:params._agg/_aggs for scripted metric aggregations are deprecated, use state/states (not in params) instead. Set system property es.aggregations.enableDeprecatedScriptedMetricAggParam = false to disable this deprecated behavior.]
 
 <1> `map_script` is the only required  parameter
 
@@ -79,6 +80,7 @@ POST ledger/_search?size=0
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:ledger,stored_scripted_metric_script]
+// TEST[warning:params._agg/_aggs for scripted metric aggregations are deprecated, use state/states (not in params) instead. Set system property es.aggregations.enableDeprecatedScriptedMetricAggParam = false to disable this deprecated behavior.]
 
 <1> script parameters for `init`, `map` and `combine` scripts must be specified
 in a global `params` object so that it can be shared between the scripts.

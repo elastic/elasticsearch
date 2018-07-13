@@ -33,7 +33,7 @@ Available expressions for interval: `year` (`1y`), `quarter` (`1q`), `month` (`1
 Time values can also be specified via abbreviations supported by <<time-units,time units>> parsing.
 Note that fractional time values are not supported, but you can address this by shifting to another
 time unit (e.g., `1.5h` could instead be specified as `90m`). Also note that time intervals larger than
-than days do not support arbitrary values but can only be one unit large (e.g. `1y` is valid, `2y` is not).
+days do not support arbitrary values but can only be one unit large (e.g. `1y` is valid, `2y` is not).
 
 [source,js]
 --------------------------------------------------

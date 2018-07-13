@@ -66,15 +66,6 @@ public class MetricConfig implements Writeable, ToXContentFragment {
     private static final ParseField AVG = new ParseField("avg");
     private static final ParseField VALUE_COUNT = new ParseField("value_count");
 
-    private static final List<String> MAPPER_TYPES;
-    static {
-        List<String> types = Stream.of(NumberFieldMapper.NumberType.values())
-                .map(NumberFieldMapper.NumberType::typeName)
-                .collect(Collectors.toList());
-        types.add("scaled_float"); // have to add manually since scaled_float is in a module
-        MAPPER_TYPES = types;
-    }
-
     public static final ObjectParser<MetricConfig.Builder, Void> PARSER = new ObjectParser<>(NAME, MetricConfig.Builder::new);
 
     static {
@@ -153,7 +144,7 @@ public class MetricConfig implements Writeable, ToXContentFragment {
         Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
         if (fieldCaps != null && fieldCaps.isEmpty() == false) {
             fieldCaps.forEach((key, value) -> {
-                if (MAPPER_TYPES.contains(key)) {
+                if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
                     if (value.isAggregatable() == false) {
                         validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
                                 "but is not.");

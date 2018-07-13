@@ -51,10 +51,6 @@ public class HistoGroupConfig implements Writeable, ToXContentFragment {
 
     private static final ParseField INTERVAL = new ParseField("interval");
     private static final ParseField FIELDS = new ParseField("fields");
-    private static final List<String> MAPPER_TYPES = Stream.of(NumberFieldMapper.NumberType.values())
-            .map(NumberFieldMapper.NumberType::typeName)
-            .collect(Collectors.toList());
-
 
     private final long interval;
     private final String[] fields;
@@ -126,7 +122,7 @@ public class HistoGroupConfig implements Writeable, ToXContentFragment {
             Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
             if (fieldCaps != null && fieldCaps.isEmpty() == false) {
                 fieldCaps.forEach((key, value) -> {
-                    if (MAPPER_TYPES.contains(key)) {
+                    if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
                         if (value.isAggregatable() == false) {
                             validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
                                     "but is not.");

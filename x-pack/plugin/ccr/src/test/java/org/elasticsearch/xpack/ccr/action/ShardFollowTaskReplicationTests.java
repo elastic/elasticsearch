@@ -48,6 +48,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
                 shardFollowTask.start(followerGroup.getPrimary().getGlobalCheckpoint());
                 docCount += leaderGroup.appendDocs(randomInt(128));
+                leaderGroup.syncGlobalCheckpoint();
 
                 leaderGroup.assertAllEqual(docCount);
                 int expectedCount = docCount;
@@ -69,6 +70,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 Runnable task = () -> {
                     try {
                         leaderGroup.appendDocs(docCount - 1);
+                        leaderGroup.syncGlobalCheckpoint();
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     }

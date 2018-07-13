@@ -227,6 +227,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testFailShard() throws Exception {
+        allowShardFailures();
         IndexShard shard = newStartedShard();
         final ShardPath shardPath = shard.shardPath();
         assertNotNull(shardPath);
@@ -310,7 +311,8 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testPrimaryPromotionDelaysOperations() throws IOException, BrokenBarrierException, InterruptedException {
-        final IndexShard indexShard = newStartedShard(false);
+        final IndexShard indexShard = newShard(false);
+        recoveryEmptyReplica(indexShard, randomBoolean());
 
         final int operations = scaledRandomIntBetween(1, 64);
         final CyclicBarrier barrier = new CyclicBarrier(1 + operations);
@@ -354,20 +356,10 @@ public class IndexShardTests extends IndexShardTestCase {
         barrier.await();
         latch.await();
 
-        // promote the replica
         final ShardRouting replicaRouting = indexShard.routingEntry();
-        final ShardRouting primaryRouting =
-                newShardRouting(
-                        replicaRouting.shardId(),
-                        replicaRouting.currentNodeId(),
-                        null,
-                        true,
-                        ShardRoutingState.STARTED,
-                        replicaRouting.allocationId());
-        indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {},
-            0L, Collections.singleton(primaryRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(),
-            Collections.emptySet());
+        promoteReplica(indexShard, Collections.singleton(replicaRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(replicaRouting).build());
+
 
         final int delayedOperations = scaledRandomIntBetween(1, 64);
         final CyclicBarrier delayedOperationsBarrier = new CyclicBarrier(1 + delayedOperations);
@@ -429,8 +421,9 @@ public class IndexShardTests extends IndexShardTestCase {
      * 1) Internal state (ala ReplicationTracker) have been updated
      * 2) Primary term is set to the new term
      */
-    public void testPublishingOrderOnPromotion() throws IOException, BrokenBarrierException, InterruptedException {
-        final IndexShard indexShard = newStartedShard(false);
+    public void testPublishingOrderOnPromotion() throws IOException, InterruptedException, BrokenBarrierException {
+        final IndexShard indexShard = newShard(false);
+        recoveryEmptyReplica(indexShard, randomBoolean());
         final long promotedTerm = indexShard.getPrimaryTerm() + 1;
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final AtomicBoolean stop = new AtomicBoolean();
@@ -449,18 +442,10 @@ public class IndexShardTests extends IndexShardTestCase {
         });
         thread.start();
 
-        final ShardRouting replicaRouting = indexShard.routingEntry();
-        final ShardRouting primaryRouting = newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null, true,
-            ShardRoutingState.STARTED, replicaRouting.allocationId());
-
-
-        final Set<String> inSyncAllocationIds = Collections.singleton(primaryRouting.allocationId().getId());
-        final IndexShardRoutingTable routingTable =
-            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build();
         barrier.await();
-        // promote the replica
-        indexShard.updateShardState(primaryRouting, promotedTerm, (shard, listener) -> {}, 0L, inSyncAllocationIds, routingTable,
-            Collections.emptySet());
+        final ShardRouting replicaRouting = indexShard.routingEntry();
+        promoteReplica(indexShard, Collections.singleton(replicaRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(replicaRouting).build());
 
         stop.set(true);
         thread.join();
@@ -469,7 +454,8 @@ public class IndexShardTests extends IndexShardTestCase {
 
 
     public void testPrimaryFillsSeqNoGapsOnPromotion() throws Exception {
-        final IndexShard indexShard = newStartedShard(false);
+        final IndexShard indexShard = newShard(false);
+        recoveryEmptyReplica(indexShard, randomBoolean());
 
         // most of the time this is large enough that most of the time there will be at least one gap
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
@@ -480,17 +466,8 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // promote the replica
         final ShardRouting replicaRouting = indexShard.routingEntry();
-        final ShardRouting primaryRouting =
-                newShardRouting(
-                        replicaRouting.shardId(),
-                        replicaRouting.currentNodeId(),
-                        null,
-                        true,
-                        ShardRoutingState.STARTED,
-                        replicaRouting.allocationId());
-        indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {},
-            0L, Collections.singleton(primaryRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(), Collections.emptySet());
+        promoteReplica(indexShard, Collections.singleton(replicaRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(replicaRouting.shardId()).addShard(replicaRouting).build());
 
         /*
          * This operation completing means that the delay operation executed as part of increasing the primary term has completed and the
@@ -507,7 +484,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
                     @Override
                     public void onFailure(Exception e) {
-                        throw new RuntimeException(e);
+                        throw new AssertionError(e);
                     }
                 },
                 ThreadPool.Names.GENERIC, "");
@@ -847,7 +824,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // add a replica
         recoverShardFromStore(primaryShard);
         final IndexShard replicaShard = newShard(shardId, false);
-        recoverReplica(replicaShard, primaryShard);
+        recoverReplica(replicaShard, primaryShard, true);
         final int maxSeqNo = randomIntBetween(0, 128);
         for (int i = 0; i <= maxSeqNo; i++) {
             EngineTestCase.generateNewSeqNo(primaryShard.getEngine());
@@ -1626,7 +1603,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShardTestCase.updateRoutingEntry(primarySource, primarySource.routingEntry().relocate(randomAlphaOfLength(10), -1));
         final IndexShard primaryTarget = newShard(primarySource.routingEntry().getTargetRelocatingShard());
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetaData());
-        recoverReplica(primaryTarget, primarySource);
+        recoverReplica(primaryTarget, primarySource, true);
 
         // check that local checkpoint of new primary is properly tracked after primary relocation
         assertThat(primaryTarget.getLocalCheckpoint(), equalTo(totalOps - 1L));
@@ -1896,7 +1873,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 wrapper,
                 new InternalEngineFactory(),
                 () -> {},
-                EMPTY_EVENT_LISTENER);
+                EMPTY_EVENT_LISTENER, false);
 
         recoverShardFromStore(newShard);
 
@@ -2048,7 +2025,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 wrapper,
                 new InternalEngineFactory(),
                 () -> {},
-                EMPTY_EVENT_LISTENER);
+                EMPTY_EVENT_LISTENER, false);
 
         recoverShardFromStore(newShard);
 
@@ -2084,7 +2061,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertFalse(replica.isSyncNeeded());
                     return localCheckpoint;
                 }
-            }, true);
+            }, true, true);
 
         closeShards(primary, replica);
     }
@@ -2191,7 +2168,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertTrue(replica.isActive());
                     return localCheckpoint;
                 }
-            }, false);
+            }, false, true);
 
         closeShards(primary, replica);
     }
@@ -2243,7 +2220,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     super.finalizeRecovery(globalCheckpoint);
                     assertListenerCalled.accept(replica);
                 }
-            }, false);
+            }, false, true);
 
         closeShards(primary, replica);
     }
@@ -2531,7 +2508,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum", "fix")))
             .build();
         final IndexShard newShard = newShard(shardRouting, indexShard.shardPath(), indexMetaData,
-            null, indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
+            null, indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER, false);
 
         Store.MetadataSnapshot storeFileMetaDatas = newShard.snapshotStoreMetadata();
         assertTrue("at least 2 files, commit and data: " + storeFileMetaDatas.toString(), storeFileMetaDatas.size() > 1);
@@ -3038,7 +3015,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 markedInactive.set(true);
                 primaryRef.get().flush(new FlushRequest());
             }
-        });
+        }, false);
         primaryRef.set(primary);
         recoverShardFromStore(primary);
         for (int i = 0; i < 3; i++) {

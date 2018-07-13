@@ -132,7 +132,11 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
 
     String guessMapping(String fieldName, List<Object> fieldValues) {
 
-        assert fieldValues != null && fieldValues.isEmpty() == false;
+        if (fieldValues == null || fieldValues.isEmpty()) {
+            // We can get here if all the records that contained a given field had a null value for it.
+            // In this case it's best not to make any statement about what the mapping type should be.
+            return "";
+        }
 
         if (fieldValues.stream().anyMatch(value -> value instanceof Map)) {
             if (fieldValues.stream().allMatch(value -> value instanceof Map)) {

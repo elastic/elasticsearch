@@ -143,8 +143,9 @@ public abstract class AbstractLogFileStructure {
         throws IOException {
         terminal.println(Verbosity.VERBOSE, "---");
         String indent = (topLevelObjectName == null) ? "        " : "            ";
-        String fieldTypeMappings = fieldTypes.entrySet().stream().map(entry -> String.format(Locale.ROOT, FIELD_MAPPING_TEMPLATE, indent,
-            entry.getKey(), indent, entry.getValue(), indent)).collect(Collectors.joining(",\n"));
+        String fieldTypeMappings = fieldTypes.entrySet().stream().filter(entry -> entry.getValue().isEmpty() == false)
+            .map(entry -> String.format(Locale.ROOT, FIELD_MAPPING_TEMPLATE, indent, entry.getKey(), indent, entry.getValue(), indent))
+            .collect(Collectors.joining(",\n"));
         if (topLevelObjectName != null) {
             fieldTypeMappings = String.format(Locale.ROOT, TOP_LEVEL_OBJECT_FIELD_MAPPING_TEMPLATE, topLevelObjectName, fieldTypeMappings);
         }

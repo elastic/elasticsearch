@@ -168,6 +168,10 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
         assertEquals("CISCOTIMESTAMP", match.v2().grokPatternName);
     }
 
+    public void testGuessMappingGivenNothing() {
+        assertEquals("", testStructure.guessMapping("foo", Collections.emptyList()));
+    }
+
     public void testGuessMappingGivenKeyword() {
         assertEquals("keyword", testStructure.guessMapping("foo", Arrays.asList("ERROR", "INFO", "DEBUG")));
         assertEquals("keyword", testStructure.guessMapping("foo", Arrays.asList("2018-06-11T13:26:47Z", "not a date")));
@@ -224,14 +228,17 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
         sample1.put("foo", "not a time");
         sample1.put("time", "2018-05-24 17:28:31,735");
         sample1.put("bar", 42);
+        sample1.put("nothing", null);
         Map<String, Object> sample2 = new LinkedHashMap<>();
         sample2.put("foo", "whatever");
         sample2.put("time", "2018-05-29 11:53:02,837");
         sample2.put("bar", 17);
+        sample2.put("nothing", null);
         Map<String, String> mappings = testStructure.guessMappings(Arrays.asList(sample1, sample2));
         assertNotNull(mappings);
         assertEquals("keyword", mappings.get("foo"));
         assertEquals("date", mappings.get("time"));
         assertEquals("long", mappings.get("bar"));
+        assertEquals("", mappings.get("nothing"));
     }
 }

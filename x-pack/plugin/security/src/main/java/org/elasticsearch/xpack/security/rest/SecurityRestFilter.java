@@ -22,9 +22,7 @@ import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
-import org.elasticsearch.xpack.security.transport.ServerTransportFilter;
 
-import javax.net.ssl.SSLEngine;
 import java.io.IOException;
 
 public class SecurityRestFilter implements RestHandler {
@@ -52,9 +50,7 @@ public class SecurityRestFilter implements RestHandler {
             // CORS - allow for preflight unauthenticated OPTIONS request
             if (extractClientCertificate) {
                 HttpChannel httpChannel = request.getHttpChannel();
-                SSLEngine sslEngine = SSLEngineUtils.getSSLEngine(httpChannel);
-
-                ServerTransportFilter.extractClientCertificates(logger, threadContext, sslEngine, httpChannel);
+                SSLEngineUtils.extractClientCertificates(logger, threadContext, httpChannel);
             }
             service.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(
                 authentication -> {

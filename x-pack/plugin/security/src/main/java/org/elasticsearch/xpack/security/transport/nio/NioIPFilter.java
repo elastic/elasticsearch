@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
 import java.util.function.Predicate;
 
-public class NioIPFilter implements Predicate<NioSocketChannel> {
+public final class NioIPFilter implements Predicate<NioSocketChannel> {
 
     private final IPFilter filter;
     private final String profile;

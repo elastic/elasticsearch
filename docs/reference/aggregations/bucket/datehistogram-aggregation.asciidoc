@@ -70,7 +70,7 @@ days (d) ::
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
 
-* One day (1d) is the interval between 00:00:00 of the first day and 00:00:00
+* One day (1d) is the interval between the start of the day and the start of
 of the following day in the specified timezone, compensating for any intervening
 time changes, so that the number of hours, minutes, and seconds of the day is
 the same at the start and end.
@@ -81,8 +81,7 @@ weeks (w) ::
 
 * One week (1w) is the interval between the start day_of_week:hour:minute:second
 and the same day of the week and time of the following week in the specified 
-timezone, so that
-the day of the week and time of day are the same at the start and end.
+timezone.
 * Multiple weeks (__n__w) are not supported.
 
 months (m) ::

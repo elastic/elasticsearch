@@ -21,3 +21,7 @@ esplugin {
     description 'Adds "built in" analyzers to Elasticsearch.'
     classname 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
 }
+
+dependencies {
+    compileOnly project(':modules:lang-painless')
+}

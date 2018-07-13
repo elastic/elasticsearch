@@ -131,7 +131,7 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
 
     public void testThatTribeCanAuthenticateElasticUserWithChangedPassword() throws Exception {
         assertSecurityIndexActive();
-        securityClient(client()).prepareChangePassword("elastic", "password".toCharArray()).get();
+        securityClient(client()).prepareChangePassword("elastic", "password".toCharArray(), getFastStoredHashAlgoForTests()).get();
 
         assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeNode.client().filterWithHeader(Collections.singletonMap("Authorization",
@@ -143,8 +143,9 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
     public void testThatTribeClustersHaveDifferentPasswords() throws Exception {
         assertSecurityIndexActive();
         assertSecurityIndexActive(cluster2);
-        securityClient().prepareChangePassword("elastic", "password".toCharArray()).get();
-        securityClient(cluster2.client()).prepareChangePassword("elastic", "password2".toCharArray()).get();
+        securityClient().prepareChangePassword("elastic", "password".toCharArray(), getFastStoredHashAlgoForTests()).get();
+        securityClient(cluster2.client()).
+            prepareChangePassword("elastic", "password2".toCharArray(), getFastStoredHashAlgoForTests()).get();
 
         assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeNode.client().filterWithHeader(Collections.singletonMap("Authorization",
@@ -156,12 +157,12 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
     public void testUserModificationUsingTribeNodeAreDisabled() throws Exception {
         SecurityClient securityClient = securityClient(tribeNode.client());
         NotSerializableExceptionWrapper e = expectThrows(NotSerializableExceptionWrapper.class,
-                () -> securityClient.preparePutUser("joe", "password".toCharArray()).get());
+                () -> securityClient.preparePutUser("joe", "password".toCharArray(), getFastStoredHashAlgoForTests()).get());
         assertThat(e.getMessage(), containsString("users may not be created or modified using a tribe node"));
         e = expectThrows(NotSerializableExceptionWrapper.class, () -> securityClient.prepareSetEnabled("elastic", randomBoolean()).get());
         assertThat(e.getMessage(), containsString("users may not be created or modified using a tribe node"));
         e = expectThrows(NotSerializableExceptionWrapper.class,
-                () -> securityClient.prepareChangePassword("elastic", "password".toCharArray()).get());
+                () -> securityClient.prepareChangePassword("elastic", "password".toCharArray(), getFastStoredHashAlgoForTests()).get());
         assertThat(e.getMessage(), containsString("users may not be created or modified using a tribe node"));
         e = expectThrows(NotSerializableExceptionWrapper.class, () -> securityClient.prepareDeleteUser("joe").get());
         assertThat(e.getMessage(), containsString("users may not be deleted using a tribe node"));

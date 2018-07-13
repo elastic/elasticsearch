@@ -165,9 +165,10 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             x -> null, null, Collections.emptySet());
         Settings passwordHashingSettings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
             randomFrom("pbkdf2_50000", "pbkdf2_10000", "bcrypt11", "bcrypt8", "bcrypt")).build();
-        TransportChangePasswordAction action = new TransportChangePasswordAction(passwordHashingSettings, transportService,
-            mock(ActionFilters.class), usersStore);
-        action.doExecute(mock(Task.class), request, new ActionListener<ChangePasswordResponse>() {
+        TransportChangePasswordAction action = new TransportChangePasswordAction(passwordHashingSettings, mock(ThreadPool.class),
+            transportService,
+            mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
+        action.doExecute(request, new ActionListener<ChangePasswordResponse>() {
             @Override
             public void onResponse(ChangePasswordResponse changePasswordResponse) {
                 responseRef.set(changePasswordResponse);

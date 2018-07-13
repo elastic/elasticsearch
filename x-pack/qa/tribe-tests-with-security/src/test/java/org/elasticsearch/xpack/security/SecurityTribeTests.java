@@ -338,7 +338,7 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
         InternalTestCluster cluster = randomBoolean() ? internalCluster() : cluster2;
         ensureElasticPasswordBootstrapped(cluster);
         setupTribeNode(Settings.EMPTY);
-        securityClient(cluster.client()).prepareChangePassword("elastic", "password".toCharArray()).get();
+        securityClient(cluster.client()).prepareChangePassword("elastic", "password".toCharArray(), getFastStoredHashAlgoForTests()).get();
 
         assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
@@ -351,8 +351,9 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
         ensureElasticPasswordBootstrapped(internalCluster());
         ensureElasticPasswordBootstrapped(cluster2);
         setupTribeNode(Settings.EMPTY);
-        securityClient().prepareChangePassword("elastic", "password".toCharArray()).get();
-        securityClient(cluster2.client()).prepareChangePassword("elastic", "password2".toCharArray()).get();
+        securityClient().prepareChangePassword("elastic", "password".toCharArray(), getFastStoredHashAlgoForTests()).get();
+        securityClient(cluster2.client()).prepareChangePassword("elastic", "password2".toCharArray(), getFastStoredHashAlgoForTests())
+            .get();
 
         assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
@@ -378,8 +379,8 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
             final String username = "user" + i;
             Client clusterClient = randomBoolean() ? cluster1Client : cluster2Client;
 
-            PutUserResponse response =
-                    securityClient(clusterClient).preparePutUser(username, "password".toCharArray(), "superuser").get();
+            PutUserResponse response = securityClient(clusterClient)
+                .preparePutUser(username, "password".toCharArray(), getFastStoredHashAlgoForTests(), "superuser").get();
             assertTrue(response.created());
 
             // if it was the first client, we should expect authentication to succeed
@@ -420,8 +421,8 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
 
         for (int i = 0; i < randomUsers; i++) {
             final String username = "user" + i;
-            PutUserResponse response =
-                    securityClient(nonPreferredCluster.client()).preparePutUser(username, "password".toCharArray(), "superuser").get();
+            PutUserResponse response = securityClient(nonPreferredCluster.client())
+                .preparePutUser(username, "password".toCharArray(), getFastStoredHashAlgoForTests(), "superuser").get();
             assertTrue(response.created());
             shouldBeSuccessfulUsers.add(username);
         }
@@ -451,12 +452,12 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
         setupTribeNode(Settings.EMPTY);
         SecurityClient securityClient = securityClient(tribeClient);
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-                () -> securityClient.preparePutUser("joe", "password".toCharArray()).get());
+                () -> securityClient.preparePutUser("joe", "password".toCharArray(), getFastStoredHashAlgoForTests()).get());
         assertThat(e.getMessage(), containsString("users may not be created or modified using a tribe node"));
         e = expectThrows(UnsupportedOperationException.class, () -> securityClient.prepareSetEnabled("elastic", randomBoolean()).get());
         assertThat(e.getMessage(), containsString("users may not be created or modified using a tribe node"));
         e = expectThrows(UnsupportedOperationException.class,
-                () -> securityClient.prepareChangePassword("elastic", "password".toCharArray()).get());
+                () -> securityClient.prepareChangePassword("elastic", "password".toCharArray(), getFastStoredHashAlgoForTests()).get());
         assertThat(e.getMessage(), containsString("users may not be created or modified using a tribe node"));
         e = expectThrows(UnsupportedOperationException.class, () -> securityClient.prepareDeleteUser("joe").get());
         assertThat(e.getMessage(), containsString("users may not be deleted using a tribe node"));

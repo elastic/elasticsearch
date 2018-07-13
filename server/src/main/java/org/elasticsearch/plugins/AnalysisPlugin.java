@@ -130,16 +130,6 @@ public interface AnalysisPlugin {
 
     /**
      * Mark an {@link AnalysisProvider} as requiring the index's settings.
-     *
-     * @deprecated use {@link #requiresAnalysisSettings(AnalysisProvider)}
-     */
-    @Deprecated
-    static <T> AnalysisProvider<T> requriesAnalysisSettings(AnalysisProvider<T> provider) {
-        return requiresAnalysisSettings(provider);
-    }
-
-    /**
-     * Mark an {@link AnalysisProvider} as requiring the index's settings.
      */
     static <T> AnalysisProvider<T> requiresAnalysisSettings(AnalysisProvider<T> provider) {
         return new AnalysisProvider<T>() {

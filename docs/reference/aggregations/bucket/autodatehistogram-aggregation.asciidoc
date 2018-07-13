@@ -6,7 +6,7 @@ instead of providing an interval to use as the width of each bucket, a target nu
 indicating the number of buckets needed and the interval of the buckets is automatically chosen to best achieve
 that target. The number of buckets returned will always be less than or equal to this target number.
 
-The buckets field is optional, and will default to 10 buckers if not specified.
+The buckets field is optional, and will default to 10 buckets if not specified.
 
 Requesting a target of 10 buckets.
 

@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
@@ -180,6 +181,28 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             assertEquals(detectorUpdate.getRules(),
                     updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getRules());
         }
+    }
+
+    public void testDetectorUpdate_DoesNotAffectOriginalJob() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        Detector.Builder detector = new Detector.Builder("count", null);
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        jobBuilder.setAnalysisConfig(ac);
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        jobBuilder.setCreateTime(new Date());
+        Job job = jobBuilder.build();
+
+        List<DetectionRule> rules = Collections.singletonList(new DetectionRule.Builder(Collections.singletonList(
+                new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, new Condition(Operator.GT, "5"), null))).build());
+        JobUpdate.DetectorUpdate detectorUpdate = new JobUpdate.DetectorUpdate(0, null, rules);
+        JobUpdate.Builder updateBuilder = new JobUpdate.Builder("foo");
+        updateBuilder.setDetectorUpdates(Collections.singletonList(detectorUpdate));
+        JobUpdate update = updateBuilder.build();
+
+        Job updatedJob = update.mergeWithJob(job, new ByteSizeValue(0L));
+
+        assertThat(updatedJob.getAnalysisConfig().getDetectors().get(0).getRules(), equalTo(rules));
+        assertThat(job.getAnalysisConfig().getDetectors().get(0).getRules().isEmpty(), is(true));
     }
 
     public void testIsAutodetectProcessUpdate() {

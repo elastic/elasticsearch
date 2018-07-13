@@ -40,7 +40,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class XContentTestUtilsTests extends ESTestCase {
 

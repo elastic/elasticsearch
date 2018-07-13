@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -28,9 +29,9 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
             Setting.affixKeySetting("xpack.notification.pagerduty.account.", "service_api_key",
                     (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
 
-    private static final Setting.AffixSetting<String> SETTING_SECURE_SERVICE_API_KEY =
+    private static final Setting.AffixSetting<SecureString> SETTING_SECURE_SERVICE_API_KEY =
             Setting.affixKeySetting("xpack.notification.pagerduty.account.", "secure_service_api_key",
-                    (key) -> SecureSetting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> SecureSetting.secureString(key, null));
 
     private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS =
             Setting.affixKeySetting("xpack.notification.pagerduty.account.", "event_defaults",
@@ -39,7 +40,7 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
     private final HttpClient httpClient;
 
     public PagerDutyService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
-        super(settings, "pagerduty");
+        super(settings, "pagerduty", clusterSettings, PagerDutyService.getSettings());
         this.httpClient = httpClient;
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SERVICE_API_KEY, (s, o) -> {}, (s, o) -> {});

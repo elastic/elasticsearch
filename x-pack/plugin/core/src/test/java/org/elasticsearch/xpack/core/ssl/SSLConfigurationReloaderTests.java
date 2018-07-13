@@ -194,7 +194,8 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path trustStorePath = tempDir.resolve("testnode.jks");
         Path updatedTruststorePath = tempDir.resolve("testnode_updated.jks");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), trustStorePath);
-        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.jks"), updatedTruststorePath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.jks"),
+            updatedTruststorePath);
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
@@ -302,7 +303,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
@@ -343,7 +344,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
@@ -378,7 +379,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
@@ -410,7 +411,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
@@ -439,7 +440,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         final CountDownLatch reloadLatch = new CountDownLatch(1);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {

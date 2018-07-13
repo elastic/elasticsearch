@@ -29,18 +29,45 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 
 public interface Transport extends LifecycleComponent {
 
     Setting<Boolean> TRANSPORT_TCP_COMPRESS = Setting.boolSetting("transport.tcp.compress", false, Property.NodeScope);
 
-    void setTransportService(TransportService service);
+    /**
+     * Registers a new request handler
+     */
+    <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg);
+
+    /**
+     * Returns the registered request handler registry for the given action or <code>null</code> if it's not registered
+     * @param action the action to look up
+     */
+    RequestHandlerRegistry getRequestHandler(String action);
+
+    /**
+     * Adds a new event listener
+     * @param listener the listener to add
+     */
+    void addConnectionListener(TransportConnectionListener listener);
+
+    /**
+     * Removes an event listener
+     * @param listener the listener to remove
+     * @return <code>true</code> iff the listener was removed otherwise <code>false</code>
+     */
+    boolean removeConnectionListener(TransportConnectionListener listener);
 
     /**
      * The address the transport is bound on.
@@ -75,17 +102,15 @@ public interface Transport extends LifecycleComponent {
      */
     void disconnectFromNode(DiscoveryNode node);
 
+    /**
+     * Returns a list of all local adresses for this transport
+     */
     List<String> getLocalAddresses();
 
     default CircuitBreaker getInFlightRequestBreaker() {
         return new NoopCircuitBreaker("in-flight-noop");
     }
 
-    /**
-     * Returns a new request ID to use when sending a message via {@link Connection#sendRequest(long, String,
-     * TransportRequest, TransportRequestOptions)}
-     */
-    long newRequestId();
     /**
      * Returns a connection for the given node if the node is connected.
      * Connections returned from this method must not be closed. The lifecycle of this connection is maintained by the Transport
@@ -107,6 +132,8 @@ public interface Transport extends LifecycleComponent {
 
     TransportStats getStats();
 
+    ResponseHandlers getResponseHandlers();
+
     /**
      * A unidirectional connection to a {@link DiscoveryNode}
      */
@@ -118,6 +145,10 @@ public interface Transport extends LifecycleComponent {
 
         /**
          * Sends the request to the node this connection is associated with
+         * @param requestId see {@link ResponseHandlers#add(ResponseContext)} for details
+         * @param action the action to execute
+         * @param request the request to send
+         * @param options request options to apply
          * @throws NodeNotConnectedException if the given node is not connected
          */
         void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
@@ -136,6 +167,113 @@ public interface Transport extends LifecycleComponent {
          */
         default Object getCacheKey() {
             return this;
+        }
+    }
+
+    /**
+     * This class represents a response context that encapsulates the actual response handler, the action and the conneciton it was
+     * executed on.
+     */
+    final class ResponseContext<T extends TransportResponse> {
+
+        private final TransportResponseHandler<T> handler;
+
+        private final Connection connection;
+
+        private final String action;
+
+        ResponseContext(TransportResponseHandler<T> handler, Connection connection, String action) {
+            this.handler = handler;
+            this.connection = connection;
+            this.action = action;
+        }
+
+        public TransportResponseHandler<T> handler() {
+            return handler;
+        }
+
+        public Connection connection() {
+            return this.connection;
+        }
+
+        public String action() {
+            return this.action;
+        }
+    }
+
+    /**
+     * This class is a registry that allows
+     */
+    final class ResponseHandlers {
+        private final ConcurrentMapLong<ResponseContext> handlers = ConcurrentCollections
+            .newConcurrentMapLongWithAggressiveConcurrency();
+        private final AtomicLong requestIdGenerator = new AtomicLong();
+
+        /**
+         * Returns <code>true</code> if the give request ID has a context associated with it.
+         */
+        public boolean contains(long requestId) {
+            return handlers.containsKey(requestId);
+        }
+
+        /**
+         * Removes and return the {@link ResponseContext} for the given request ID or returns
+         * <code>null</code> if no context is associated with this request ID.
+         */
+        public ResponseContext remove(long requestId) {
+            return handlers.remove(requestId);
+        }
+
+        /**
+         * Adds a new response context and associates it with a new request ID.
+         * @return the new request ID
+         * @see Connection#sendRequest(long, String, TransportRequest, TransportRequestOptions)
+         */
+        public long add(ResponseContext holder) {
+            long requestId = newRequestId();
+            ResponseContext existing = handlers.put(requestId, holder);
+            assert existing == null : "request ID already in use: " + requestId;
+            return requestId;
+        }
+
+        /**
+         * Returns a new request ID to use when sending a message via {@link Connection#sendRequest(long, String,
+         * TransportRequest, TransportRequestOptions)}
+         */
+        long newRequestId() {
+            return requestIdGenerator.incrementAndGet();
+        }
+
+        /**
+         * Removes and returns all {@link ResponseContext} instances that match the predicate
+         */
+        public List<ResponseContext> prune(Predicate<ResponseContext> predicate) {
+            final List<ResponseContext> holders = new ArrayList<>();
+            for (Map.Entry<Long, ResponseContext> entry : handlers.entrySet()) {
+                ResponseContext holder = entry.getValue();
+                if (predicate.test(holder)) {
+                    ResponseContext remove = handlers.remove(entry.getKey());
+                    if (remove != null) {
+                        holders.add(holder);
+                    }
+                }
+            }
+            return holders;
+        }
+
+        /**
+         * called by the {@link Transport} implementation when a response or an exception has been received for a previously
+         * sent request (before any processing or deserialization was done). Returns the appropriate response handler or null if not
+         * found.
+         */
+        public TransportResponseHandler onResponseReceived(final long requestId, TransportConnectionListener listener) {
+            ResponseContext context = handlers.remove(requestId);
+            listener.onResponseReceived(requestId, context);
+            if (context == null) {
+                return null;
+            } else {
+                return context.handler();
+            }
         }
     }
 }

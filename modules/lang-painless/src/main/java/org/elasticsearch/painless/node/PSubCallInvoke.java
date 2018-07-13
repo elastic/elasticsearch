@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -34,11 +34,11 @@ import java.util.Set;
  */
 final class PSubCallInvoke extends AExpression {
 
-    private final Method method;
+    private final PainlessMethod method;
     private final Class<?> box;
     private final List<AExpression> arguments;
 
-    PSubCallInvoke(Location location, Method method, Class<?> box, List<AExpression> arguments) {
+    PSubCallInvoke(Location location, PainlessMethod method, Class<?> box, List<AExpression> arguments) {
         super(location);
 
         this.method = Objects.requireNonNull(method);

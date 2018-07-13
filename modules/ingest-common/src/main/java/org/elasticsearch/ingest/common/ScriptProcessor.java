@@ -41,6 +41,7 @@ import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.ConfigurationUtils.readMap;
 
 /**
  * Processor that evaluates a script with an ingest document in its context.
@@ -96,6 +97,8 @@ public final class ScriptProcessor extends AbstractProcessor {
         @Override
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
+            Map<String, Map<String, Object>> processorConfig =
+                readMap(TYPE, processorTag, config, "extra_processors");
             try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
                  InputStream stream = BytesReference.bytes(builder).streamInput();
                  XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,

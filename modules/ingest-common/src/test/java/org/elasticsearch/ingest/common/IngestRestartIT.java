@@ -58,9 +58,7 @@ public class IngestRestartIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.singletonMap("my_script", script -> {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> ctx = (Map<String, Object>) script.get("ctx");
+            return Collections.singletonMap("my_script", ctx -> {
                 ctx.put("z", 0);
                 return null;
             });

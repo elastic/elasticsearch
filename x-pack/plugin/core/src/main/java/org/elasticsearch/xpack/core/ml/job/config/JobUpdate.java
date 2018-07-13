@@ -346,6 +346,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
      */
     public Job mergeWithJob(Job source, ByteSizeValue maxModelMemoryLimit) {
         Job.Builder builder = new Job.Builder(source);
+        AnalysisConfig currentAnalysisConfig = source.getAnalysisConfig();
+        AnalysisConfig.Builder newAnalysisConfig = new AnalysisConfig.Builder(currentAnalysisConfig);
         if (groups != null) {
             builder.setGroups(groups);
         }
@@ -353,26 +355,22 @@ public class JobUpdate implements Writeable, ToXContentObject {
             builder.setDescription(description);
         }
         if (detectorUpdates != null && detectorUpdates.isEmpty() == false) {
-            AnalysisConfig ac = source.getAnalysisConfig();
-            int numDetectors = ac.getDetectors().size();
+            int numDetectors = currentAnalysisConfig.getDetectors().size();
             for (DetectorUpdate dd : detectorUpdates) {
                 if (dd.getDetectorIndex() >= numDetectors) {
                     throw ExceptionsHelper.badRequestException("Supplied detector_index [{}] is >= the number of detectors [{}]",
                             dd.getDetectorIndex(), numDetectors);
                 }
 
-                Detector.Builder detectorbuilder = new Detector.Builder(ac.getDetectors().get(dd.getDetectorIndex()));
+                Detector.Builder detectorbuilder = new Detector.Builder(currentAnalysisConfig.getDetectors().get(dd.getDetectorIndex()));
                 if (dd.getDescription() != null) {
                     detectorbuilder.setDetectorDescription(dd.getDescription());
                 }
                 if (dd.getRules() != null) {
                     detectorbuilder.setRules(dd.getRules());
                 }
-                ac.getDetectors().set(dd.getDetectorIndex(), detectorbuilder.build());
+                newAnalysisConfig.setDetector(dd.getDetectorIndex(), detectorbuilder.build());
             }
-
-            AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(ac);
-            builder.setAnalysisConfig(acBuilder);
         }
         if (modelPlotConfig != null) {
             builder.setModelPlotConfig(modelPlotConfig);
@@ -395,9 +393,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             builder.setResultsRetentionDays(resultsRetentionDays);
         }
         if (categorizationFilters != null) {
-            AnalysisConfig.Builder analysisConfigBuilder = new AnalysisConfig.Builder(source.getAnalysisConfig());
-            analysisConfigBuilder.setCategorizationFilters(categorizationFilters);
-            builder.setAnalysisConfig(analysisConfigBuilder);
+            newAnalysisConfig.setCategorizationFilters(categorizationFilters);
         }
         if (customSettings != null) {
             builder.setCustomSettings(customSettings);
@@ -416,6 +412,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (jobVersion != null) {
             builder.setJobVersion(jobVersion);
         }
+        builder.setAnalysisConfig(newAnalysisConfig);
         return builder.build();
     }
 

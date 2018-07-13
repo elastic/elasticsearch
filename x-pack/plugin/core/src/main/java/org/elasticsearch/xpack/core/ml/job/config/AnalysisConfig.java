@@ -487,7 +487,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         }
 
         public Builder(AnalysisConfig analysisConfig) {
-            this.detectors = analysisConfig.detectors;
+            this.detectors = new ArrayList<>(analysisConfig.detectors);
             this.bucketSpan = analysisConfig.bucketSpan;
             this.latency = analysisConfig.latency;
             this.categorizationFieldName = analysisConfig.categorizationFieldName;
@@ -516,6 +516,10 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
                 sequentialIndexDetectors.add(builder.build());
             }
             this.detectors = sequentialIndexDetectors;
+        }
+
+        public void setDetector(int detectorIndex, Detector detector) {
+            detectors.set(detectorIndex, detector);
         }
 
         public void setBucketSpan(TimeValue bucketSpan) {

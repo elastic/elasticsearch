@@ -159,13 +159,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
         failOnShardFailures.set(false);
     }
 
-    /**
-     * re-enables default behavior to fail tests when shards created by this class fail
-     */
-    protected void failOnShardFailures() {
-        failOnShardFailures.set(true);
-    }
-
     public Settings threadPoolSettings() {
         return Settings.EMPTY;
     }
@@ -292,7 +285,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
         return newShard(routing, shardPath, indexMetaData, indexSearcherWrapper, engineFactory, globalCheckpointSyncer,
-            EMPTY_EVENT_LISTENER, false, listeners);
+            EMPTY_EVENT_LISTENER, listeners);
     }
 
     /**
@@ -303,15 +296,13 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param indexSearcherWrapper   an optional wrapper to be used during searchers
      * @param globalCheckpointSyncer callback for syncing global checkpoints
      * @param indexEventListener     index even listener
-     * @param ignoreShardFailures    true if shard failure should be ignored (otherwise an assertion will be thrown)
      * @param listeners              an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardRouting routing, ShardPath shardPath, IndexMetaData indexMetaData,
                                   @Nullable IndexSearcherWrapper indexSearcherWrapper,
                                   @Nullable EngineFactory engineFactory,
                                   Runnable globalCheckpointSyncer,
-                                  IndexEventListener indexEventListener, boolean ignoreShardFailures,
-                                  IndexingOperationListener... listeners) throws IOException {
+                                  IndexEventListener indexEventListener, IndexingOperationListener... listeners) throws IOException {
         final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, nodeSettings);
         final IndexShard indexShard;
@@ -368,7 +359,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 null,
                 current.engineFactory,
                 current.getGlobalCheckpointSyncer(),
-            EMPTY_EVENT_LISTENER, false, listeners);
+            EMPTY_EVENT_LISTENER, listeners);
     }
 
     /**

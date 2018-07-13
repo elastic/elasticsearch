@@ -107,7 +107,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                     null,
                     new InternalEngineFactory(),
                     () -> {},
-                    EMPTY_EVENT_LISTENER, false);
+                    EMPTY_EVENT_LISTENER);
 
             // restore the shard
             recoverShardFromSnapshot(shard, snapshot, repository);

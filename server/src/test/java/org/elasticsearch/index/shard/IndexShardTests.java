@@ -1873,7 +1873,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 wrapper,
                 new InternalEngineFactory(),
                 () -> {},
-                EMPTY_EVENT_LISTENER, false);
+                EMPTY_EVENT_LISTENER);
 
         recoverShardFromStore(newShard);
 
@@ -2025,7 +2025,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 wrapper,
                 new InternalEngineFactory(),
                 () -> {},
-                EMPTY_EVENT_LISTENER, false);
+                EMPTY_EVENT_LISTENER);
 
         recoverShardFromStore(newShard);
 
@@ -2508,7 +2508,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum", "fix")))
             .build();
         final IndexShard newShard = newShard(shardRouting, indexShard.shardPath(), indexMetaData,
-            null, indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER, false);
+            null, indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
 
         Store.MetadataSnapshot storeFileMetaDatas = newShard.snapshotStoreMetadata();
         assertTrue("at least 2 files, commit and data: " + storeFileMetaDatas.toString(), storeFileMetaDatas.size() > 1);
@@ -3015,7 +3015,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 markedInactive.set(true);
                 primaryRef.get().flush(new FlushRequest());
             }
-        }, false);
+        });
         primaryRef.set(primary);
         recoverShardFromStore(primary);
         for (int i = 0; i < 3; i++) {

@@ -103,40 +103,42 @@ public class TimestampFormatFinderTests extends LogConfigCreatorTestCase {
                 "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b", "HTTPDERROR_DATE", ""),
             "Tue May 15 17:14:56 2018", 1526400896000L);
 
-        checkAndValidateDateFormat(new TimestampMatch(18, "", Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
+        checkAndValidateDateFormat(new TimestampMatch(18, "", Arrays.asList("MMM dd HH:mm:ss.SSS", "MMM  d HH:mm:ss.SSS"),
+            "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}", "SYSLOGTIMESTAMP", ""), "May 15 17:14:56.725", 1526400896725L);
+        checkAndValidateDateFormat(new TimestampMatch(19, "", Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
             "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b", "SYSLOGTIMESTAMP", ""), "May 15 17:14:56", 1526400896000L);
 
-        checkAndValidateDateFormat(new TimestampMatch(19, "", "dd/MMM/YYYY:HH:mm:ss Z",
+        checkAndValidateDateFormat(new TimestampMatch(20, "", "dd/MMM/YYYY:HH:mm:ss Z",
                 "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ", "HTTPDATE", ""), "15/May/2018:17:14:56 +0100", 1526400896000L);
 
-        checkAndValidateDateFormat(new TimestampMatch(20, "", "MMM dd, YYYY K:mm:ss a",
+        checkAndValidateDateFormat(new TimestampMatch(21, "", "MMM dd, YYYY K:mm:ss a",
                 "\\b[A-Z]\\S{2,8} \\d{1,2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b", "CATALINA_DATESTAMP", ""), "May 15, 2018 5:14:56 PM",
             1526400896000L);
 
-        checkAndValidateDateFormat(new TimestampMatch(21, "", Arrays.asList("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"),
+        checkAndValidateDateFormat(new TimestampMatch(22, "", Arrays.asList("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"),
                 "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b", "CISCOTIMESTAMP", ""), "May 15 2018 17:14:56",
             1526400896000L);
     }
 
     public void testFindFirstMatchGivenOnlySystemDate() {
 
-        assertEquals(new TimestampMatch(22, "", "UNIX_MS", "\\b\\d{13}\\b", "POSINT", ""),
+        assertEquals(new TimestampMatch(23, "", "UNIX_MS", "\\b\\d{13}\\b", "POSINT", ""),
             TimestampFormatFinder.findFirstMatch("1526400896374"));
-        assertEquals(new TimestampMatch(22, "", "UNIX_MS", "\\b\\d{13}\\b", "POSINT", ""),
+        assertEquals(new TimestampMatch(23, "", "UNIX_MS", "\\b\\d{13}\\b", "POSINT", ""),
             TimestampFormatFinder.findFirstFullMatch("1526400896374"));
 
-        assertEquals(new TimestampMatch(23, "", "UNIX", "\\b\\d{10}\\.\\d{3,9}\\b", "NUMBER", ""),
+        assertEquals(new TimestampMatch(24, "", "UNIX", "\\b\\d{10}\\.\\d{3,9}\\b", "NUMBER", ""),
             TimestampFormatFinder.findFirstMatch("1526400896.736"));
-        assertEquals(new TimestampMatch(23, "", "UNIX", "\\b\\d{10}\\.\\d{3,9}\\b", "NUMBER", ""),
+        assertEquals(new TimestampMatch(24, "", "UNIX", "\\b\\d{10}\\.\\d{3,9}\\b", "NUMBER", ""),
             TimestampFormatFinder.findFirstFullMatch("1526400896.736"));
-        assertEquals(new TimestampMatch(24, "", "UNIX", "\\b\\d{10}\\b", "POSINT", ""),
+        assertEquals(new TimestampMatch(25, "", "UNIX", "\\b\\d{10}\\b", "POSINT", ""),
             TimestampFormatFinder.findFirstMatch("1526400896"));
-        assertEquals(new TimestampMatch(24, "", "UNIX", "\\b\\d{10}\\b", "POSINT", ""),
+        assertEquals(new TimestampMatch(25, "", "UNIX", "\\b\\d{10}\\b", "POSINT", ""),
             TimestampFormatFinder.findFirstFullMatch("1526400896"));
 
-        assertEquals(new TimestampMatch(25, "", "TAI64N", "\\b[0-9A-Fa-f]{24}\\b", "BASE16NUM", ""),
+        assertEquals(new TimestampMatch(26, "", "TAI64N", "\\b[0-9A-Fa-f]{24}\\b", "BASE16NUM", ""),
             TimestampFormatFinder.findFirstMatch("400000005afb159a164ac980"));
-        assertEquals(new TimestampMatch(25, "", "TAI64N", "\\b[0-9A-Fa-f]{24}\\b", "BASE16NUM", ""),
+        assertEquals(new TimestampMatch(26, "", "TAI64N", "\\b[0-9A-Fa-f]{24}\\b", "BASE16NUM", ""),
             TimestampFormatFinder.findFirstFullMatch("400000005afb159a164ac980"));
     }
 
@@ -184,18 +186,18 @@ public class TimestampFormatFinderTests extends LogConfigCreatorTestCase {
             TimestampFormatFinder.findFirstMatch("[2018-05-11T17:07:29,553][INFO ][o.e.e.NodeEnvironment    ] [node-0] " +
                 "heap size [3.9gb], compressed ordinary object pointers [true]"));
 
-        assertEquals(new TimestampMatch(19, "192.168.62.101 - - [", "dd/MMM/YYYY:HH:mm:ss Z",
+        assertEquals(new TimestampMatch(20, "192.168.62.101 - - [", "dd/MMM/YYYY:HH:mm:ss Z",
                 "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ", "HTTPDATE",
                 "] \"POST //apiserv:8080/engine/v2/jobs HTTP/1.1\" 201 42 \"-\" \"curl/7.46.0\" 384"),
             TimestampFormatFinder.findFirstMatch("192.168.62.101 - - [29/Jun/2016:12:11:31 +0000] " +
                 "\"POST //apiserv:8080/engine/v2/jobs HTTP/1.1\" 201 42 \"-\" \"curl/7.46.0\" 384"));
 
-        assertEquals(new TimestampMatch(20, "", "MMM dd, YYYY K:mm:ss a",
+        assertEquals(new TimestampMatch(21, "", "MMM dd, YYYY K:mm:ss a",
                 "\\b[A-Z]\\S{2,8} \\d{1,2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b", "CATALINA_DATESTAMP",
                 " org.apache.tomcat.util.http.Parameters processParameters"),
             TimestampFormatFinder.findFirstMatch("Aug 29, 2009 12:03:57 AM org.apache.tomcat.util.http.Parameters processParameters"));
 
-        assertEquals(new TimestampMatch(18, "", Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
+        assertEquals(new TimestampMatch(19, "", Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
                 "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b", "SYSLOGTIMESTAMP", " esxi1.acme.com Vpxa: " +
                     "[3CB3FB90 verbose 'vpxavpxaInvtVm' opID=WFU-33d82c31] [VpxaInvtVmChangeListener] Guest DiskInfo Changed"),
             TimestampFormatFinder.findFirstMatch("Oct 19 17:04:44 esxi1.acme.com Vpxa: [3CB3FB90 verbose 'vpxavpxaInvtVm' " +
@@ -207,7 +209,7 @@ public class TimestampFormatFinderTests extends LogConfigCreatorTestCase {
             TimestampFormatFinder.findFirstMatch("559550912540598297\t2016-04-20T14:06:53\t2016-04-20T21:06:53Z\t38545844\tserv02nw07\t" +
                 "192.168.114.28\tAuthpriv\tInfo\tsshd\tsubsystem request for sftp"));
 
-        assertEquals(new TimestampMatch(18, "", Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
+        assertEquals(new TimestampMatch(19, "", Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
                 "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b", "SYSLOGTIMESTAMP",
                 " dnsserv named[22529]: error (unexpected RCODE REFUSED) resolving 'www.elastic.co/A/IN': 95.110.68.206#53"),
             TimestampFormatFinder.findFirstMatch("Sep  8 11:55:35 dnsserv named[22529]: error (unexpected RCODE REFUSED) resolving " +

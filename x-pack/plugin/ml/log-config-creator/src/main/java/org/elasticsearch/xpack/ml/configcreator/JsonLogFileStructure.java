@@ -138,7 +138,7 @@ public class JsonLogFileStructure extends AbstractStructuredLogFileStructure imp
 
     void createConfigs() throws UserException {
         Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
-        mappings = guessMappings(sampleRecords);
+        mappings = guessMappings((timeField == null) ? null : timeField.v1(), sampleRecords);
 
         boolean hasTimezoneDependentParsing = false;
         String logstashFromFilebeatDateFilter = "";

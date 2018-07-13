@@ -17,6 +17,7 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Used to find the best timestamp format for one of the following situations:
@@ -109,6 +110,10 @@ public final class TimestampFormatFinder {
         new CandidateTimestampFormat("EEE MMM dd HH:mm:ss YYYY",
             "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b",
             "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) %{YEAR}\\b", "HTTPDERROR_DATE", Arrays.asList(1, 2)),
+        new CandidateTimestampFormat(Arrays.asList("MMM dd HH:mm:ss,SSS", "MMM  d HH:mm:ss,SSS"),
+            "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2},\\d{3}",
+            "%{MONTH} +%{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9}\\b", "SYSLOGTIMESTAMP",
+            Collections.singletonList(1)),
         new CandidateTimestampFormat(Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
             "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b", "%{MONTH} +%{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)\\b",
             "SYSLOGTIMESTAMP", Collections.singletonList(1)),
@@ -210,8 +215,13 @@ public final class TimestampFormatFinder {
             dateFormats = dateFormats.stream().map(dateFormat -> dateFormat.replace(DEFAULT_FRACTIONAL_SECOND_SEPARATOR, separator))
                 .collect(Collectors.toList());
             if (dateFormats.stream().noneMatch(dateFormat -> dateFormat.startsWith("UNIX"))) {
-                simplePattern = Pattern.compile(simplePattern.pattern().replace(String.valueOf(DEFAULT_FRACTIONAL_SECOND_SEPARATOR),
-                    String.format(Locale.ROOT, "%s%c", (separator == '.') ? "\\" : "", separator)));
+                String patternStr = simplePattern.pattern();
+                int separatorPos = patternStr.lastIndexOf(DEFAULT_FRACTIONAL_SECOND_SEPARATOR);
+                if (separatorPos >= 0) {
+                    StringBuilder newPatternStr = new StringBuilder(patternStr);
+                    newPatternStr.replace(separatorPos, separatorPos + 1, ((separator == '.') ? "\\" : "") + separator);
+                    simplePattern = Pattern.compile(newPatternStr.toString());
+                }
             }
         }
         int numberOfDigitsInFractionalComponent = fractionalSecondsInterpretation.v2();
@@ -308,6 +318,29 @@ public final class TimestampFormatFinder {
         public boolean hasTimezoneDependentParsing() {
             return dateFormats.stream()
                 .anyMatch(dateFormat -> dateFormat.contains("HH") && dateFormat.toLowerCase(Locale.ROOT).indexOf('z') == -1);
+        }
+
+        /**
+         * Sometimes Elasticsearch mappings for dates need to include the format.
+         * This method returns the information in the form required by the mappings
+         * builder of this program: the word "date", followed if appropriate by a
+         * dollar sign and the format specifier.
+         */
+        public String getEsDateMappingTypeWithFormat() {
+            String formats = dateFormats.stream().flatMap(format -> {
+                switch (format) {
+                    case "ISO8601":
+                    case "TAI64N":
+                        return Stream.empty();
+                    case "UNIX_MS":
+                        return Stream.of("epoch_millis");
+                    case "UNIX":
+                        return Stream.of("epoch_second");
+                    default:
+                        return Stream.of(format);
+                }
+            }).collect(Collectors.joining("||"));
+            return formats.isEmpty() ? "date" : "date$" + formats;
         }
 
         @Override

@@ -9,6 +9,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.xpack.ml.configcreator.TimestampFormatFinder.TimestampMatch;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -63,6 +64,7 @@ public final class GrokPatternCreator {
      * such that more generic patterns come after more specific patterns.
      */
     private static final List<GrokPatternCandidate> ORDERED_CANDIDATE_GROK_PATTERNS = Arrays.asList(
+        new ValueOnlyGrokPatternCandidate("TOMCAT_DATESTAMP", "date", "extra_timestamp"),
         new ValueOnlyGrokPatternCandidate("TIMESTAMP_ISO8601", "date", "extra_timestamp"),
         new ValueOnlyGrokPatternCandidate("DATESTAMP_RFC822", "date", "extra_timestamp"),
         new ValueOnlyGrokPatternCandidate("DATESTAMP_RFC2822", "date", "extra_timestamp"),
@@ -71,7 +73,6 @@ public final class GrokPatternCreator {
         new ValueOnlyGrokPatternCandidate("SYSLOGTIMESTAMP", "date", "extra_timestamp"),
         new ValueOnlyGrokPatternCandidate("HTTPDATE", "date", "extra_timestamp"),
         new ValueOnlyGrokPatternCandidate("CATALINA_DATESTAMP", "date", "extra_timestamp"),
-        new ValueOnlyGrokPatternCandidate("TOMCAT_DATESTAMP", "date", "extra_timestamp"),
         new ValueOnlyGrokPatternCandidate("CISCOTIMESTAMP", "date", "extra_timestamp"),
         new ValueOnlyGrokPatternCandidate("LOGLEVEL", "keyword", "loglevel"),
         new ValueOnlyGrokPatternCandidate("URI", "keyword", "uri"),
@@ -411,6 +412,7 @@ public final class GrokPatternCreator {
         @Override
         public String processCaptures(Map<String, Integer> fieldNameCountStore, Collection<String> snippets, Collection<String> prefaces,
                                       Collection<String> epilogues, Map<String, String> mappings) {
+            String sampleValue = null;
             for (String snippet : snippets) {
                 Map<String, Object> captures = grok.captures(snippet);
                 // If the pattern doesn't match then captures will be null
@@ -418,11 +420,21 @@ public final class GrokPatternCreator {
                     throw new IllegalStateException("[%{" + grokPatternName + "}] does not match snippet [" + snippet + "]");
                 }
                 prefaces.add(captures.getOrDefault(PREFACE, "").toString());
+                if (sampleValue == null) {
+                    sampleValue = captures.get(VALUE).toString();
+                }
                 epilogues.add(captures.getOrDefault(EPILOGUE, "").toString());
             }
             String adjustedFieldName = buildFieldName(fieldNameCountStore, fieldName);
             if (mappings != null) {
-                mappings.put(adjustedFieldName, mappingType);
+                String fullMappingType = mappingType;
+                if ("date".equals(mappingType)) {
+                    TimestampMatch timestampMatch = TimestampFormatFinder.findFirstFullMatch(sampleValue);
+                    if (timestampMatch != null) {
+                        fullMappingType = timestampMatch.getEsDateMappingTypeWithFormat();
+                    }
+                }
+                mappings.put(adjustedFieldName, fullMappingType);
             }
             return "%{" + grokPatternName + ":" + adjustedFieldName + "}";
         }

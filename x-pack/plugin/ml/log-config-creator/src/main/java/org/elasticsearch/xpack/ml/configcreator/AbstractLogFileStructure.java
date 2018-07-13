@@ -70,8 +70,10 @@ public abstract class AbstractLogFileStructure {
 
     private static final String INGEST_PIPELINE_DATE_PARSE_TIMEZONE = "        \"timezone\": \"{{ " + BEAT_TIMEZONE_FIELD + " }}\",\n";
 
+    private static final String FIELD_MAPPING_FORMAT_TEMPLATE = ",\n" +
+        "%s  \"format\": \"%s\"";
     private static final String FIELD_MAPPING_TEMPLATE = "%s\"%s\": {\n" +
-        "%s  \"type\": \"%s\"\n" +
+        "%s  \"type\": \"%s\"%s\n" +
         "%s}";
     private static final String TOP_LEVEL_OBJECT_FIELD_MAPPING_TEMPLATE = "        \"%s\": {\n" +
         "          \"type\": \"object\",\n" +
@@ -144,8 +146,13 @@ public abstract class AbstractLogFileStructure {
         terminal.println(Verbosity.VERBOSE, "---");
         String indent = (topLevelObjectName == null) ? "        " : "            ";
         String fieldTypeMappings = fieldTypes.entrySet().stream().filter(entry -> entry.getValue().isEmpty() == false)
-            .map(entry -> String.format(Locale.ROOT, FIELD_MAPPING_TEMPLATE, indent, entry.getKey(), indent, entry.getValue(), indent))
-            .collect(Collectors.joining(",\n"));
+            .map(entry -> {
+                String[] mappingData = entry.getValue().split("\\$");
+                String type = mappingData[0];
+                String format = (mappingData.length < 2) ? "" : String.format(Locale.ROOT, FIELD_MAPPING_FORMAT_TEMPLATE, indent,
+                    mappingData[1]);
+                return String.format(Locale.ROOT, FIELD_MAPPING_TEMPLATE, indent, entry.getKey(), indent, type, format, indent);
+            }).collect(Collectors.joining(",\n"));
         if (topLevelObjectName != null) {
             fieldTypeMappings = String.format(Locale.ROOT, TOP_LEVEL_OBJECT_FIELD_MAPPING_TEMPLATE, topLevelObjectName, fieldTypeMappings);
         }
@@ -211,7 +218,7 @@ public abstract class AbstractLogFileStructure {
             }
         }
         if (singleMatch != null) {
-            return "date";
+            return singleMatch.getEsDateMappingTypeWithFormat();
         }
 
         if (fieldValues.stream().allMatch(NUMBER_GROK::match)) {

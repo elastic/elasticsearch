@@ -398,7 +398,7 @@ public class SeparatedValuesLogFileStructure extends AbstractStructuredLogFileSt
 
     void createConfigs() throws UserException {
         Tuple<String, TimestampMatch> timeField = guessTimestampField(sampleRecords);
-        mappings = guessMappings(sampleRecords);
+        mappings = guessMappings((timeField == null) ? null : timeField.v1(), sampleRecords);
 
         char delimiter = (char) csvPreference.getDelimiterChar();
         String timeLineRegex = null;

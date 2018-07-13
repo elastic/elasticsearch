@@ -234,7 +234,15 @@ public class AbstractStructuredLogFileStructureTests extends LogConfigCreatorTes
         sample2.put("time", "2018-05-29 11:53:02,837");
         sample2.put("bar", 17);
         sample2.put("nothing", null);
-        Map<String, String> mappings = testStructure.guessMappings(Arrays.asList(sample1, sample2));
+
+        Map<String, String> mappings = testStructure.guessMappings(null, Arrays.asList(sample1, sample2));
+        assertNotNull(mappings);
+        assertEquals("keyword", mappings.get("foo"));
+        assertEquals("date$YYYY-MM-dd HH:mm:ss,SSS", mappings.get("time"));
+        assertEquals("long", mappings.get("bar"));
+        assertEquals("", mappings.get("nothing"));
+
+        mappings = testStructure.guessMappings("time", Arrays.asList(sample1, sample2));
         assertNotNull(mappings);
         assertEquals("keyword", mappings.get("foo"));
         assertEquals("date", mappings.get("time"));

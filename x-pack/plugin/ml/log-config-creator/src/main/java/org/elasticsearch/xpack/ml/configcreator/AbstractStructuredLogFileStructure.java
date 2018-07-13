@@ -107,9 +107,26 @@ public abstract class AbstractStructuredLogFileStructure extends AbstractLogFile
             makeLogstashTimezoneSetting(timestampMatch.hasTimezoneDependentParsing(), isFromFilebeat), copyFilter);
     }
 
-    protected SortedMap<String, String> guessMappings(List<Map<String, ?>> sampleRecords) throws UserException {
+    /**
+     * Given the sampled record, guess appropriate Elasticsearch mappings.
+     * @param primaryTimestampField If known the name of the field that has been identified
+     *                              as the primary timestamp field.
+     * @param sampleRecords The sampled records.
+     * @return A map of field name to mapping type.  This may contain empty string values,
+     *         indicating that no mapping type could be determined for that field.
+     */
+    protected SortedMap<String, String> guessMappings(String primaryTimestampField, List<Map<String, ?>> sampleRecords)
+        throws UserException {
 
         SortedMap<String, String> mappings = new TreeMap<>();
+
+        // If one of the fields has already been determined to be the primary timestamp field
+        // then we can save processing by adding it first.  The "date" type will never need
+        // an explicit format because date parsing in the ingest config will convert this field
+        // to ISO8601 format.
+        if (primaryTimestampField != null) {
+            mappings.put(primaryTimestampField, "date");
+        }
 
         if (sampleRecords != null) {
 

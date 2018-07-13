@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -140,9 +141,25 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         return false;
     }
 
+    /**
+     * Creates a realm with the provided settings, rebuilds the SSL Service to be aware of the new realm, and then returns
+     * the RealmConfig
+     */
+    private RealmConfig setupRealm(String realmName, Settings settings) {
+        final Settings merged = Settings.builder()
+            .put(settings)
+            .normalizePrefix("xpack.security.authc.realms." + realmName + ".")
+            .put(globalSettings)
+            .build();
+
+        final Environment env = TestEnvironment.newEnvironment(merged);
+        this.sslService = new SSLService(merged, env);
+        return new RealmConfig(realmName, settings, merged, env, new ThreadContext(merged));
+    }
+
     public void testAuthenticateUserPrincipleName() throws Exception {
         Settings settings = settings();
-        RealmConfig config = new RealmConfig("testAuthenticateUserPrincipleName", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = setupRealm("testAuthenticateUserPrincipleName", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
@@ -158,7 +175,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
     public void testAuthenticateSAMAccountName() throws Exception {
         Settings settings = settings();
-        RealmConfig config = new RealmConfig("testAuthenticateSAMAccountName", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = setupRealm("testAuthenticateSAMAccountName", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
@@ -182,7 +199,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
     public void testAuthenticateCachesSuccessfulAuthentications() throws Exception {
         Settings settings = settings();
-        RealmConfig config = new RealmConfig("testAuthenticateCachesSuccesfulAuthentications", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = setupRealm("testAuthenticateCachesSuccesfulAuthentications", settings);
         ActiveDirectorySessionFactory sessionFactory = spy(new ActiveDirectorySessionFactory(config, sslService, threadPool));
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
@@ -200,7 +217,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
     public void testAuthenticateCachingCanBeDisabled() throws Exception {
         Settings settings = settings(Settings.builder().put(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING.getKey(), -1).build());
-        RealmConfig config = new RealmConfig("testAuthenticateCachingCanBeDisabled", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = setupRealm("testAuthenticateCachingCanBeDisabled", settings);
         ActiveDirectorySessionFactory sessionFactory = spy(new ActiveDirectorySessionFactory(config, sslService, threadPool));
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
@@ -218,7 +235,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
     public void testAuthenticateCachingClearsCacheOnRoleMapperRefresh() throws Exception {
         Settings settings = settings();
-        RealmConfig config = new RealmConfig("testAuthenticateCachingClearsCacheOnRoleMapperRefresh", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = setupRealm("testAuthenticateCachingClearsCacheOnRoleMapperRefresh", settings);
         ActiveDirectorySessionFactory sessionFactory = spy(new ActiveDirectorySessionFactory(config, sslService, threadPool));
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
@@ -266,8 +283,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
             builder.setSecureSettings(secureSettings);
         }
         Settings settings = settings(builder.build());
-        RealmConfig config = new RealmConfig("testUnauthenticatedLookupWithConnectionPool", settings, globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = setupRealm("testUnauthenticatedLookupWithConnectionPool", settings);
         try (ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool)) {
             DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
             LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
@@ -284,7 +300,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         Settings settings = settings(Settings.builder()
                 .put(ROLE_MAPPING_FILE_SETTING, getDataPath("role_mapping.yml"))
                 .build());
-        RealmConfig config = new RealmConfig("testRealmMapsGroupsToRoles", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = setupRealm("testRealmMapsGroupsToRoles", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
@@ -300,7 +316,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         Settings settings = settings(Settings.builder()
                 .put(ROLE_MAPPING_FILE_SETTING, getDataPath("role_mapping.yml"))
                 .build());
-        RealmConfig config = new RealmConfig("testRealmMapsGroupsToRoles", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = setupRealm("testRealmMapsGroupsToRoles", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
@@ -318,8 +334,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
                 .put(ROLE_MAPPING_FILE_SETTING, getDataPath("role_mapping.yml"))
                 .put("load_balance.type", loadBalanceType)
                 .build());
-        RealmConfig config = new RealmConfig("testRealmUsageStats", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-                new ThreadContext(globalSettings));
+        RealmConfig config = setupRealm("testRealmUsageStats", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
@@ -337,8 +352,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
     public void testDefaultSearchFilters() throws Exception {
         Settings settings = settings();
-        RealmConfig config = new RealmConfig("testDefaultSearchFilters", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-                new ThreadContext(globalSettings));
+        RealmConfig config = setupRealm("testDefaultSearchFilters", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         assertEquals("(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={0}@ad.test.elasticsearch.com)))",
                 sessionFactory.defaultADAuthenticator.getUserSearchFilter());
@@ -352,8 +366,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
                 .put(ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING, "(objectClass=upn)")
                 .put(ActiveDirectorySessionFactorySettings.AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING, "(objectClass=down level)")
                 .build());
-        RealmConfig config = new RealmConfig("testDefaultSearchFilters", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-                new ThreadContext(globalSettings));
+        RealmConfig config = setupRealm("testDefaultSearchFilters", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         assertEquals("(objectClass=default)", sessionFactory.defaultADAuthenticator.getUserSearchFilter());
         assertEquals("(objectClass=upn)", sessionFactory.upnADAuthenticator.getUserSearchFilter());
@@ -364,8 +377,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING, "ad.test.elasticsearch.com")
             .build();
-        RealmConfig config = new RealmConfig("testBuildUrlFromDomainNameAndDefaultPort", settings, globalSettings,
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = setupRealm("testBuildUrlFromDomainNameAndDefaultPort", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         assertSingleLdapServer(sessionFactory, "ad.test.elasticsearch.com", 389);
     }
@@ -375,8 +387,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
             .put(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING, "ad.test.elasticsearch.com")
             .put(ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING.getKey(), 10389)
             .build();
-        RealmConfig config = new RealmConfig("testBuildUrlFromDomainNameAndCustomPort", settings, globalSettings,
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = setupRealm("testBuildUrlFromDomainNameAndCustomPort", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         assertSingleLdapServer(sessionFactory, "ad.test.elasticsearch.com", 10389);
     }
@@ -386,8 +397,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
             .put(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING, "ad.test.elasticsearch.com")
             .put(SessionFactorySettings.URLS_SETTING, "ldap://ad01.testing.elastic.co:20389/")
             .build();
-        RealmConfig config = new RealmConfig("testBuildUrlFromDomainNameAndCustomPort", settings, globalSettings,
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = setupRealm("testBuildUrlFromDomainNameAndCustomPort", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         assertSingleLdapServer(sessionFactory, "ad01.testing.elastic.co", 20389);
     }

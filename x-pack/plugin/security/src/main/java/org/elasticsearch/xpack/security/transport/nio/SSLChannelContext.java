@@ -17,6 +17,7 @@ import org.elasticsearch.nio.WriteOperation;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Provides a TLS/SSL read/write layer over a channel. This context will use a {@link SSLDriver} to handshake
@@ -30,7 +31,13 @@ public final class SSLChannelContext extends SocketChannelContext {
 
     SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
                       ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
-        super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
+        this(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer, ALWAYS_ALLOW_CHANNEL);
+    }
+
+    SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
+                      ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer,
+                      Predicate<NioSocketChannel> allowChannelPredicate) {
+        super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, allowChannelPredicate);
         this.sslDriver = sslDriver;
     }
 
@@ -52,7 +59,7 @@ public final class SSLChannelContext extends SocketChannelContext {
 
     @Override
     public void flushChannel() throws IOException {
-        if (hasIOException()) {
+        if (closeNow()) {
             return;
         }
         // If there is currently data in the outbound write buffer, flush the buffer.
@@ -116,7 +123,7 @@ public final class SSLChannelContext extends SocketChannelContext {
     @Override
     public int read() throws IOException {
         int bytesRead = 0;
-        if (hasIOException()) {
+        if (closeNow()) {
             return bytesRead;
         }
         bytesRead = readFromChannel(sslDriver.getNetworkReadBuffer());
@@ -133,7 +140,7 @@ public final class SSLChannelContext extends SocketChannelContext {
 
     @Override
     public boolean selectorShouldClose() {
-        return isPeerClosed() || hasIOException() || sslDriver.isClosed();
+        return closeNow() || sslDriver.isClosed();
     }
 
     @Override

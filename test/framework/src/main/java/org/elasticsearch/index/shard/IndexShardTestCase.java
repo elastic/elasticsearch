@@ -121,7 +121,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     };
 
     protected ThreadPool threadPool;
-    private long primaryTerm;
+    protected long primaryTerm;
 
     @Override
     public void setUp() throws Exception {

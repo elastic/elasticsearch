@@ -97,8 +97,36 @@ public class ReplicationOperation<
 
             @Override
             public void onFailure(Exception e) {
-                final ShardId shardId = primary.routingEntry().shardId();
-                listener.onFailure(new RetryOnPrimaryException(shardId, "primary shard failed", e));
+                final ShardRouting shardRouting = primary.routingEntry();
+                final ShardId shardId = shardRouting.shardId();
+                final String currentNodeId = primary.routingEntry().currentNodeId();
+                final RestStatus restStatus = ExceptionsHelper.status(e);
+
+                shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(
+                    shardId, currentNodeId, e, restStatus, true));
+
+                final ReplicationResponse.ShardInfo.Failure[] failuresArray;
+                if (shardReplicaFailures.isEmpty()) {
+                    failuresArray = ReplicationResponse.EMPTY;
+                } else {
+                    failuresArray = new ReplicationResponse.ShardInfo.Failure[shardReplicaFailures.size()];
+                    shardReplicaFailures.toArray(failuresArray);
+                }
+
+                // as primary failed
+                final int successfulShardsCount = successfulShards.decrementAndGet();
+
+                if (successfulShardsCount > 0) {
+                    primaryResult.setShardInfo(new ReplicationResponse.ShardInfo(
+                            totalShards.get(),
+                            successfulShardsCount,
+                            failuresArray
+                        )
+                    );
+                    resultListener.onResponse(primaryResult);
+                } else {
+                    listener.onFailure(e);
+                }
             }
         };
     }

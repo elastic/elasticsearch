@@ -165,6 +165,7 @@ public abstract class TransportWriteAction<
         protected void respondIfPossible() {
             if (finishedAsyncActions && listener != null) {
                 Exception ex = asyncActionFailure;
+                asyncActionFailure = null;
                 if (ex == null) {
                     super.respond(listener);
                 } else {

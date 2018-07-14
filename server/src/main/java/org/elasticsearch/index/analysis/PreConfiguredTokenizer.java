@@ -31,10 +31,10 @@ import java.util.function.Supplier;
 /**
  * Provides pre-configured, shared {@link Tokenizer}s.
  */
-public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent<TokenizerFactory> {
+public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent<Supplier<Tokenizer>> {
     /**
      * Create a pre-configured tokenizer that may not vary at all.
-     * 
+     *
      * @param name the name of the tokenizer in the api
      * @param create builds the tokenizer
      * @param multiTermComponent null if this tokenizer shouldn't be used for multi-term queries, otherwise a supplier for the
@@ -48,7 +48,7 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
 
     /**
      * Create a pre-configured tokenizer that may vary based on the Lucene version.
-     * 
+     *
      * @param name the name of the tokenizer in the api
      * @param create builds the tokenizer
      * @param multiTermComponent null if this tokenizer shouldn't be used for multi-term queries, otherwise a supplier for the
@@ -62,7 +62,7 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
 
     /**
      * Create a pre-configured tokenizer that may vary based on the Elasticsearch version.
-     * 
+     *
      * @param name the name of the tokenizer in the api
      * @param create builds the tokenizer
      * @param multiTermComponent null if this tokenizer shouldn't be used for multi-term queries, otherwise a supplier for the
@@ -75,7 +75,7 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
 
     private final Function<Version, Tokenizer> create;
     private final Function<Version, TokenFilterFactory> multiTermComponent;
-    
+
     private PreConfiguredTokenizer(String name, PreBuiltCacheFactory.CachingStrategy cache, Function<Version, Tokenizer> create,
             @Nullable Function<Version, TokenFilterFactory> multiTermComponent) {
         super(name, cache);
@@ -90,14 +90,14 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
         return multiTermComponent != null;
     }
 
-    private interface MultiTermAwareTokenizerFactory extends TokenizerFactory, MultiTermAwareComponent {}
+    private interface MultiTermAwareTokenizerFactory extends Supplier<Tokenizer>, MultiTermAwareComponent {}
 
     @Override
-    protected TokenizerFactory create(Version version) {
+    protected Supplier<Tokenizer> create(Version version) {
         if (multiTermComponent != null) {
             return new MultiTermAwareTokenizerFactory() {
                 @Override
-                public Tokenizer create() {
+                public Tokenizer get() {
                     return create.apply(version);
                 }
 

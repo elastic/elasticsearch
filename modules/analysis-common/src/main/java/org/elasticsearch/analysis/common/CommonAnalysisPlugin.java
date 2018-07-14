@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
@@ -122,7 +123,6 @@ import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.SoraniNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -134,6 +134,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
@@ -262,8 +263,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     }
 
     @Override
-    public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
-        Map<String, AnalysisProvider<TokenizerFactory>> tokenizers = new TreeMap<>();
+    public Map<String, AnalysisProvider<Supplier<Tokenizer>>> getTokenizers() {
+        Map<String, AnalysisProvider<Supplier<Tokenizer>>> tokenizers = new TreeMap<>();
         tokenizers.put("simple_pattern", SimplePatternTokenizerFactory::new);
         tokenizers.put("simple_pattern_split", SimplePatternSplitTokenizerFactory::new);
         tokenizers.put("thai", ThaiTokenizerFactory::new);

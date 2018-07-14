@@ -34,12 +34,12 @@ public class WhitespaceTokenizerFactory extends AbstractTokenizerFactory {
     private Integer maxTokenLength;
 
     WhitespaceTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(indexSettings, settings);
         maxTokenLength = settings.getAsInt(MAX_TOKEN_LENGTH, StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
     }
 
     @Override
-    public Tokenizer create() {
+    public Tokenizer get() {
         return new WhitespaceTokenizer(TokenStream.DEFAULT_TOKEN_ATTRIBUTE_FACTORY, maxTokenLength);
     }
 }

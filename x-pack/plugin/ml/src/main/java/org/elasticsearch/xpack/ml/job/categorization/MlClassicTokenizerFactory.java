@@ -20,11 +20,11 @@ import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 public class MlClassicTokenizerFactory extends AbstractTokenizerFactory {
 
     public MlClassicTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(indexSettings, settings);
     }
 
     @Override
-    public Tokenizer create() {
+    public Tokenizer get() {
         return new MlClassicTokenizer();
     }
 }

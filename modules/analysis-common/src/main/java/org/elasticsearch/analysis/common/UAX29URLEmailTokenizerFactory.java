@@ -32,12 +32,12 @@ public class UAX29URLEmailTokenizerFactory extends AbstractTokenizerFactory {
     private final int maxTokenLength;
 
     UAX29URLEmailTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(indexSettings, settings);
         maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
     }
 
     @Override
-    public Tokenizer create() {
+    public Tokenizer get() {
         UAX29URLEmailTokenizer tokenizer = new UAX29URLEmailTokenizer();
         tokenizer.setMaxTokenLength(maxTokenLength);
         return tokenizer;

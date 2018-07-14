@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -581,7 +581,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     }
 
     @Override
-    public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+    public Map<String, AnalysisProvider<Supplier<Tokenizer>>> getTokenizers() {
         return Collections.singletonMap(MlClassicTokenizer.NAME, MlClassicTokenizerFactory::new);
     }
     @Override

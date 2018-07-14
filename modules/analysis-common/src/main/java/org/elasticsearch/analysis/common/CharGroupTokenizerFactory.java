@@ -39,7 +39,7 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
     private boolean tokenizeOnSymbol = false;
 
     public CharGroupTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(indexSettings, settings);
 
         for (final String c : settings.getAsList("tokenize_on_chars")) {
             if (c == null || c.length() == 0) {
@@ -109,7 +109,7 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
     }
 
     @Override
-    public Tokenizer create() {
+    public Tokenizer get() {
         return new CharTokenizer() {
             @Override
             protected boolean isTokenChar(int c) {

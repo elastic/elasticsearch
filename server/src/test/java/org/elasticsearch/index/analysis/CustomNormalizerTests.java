@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.MockLowerCaseFilter;
 import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -34,6 +35,7 @@ import java.io.Reader;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -172,7 +174,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
         }
 
         @Override
-        public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+        public Map<String, AnalysisProvider<Supplier<Tokenizer>>> getTokenizers() {
             return singletonMap("keyword", (indexSettings, environment, name, settings) ->
                 () -> new MockTokenizer(MockTokenizer.KEYWORD, false));
         }

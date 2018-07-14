@@ -36,14 +36,14 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
     private final CharMatcher matcher;
 
     EdgeNGramTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(indexSettings, settings);
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         this.matcher = parseTokenChars(settings.getAsList("token_chars"));
     }
 
     @Override
-    public Tokenizer create() {
+    public Tokenizer get() {
         if (matcher == null) {
             return new EdgeNGramTokenizer(minGram, maxGram);
         } else {

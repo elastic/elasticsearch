@@ -45,7 +45,7 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     private boolean discartPunctuation;
 
     public KuromojiTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(indexSettings, settings);
         mode = getMode(settings);
         userDictionary = getUserDictionary(env, settings);
         discartPunctuation = settings.getAsBoolean("discard_punctuation", true);
@@ -86,7 +86,7 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer create() {
+    public Tokenizer get() {
         JapaneseTokenizer t = new JapaneseTokenizer(userDictionary, discartPunctuation, mode);
         int nBestCost = this.nBestCost;
         if (nBestExamples != null) {

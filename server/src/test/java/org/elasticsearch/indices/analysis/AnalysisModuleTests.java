@@ -51,7 +51,6 @@ import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.MyFilterTokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -72,6 +71,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -263,7 +263,7 @@ public class AnalysisModuleTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+            public Map<String, AnalysisProvider<Supplier<Tokenizer>>> getTokenizers() {
                 // Need mock keyword tokenizer here, because alpha / beta versions are broken up by the dash.
                 return singletonMap("keyword", (indexSettings, environment, name, settings) ->
                     () -> new MockTokenizer(MockTokenizer.KEYWORD, false));

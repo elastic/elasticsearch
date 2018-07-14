@@ -42,7 +42,7 @@ public class WhitespaceTokenizerFactoryTests extends ESTestCase {
         final Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(new Index("test", "_na_"), indexSettings);
         WhitespaceTokenizer tokenizer = (WhitespaceTokenizer) new WhitespaceTokenizerFactory(indexProperties, null, "whitespace_maxlen",
-                Settings.EMPTY).create();
+                Settings.EMPTY).get();
 
         try (Reader reader = new StringReader("one, two, three")) {
             tokenizer.setReader(reader);
@@ -55,7 +55,7 @@ public class WhitespaceTokenizerFactoryTests extends ESTestCase {
         IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(new Index("test", "_na_"), indexSettings);
         final Settings settings = Settings.builder().put(WhitespaceTokenizerFactory.MAX_TOKEN_LENGTH, 2).build();
         WhitespaceTokenizer tokenizer = (WhitespaceTokenizer) new WhitespaceTokenizerFactory(indexProperties, null, "whitespace_maxlen",
-                settings).create();
+                settings).get();
         try (Reader reader = new StringReader("one, two, three")) {
             tokenizer.setReader(reader);
             assertTokenStreamContents(tokenizer, new String[] { "on", "e,", "tw", "o,", "th", "re", "e" });
@@ -63,7 +63,7 @@ public class WhitespaceTokenizerFactoryTests extends ESTestCase {
 
         final Settings defaultSettings = Settings.EMPTY;
         tokenizer = (WhitespaceTokenizer) new WhitespaceTokenizerFactory(indexProperties, null, "whitespace_maxlen", defaultSettings)
-                .create();
+                .get();
         String veryLongToken = RandomStrings.randomAsciiAlphanumOfLength(random(), 256);
         try (Reader reader = new StringReader(veryLongToken)) {
             tokenizer.setReader(reader);
@@ -72,12 +72,12 @@ public class WhitespaceTokenizerFactoryTests extends ESTestCase {
 
         final Settings tooLongSettings = Settings.builder().put(WhitespaceTokenizerFactory.MAX_TOKEN_LENGTH, 1024 * 1024 + 1).build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new WhitespaceTokenizerFactory(indexProperties, null, "whitespace_maxlen", tooLongSettings).create());
+                () -> new WhitespaceTokenizerFactory(indexProperties, null, "whitespace_maxlen", tooLongSettings).get());
         assertEquals("maxTokenLen must be greater than 0 and less than 1048576 passed: 1048577", e.getMessage());
 
         final Settings negativeSettings = Settings.builder().put(WhitespaceTokenizerFactory.MAX_TOKEN_LENGTH, -1).build();
         e = expectThrows(IllegalArgumentException.class,
-                () -> new WhitespaceTokenizerFactory(indexProperties, null, "whitespace_maxlen", negativeSettings).create());
+                () -> new WhitespaceTokenizerFactory(indexProperties, null, "whitespace_maxlen", negativeSettings).get());
         assertEquals("maxTokenLen must be greater than 0 and less than 1048576 passed: -1", e.getMessage());
     }
 }

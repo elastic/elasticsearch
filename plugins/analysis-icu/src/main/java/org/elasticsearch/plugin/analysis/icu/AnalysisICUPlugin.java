@@ -21,6 +21,7 @@ package org.elasticsearch.plugin.analysis.icu;
 
 import static java.util.Collections.singletonMap;
 
+import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IcuCollationTokenFilterFactory;
@@ -30,7 +31,6 @@ import org.elasticsearch.index.analysis.IcuNormalizerTokenFilterFactory;
 import org.elasticsearch.index.analysis.IcuTokenizerFactory;
 import org.elasticsearch.index.analysis.IcuTransformTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.ICUCollationKeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class AnalysisICUPlugin extends Plugin implements AnalysisPlugin, MapperPlugin {
     @Override
@@ -61,7 +62,7 @@ public class AnalysisICUPlugin extends Plugin implements AnalysisPlugin, MapperP
     }
 
     @Override
-    public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+    public Map<String, AnalysisProvider<Supplier<Tokenizer>>> getTokenizers() {
         return singletonMap("icu_tokenizer", IcuTokenizerFactory::new);
     }
 

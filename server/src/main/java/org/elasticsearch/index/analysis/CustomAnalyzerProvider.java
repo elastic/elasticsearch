@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * A custom analyzer that is built out of a single {@link org.apache.lucene.analysis.Tokenizer} and a list
@@ -46,14 +48,14 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         this.environment = environment;
     }
 
-    public void build(final Map<String, TokenizerFactory> tokenizers, final Map<String, CharFilterFactory> charFilters,
+    public void build(final Map<String, Supplier<Tokenizer>> tokenizers, final Map<String, CharFilterFactory> charFilters,
                       final Map<String, TokenFilterFactory> tokenFilters) {
         String tokenizerName = analyzerSettings.get("tokenizer");
         if (tokenizerName == null) {
             throw new IllegalArgumentException("Custom Analyzer [" + name() + "] must be configured with a tokenizer");
         }
 
-        TokenizerFactory tokenizer = tokenizers.get(tokenizerName);
+        Supplier<Tokenizer> tokenizer = tokenizers.get(tokenizerName);
         if (tokenizer == null) {
             throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find tokenizer under name [" + tokenizerName + "]");
         }
@@ -95,7 +97,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         );
     }
 
-    public static TokenFilterFactory checkAndApplySynonymFilter(TokenFilterFactory tokenFilter, String tokenizerName, TokenizerFactory tokenizer,
+    public static TokenFilterFactory checkAndApplySynonymFilter(TokenFilterFactory tokenFilter, String tokenizerName, Supplier<Tokenizer> tokenizer,
                                                                 List<TokenFilterFactory> tokenFilterList,
                                                                 List<CharFilterFactory> charFiltersList, Environment env) {
         if (tokenFilter instanceof SynonymGraphTokenFilterFactory) {

@@ -47,12 +47,12 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     private static final String RULE_FILES = "rule_files";
 
     public IcuTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(indexSettings, settings);
         config = getIcuConfig(environment, settings);
     }
 
     @Override
-    public Tokenizer create() {
+    public Tokenizer get() {
         if (config == null) {
             return new ICUTokenizer();
         }else{

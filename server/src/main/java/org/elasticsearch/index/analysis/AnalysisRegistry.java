@@ -19,6 +19,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -39,6 +40,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
@@ -57,14 +59,14 @@ public final class AnalysisRegistry implements Closeable {
     private final Environment environment;
     private final Map<String, AnalysisProvider<CharFilterFactory>> charFilters;
     private final Map<String, AnalysisProvider<TokenFilterFactory>> tokenFilters;
-    private final Map<String, AnalysisProvider<TokenizerFactory>> tokenizers;
+    private final Map<String, AnalysisProvider<Supplier<Tokenizer>>> tokenizers;
     private final Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzers;
     private final Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers;
 
     public AnalysisRegistry(Environment environment,
                             Map<String, AnalysisProvider<CharFilterFactory>> charFilters,
                             Map<String, AnalysisProvider<TokenFilterFactory>> tokenFilters,
-                            Map<String, AnalysisProvider<TokenizerFactory>> tokenizers,
+                            Map<String, AnalysisProvider<Supplier<Tokenizer>>> tokenizers,
                             Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzers,
                             Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers,
                             Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
@@ -96,9 +98,9 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     /**
-     * Returns a registered {@link TokenizerFactory} provider by name or <code>null</code> if the tokenizer was not registered
+     * Returns a registered {@link Tokenizer} provider by name or <code>null</code> if the tokenizer was not registered
      */
-    public AnalysisModule.AnalysisProvider<TokenizerFactory> getTokenizerProvider(String tokenizer) {
+    public AnalysisModule.AnalysisProvider<Supplier<Tokenizer>> getTokenizerProvider(String tokenizer) {
         return tokenizers.getOrDefault(tokenizer, this.prebuiltAnalysis.getTokenizerFactory(tokenizer));
     }
 
@@ -149,7 +151,7 @@ public final class AnalysisRegistry implements Closeable {
     public IndexAnalyzers build(IndexSettings indexSettings) throws IOException {
 
         final Map<String, CharFilterFactory> charFilterFactories = buildCharFilterFactories(indexSettings);
-        final Map<String, TokenizerFactory> tokenizerFactories = buildTokenizerFactories(indexSettings);
+        final Map<String, Supplier<Tokenizer>> tokenizerFactories = buildTokenizerFactories(indexSettings);
         final Map<String, TokenFilterFactory> tokenFilterFactories = buildTokenFilterFactories(indexSettings);
         final Map<String, AnalyzerProvider<?>> analyzierFactories = buildAnalyzerFactories(indexSettings);
         final Map<String, AnalyzerProvider<?>> normalizerFactories = buildNormalizerFactories(indexSettings);
@@ -180,7 +182,7 @@ public final class AnalysisRegistry implements Closeable {
         return mappings;
     }
 
-    public Map<String, TokenizerFactory> buildTokenizerFactories(IndexSettings indexSettings) throws IOException {
+    public Map<String, Supplier<Tokenizer>> buildTokenizerFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> tokenizersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_TOKENIZER);
         return buildMapping(Component.TOKENIZER, indexSettings, tokenizersSettings, tokenizers, prebuiltAnalysis.preConfiguredTokenizers);
     }
@@ -202,14 +204,14 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     /**
-     * Returns a registered {@link TokenizerFactory} provider by {@link IndexSettings}
-     *  or a registered {@link TokenizerFactory} provider by predefined name
+     * Returns a registered {@link Tokenizer} provider by {@link IndexSettings}
+     *  or a registered {@link Tokenizer} provider by predefined name
      *  or <code>null</code> if the tokenizer was not registered
      * @param tokenizer global or defined tokenizer name
      * @param indexSettings an index settings
-     * @return {@link TokenizerFactory} provider or <code>null</code>
+     * @return {@link Tokenizer} provider or <code>null</code>
      */
-    public AnalysisProvider<TokenizerFactory> getTokenizerProvider(String tokenizer, IndexSettings indexSettings) {
+    public AnalysisProvider<Supplier<Tokenizer>> getTokenizerProvider(String tokenizer, IndexSettings indexSettings) {
         final Map<String, Settings> tokenizerSettings = indexSettings.getSettings().getGroups("index.analysis.tokenizer");
         if (tokenizerSettings.containsKey(tokenizer)) {
             Settings currentSettings = tokenizerSettings.get(tokenizer);
@@ -404,7 +406,7 @@ public final class AnalysisRegistry implements Closeable {
 
         final Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider<?>>> analyzerProviderFactories;
         final Map<String, ? extends AnalysisProvider<TokenFilterFactory>> preConfiguredTokenFilters;
-        final Map<String, ? extends AnalysisProvider<TokenizerFactory>> preConfiguredTokenizers;
+        final Map<String, ? extends AnalysisProvider<Supplier<Tokenizer>>> preConfiguredTokenizers;
         final Map<String, ? extends AnalysisProvider<CharFilterFactory>> preConfiguredCharFilterFactories;
 
         private PrebuiltAnalysis(
@@ -435,7 +437,7 @@ public final class AnalysisRegistry implements Closeable {
             return preConfiguredTokenFilters.get(name);
         }
 
-        public AnalysisModule.AnalysisProvider<TokenizerFactory> getTokenizerFactory(String name) {
+        public AnalysisModule.AnalysisProvider<Supplier<Tokenizer>> getTokenizerFactory(String name) {
             return preConfiguredTokenizers.get(name);
         }
 
@@ -453,7 +455,7 @@ public final class AnalysisRegistry implements Closeable {
     public IndexAnalyzers build(IndexSettings indexSettings,
                                 Map<String, AnalyzerProvider<?>> analyzerProviders,
                                 Map<String, AnalyzerProvider<?>> normalizerProviders,
-                                Map<String, TokenizerFactory> tokenizerFactoryFactories,
+                                Map<String, Supplier<Tokenizer>> tokenizerFactoryFactories,
                                 Map<String, CharFilterFactory> charFilterFactoryFactories,
                                 Map<String, TokenFilterFactory> tokenFilterFactoryFactories) {
 
@@ -507,7 +509,7 @@ public final class AnalysisRegistry implements Closeable {
                                         String name,
                                         AnalyzerProvider<?> analyzerFactory,
                                         Map<String, NamedAnalyzer> analyzers, Map<String, TokenFilterFactory> tokenFilters,
-                                        Map<String, CharFilterFactory> charFilters, Map<String, TokenizerFactory> tokenizers) {
+                                        Map<String, CharFilterFactory> charFilters, Map<String, Supplier<Tokenizer>> tokenizers) {
         /*
          * Lucene defaults positionIncrementGap to 0 in all analyzers but
          * Elasticsearch defaults them to 0 only before version 2.0
@@ -557,7 +559,7 @@ public final class AnalysisRegistry implements Closeable {
             AnalyzerProvider<?> normalizerFactory,
             Map<String, NamedAnalyzer> normalizers,
             String tokenizerName,
-            TokenizerFactory tokenizerFactory,
+            Supplier<Tokenizer> tokenizerFactory,
             Map<String, TokenFilterFactory> tokenFilters,
             Map<String, CharFilterFactory> charFilters) {
         if (tokenizerFactory == null) {

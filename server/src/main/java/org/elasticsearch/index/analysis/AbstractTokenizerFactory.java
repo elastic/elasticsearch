@@ -19,16 +19,18 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 
-public abstract class AbstractTokenizerFactory extends AbstractIndexComponent implements TokenizerFactory {
+import java.util.function.Supplier;
+
+public abstract class AbstractTokenizerFactory extends AbstractIndexComponent implements Supplier<Tokenizer> {
     protected final Version version;
 
-    // TODO drop `String ignored` in a followup
-    public AbstractTokenizerFactory(IndexSettings indexSettings, String ignored, Settings settings) {
+    public AbstractTokenizerFactory(IndexSettings indexSettings, Settings settings) {
         super(indexSettings);
         this.version = Analysis.parseAnalysisVersion(this.indexSettings.getSettings(), settings, logger);
     }

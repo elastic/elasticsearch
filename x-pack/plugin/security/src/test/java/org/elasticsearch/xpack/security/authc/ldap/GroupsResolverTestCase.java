@@ -18,7 +18,6 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 public abstract class GroupsResolverTestCase extends ESTestCase {

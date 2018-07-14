@@ -26,7 +26,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
@@ -162,7 +161,7 @@ class PrimaryExecutionContext {
         currentItemState = ItemProcessingState.OPERATION_COMPLETED;
     }
 
-    public void failOnMappingUpdateTimeout() {
+    public void failOnMappingUpdate(Exception cause) {
         assert currentItemState == ItemProcessingState.REQUIRES_WAITING_FOR_MAPPING_UPDATE : currentItemState;
         assert executionResult == null : executionResult;
         currentItemState = ItemProcessingState.OPERATION_COMPLETED;
@@ -171,9 +170,7 @@ class PrimaryExecutionContext {
             // Make sure to use request.index() here, if you
             // use docWriteRequest.index() it will use the
             // concrete index instead of an alias if used!
-            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(),
-                new MapperException("timed out while waiting for a dynamic mapping update"))));
-
+            new BulkItemResponse.Failure(getCurrentItem().index(), docWriteRequest.type(), docWriteRequest.id(), cause)));
     }
 
     public void markOperationAsCompleted(Engine.Result result) {

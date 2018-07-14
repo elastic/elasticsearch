@@ -625,7 +625,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 new PlainActionFuture<>();
 
             TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater,
-                null, null, Runnable::run, listener);
+                null, null, listener);
             result = listener.get();
         }
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);

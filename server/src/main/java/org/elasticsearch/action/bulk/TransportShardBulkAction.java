@@ -30,6 +30,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
@@ -52,12 +53,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -120,17 +121,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
             new ConcreteMappingUpdatePerformer(), observer, clusterService.localNode(),
-            r -> threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    callback.onFailure(e);
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-                    r.run();
-                }
-            }), callback);
+            callback);
     }
 
     public static void performOnPrimary(
@@ -139,11 +130,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         UpdateHelper updateHelper,
         LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater, ClusterStateObserver observer, DiscoveryNode localNode,
-        Consumer<Runnable> threadedRunner,
         ActionListener<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> callback) {
         PrimaryExecutionContext context = new PrimaryExecutionContext(request, primary);
         context.advance();
-        performOnPrimary(context, updateHelper, nowInMillisSupplier, mappingUpdater, observer, localNode, threadedRunner,
+        performOnPrimary(context, updateHelper, nowInMillisSupplier, mappingUpdater, observer, localNode,
             () -> callback.onResponse(
                 new WritePrimaryResult<>(request, context.buildShardResponse(), context.getLocationToSync(), null, primary, logger)),
             callback::onFailure
@@ -153,7 +143,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private static void performOnPrimary(PrimaryExecutionContext context, UpdateHelper updateHelper,
                                          LongSupplier nowInMillisSupplier,
                                          MappingUpdatePerformer mappingUpdater, ClusterStateObserver observer,
-                                         DiscoveryNode localNode, Consumer<Runnable> threadedRunner,
+                                         DiscoveryNode localNode,
                                          Runnable onComplete, Consumer<Exception> onFailure) {
 
         try {
@@ -162,31 +152,29 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 if (context.isFinalized()) {
                     context.advance();
                 } else if (context.requiresWaitingForMappingUpdate()) {
+                    PlainActionFuture<Void> waitingFuture = new PlainActionFuture<>();
                     observer.waitForNextChange(new ClusterStateObserver.Listener() {
                         @Override
                         public void onNewClusterState(ClusterState state) {
-                            rerun();
-                        }
-
-                        private void rerun() {
-                            threadedRunner.accept(() ->
-                            performOnPrimary(
-                                context, updateHelper, nowInMillisSupplier, mappingUpdater, observer, localNode, threadedRunner,
-                                onComplete, onFailure)
-                            )                                                                                                          ;
+                            waitingFuture.onResponse(null);
                         }
 
                         @Override
                         public void onClusterServiceClose() {
-                            onFailure.accept(new NodeClosedException(localNode));
+                            waitingFuture.onFailure(new NodeClosedException(localNode));
                         }
 
                         @Override
                         public void onTimeout(TimeValue timeout) {
-                            context.failOnMappingUpdateTimeout();
-                            rerun();
+                            waitingFuture.onFailure(
+                                new MapperException("timed out while waiting for a dynamic mapping update"));
                         }
                     });
+                    try {
+                        waitingFuture.get();
+                    } catch (Exception e) {
+                        context.failOnMappingUpdate(e);
+                    }
                 } else {
                     assert context.requiresImmediateRetry();
                 }

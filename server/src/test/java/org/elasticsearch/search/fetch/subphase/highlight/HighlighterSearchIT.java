@@ -63,10 +63,10 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockKeywordPlugin;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
-import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -2865,7 +2865,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             "field", "type=text,store=true,term_vector=with_positions_offsets")
             .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
             .get());
-        DateTime now = new DateTime(ISOChronology.getInstanceUTC());
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         indexRandom(true, client().prepareIndex("index-1", "type", "1").setSource("d", now, "field", "hello world"),
             client().prepareIndex("index-1", "type", "2").setSource("d", now.minusDays(1), "field", "hello"),
             client().prepareIndex("index-1", "type", "3").setSource("d", now.minusDays(2), "field", "world"));

@@ -35,8 +35,8 @@ import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -80,6 +80,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         assertIndexInMetaState(masterNode, index);
     }
 
+    @SuppressWarnings("unchecked")
     public void testMetaWrittenWhenIndexIsClosedAndMetaUpdated() throws Exception {
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         final String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
@@ -108,11 +109,11 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
                 .endObject()).get();
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("_doc").get();
-        assertNotNull(((LinkedHashMap) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties"))).get("integer_field"));
+        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties"))).get("integer_field"));
 
         // make sure it was also written on red node although index is closed
         ImmutableOpenMap<String, IndexMetaData> indicesMetaData = getIndicesMetaDataOnNode(dataNode);
-        assertNotNull(((LinkedHashMap) (indicesMetaData.get(index).getMappings().get("_doc").getSourceAsMap().get("properties"))).get("integer_field"));
+        assertNotNull(((Map<String,?>) (indicesMetaData.get(index).getMappings().get("_doc").getSourceAsMap().get("properties"))).get("integer_field"));
         assertThat(indicesMetaData.get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
 
         /* Try the same and see if this also works if node was just restarted.
@@ -133,11 +134,11 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
                 .endObject()).get();
 
         getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("_doc").get();
-        assertNotNull(((LinkedHashMap) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties"))).get("float_field"));
+        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties"))).get("float_field"));
 
         // make sure it was also written on red node although index is closed
         indicesMetaData = getIndicesMetaDataOnNode(dataNode);
-        assertNotNull(((LinkedHashMap) (indicesMetaData.get(index).getMappings().get("_doc").getSourceAsMap().get("properties"))).get("float_field"));
+        assertNotNull(((Map<String,?>) (indicesMetaData.get(index).getMappings().get("_doc").getSourceAsMap().get("properties"))).get("float_field"));
         assertThat(indicesMetaData.get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
 
         // finally check that meta data is also written of index opened again

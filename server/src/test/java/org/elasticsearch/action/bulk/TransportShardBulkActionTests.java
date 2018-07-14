@@ -1,21 +1,21 @@
-///*
-// * Licensed to Elasticsearch under one or more contributor
-// * license agreements. See the NOTICE file distributed with
-// * this work for additional information regarding copyright
-// * ownership. Elasticsearch licenses this file to you under
-// * the Apache License, Version 2.0 (the "License"); you may
-// * not use this file except in compliance with the License.
-// * You may obtain a copy of the License at
-// *
-// *    http://www.apache.org/licenses/LICENSE-2.0
-// *
-// * Unless required by applicable law or agreed to in writing,
-// * software distributed under the License is distributed on an
-// * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-// * KIND, either express or implied.  See the License for the
-// * specific language governing permissions and limitations
-// * under the License.
-// */
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 //
 //package org.elasticsearch.action.bulk;
 //
@@ -64,9 +64,9 @@
 //import static org.hamcrest.Matchers.arrayWithSize;
 //import static org.hamcrest.Matchers.containsString;
 //import static org.hamcrest.Matchers.instanceOf;
-//import static org.mockito.Mockito.any;
-//import static org.mockito.Mockito.anyBoolean;
-//import static org.mockito.Mockito.anyLong;
+//import static org.mockito.Matchers.any;
+//import static org.mockito.Matchers.anyBoolean;
+//import static org.mockito.Matchers.anyLong;
 //import static org.mockito.Mockito.spy;
 //import static org.mockito.Mockito.times;
 //import static org.mockito.Mockito.verify;
@@ -91,7 +91,7 @@
 //
 //    public void testShouldExecuteReplicaItem() throws Exception {
 //        // Successful index request should be replicated
-//        DocWriteRequest writeRequest = new IndexRequest("index", "_doc", "id")
+//        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id")
 //                .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
 //        DocWriteResponse response = new IndexResponse(shardId, "type", "id", 1, 17, 1, randomBoolean());
 //        BulkItemRequest request = new BulkItemRequest(0, writeRequest);
@@ -121,9 +121,9 @@
 //        assertThat(replicaItemExecutionMode(request, 0),
 //                equalTo(ReplicaItemExecutionMode.FAILURE));
 //        // NOOP requests should not be replicated
-//        writeRequest = new UpdateRequest("index", "type", "id");
+//        DocWriteRequest<UpdateRequest> updateRequest = new UpdateRequest("index", "type", "id");
 //        response = new UpdateResponse(shardId, "type", "id", 1, DocWriteResponse.Result.NOOP);
-//        request = new BulkItemRequest(0, writeRequest);
+//        request = new BulkItemRequest(0, updateRequest);
 //        request.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.UPDATE,
 //                        response));
 //        assertThat(replicaItemExecutionMode(request, 0),
@@ -137,7 +137,8 @@
 //
 //        BulkItemRequest[] items = new BulkItemRequest[1];
 //        boolean create = randomBoolean();
-//        DocWriteRequest writeRequest = new IndexRequest("index", "_doc", "id").source(Requests.INDEX_CONTENT_TYPE).create(create);
+//        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id").source(Requests.INDEX_CONTENT_TYPE)
+//                .create(create);
 //        BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 //        items[0] = primaryRequest;
 //        BulkShardRequest bulkShardRequest =
@@ -208,7 +209,7 @@
 //
 //        BulkItemRequest[] items = new BulkItemRequest[randomIntBetween(2, 5)];
 //        for (int i = 0; i < items.length; i++) {
-//            DocWriteRequest writeRequest = new IndexRequest("index", "_doc", "id_" + i)
+//            DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id_" + i)
 //                .source(Requests.INDEX_CONTENT_TYPE)
 //                .opType(DocWriteRequest.OpType.INDEX);
 //            items[i] = new BulkItemRequest(i, writeRequest);
@@ -223,8 +224,7 @@
 //
 //        UpdateHelper updateHelper = null;
 //        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(
-//            bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(), observer,
-//              callback);
+//            bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer());
 //
 //        // since at least 1 item passed, the tran log location should exist,
 //        assertThat(result.location, notNullValue());
@@ -259,7 +259,7 @@
 //        IndexShard shard = newStartedShard(true);
 //
 //        BulkItemRequest[] items = new BulkItemRequest[1];
-//        DocWriteRequest writeRequest = new IndexRequest("index", "_doc", "id")
+//        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id")
 //                .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
 //        items[0] = new BulkItemRequest(0, writeRequest);
 //        BulkShardRequest bulkShardRequest =
@@ -282,7 +282,7 @@
 //        IndexShard shard = newStartedShard(true);
 //
 //        BulkItemRequest[] items = new BulkItemRequest[1];
-//        DocWriteRequest writeRequest = new IndexRequest("index", "_doc", "id")
+//        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id")
 //                .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
 //        items[0] = new BulkItemRequest(0, writeRequest);
 //        BulkShardRequest bulkShardRequest =
@@ -324,7 +324,7 @@
 //        IndexShard shard = newStartedShard(true);
 //
 //        BulkItemRequest[] items = new BulkItemRequest[1];
-//        DocWriteRequest writeRequest = new DeleteRequest("index", "_doc", "id");
+//        DocWriteRequest<DeleteRequest> writeRequest = new DeleteRequest("index", "_doc", "id");
 //        items[0] = new BulkItemRequest(0, writeRequest);
 //        BulkShardRequest bulkShardRequest =
 //                new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
@@ -340,7 +340,7 @@
 //        assertThat(newLocation, not(location));
 //
 //        BulkItemRequest replicaRequest = bulkShardRequest.items()[0];
-//        DocWriteRequest replicaDeleteRequest = replicaRequest.request();
+//        DocWriteRequest<?> replicaDeleteRequest = replicaRequest.request();
 //        BulkItemResponse primaryResponse = replicaRequest.getPrimaryResponse();
 //        DeleteResponse response = primaryResponse.getResponse();
 //
@@ -406,7 +406,7 @@
 //    }
 //
 //    public void testNoopUpdateReplicaRequest() throws Exception {
-//        DocWriteRequest writeRequest = new IndexRequest("index", "_doc", "id")
+//        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id")
 //                .source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 //        BulkItemRequest replicaRequest = new BulkItemRequest(0, writeRequest);
 //
@@ -437,7 +437,7 @@
 //    }
 //
 //    public void testUpdateReplicaRequestWithFailure() throws Exception {
-//        DocWriteRequest writeRequest = new IndexRequest("index", "_doc", "id").source(Requests.INDEX_CONTENT_TYPE);
+//        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id").source(Requests.INDEX_CONTENT_TYPE);
 //        BulkItemRequest replicaRequest = new BulkItemRequest(0, writeRequest);
 //
 //        Exception err = new ElasticsearchException("I'm dead <(x.x)>");
@@ -473,7 +473,7 @@
 //    }
 //
 //    public void testUpdateReplicaRequestWithConflictFailure() throws Exception {
-//        DocWriteRequest writeRequest = new IndexRequest("index", "_doc", "id").source(Requests.INDEX_CONTENT_TYPE);
+//        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id").source(Requests.INDEX_CONTENT_TYPE);
 //        BulkItemRequest replicaRequest = new BulkItemRequest(0, writeRequest);
 //
 //        Exception err = new VersionConflictEngineException(shardId, "_doc", "id",
@@ -510,7 +510,7 @@
 //    }
 //
 //    public void testUpdateReplicaRequestWithSuccess() throws Exception {
-//        DocWriteRequest writeRequest = new IndexRequest("index", "_doc", "id")
+//        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id")
 //                .source(Requests.INDEX_CONTENT_TYPE);
 //        BulkItemRequest replicaRequest = new BulkItemRequest(0, writeRequest);
 //
@@ -546,7 +546,7 @@
 //    public void testCalculateTranslogLocation() throws Exception {
 //        final Translog.Location original = new Translog.Location(0, 0, 0);
 //
-//        DocWriteRequest writeRequest = new IndexRequest("index", "_doc", "id")
+//        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id")
 //            .source(Requests.INDEX_CONTENT_TYPE);
 //        BulkItemRequest replicaRequest = new BulkItemRequest(0, writeRequest);
 //        BulkItemResultHolder results = new BulkItemResultHolder(null, null, replicaRequest);
@@ -660,7 +660,6 @@
 //
 //        BulkItemRequest[] itemRequests = new BulkItemRequest[1];
 //        itemRequests[0] = request;
-//        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, itemRequests);
 //
 //        BulkItemResultHolder holder = TransportShardBulkAction.processUpdateResponse(updateRequest,
 //                "index", indexResult, translate, shard, 7);
@@ -672,7 +671,7 @@
 //        assertThat(holder.operationResult, equalTo(indexResult));
 //        BulkItemRequest replicaBulkRequest = holder.replicaRequest;
 //        assertThat(replicaBulkRequest.id(), equalTo(7));
-//        DocWriteRequest replicaRequest = replicaBulkRequest.request();
+//        DocWriteRequest<?> replicaRequest = replicaBulkRequest.request();
 //        assertThat(replicaRequest, instanceOf(IndexRequest.class));
 //        assertThat(replicaRequest, equalTo(indexRequest));
 //
@@ -686,7 +685,7 @@
 //        assertThat(deleteHolder.operationResult, equalTo(deleteResult));
 //        BulkItemRequest delReplicaBulkRequest = deleteHolder.replicaRequest;
 //        assertThat(delReplicaBulkRequest.id(), equalTo(8));
-//        DocWriteRequest delReplicaRequest = delReplicaBulkRequest.request();
+//        DocWriteRequest<?> delReplicaRequest = delReplicaBulkRequest.request();
 //        assertThat(delReplicaRequest, instanceOf(DeleteRequest.class));
 //        assertThat(delReplicaRequest, equalTo(deleteRequest));
 //
@@ -700,13 +699,11 @@
 //        Map<String, Object> source = new HashMap<>();
 //        BulkItemRequest[] items = new BulkItemRequest[1];
 //        boolean create = randomBoolean();
-//        DocWriteRequest writeRequest = new IndexRequest("index", "_doc", "id").source(Requests.INDEX_CONTENT_TYPE).create(create);
+//        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id").source(Requests.INDEX_CONTENT_TYPE)
+//                .create(create);
 //        BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 //        items[0] = primaryRequest;
-//        BulkShardRequest bulkShardRequest =
-//                new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 //
-//        Translog.Location location = new Translog.Location(0, 0, 0);
 //        IndexRequest indexRequest = new IndexRequest("index", "_doc", "id");
 //        indexRequest.source(source);
 //
@@ -731,7 +728,7 @@
 //        assertThat(updateResp.getGetResult(), equalTo(null));
 //        BulkItemRequest replicaBulkRequest = holder.replicaRequest;
 //        assertThat(replicaBulkRequest.id(), equalTo(0));
-//        DocWriteRequest replicaRequest = replicaBulkRequest.request();
+//        DocWriteRequest<?> replicaRequest = replicaBulkRequest.request();
 //        assertThat(replicaRequest, instanceOf(IndexRequest.class));
 //        assertThat(replicaRequest, equalTo(indexRequest));
 //
@@ -748,19 +745,15 @@
 //        source.put("foo", "bar");
 //        BulkItemRequest[] items = new BulkItemRequest[1];
 //        boolean create = randomBoolean();
-//        DocWriteRequest writeRequest = new IndexRequest("index", "_doc", "id")
+//        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id")
 //                .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar")
 //                .create(create);
 //        BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 //        items[0] = primaryRequest;
-//        BulkShardRequest bulkShardRequest =
-//                new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 //
-//        Translog.Location location = new Translog.Location(0, 0, 0);
 //        IndexRequest indexRequest = new IndexRequest("index", "_doc", "id");
 //        indexRequest.source(source);
 //
-//        DocWriteResponse.Result docWriteResult = DocWriteResponse.Result.CREATED;
 //        Exception prepareFailure = new IllegalArgumentException("I failed to do something!");
 //        UpdateHelper updateHelper = new FailingUpdateHelper(prepareFailure);
 //        UpdateRequest updateRequest = new UpdateRequest("index", "_doc", "id");
@@ -850,6 +843,7 @@
 //
 //    /** Doesn't perform any mapping updates */
 //    public static class NoopMappingUpdatePerformer implements MappingUpdatePerformer {
+//        @Override
 //        public void updateMappings(Mapping update, ShardId shardId, String type) {
 //        }
 //    }
@@ -861,6 +855,7 @@
 //            this.e = e;
 //        }
 //
+//        @Override
 //        public void updateMappings(Mapping update, ShardId shardId, String type) {
 //            throw e;
 //        }

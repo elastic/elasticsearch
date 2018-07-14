@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -64,49 +65,6 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
-        }
-
-        // simple template value string
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("template", "code").endObject();
-
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("mustache", "code", Collections.emptyMap());
-
-            assertThat(parsed, equalTo(source));
-            assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
-        }
-
-        // complex template with wrapper template object
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("template").startObject().field("query", "code").endObject().endObject();
-            String code;
-
-            try (XContentBuilder cb = XContentFactory.contentBuilder(builder.contentType())) {
-                code = Strings.toString(cb.startObject().field("query", "code").endObject());
-            }
-
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("mustache", code, Collections.emptyMap());
-
-            assertThat(parsed, equalTo(source));
-            assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
-        }
-
-        // complex template with no wrapper object
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("query", "code").endObject();
-            String code;
-
-            try (XContentBuilder cb = XContentFactory.contentBuilder(builder.contentType())) {
-                code = Strings.toString(cb.startObject().field("query", "code").endObject());
-            }
-
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("mustache", code, Collections.emptyMap());
-
-            assertThat(parsed, equalTo(source));
-            assertWarnings("the template context is now deprecated. Specify templates in a \"script\" element.");
         }
 
         // complex template using script as the field name
@@ -206,6 +164,15 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
                 StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON));
             assertThat(iae.getMessage(), equalTo("illegal compiler options [{option=option}] specified"));
         }
+
+        // check for unsupported template context
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject().field("template", "code").endObject();
+            ParsingException pEx = expectThrows(ParsingException.class, () ->
+                StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON));
+            assertThat(pEx.getMessage(), equalTo("unexpected field [template], expected ["+
+                StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName()+ "]"));
+        }
     }
 
     public void testEmptyTemplateDeprecations() throws IOException {
@@ -217,19 +184,6 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             assertThat(parsed, equalTo(source));
             assertWarnings("empty templates should no longer be used");
-        }
-
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("template", "").endObject();
-
-            StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
-
-            assertThat(parsed, equalTo(source));
-            assertWarnings(
-                "the template context is now deprecated. Specify templates in a \"script\" element.",
-                "empty templates should no longer be used"
-            );
         }
 
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {

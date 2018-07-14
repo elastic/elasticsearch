@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import com.fasterxml.jackson.core.JsonFactory;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -50,7 +49,6 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalMap;
 public final class ScriptProcessor extends AbstractProcessor {
 
     public static final String TYPE = "script";
-    private static final JsonFactory JSON_FACTORY = new JsonFactory();
 
     private final Script script;
     private final ScriptService scriptService;

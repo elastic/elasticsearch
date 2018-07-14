@@ -366,44 +366,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
     }
 
     Object compile(Compiler compiler, String scriptName, String source, Map<String, String> params, Object... args) {
-        final CompilerSettings compilerSettings;
-
-        if (params.isEmpty()) {
-            // Use the default settings.
-            compilerSettings = defaultCompilerSettings;
-        } else {
-            // Use custom settings specified by params.
-            compilerSettings = new CompilerSettings();
-
-            // Except regexes enabled - this is a node level setting and can't be changed in the request.
-            compilerSettings.setRegexesEnabled(defaultCompilerSettings.areRegexesEnabled());
-
-            Map<String, String> copy = new HashMap<>(params);
-
-            String value = copy.remove(CompilerSettings.MAX_LOOP_COUNTER);
-            if (value != null) {
-                compilerSettings.setMaxLoopCounter(Integer.parseInt(value));
-            }
-
-            value = copy.remove(CompilerSettings.PICKY);
-            if (value != null) {
-                compilerSettings.setPicky(Boolean.parseBoolean(value));
-            }
-
-            value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);
-            if (value != null) {
-                compilerSettings.setInitialCallSiteDepth(Integer.parseInt(value));
-            }
-
-            value = copy.remove(CompilerSettings.REGEX_ENABLED.getKey());
-            if (value != null) {
-                throw new IllegalArgumentException("[painless.regex.enabled] can only be set on node startup.");
-            }
-
-            if (!copy.isEmpty()) {
-                throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + copy);
-            }
-        }
+        final CompilerSettings compilerSettings = buildCompilerSettings(params);
 
         // Check we ourselves are not being called by unprivileged code.
         SpecialPermission.check();
@@ -434,14 +397,33 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
             }, COMPILATION_CONTEXT);
         // Note that it is safe to catch any of the following errors since Painless is stateless.
         } catch (OutOfMemoryError | StackOverflowError | VerifyError | Exception e) {
-            throw convertToScriptException(scriptName == null ? source : scriptName, source, e);
+            throw convertToScriptException(source, e);
         }
     }
 
     void compile(Compiler compiler, Loader loader, MainMethodReserved reserved,
                  String scriptName, String source, Map<String, String> params) {
-        final CompilerSettings compilerSettings;
+        final CompilerSettings compilerSettings = buildCompilerSettings(params);
 
+        try {
+            // Drop all permissions to actually compile the code itself.
+            AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                @Override
+                public Void run() {
+                    String name = scriptName == null ? source : scriptName;
+                    compiler.compile(loader, reserved, name, source, compilerSettings);
+
+                    return null;
+                }
+            }, COMPILATION_CONTEXT);
+            // Note that it is safe to catch any of the following errors since Painless is stateless.
+        } catch (OutOfMemoryError | StackOverflowError | VerifyError | Exception e) {
+            throw convertToScriptException(source, e);
+        }
+    }
+
+    private CompilerSettings buildCompilerSettings(Map<String, String> params) {
+        CompilerSettings compilerSettings;
         if (params.isEmpty()) {
             // Use the default settings.
             compilerSettings = defaultCompilerSettings;
@@ -478,25 +460,10 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
                 throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + copy);
             }
         }
-
-        try {
-            // Drop all permissions to actually compile the code itself.
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    String name = scriptName == null ? source : scriptName;
-                    compiler.compile(loader, reserved, name, source, compilerSettings);
-
-                    return null;
-                }
-            }, COMPILATION_CONTEXT);
-            // Note that it is safe to catch any of the following errors since Painless is stateless.
-        } catch (OutOfMemoryError | StackOverflowError | VerifyError | Exception e) {
-            throw convertToScriptException(scriptName == null ? source : scriptName, source, e);
-        }
+        return compilerSettings;
     }
 
-    private ScriptException convertToScriptException(String scriptName, String scriptSource, Throwable t) {
+    private ScriptException convertToScriptException(String scriptSource, Throwable t) {
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
         for (StackTraceElement element : t.getStackTrace()) {
@@ -507,7 +474,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
                     scriptStack.add("<<< unknown portion of script >>>");
                 } else {
                     offset--; // offset is 1 based, line numbers must be!
-                    int startOffset = getPreviousStatement(scriptSource, offset);
+                    int startOffset = getPreviousStatement(offset);
                     int endOffset = getNextStatement(scriptSource, offset);
                     StringBuilder snippet = new StringBuilder();
                     if (startOffset > 0) {
@@ -535,7 +502,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
     }
 
     // very simple heuristic: +/- 25 chars. can be improved later.
-    private int getPreviousStatement(String scriptSource, int offset) {
+    private int getPreviousStatement(int offset) {
         return Math.max(0, offset - 25);
     }
 

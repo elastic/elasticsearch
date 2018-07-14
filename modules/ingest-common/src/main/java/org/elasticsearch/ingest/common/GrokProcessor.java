@@ -68,8 +68,7 @@ public final class GrokProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("Provided Grok expressions do not match field value: [" + fieldValue + "]");
         }
 
-        matches.entrySet().stream()
-            .forEach((e) -> ingestDocument.setFieldValue(e.getKey(), e.getValue()));
+        matches.forEach(ingestDocument::setFieldValue);
 
         if (traceMatch) {
             if (matchPatterns.size() > 1) {

@@ -25,11 +25,12 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 
 /**
  * The KeyValueProcessor parses and extracts messages of the `key=value` variety into fields with values of the keys.
@@ -45,6 +46,7 @@ public final class KeyValueProcessor extends AbstractProcessor {
     private final Set<String> excludeKeys;
     private final String targetField;
     private final boolean ignoreMissing;
+    private final BiConsumer<IngestDocument, String> execution;
 
     KeyValueProcessor(String tag, String field, String fieldSplit, String valueSplit, Set<String> includeKeys,
                       Set<String> excludeKeys, String targetField, boolean ignoreMissing) {
@@ -56,6 +58,39 @@ public final class KeyValueProcessor extends AbstractProcessor {
         this.includeKeys = includeKeys;
         this.excludeKeys = excludeKeys;
         this.ignoreMissing = ignoreMissing;
+        this.execution = buildExecution(fieldSplit, valueSplit, field, includeKeys, excludeKeys, targetField);
+    }
+
+    private static BiConsumer<IngestDocument, String> buildExecution(String fieldSplit, String valueSplit, String field,
+                                                                     Set<String> includeKeys, Set<String> excludeKeys,
+                                                                     String targetField) {
+        final Predicate<String> keyFilter;
+        if (includeKeys == null) {
+            if (excludeKeys == null) {
+                keyFilter = key -> true;
+            } else {
+                keyFilter = key -> excludeKeys.contains(key) == false;
+            }
+        } else {
+            if (excludeKeys == null) {
+                keyFilter = includeKeys::contains;
+            } else {
+                keyFilter = key -> includeKeys.contains(key) && excludeKeys.contains(key) == false;
+            }
+        }
+        String fieldPathPrefix = targetField == null ? "" : targetField + ".";
+        return (document, value) -> {
+            for (String part : value.split(fieldSplit)) {
+                String[] kv = part.split(valueSplit, 2);
+                if (kv.length != 2) {
+                    throw new IllegalArgumentException("field [" + field + "] does not contain value_split [" + valueSplit + "]");
+                }
+                String key = kv[0];
+                if (keyFilter.test(key)) {
+                    append(document, fieldPathPrefix + key, kv[1]);
+                }
+            }
+        };
     }
 
     String getField() {
@@ -86,7 +121,7 @@ public final class KeyValueProcessor extends AbstractProcessor {
         return ignoreMissing;
     }
 
-    public void append(IngestDocument document, String targetField, String value) {
+    private static void append(IngestDocument document, String targetField, String value) {
         if (document.hasField(targetField)) {
             document.appendFieldValue(targetField, value);
         } else {
@@ -103,20 +138,7 @@ public final class KeyValueProcessor extends AbstractProcessor {
         } else if (oldVal == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot extract key-value pairs.");
         }
-
-        String fieldPathPrefix = (targetField == null) ? "" : targetField + ".";
-        Arrays.stream(oldVal.split(fieldSplit))
-            .map((f) -> {
-                String[] kv = f.split(valueSplit, 2);
-                if (kv.length != 2) {
-                    throw new IllegalArgumentException("field [" + field + "] does not contain value_split [" + valueSplit + "]");
-                }
-                return kv;
-            })
-            .filter((p) ->
-                (includeKeys == null || includeKeys.contains(p[0])) &&
-                    (excludeKeys == null || excludeKeys.contains(p[0]) == false))
-            .forEach((p) -> append(document, fieldPathPrefix + p[0], p[1]));
+        execution.accept(document, oldVal);
     }
 
     @Override

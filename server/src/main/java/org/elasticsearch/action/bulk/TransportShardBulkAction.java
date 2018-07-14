@@ -365,7 +365,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final UpdateResponse updateResponse;
         if (translatedResult == DocWriteResponse.Result.NOOP) {
             updateResponse = translate.action();
-        } else if (translatedResult == DocWriteResponse.Result.UPDATED || translatedResult == DocWriteResponse.Result.UPDATED) {
+        } else if (translatedResult == DocWriteResponse.Result.CREATED || translatedResult == DocWriteResponse.Result.UPDATED) {
             final IndexRequest updateIndexRequest = translate.action();
             final IndexResponse indexResponse = operationResponse.getResponse();
             updateResponse = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getShardId(),

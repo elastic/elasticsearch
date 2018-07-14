@@ -118,7 +118,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected void asyncShardWriteOperationOnPrimary(BulkShardRequest request, IndexShard primary,
                                                      ActionListener<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> callback) {
-        ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
+        ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
             new ConcreteMappingUpdatePerformer(), observer, clusterService.localNode(),
             callback);
@@ -133,18 +133,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> callback) {
         PrimaryExecutionContext context = new PrimaryExecutionContext(request, primary);
         context.advance();
-        performOnPrimary(context, updateHelper, nowInMillisSupplier, mappingUpdater, observer, localNode,
-            () -> callback.onResponse(
-                new WritePrimaryResult<>(request, context.buildShardResponse(), context.getLocationToSync(), null, primary, logger)),
-            callback::onFailure
-        );
+        performOnPrimary(context, updateHelper, nowInMillisSupplier, mappingUpdater, observer, localNode, callback);
     }
 
     private static void performOnPrimary(PrimaryExecutionContext context, UpdateHelper updateHelper,
                                          LongSupplier nowInMillisSupplier,
                                          MappingUpdatePerformer mappingUpdater, ClusterStateObserver observer,
                                          DiscoveryNode localNode,
-                                         Runnable onComplete, Consumer<Exception> onFailure) {
+                                         ActionListener<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> callback) {
 
         try {
             while (context.isAllFinalized() == false) {
@@ -172,16 +168,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     });
                     try {
                         waitingFuture.get();
+                        context.resetForExecutionAfterRetry();
                     } catch (Exception e) {
                         context.failOnMappingUpdate(e);
                     }
                 } else {
                     assert context.requiresImmediateRetry();
+                    context.resetForExecutionAfterRetry();
                 }
             }
-            onComplete.run();
+            callback.onResponse(new WritePrimaryResult<>(
+                context.getBulkShardRequest(), context.buildShardResponse(), context.getLocationToSync(), null, context.getPrimary(),
+                logger));
         } catch (Exception e) {
-            onFailure.accept(e);
+            callback.onFailure(e);
         }
     }
 

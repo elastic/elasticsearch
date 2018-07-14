@@ -1,21 +1,21 @@
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+///*
+// * Licensed to Elasticsearch under one or more contributor
+// * license agreements. See the NOTICE file distributed with
+// * this work for additional information regarding copyright
+// * ownership. Elasticsearch licenses this file to you under
+// * the Apache License, Version 2.0 (the "License"); you may
+// * not use this file except in compliance with the License.
+// * You may obtain a copy of the License at
+// *
+// *    http://www.apache.org/licenses/LICENSE-2.0
+// *
+// * Unless required by applicable law or agreed to in writing,
+// * software distributed under the License is distributed on an
+// * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// * KIND, either express or implied.  See the License for the
+// * specific language governing permissions and limitations
+// * under the License.
+// */
 //
 //package org.elasticsearch.action.bulk;
 //
@@ -29,14 +29,19 @@
 //import org.elasticsearch.action.delete.DeleteResponse;
 //import org.elasticsearch.action.index.IndexRequest;
 //import org.elasticsearch.action.index.IndexResponse;
+//import org.elasticsearch.action.support.PlainActionFuture;
 //import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 //import org.elasticsearch.action.support.replication.ReplicationOperation;
+//import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
 //import org.elasticsearch.action.support.replication.TransportWriteAction.WritePrimaryResult;
 //import org.elasticsearch.action.update.UpdateHelper;
 //import org.elasticsearch.action.update.UpdateRequest;
 //import org.elasticsearch.action.update.UpdateResponse;
 //import org.elasticsearch.client.Requests;
+//import org.elasticsearch.cluster.ClusterStateObserver;
+//import org.elasticsearch.cluster.action.shard.ShardStateAction;
 //import org.elasticsearch.cluster.metadata.IndexMetaData;
+//import org.elasticsearch.cluster.service.ClusterService;
 //import org.elasticsearch.common.lucene.uid.Versions;
 //import org.elasticsearch.common.settings.Settings;
 //import org.elasticsearch.common.xcontent.XContentType;
@@ -50,14 +55,25 @@
 //import org.elasticsearch.index.shard.ShardId;
 //import org.elasticsearch.index.translog.Translog;
 //import org.elasticsearch.rest.RestStatus;
+//import org.elasticsearch.test.transport.CapturingTransport;
+//import org.elasticsearch.threadpool.TestThreadPool;
+//import org.elasticsearch.threadpool.ThreadPool;
+//import org.elasticsearch.transport.TransportService;
+//import org.junit.After;
+//import org.junit.AfterClass;
+//import org.junit.Before;
+//import org.junit.BeforeClass;
 //
 //import java.io.IOException;
+//import java.util.Collections;
 //import java.util.HashMap;
 //import java.util.Map;
+//import java.util.concurrent.TimeUnit;
 //import java.util.concurrent.atomic.AtomicInteger;
 //import java.util.function.LongSupplier;
 //
 //import static org.elasticsearch.action.bulk.TransportShardBulkAction.replicaItemExecutionMode;
+//import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 //import static org.hamcrest.CoreMatchers.equalTo;
 //import static org.hamcrest.CoreMatchers.not;
 //import static org.hamcrest.CoreMatchers.notNullValue;
@@ -87,6 +103,21 @@
 //                                "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}")
 //                .settings(idxSettings)
 //                .primaryTerm(0, 1).build();
+//    }
+//
+//    private ClusterService clusterService;
+//
+//    @Override
+//    @Before
+//    public void setUp() throws Exception {
+//        super.setUp();
+//        clusterService = createClusterService(threadPool);
+//    }
+//
+//    @After
+//    public void tearDown() throws Exception {
+//        super.tearDown();
+//        clusterService.close();
 //    }
 //
 //    public void testShouldExecuteReplicaItem() throws Exception {
@@ -146,13 +177,12 @@
 //
 //        Translog.Location location = new Translog.Location(0, 0, 0);
 //        UpdateHelper updateHelper = null;
-//
-//        Translog.Location newLocation = TransportShardBulkAction.executeBulkItemRequest(metaData,
-//                shard, bulkShardRequest, location, 0, updateHelper,
-//                threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer());
+//        PrimaryExecutionContext context = new PrimaryExecutionContext(bulkShardRequest, shard);
+//        TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
+//            new NoopMappingUpdatePerformer());
 //
 //        // Translog should change, since there were no problems
-//        assertThat(newLocation, not(location));
+//        assertThat(context.getLocationToSync(), not(location));
 //
 //        BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
 //
@@ -170,13 +200,12 @@
 //        items[0] = primaryRequest;
 //        bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 //
-//        Translog.Location secondLocation =
-//                TransportShardBulkAction.executeBulkItemRequest( metaData,
-//                        shard, bulkShardRequest, newLocation, 0, updateHelper,
+//        PrimaryExecutionContext secondContext = new PrimaryExecutionContext(bulkShardRequest, shard);
+//        TransportShardBulkAction.executeBulkItemRequest( context, updateHelper,
 //                        threadPool::absoluteTimeInMillis, new ThrowingMappingUpdatePerformer(new RuntimeException("fail")));
 //
 //        // Translog should not change, since the document was not indexed due to a version conflict
-//        assertThat(secondLocation, equalTo(newLocation));
+//        assertThat(secondContext.getLocationToSync(), equalTo(context.getLocationToSync()));
 //
 //        BulkItemRequest replicaRequest = bulkShardRequest.items()[0];
 //
@@ -223,8 +252,11 @@
 //        rejectItem.abort("index", rejectionCause);
 //
 //        UpdateHelper updateHelper = null;
-//        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = TransportShardBulkAction.performOnPrimary(
-//            bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer());
+//        PlainActionFuture<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> callback = new PlainActionFuture<>();
+//        TransportShardBulkAction.performOnPrimary(
+//            bulkShardRequest, shard, updateHelper, threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(),
+//            new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext()), clusterService.localNode(), callback);
+//        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = callback.get();
 //
 //        // since at least 1 item passed, the tran log location should exist,
 //        assertThat(result.location, notNullValue());
@@ -254,26 +286,23 @@
 //        closeShards(shard);
 //    }
 //
-//    public void testExecuteBulkIndexRequestWithRejection() throws Exception {
+//    public void testExecuteBulkIndexRequestWithMappingUpdates() throws Exception {
 //        IndexMetaData metaData = indexMetaData();
 //        IndexShard shard = newStartedShard(true);
 //
-//        BulkItemRequest[] items = new BulkItemRequest[1];
+//        BulkItemRequest[] items = new BulkItemRequest[3];
 //        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index", "_doc", "id")
 //                .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
 //        items[0] = new BulkItemRequest(0, writeRequest);
 //        BulkShardRequest bulkShardRequest =
 //                new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 //
-//        Translog.Location location = new Translog.Location(0, 0, 0);
-//        UpdateHelper updateHelper = null;
 //
 //        // Pretend the mappings haven't made it to the node yet, and throw a rejection
-//        expectThrows(ReplicationOperation.RetryOnPrimaryException.class,
-//            () -> TransportShardBulkAction.executeBulkItemRequest(metaData, shard, bulkShardRequest,
-//                location, 0, updateHelper, threadPool::absoluteTimeInMillis,
-//                new NoopMappingUpdatePerformer()));
-//
+//        PrimaryExecutionContext context = new PrimaryExecutionContext(bulkShardRequest, shard);
+//        TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
+//                new NoopMappingUpdatePerformer());
+//        assertTrue(context.requiresWaitingForMappingUpdate());
 //        closeShards(shard);
 //    }
 //
@@ -294,12 +323,12 @@
 //        // Return an exception when trying to update the mapping
 //        RuntimeException err = new RuntimeException("some kind of exception");
 //
-//        Translog.Location newLocation = TransportShardBulkAction.executeBulkItemRequest(metaData,
-//                shard, bulkShardRequest, location, 0, updateHelper,
-//                threadPool::absoluteTimeInMillis, new ThrowingMappingUpdatePerformer(err));
+//        PrimaryExecutionContext context = new PrimaryExecutionContext(bulkShardRequest, shard);
+//        TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
+//            new ThrowingMappingUpdatePerformer(err));
 //
 //        // Translog shouldn't change, as there were conflicting mappings
-//        assertThat(newLocation, equalTo(location));
+//        assertThat(context.getLocationToSync(), equalTo(location));
 //
 //        BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
 //

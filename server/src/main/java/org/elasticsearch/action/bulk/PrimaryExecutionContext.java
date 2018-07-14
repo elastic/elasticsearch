@@ -79,6 +79,10 @@ class PrimaryExecutionContext {
         return getCurrentItem().request();
     }
 
+    public BulkShardRequest getBulkShardRequest() {
+        return request;
+    }
+
     public BulkItemResponse getExecutionResult() {
         assert currentItemState == ItemProcessingState.OPERATION_COMPLETED : currentItemState;
         return executionResult;
@@ -151,6 +155,12 @@ class PrimaryExecutionContext {
         currentItemState = ItemProcessingState.REQUIRES_WAITING_FOR_MAPPING_UPDATE;
         requestToExecute = null;
         executionResult = null;
+    }
+
+    public void resetForExecutionAfterRetry() {
+        assert currentItemState == ItemProcessingState.REQUIRES_WAITING_FOR_MAPPING_UPDATE ||
+            currentItemState == ItemProcessingState.IMMEDIATE_RETRY: currentItemState;
+        currentItemState = ItemProcessingState.INITIAL;
     }
 
     public void markOperationAsNoOp() {

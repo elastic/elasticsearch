@@ -73,10 +73,21 @@ include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-r
 [[java-rest-high-snapshot-create-snapshot-sync]]
 ==== Synchronous Execution
 
+Execute a `CreateSnapshotRequest` synchronously to receive a `CreateSnapshotResponse`.
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-execute]
 --------------------------------------------------
+
+Retrieve the `SnapshotInfo` from a `CreateSnapshotResponse` when the snapshot is fully created.
+(The `waitForCompletion` parameter is `true`).
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[create-snapshot-response-snapshot-info]
+--------------------------------------------------
+<1> The `SnapshotInfo` object.
 
 [[java-rest-high-snapshot-create-snapshot-async]]
 ==== Asynchronous Execution

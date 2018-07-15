@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -16,7 +17,6 @@ import org.junit.Before;
 import javax.mail.Address;
 import javax.mail.Message;
 import javax.mail.internet.InternetAddress;
-
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -149,7 +149,7 @@ public class AccountTests extends ESTestCase {
         assertThat(config.smtp.host, is(host));
         assertThat(config.smtp.user, is(user));
         if (password != null) {
-            assertThat(config.smtp.password, is(password.toCharArray()));
+            assertThat(config.smtp.password.getChars(), is(password.toCharArray()));
         } else {
             assertThat(config.smtp.password, nullValue());
         }
@@ -291,5 +291,31 @@ public class AccountTests extends ESTestCase {
                     .put("smtp.connection_timeout", 4000)
                     .build()), null, logger);
         });
+    }
+
+    public void testEnsurePasswordSetAsSecureSetting() {
+        String password = "password";
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("smtp.secure_password", password);
+
+        Settings settings = Settings.builder()
+            .put("smtp.host", "localhost")
+            .put("smtp.port", server.port())
+            .put("smtp.connection_timeout", TimeValue.timeValueMinutes(4))
+            .setSecureSettings(secureSettings)
+            .build();
+
+        Account.Config config = new Account.Config("default", settings);
+        assertThat(config.smtp.password.getChars(), equalTo(password.toCharArray()));
+
+        settings = Settings.builder()
+            .put("smtp.host", "localhost")
+            .put("smtp.port", server.port())
+            .put("smtp.connection_timeout", TimeValue.timeValueMinutes(4))
+            .put("smtp.password", password)
+            .build();
+
+        config = new Account.Config("default", settings);
+        assertThat(config.smtp.password.getChars(), equalTo(password.toCharArray()));
     }
 }

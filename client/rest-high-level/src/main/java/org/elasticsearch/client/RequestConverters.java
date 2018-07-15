@@ -43,6 +43,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
@@ -105,6 +106,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -963,6 +965,20 @@ final class RequestConverters {
         return request;
     }
 
+    static Request snapshotsStatus(SnapshotsStatusRequest snapshotsStatusRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(snapshotsStatusRequest.repository())
+            .addCommaSeparatedPathParts(snapshotsStatusRequest.snapshots())
+            .addPathPartAsIs("_status")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(snapshotsStatusRequest.masterNodeTimeout());
+        parameters.withIgnoreUnavailable(snapshotsStatusRequest.ignoreUnavailable());
+        return request;
+    }
+
     static Request deleteSnapshot(DeleteSnapshotRequest deleteSnapshotRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot")
             .addPathPart(deleteSnapshotRequest.repository())
@@ -1078,6 +1094,13 @@ final class RequestConverters {
                     .map(c -> c.toString().toLowerCase(Locale.ROOT))
                     .collect(Collectors.joining(",")));
         }
+        return request;
+    }
+
+    static Request xpackUsage(XPackUsageRequest usageRequest) {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
         return request;
     }
 
@@ -1262,7 +1285,7 @@ final class RequestConverters {
         }
 
         Params withIndicesOptions(IndicesOptions indicesOptions) {
-            putParam("ignore_unavailable", Boolean.toString(indicesOptions.ignoreUnavailable()));
+            withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
             putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
             String expandWildcards;
             if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
@@ -1278,6 +1301,12 @@ final class RequestConverters {
                 expandWildcards = joiner.toString();
             }
             putParam("expand_wildcards", expandWildcards);
+            return this;
+        }
+
+        Params withIgnoreUnavailable(boolean ignoreUnavailable) {
+            // Always explicitly place the ignore_unavailable value.
+            putParam("ignore_unavailable", Boolean.toString(ignoreUnavailable));
             return this;
         }
 

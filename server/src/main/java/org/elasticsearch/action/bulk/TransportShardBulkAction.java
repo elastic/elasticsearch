@@ -31,7 +31,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -185,57 +184,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
     }
 
-    // Visible for unit testing
-    /**
-     * Creates a BulkItemResponse for the primary operation and returns it. If no bulk response is
-     * needed (because one already exists and the operation failed), then return null.
-     */
-    static BulkItemResponse createPrimaryResponse(BulkItemResultHolder bulkItemResult,
-                                                  final DocWriteRequest.OpType opType,
-                                                  BulkShardRequest request) {
-        final Engine.Result operationResult = bulkItemResult.operationResult;
-        final DocWriteResponse response = bulkItemResult.response;
-        final BulkItemRequest replicaRequest = bulkItemResult.replicaRequest;
-
-        if (operationResult == null) { // in case of noop update operation
-            assert response.getResult() == DocWriteResponse.Result.NOOP : "only noop updates can have a null operation";
-            return new BulkItemResponse(replicaRequest.id(), opType, response);
-
-        } else if (operationResult.getResultType() == Engine.Result.Type.SUCCESS) {
-            BulkItemResponse primaryResponse = new BulkItemResponse(replicaRequest.id(), opType, response);
-            // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
-            primaryResponse.getResponse().setShardInfo(new ShardInfo());
-            return primaryResponse;
-
-        } else if (operationResult.getResultType() == Engine.Result.Type.FAILURE) {
-            DocWriteRequest<?> docWriteRequest = replicaRequest.request();
-            Exception failure = operationResult.getFailure();
-            if (isConflictException(failure)) {
-                logger.trace(() -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
-                    request.shardId(), docWriteRequest.opType().getLowercase(), request), failure);
-            } else {
-                logger.debug(() -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
-                    request.shardId(), docWriteRequest.opType().getLowercase(), request), failure);
-            }
-
-            // if it's a conflict failure, and we already executed the request on a primary (and we execute it
-            // again, due to primary relocation and only processing up to N bulk items when the shard gets closed)
-            // then just use the response we got from the failed execution
-            if (replicaRequest.getPrimaryResponse() == null || isConflictException(failure) == false) {
-                return new BulkItemResponse(replicaRequest.id(), docWriteRequest.opType(),
-                        // Make sure to use request.index() here, if you
-                        // use docWriteRequest.index() it will use the
-                        // concrete index instead of an alias if used!
-                        new BulkItemResponse.Failure(request.index(), docWriteRequest.type(), docWriteRequest.id(),
-                                failure, operationResult.getSeqNo()));
-            } else {
-                assert replicaRequest.getPrimaryResponse() != null : "replica request must have a primary response";
-                return null;
-            }
-        } else {
-            throw new AssertionError("unknown result type for " + request + ": " + operationResult.getResultType());
-        }
-    }
 
     /** Executes bulk item requests and handles request execution exceptions */
     static void executeBulkItemRequest(PrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
@@ -335,7 +283,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     context.setRequestToExecute(updateResult.action());
                     break;
                 case NOOP:
-                    context.markOperationAsNoOp();
+                    context.markOperationAsNoOp(updateResult.action());
+                    context.finalize(context.getExecutionResult());
                     break;
                 default: throw new IllegalStateException("Illegal update operation " + updateResult.getResponseResult());
             }
@@ -363,9 +312,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
 
         final UpdateResponse updateResponse;
-        if (translatedResult == DocWriteResponse.Result.NOOP) {
-            updateResponse = translate.action();
-        } else if (translatedResult == DocWriteResponse.Result.CREATED || translatedResult == DocWriteResponse.Result.UPDATED) {
+        if (translatedResult == DocWriteResponse.Result.CREATED || translatedResult == DocWriteResponse.Result.UPDATED) {
             final IndexRequest updateIndexRequest = translate.action();
             final IndexResponse indexResponse = operationResponse.getResponse();
             updateResponse = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getShardId(),

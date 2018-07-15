@@ -163,11 +163,11 @@ class PrimaryExecutionContext {
         currentItemState = ItemProcessingState.INITIAL;
     }
 
-    public void markOperationAsNoOp() {
+    public void markOperationAsNoOp(DocWriteResponse response) {
         assert currentItemState != ItemProcessingState.OPERATION_COMPLETED &&
             currentItemState != ItemProcessingState.FINALIZED: currentItemState;
         assert executionResult == null;
-        executionResult = new BulkItemResponse(getCurrentItem().id(), getCurrentItem().request().opType(), (BulkItemResponse.Failure)null);
+        executionResult = new BulkItemResponse(getCurrentItem().id(), getCurrentItem().request().opType(), response);
         currentItemState = ItemProcessingState.OPERATION_COMPLETED;
     }
 

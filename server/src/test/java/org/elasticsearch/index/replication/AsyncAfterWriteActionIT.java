@@ -41,6 +41,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -50,11 +51,13 @@ import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -65,6 +68,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -85,7 +89,7 @@ public class AsyncAfterWriteActionIT extends ESIntegTestCase {
         exceptionSupplier = null;
     }
 
-    private Tuple<Tuple<Long, AllocationId>, BulkItemResponse[]> doBulkRequest(String index, int nodes, Supplier<IOException> supplier) {
+    private Tuple<Tuple<Long, AllocationId>, BulkItemResponse[]> doBulkRequest(String index, int nodes, Supplier<IOException> supplier) throws Exception {
         exceptionSupplier = null;
         internalCluster().startNodes(nodes);
 
@@ -121,14 +125,12 @@ public class AsyncAfterWriteActionIT extends ESIntegTestCase {
         BulkItemResponse[] itemResponses = doBulkItemResponse(index, extraDocs);
         assertThat(itemResponses.length, equalTo(extraDocs));
 
-        ensureGreen(index);
-
         return Tuple.tuple(initialPrimaryInfo, itemResponses);
     }
 
-    public void testFailTranslogSyncOnPrimary() {
+    public void testFailTranslogSyncOnPrimary() throws Exception {
         final String index = "index1";
-        final int nodes = randomIntBetween(2, 10);
+        final int nodes = randomIntBetween(1, 10);
         final AtomicBoolean throwException = new AtomicBoolean(true);
         final Supplier<IOException> supplier = () -> {
             if (throwException.compareAndSet(true, false)){
@@ -143,47 +145,34 @@ public class AsyncAfterWriteActionIT extends ESIntegTestCase {
         final BulkItemResponse[] itemResponses = tuple.v2();
 
         for (BulkItemResponse itemResponse : itemResponses) {
-            assertThat("request has to perform successfully, " + itemResponse.getFailure(),
-                itemResponse.isFailed(), equalTo(false));
+            assertThat("request has to " + (nodes > 1 ? "perform successfully" : "fail")
+                    + " " + itemResponse.getFailure(), itemResponse.isFailed(), equalTo(nodes == 1));
 
             final IndexResponse indexResponse = itemResponse.getResponse();
-            final ReplicationResponse.ShardInfo shardInfo = indexResponse.getShardInfo();
-            assertThat("primary failed",
-                shardInfo.getSuccessful() + 1, equalTo(shardInfo.getTotal()));
-            final ReplicationResponse.ShardInfo.Failure[] failures = shardInfo.getFailures();
-            assertThat(failures.length, equalTo(1));
-            assertThat(failures[0].reason(), equalTo("IOException[fake io exception]"));
-            assertThat(failures[0].primary(), equalTo(true));
+            if (nodes == 1) {
+                assertThat(indexResponse, nullValue());
+            } else {
+                final ReplicationResponse.ShardInfo shardInfo = indexResponse.getShardInfo();
+                assertThat(nodes, equalTo(shardInfo.getTotal()));
+                assertThat("primary failed",
+                    shardInfo.getSuccessful() + 1, equalTo(shardInfo.getTotal()));
+                final ReplicationResponse.ShardInfo.Failure[] failures = shardInfo.getFailures();
+                assertThat(Arrays.toString(failures), failures.length, equalTo(1));
+                assertThat(failures[0].reason(), equalTo("IOException[fake io exception]"));
+                assertThat(failures[0].primary(), equalTo(true));
+            }
         }
 
-        final Tuple<Long, AllocationId> newPrimaryInfo = primaryTermAndAllocationId(index);
-        assertThat("primaryTerm has to be changed due to error in ensureTranslogSynced",
-            newPrimaryInfo.v1().longValue(), equalTo(primaryInfo.v1().longValue() + 1L));
-        assertThat("alloationId for primary has to be changed due to error in ensureTranslogSynced",
-            newPrimaryInfo.v2(), not(primaryInfo.v2()));
-    }
-
-    public void testFailTranslogSyncOnTheOnlyPrimary() {
-        final int nodes = 1;
-        final String index = "index1";
-
-        final Supplier<IOException> supplier = () -> new IOException("fake io exception");
-
-        final Tuple<Tuple<Long, AllocationId>, BulkItemResponse[]> tuple = doBulkRequest(index, nodes, supplier);
-
-        final BulkItemResponse[] itemResponses = tuple.v2();
-
-        for (BulkItemResponse itemResponse : itemResponses) {
-            assertThat("request has to perform successfully, " + itemResponse.getFailure(),
-                itemResponse.isFailed(), equalTo(true));
-
-            final IndexResponse indexResponse = itemResponse.getResponse();
-            assertThat(indexResponse, nullValue());
-
+        if (nodes > 1) {
+            final Tuple<Long, AllocationId> newPrimaryInfo = primaryTermAndAllocationId(index);
+            assertThat("primaryTerm has to be changed due to error in ensureTranslogSynced",
+                newPrimaryInfo.v1().longValue(), equalTo(primaryInfo.v1().longValue() + 1L));
+            assertThat("alloationId for primary has to be changed due to error in ensureTranslogSynced",
+                newPrimaryInfo.v2(), not(primaryInfo.v2()));
         }
     }
 
-    public void testFailTranslogSyncOnReplica() {
+    public void testFailTranslogSyncOnReplica() throws Exception {
         final String index = "index1";
         final int nodes = randomIntBetween(2, 10);
 
@@ -237,19 +226,29 @@ public class AsyncAfterWriteActionIT extends ESIntegTestCase {
         return response.getItems();
     }
 
-    private Tuple<Long, AllocationId> primaryTermAndAllocationId(String index) {
-        final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        final IndexShardRoutingTable indexShardRoutingTable = clusterState.getRoutingTable().index(index).shard(0);
-        final ShardRouting shardRouting = indexShardRoutingTable.primaryShard();
-        final ShardId shardId = shardRouting.shardId();
-        final String primaryNodeId = shardRouting.currentNodeId();
-        final DiscoveryNode primaryDiscoveryNode = clusterState.getNodes().get(primaryNodeId);
-        final String primaryNodeName = primaryDiscoveryNode.getName();
-        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, primaryNodeName);
-        final IndexService indexService = indicesService.indexService(resolveIndex(index));
-        final IndexShard shard = indexService.getShard(shardId.id());
+    private Tuple<Long, AllocationId> primaryTermAndAllocationId(String index) throws Exception {
+        AtomicReference<Tuple<Long, AllocationId>> ref = new AtomicReference<>();
+        assertBusy(() -> {
+            final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            final IndexShardRoutingTable indexShardRoutingTable = clusterState.getRoutingTable().index(index).shard(0);
+            final ShardRouting shardRouting = indexShardRoutingTable.primaryShard();
+            final ShardId shardId = shardRouting.shardId();
+            final String primaryNodeId = shardRouting.currentNodeId();
+            final DiscoveryNode primaryDiscoveryNode = clusterState.getNodes().get(primaryNodeId);
+            final String primaryNodeName = primaryDiscoveryNode.getName();
+            final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, primaryNodeName);
+            final IndexService indexService = indicesService.indexService(resolveIndex(index));
+            assertThat(indexService, notNullValue());
+            try {
+                final IndexShard shard = indexService.getShard(shardId.id());
+                ref.set(Tuple.tuple(shard.getPrimaryTerm(), shardRouting.allocationId()));
+            } catch (ShardNotFoundException e) {
+                fail(e.getMessage());
+            }
+        });
 
-        return Tuple.tuple(shard.getPrimaryTerm(), shardRouting.allocationId());
+
+        return ref.get();
     }
 
     public static class IOExceptionMockedEngineFactoryPlugin extends Plugin implements EnginePlugin {

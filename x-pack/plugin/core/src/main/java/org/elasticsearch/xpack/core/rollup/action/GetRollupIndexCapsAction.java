@@ -11,8 +11,9 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,18 +25,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
+public class GetRollupIndexCapsAction extends Action<GetRollupIndexCapsAction.Response> {
 
-    public static final GetRollupCapsAction INSTANCE = new GetRollupCapsAction();
-    public static final String NAME = "cluster:monitor/xpack/rollup/get/caps";
+    public static final GetRollupIndexCapsAction INSTANCE = new GetRollupIndexCapsAction();
+    public static final String NAME = "indices:data/read/xpack/rollup/get/index/caps";
     public static final ParseField CONFIG = new ParseField("config");
     public static final ParseField STATUS = new ParseField("status");
+    private static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
 
-    private GetRollupCapsAction() {
+    private GetRollupIndexCapsAction() {
         super(NAME);
     }
 
@@ -44,33 +47,53 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
         return new Response();
     }
 
-    public static class Request extends ActionRequest implements ToXContent {
-        private String indexPattern;
+    public static class Request extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
+        private String[] indices;
+        private IndicesOptions options;
 
-        public Request(String indexPattern) {
-            if (Strings.isNullOrEmpty(indexPattern) || indexPattern.equals("*")) {
-                this.indexPattern = MetaData.ALL;
-            } else {
-                this.indexPattern = indexPattern;
-            }
+        public Request(String[] indices) {
+            this(indices, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED);
+        }
+
+        public Request(String[] indices, IndicesOptions options) {
+            this.indices = indices;
+            this.options = options;
         }
 
         public Request() {}
 
-        public String getIndexPattern() {
-            return indexPattern;
+        @Override
+        public IndicesOptions indicesOptions() {
+            return options;
+        }
+
+        @Override
+        public String[] indices() {
+            return indices;
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            Objects.requireNonNull(indices, "indices must not be null");
+            for (String index : indices) {
+                Objects.requireNonNull(index, "index must not be null");
+            }
+            this.indices = indices;
+            return this;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            this.indexPattern = in.readString();
+            this.indices = in.readStringArray();
+            this.options = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(indexPattern);
+            out.writeStringArray(indices);
+            options.writeIndicesOptions(out);
         }
 
         @Override
@@ -80,13 +103,14 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(RollupField.ID.getPreferredName(), indexPattern);
+            builder.array(RollupField.ID.getPreferredName(), indices);
+            builder.field(INDICES_OPTIONS.getPreferredName(), options);
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indexPattern);
+            return Objects.hash(Arrays.hashCode(indices), options);
         }
 
         @Override
@@ -98,13 +122,14 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(indexPattern, other.indexPattern);
+            return Arrays.equals(indices, other.indices)
+                && Objects.equals(options, other.options);
         }
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
-        protected RequestBuilder(ElasticsearchClient client, GetRollupCapsAction action) {
+        protected RequestBuilder(ElasticsearchClient client, GetRollupIndexCapsAction action) {
             super(client, action, new Request());
         }
     }

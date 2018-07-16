@@ -23,6 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessField;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.lookup.PainlessClass;
@@ -48,7 +49,7 @@ import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
  * Tests {@link Object#toString} implementations on all extensions of {@link ANode}.
  */
 public class NodeToStringTests extends ESTestCase {
-    private final PainlessLookup painlessLookup = new PainlessLookup(Whitelist.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup = new PainlessLookupBuilder(Whitelist.BASE_WHITELISTS).build();
 
     public void testEAssignment() {
         assertToString(

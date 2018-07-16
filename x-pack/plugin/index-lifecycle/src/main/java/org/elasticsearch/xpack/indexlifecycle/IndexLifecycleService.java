@@ -44,7 +44,7 @@ public class IndexLifecycleService extends AbstractComponent
 
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final Clock clock;
-    private final PolicyStepsRegistry policyRegistry;
+    private PolicyStepsRegistry policyRegistry;
     private Client client;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
@@ -113,6 +113,8 @@ public class IndexLifecycleService extends AbstractComponent
             triggerPolicies(event.state(), true);
         } else {
             cancelJob();
+            policyRegistry = new PolicyStepsRegistry();
+            lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, nowSupplier);
         }
     }
 
@@ -121,7 +123,9 @@ public class IndexLifecycleService extends AbstractComponent
         if (event.localNodeMaster()) { // only act if we are master, otherwise
                                        // keep idle until elected
             IndexLifecycleMetadata lifecycleMetadata = event.state().metaData().custom(IndexLifecycleMetadata.TYPE);
-            if (lifecycleMetadata != null && event.changedCustomMetaDataSet().contains(IndexLifecycleMetadata.TYPE)) {
+            if (lifecycleMetadata != null
+                    && (event.changedCustomMetaDataSet().contains(IndexLifecycleMetadata.TYPE) ||
+                        lifecycleMetadata.getPolicies().size() != policyRegistry.getLifecyclePolicyMap().size())) {
                 // update policy steps registry
                 policyRegistry.update(event.state(), client, nowSupplier);
             }

@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public class MockStep extends Step implements Writeable {
+public class MockStep extends Step implements NamedWriteable {
     public static final String NAME = "TEST_STEP";
 
     public MockStep(StepKey stepKey, Step.StepKey nextStepKey) {
@@ -45,5 +45,10 @@ public class MockStep extends Step implements Writeable {
             out.writeString(getNextStepKey().getAction());
             out.writeString(getNextStepKey().getName());
         }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

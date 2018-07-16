@@ -127,11 +127,49 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertNull(indexLifecycleService.getScheduler());
     }
 
-    public void testElectUnElectMaster() throws Exception {
+    public void testOnlyChangesStateOnMasterWhenMetadataChanges() {
+        int numPolicies = randomIntBetween(1, 5);
+        IndexLifecycleMetadata lifecycleMetadata = IndexLifecycleMetadataTests.createTestInstance(numPolicies, OperationMode.RUNNING);
+        IndexLifecycleMetadata newLifecycleMetadata = randomValueOtherThan(lifecycleMetadata,
+            () -> IndexLifecycleMetadataTests.createTestInstance(numPolicies, OperationMode.RUNNING));
+        MetaData previousMetadata = MetaData.builder()
+            .persistentSettings(settings(Version.CURRENT)
+                .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(3)).build())
+            .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
+            .build();
+        MetaData newMetaData = MetaData.builder(previousMetadata).putCustom(IndexLifecycleMetadata.TYPE, newLifecycleMetadata).build();
+
+        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(previousMetadata)
+            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
+            .build();
+        ClusterState newState = ClusterState.builder(previousState).metaData(newMetaData).build();
+        ClusterChangedEvent event = new ClusterChangedEvent("_source", previousState, previousState);
+
+        Mockito.reset(clusterService);
+        PolicyStepsRegistry policyStepsRegistry = indexLifecycleService.getPolicyRegistry();
+        indexLifecycleService.applyClusterState(event);
+        indexLifecycleService.clusterChanged(event);
+        Mockito.verifyZeroInteractions(clusterService);
+        assertNotNull(indexLifecycleService.getScheduler());
+        assertEquals(1, indexLifecycleService.getScheduler().jobCount());
+        assertNotNull(indexLifecycleService.getScheduledJob());
+        assertSame(policyStepsRegistry, indexLifecycleService.getPolicyRegistry());
+        assertThat(policyStepsRegistry.getLifecyclePolicyMap().keySet(), equalTo(lifecycleMetadata.getPolicyMetadatas().keySet()));
+
+        event = new ClusterChangedEvent("_source", newState, previousState);
+        indexLifecycleService.applyClusterState(event);
+        assertSame(policyStepsRegistry, indexLifecycleService.getPolicyRegistry());
+        assertThat(policyStepsRegistry.getLifecyclePolicyMap().keySet(), equalTo(newLifecycleMetadata.getPolicyMetadatas().keySet()));
+    }
+
+    public void testElectUnElectMaster() {
+        int numberOfPolicies = randomIntBetween(1, 5);
+        IndexLifecycleMetadata lifecycleMetadata = IndexLifecycleMetadataTests.createTestInstance(numberOfPolicies, OperationMode.RUNNING);
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT)
                 .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(3)).build())
-                .putCustom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY)
+                .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .build();
 
         // First check that when the node has never been master the scheduler
@@ -142,6 +180,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("_source", state, state);
 
+        PolicyStepsRegistry policyStepsRegistry = indexLifecycleService.getPolicyRegistry();
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.clusterChanged(event);
         verify(clusterService, times(1)).addListener(any());
@@ -149,6 +188,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(clusterService);
         assertNull(indexLifecycleService.getScheduler());
         assertNull(indexLifecycleService.getScheduledJob());
+        assertNotSame(policyStepsRegistry, indexLifecycleService.getPolicyRegistry());
+        policyStepsRegistry = indexLifecycleService.getPolicyRegistry();
 
         Mockito.reset(clusterService);
         state = ClusterState.builder(ClusterName.DEFAULT)
@@ -158,13 +199,14 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         event = new ClusterChangedEvent("_source", state, state);
 
         // Check that when the node is first elected as master it sets up
-        // the scheduler and job
+        // the scheduler job and steps registry
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.clusterChanged(event);
         Mockito.verifyZeroInteractions(clusterService);
         assertNotNull(indexLifecycleService.getScheduler());
         assertEquals(1, indexLifecycleService.getScheduler().jobCount());
         assertNotNull(indexLifecycleService.getScheduledJob());
+        assertThat(policyStepsRegistry.getLifecyclePolicyMap().size(), equalTo(numberOfPolicies));
 
         Mockito.reset(clusterService);
         state = ClusterState.builder(ClusterName.DEFAULT)
@@ -173,13 +215,16 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                 .build();
         event = new ClusterChangedEvent("_source", state, state);
 
-        // Check that when the node is un-elected as master it cancels the job
         indexLifecycleService.applyClusterState(event);
+        // Check that when the node is un-elected as master it cancels the job and cleans up steps registry
         indexLifecycleService.clusterChanged(event);
         Mockito.verifyZeroInteractions(clusterService);
         assertNotNull(indexLifecycleService.getScheduler());
         assertEquals(0, indexLifecycleService.getScheduler().jobCount());
         assertNull(indexLifecycleService.getScheduledJob());
+        assertNotSame(policyStepsRegistry, indexLifecycleService.getPolicyRegistry());
+        policyStepsRegistry = indexLifecycleService.getPolicyRegistry();
+        assertThat(policyStepsRegistry.getLifecyclePolicyMap().size(), equalTo(0));
 
         Mockito.reset(clusterService);
         state = ClusterState.builder(ClusterName.DEFAULT)
@@ -188,13 +233,14 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                 .build();
         event = new ClusterChangedEvent("_source", state, state);
 
-        // Check that when the node is re-elected as master it cancels the job
+        // Check that when the node is re-elected as master it re-starts the job and populates the registry
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.clusterChanged(event);
         Mockito.verifyZeroInteractions(clusterService);
         assertNotNull(indexLifecycleService.getScheduler());
         assertEquals(1, indexLifecycleService.getScheduler().jobCount());
         assertNotNull(indexLifecycleService.getScheduledJob());
+        assertThat(policyStepsRegistry.getLifecyclePolicyMap().size(), equalTo(numberOfPolicies));
     }
 
     public void testSchedulerInitializationAndUpdate() {

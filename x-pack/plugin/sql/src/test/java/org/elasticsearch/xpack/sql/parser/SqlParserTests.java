@@ -45,7 +45,7 @@ public class SqlParserTests extends ESTestCase {
         assertEquals("SCORE", f.functionName());
     }
 
-    public void testSelectLeft() {
+    public void testSelectRightFunction() {
         UnresolvedFunction f = singleProjection(project(parseStatement("SELECT RIGHT()")), UnresolvedFunction.class);
         assertEquals("RIGHT", f.functionName());
     }

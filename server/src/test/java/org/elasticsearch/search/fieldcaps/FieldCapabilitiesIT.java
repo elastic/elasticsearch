@@ -23,10 +23,16 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -47,6 +53,13 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                             .field("type", "alias")
                             .field("path", "distance")
                         .endObject()
+                        .startObject("playlist")
+                            .field("type", "text")
+                        .endObject()
+                        .startObject("secret_soundtrack")
+                            .field("type", "alias")
+                            .field("path", "playlist")
+                        .endObject()
                     .endObject()
                 .endObject()
             .endObject();
@@ -66,6 +79,18 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 .endObject()
             .endObject();
         assertAcked(prepareCreate("new_index").addMapping("_doc", newIndexMapping));
+    }
+
+    public static class FieldFilterPlugin extends Plugin implements MapperPlugin {
+        @Override
+        public Function<String, Predicate<String>> getFieldFilter() {
+            return index -> field -> !field.equals("playlist");
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(FieldFilterPlugin.class);
     }
 
     public void testFieldAlias() {
@@ -100,11 +125,27 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             routeLength.get("double"));
     }
 
-    public void testFieldAliasWithWildcardField() {
+    public void testFieldAliasWithWildcard() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("route*")
             .execute().actionGet();
 
         assertEquals(1, response.get().size());
         assertTrue(response.get().containsKey("route_length_miles"));
+    }
+
+    public void testFieldAliasFiltering() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields(
+            "secret-soundtrack", "route_length_miles")
+            .execute().actionGet();
+        assertEquals(1, response.get().size());
+        assertTrue(response.get().containsKey("route_length_miles"));
+    }
+
+    public void testFieldAliasFilteringWithWildcard() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps()
+            .setFields("distance", "secret*")
+            .execute().actionGet();
+        assertEquals(1, response.get().size());
+        assertTrue(response.get().containsKey("distance"));
     }
 }

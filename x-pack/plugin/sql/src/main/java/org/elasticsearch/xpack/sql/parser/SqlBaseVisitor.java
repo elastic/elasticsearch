@@ -446,6 +446,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFunctionTemplate(SqlBaseParser.FunctionTemplateContext ctx);
   /**
+   * Visit a parse tree produced by {@link SqlBaseParser#functionName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFunctionName(SqlBaseParser.FunctionNameContext ctx);
+  /**
    * Visit a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link SqlBaseParser#constant}.
    * @param ctx the parse tree

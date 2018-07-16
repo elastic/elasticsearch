@@ -438,6 +438,7 @@ public class MlJobIT extends ESRestTestCase {
                 client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32034")
     public void testDeleteJobAfterMissingAliases() throws Exception {
         String jobId = "delete-job-after-missing-alias-job";
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);

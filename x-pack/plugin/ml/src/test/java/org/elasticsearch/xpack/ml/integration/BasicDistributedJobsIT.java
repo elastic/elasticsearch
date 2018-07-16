@@ -366,10 +366,14 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet());
-        assertTrue(e.getMessage(),
-                e.getMessage().startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
-        assertTrue(e.getMessage(), e.getMessage().endsWith("because not all primary shards are active for the following indices "
-                + "[.ml-state,.ml-anomalies-shared]]"));
+        assertEquals("Could not open job because no ML nodes with sufficient capacity were found", e.getMessage());
+        IllegalStateException detail = (IllegalStateException) e.getCause();
+        assertNotNull(detail);
+        String detailedMessage = detail.getMessage();
+        assertTrue(detailedMessage,
+            detailedMessage.startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
+        assertTrue(detailedMessage, detailedMessage.endsWith("because not all primary shards are active for the following indices " +
+            "[.ml-state,.ml-anomalies-shared]]"));
 
         logger.info("Start data node");
         String nonMlNode = internalCluster().startNode(Settings.builder()

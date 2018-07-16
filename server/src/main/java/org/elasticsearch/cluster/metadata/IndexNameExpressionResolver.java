@@ -278,11 +278,13 @@ public class IndexNameExpressionResolver extends AbstractComponent {
      * @return the write index obtained as a result of the index resolution
      */
     public Index concreteWriteIndex(ClusterState state, IndicesRequest request) {
-        String indexExpression = request.indices() != null && request.indices().length > 0 ? request.indices()[0] : null;
+        if (request.indices() == null || (request.indices() != null && request.indices().length != 1)) {
+            throw new IllegalArgumentException("indices request must specify a single index expression");
+        }
         Context context = new Context(state, request.indicesOptions(), false, true);
-        Index[] indices = concreteIndices(context, indexExpression);
+        Index[] indices = concreteIndices(context, request.indices()[0]);
         if (indices.length != 1) {
-            throw new IllegalArgumentException("The index expression [" + indexExpression +
+            throw new IllegalArgumentException("The index expression [" + request.indices()[0] +
                 "] and options provided did not point to a single write-index");
         }
         return indices[0];

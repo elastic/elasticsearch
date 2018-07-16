@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -1017,12 +1018,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
             @Override
             public String[] indices() {
-                return randomBoolean() ? new String[] { "test-alias" } : new String[] { "test-alias", "test-alias"};
+                return new String[] { "test-alias" };
             }
 
             @Override
             public IndicesOptions indicesOptions() {
-                return IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED;
+                return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
             }
         };
         Index writeIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
@@ -1033,6 +1034,33 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .writeIndex(testZeroWriteIndex ? randomFrom(false, null) : true)))).build();
         writeIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
         assertThat(writeIndex.getName(), equalTo(testZeroWriteIndex ? "test-0" : "test-1"));
+    }
+
+    public void testConcreteWriteIndexWithInvalidIndicesRequest() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("test-0").state(State.OPEN)
+                .putAlias(AliasMetaData.builder("test-alias")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        Function<String[], IndicesRequest> requestGen = (indices) -> new IndicesRequest()  {
+
+            @Override
+            public String[] indices() {
+                return indices;
+            }
+
+            @Override
+            public IndicesOptions indicesOptions() {
+                return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+            }
+        };
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> indexNameExpressionResolver.concreteWriteIndex(state, requestGen.apply(null)));
+        assertThat(exception.getMessage(), equalTo("indices request must specify a single index expression"));
+        exception = expectThrows(IllegalArgumentException.class,
+            () -> indexNameExpressionResolver.concreteWriteIndex(state, requestGen.apply(new String[] {"too", "many"})));
+        assertThat(exception.getMessage(), equalTo("indices request must specify a single index expression"));
+
+
     }
 
     public void testConcreteWriteIndexWithWildcardExpansion() {
@@ -1056,12 +1084,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
             @Override
             public IndicesOptions indicesOptions() {
-                return IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED;
+                return IndicesOptions.strictExpandOpenAndForbidClosed();
             }
         };
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> indexNameExpressionResolver.concreteWriteIndex(state, request));
-        assertThat(exception.getMessage(), equalTo("The index expression [test-*] and options provided did not point to a single write-index"));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> indexNameExpressionResolver.concreteWriteIndex(state, request));
+        assertThat(exception.getMessage(),
+            equalTo("The index expression [test-*] and options provided did not point to a single write-index"));
     }
 
     public void testConcreteWriteIndexWithNoWriteIndexWithSingleIndex() {

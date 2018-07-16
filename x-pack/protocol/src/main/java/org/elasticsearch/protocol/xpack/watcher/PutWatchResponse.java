@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class PutWatchResponse extends ActionResponse implements ToXContentObject {
 
@@ -74,6 +75,21 @@ public class PutWatchResponse extends ActionResponse implements ToXContentObject
 
     public boolean isCreated() {
         return created;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        PutWatchResponse that = (PutWatchResponse) o;
+
+        return Objects.equals(id, that.id) && Objects.equals(version, that.version) && Objects.equals(created, that.created);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, version, created);
     }
 
     @Override

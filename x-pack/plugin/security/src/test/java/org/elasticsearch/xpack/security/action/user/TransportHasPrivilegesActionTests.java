@@ -19,6 +19,7 @@ import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
@@ -58,9 +59,8 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         user = new User(randomAlphaOfLengthBetween(4, 12));
         final ThreadPool threadPool = mock(ThreadPool.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService
-                .NOOP_TRANSPORT_INTERCEPTOR,
-                x -> null, null, Collections.emptySet());
+        final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
 
         final Authentication authentication = mock(Authentication.class);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);

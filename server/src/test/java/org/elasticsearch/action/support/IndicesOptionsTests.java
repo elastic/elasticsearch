@@ -308,20 +308,17 @@ public class IndicesOptionsTests extends ESTestCase {
 
         boolean open = wildcardStates.contains(WildcardStates.OPEN);
         if (open) {
-            assertTrue(((List)map.get("expand_wildcards")).contains("open"));
+            assertTrue(((List<?>) map.get("expand_wildcards")).contains("open"));
         } else {
-            assertFalse(((List)map.get("expand_wildcards")).contains("open"));
+            assertFalse(((List<?>) map.get("expand_wildcards")).contains("open"));
         }
         boolean closed = wildcardStates.contains(WildcardStates.CLOSED);
         if (closed) {
-            assertTrue(((List)map.get("expand_wildcards")).contains("closed"));
+            assertTrue(((List<?>) map.get("expand_wildcards")).contains("closed"));
         } else {
-            assertFalse(((List)map.get("expand_wildcards")).contains("closed"));
+            assertFalse(((List<?>) map.get("expand_wildcards")).contains("closed"));
         }
         assertEquals(map.get("ignore_unavailable"), options.contains(Option.IGNORE_UNAVAILABLE));
         assertEquals(map.get("allow_no_indices"), options.contains(Option.ALLOW_NO_INDICES));
-        assertEquals(map.get("forbid_aliases_to_multiple_indices"), options.contains(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES));
-        assertEquals(map.get("forbid_closed_indices"), options.contains(Option.FORBID_CLOSED_INDICES));
-        assertEquals(map.get("ignore_aliases"), options.contains(Option.IGNORE_ALIASES));
     }
 }

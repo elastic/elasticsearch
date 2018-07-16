@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -141,19 +142,10 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             protected void innerSendBulkShardOperationsRequest(List<Translog.Operation> operations, LongConsumer handler,
                                                                Consumer<Exception> errorHandler) {
                 Runnable task = () -> {
-                    try {
-                        IndexShard primaryShard = followerGroup.getPrimary();
-                        TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> result =
-                            TransportBulkShardOperationsAction.shardOperationOnPrimary(primaryShard.shardId(), operations,
-                                primaryShard, logger);
-                        List<Translog.Operation> replicaOps = result.replicaRequest().getOperations();
-                        for (IndexShard replicaShard : followerGroup.getReplicas()) {
-                            TransportBulkShardOperationsAction.applyTranslogOperations(replicaOps, replicaShard, Origin.REPLICA);
-                        }
-                        handler.accept(primaryShard.getGlobalCheckpoint());
-                    } catch (Exception e) {
-                        errorHandler.accept(e);
-                    }
+                    BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(), operations);
+                    ActionListener<BulkShardOperationsResponse> listener =
+                        ActionListener.wrap(r -> handler.accept(r.getGlobalCheckpoint()), errorHandler);
+                    new CCRAction(request, listener, followerGroup).execute();
                 };
                 Thread thread = new Thread(task);
                 thread.start();
@@ -203,6 +195,26 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             }
 
         };
+    }
+
+    class CCRAction extends ReplicationAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
+
+        CCRAction(BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener, ReplicationGroup group) {
+            super(request, listener, group, "ccr");
+        }
+
+        @Override
+        protected PrimaryResult performOnPrimary(IndexShard primary, BulkShardOperationsRequest request) throws Exception {
+            TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> result =
+                TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getOperations(),
+                    primary, logger);
+            return new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful);
+        }
+
+        @Override
+        protected void performOnReplica(BulkShardOperationsRequest request, IndexShard replica) throws Exception {
+            TransportBulkShardOperationsAction.applyTranslogOperations(request.getOperations(), replica, Origin.REPLICA);
+        }
     }
 
 }

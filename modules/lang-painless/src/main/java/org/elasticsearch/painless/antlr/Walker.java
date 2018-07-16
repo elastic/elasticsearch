@@ -184,7 +184,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     private final CompilerSettings settings;
     private final Printer debugStream;
     private final String sourceName;
-    private final String sourceText;
     private final PainlessLookup painlessLookup;
 
     private final Deque<Reserved> reserved = new ArrayDeque<>();
@@ -198,7 +197,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         this.debugStream = debugStream;
         this.settings = settings;
         this.sourceName = Location.computeSourceName(sourceName);
-        this.sourceText = sourceText;
         this.globals = new Globals(new BitSet(sourceText.length()));
         this.painlessLookup = painlessLookup;
         this.source = (SSource)visit(buildAntlrTree(sourceText));
@@ -267,7 +265,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(ctx.dstatement()));
         }
 
-        return new SSource(scriptClassInfo, settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(),
+        return new SSource(scriptClassInfo, settings, sourceName, debugStream, (MainMethodReserved)reserved.pop(),
                            location(ctx), functions, globals, statements);
     }
 

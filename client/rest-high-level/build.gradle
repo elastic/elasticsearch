@@ -41,6 +41,7 @@ apply plugin: 'com.github.johnrengelman.shadow'
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'
 
+//we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
 Task copyRestSpec = RestIntegTestTask.createCopyRestSpecTask(project, Providers.FALSE)
 test.dependsOn(copyRestSpec)
 
@@ -105,6 +106,7 @@ dependencies {
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  //this is needed to make RestHighLevelClientTests#testApiNamingConventions work from IDEs
   testCompile "org.elasticsearch:rest-api-spec:${version}"
 }
 

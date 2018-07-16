@@ -82,7 +82,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
 
     public void resync(final IndexShard indexShard, final ActionListener<ResyncTask> listener) {
         ActionListener<ResyncTask> resyncListener = null;
-        Translog.Snapshot wrappedSnapshot = null;
+        Translog.Snapshot snapshot = null;
         try {
             final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
             final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
@@ -90,16 +90,17 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
             // Even though those calls are not concurrent, snapshot.next() uses non-synchronized state and is not multi-thread-compatible
             // Also fail the resync early if the shard is shutting down
-            Translog.Snapshot snapshot = indexShard.newTranslogSnapshotFromMinSeqNo(startingSeqNo);
-            wrappedSnapshot = new Translog.Snapshot() {
+            snapshot = indexShard.newTranslogSnapshotFromMinSeqNo(startingSeqNo);
+            final Translog.Snapshot originalSnapshot = snapshot;
+            final Translog.Snapshot wrappedSnapshot = new Translog.Snapshot() {
                 @Override
                 public synchronized void close() throws IOException {
-                    snapshot.close();
+                    originalSnapshot.close();
                 }
 
                 @Override
                 public synchronized int totalOperations() {
-                    return snapshot.totalOperations();
+                    return originalSnapshot.totalOperations();
                 }
 
                 @Override
@@ -110,14 +111,14 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                     } else {
                         assert state == IndexShardState.STARTED : "resync should only happen on a started shard, but state was: " + state;
                     }
-                    return snapshot.next();
+                    return originalSnapshot.next();
                 }
             };
             resyncListener = new ActionListener<ResyncTask>() {
                 @Override
                 public void onResponse(final ResyncTask resyncTask) {
                     try {
-                        snapshot.close();
+                        wrappedSnapshot.close();
                         listener.onResponse(resyncTask);
                     } catch (final Exception e) {
                         onFailure(e);
@@ -127,7 +128,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 @Override
                 public void onFailure(final Exception e) {
                     try {
-                        snapshot.close();
+                        wrappedSnapshot.close();
                     } catch (final Exception inner) {
                         e.addSuppressed(inner);
                     } finally {
@@ -140,7 +141,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 startingSeqNo, maxSeqNo, resyncListener);
         } catch (Exception e) {
             try {
-                IOUtils.close(wrappedSnapshot);
+                IOUtils.close(snapshot);
             } catch (IOException inner) {
                 e.addSuppressed(inner);
             }

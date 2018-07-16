@@ -337,8 +337,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                     Range range = aggregations.get("by_company"); // <1>
                     // end::search-request-aggregations-get-wrongCast
                 } catch (ClassCastException ex) {
-                    assertEquals("org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms"
-                            + " cannot be cast to org.elasticsearch.search.aggregations.bucket.range.Range", ex.getMessage());
+                    String message = ex.getMessage();
+                    assertThat(message, containsString("org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms"));
+                    assertThat(message, containsString("org.elasticsearch.search.aggregations.bucket.range.Range"));
                 }
                 assertEquals(3, elasticBucket.getDocCount());
                 assertEquals(30, avg, 0.0);

@@ -70,10 +70,6 @@ thirdPartyAudit.excludes = [
         'org.openjdk.jmh.util.Utils'
 ]
 
-shadowJar {
-    classifier = 'benchmarks'
-}
-
 runShadow {
     executable = new File(project.runtimeJavaHome, 'bin/java')
 }

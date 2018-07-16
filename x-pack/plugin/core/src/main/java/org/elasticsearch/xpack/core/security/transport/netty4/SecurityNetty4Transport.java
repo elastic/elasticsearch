@@ -28,12 +28,12 @@ import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import javax.net.ssl.SSLEngine;
-
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -58,27 +58,29 @@ public class SecurityNetty4Transport extends Netty4Transport {
         super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
         if (sslEnabled) {
-            this.sslConfiguration = sslService.sslConfiguration(transportSSLSettings, Settings.EMPTY);
-            Map<String, Settings> profileSettingsMap = settings.getGroups("transport.profiles.", true);
-            Map<String, SSLConfiguration> profileConfiguration = new HashMap<>(profileSettingsMap.size() + 1);
-            for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
-                Settings profileSettings = entry.getValue();
-                final Settings profileSslSettings = profileSslSettings(profileSettings);
-                SSLConfiguration configuration =  sslService.sslConfiguration(profileSslSettings, transportSSLSettings);
-                profileConfiguration.put(entry.getKey(), configuration);
-            }
-
-            if (profileConfiguration.containsKey(TcpTransport.DEFAULT_PROFILE) == false) {
-                profileConfiguration.put(TcpTransport.DEFAULT_PROFILE, sslConfiguration);
-            }
-
+            this.sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
+            Map<String, SSLConfiguration> profileConfiguration = getTransportProfileConfigurations(settings, sslService, sslConfiguration);
             this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
         } else {
             this.profileConfiguration = Collections.emptyMap();
             this.sslConfiguration = null;
         }
+    }
+
+    public static Map<String, SSLConfiguration> getTransportProfileConfigurations(Settings settings, SSLService sslService,
+                                                                                  SSLConfiguration defaultConfiguration) {
+        Set<String> profileNames = settings.getGroups("transport.profiles.", true).keySet();
+        Map<String, SSLConfiguration> profileConfiguration = new HashMap<>(profileNames.size() + 1);
+        for (String profileName : profileNames) {
+            SSLConfiguration configuration = sslService.getSSLConfiguration("transport.profiles." + profileName + "." + setting("ssl"));
+            profileConfiguration.put(profileName, configuration);
+        }
+
+        if (profileConfiguration.containsKey(TcpTransport.DEFAULT_PROFILE) == false) {
+            profileConfiguration.put(TcpTransport.DEFAULT_PROFILE, defaultConfiguration);
+        }
+        return profileConfiguration;
     }
 
     @Override
@@ -208,9 +210,5 @@ public class SecurityNetty4Transport extends Netty4Transport {
             ctx.pipeline().replace(this, "ssl", new SslHandler(sslEngine));
             super.connect(ctx, remoteAddress, localAddress, promise);
         }
-    }
-
-    public static Settings profileSslSettings(Settings profileSettings) {
-        return profileSettings.getByPrefix(setting("ssl."));
     }
 }

@@ -39,7 +39,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
@@ -173,9 +172,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
     public static class DeletePlzPlugin extends MockScriptPlugin {
         @Override
         public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.singletonMap("delete_plz", params -> {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> ctx = (Map<String, Object>) params.get("ctx");
+            return singletonMap("delete_plz", ctx -> {
                 ctx.put("op", "delete");
                 return null;
             });

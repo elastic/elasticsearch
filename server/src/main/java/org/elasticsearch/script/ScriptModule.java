@@ -50,7 +50,7 @@ public class ScriptModule {
             SearchScript.TERMS_SET_QUERY_CONTEXT,
             ExecutableScript.CONTEXT,
             ExecutableScript.AGGS_CONTEXT,
-            ExecutableScript.UPDATE_CONTEXT,
+            UpdateScript.CONTEXT,
             IngestScript.CONTEXT,
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,

@@ -42,9 +42,9 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -279,10 +279,9 @@ public class UpdateHelper extends AbstractComponent {
     private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                ExecutableScript.Factory factory = scriptService.compile(script, ExecutableScript.UPDATE_CONTEXT);
-                ExecutableScript executableScript = factory.newInstance(script.getParams());
-                executableScript.setNextVar(ContextFields.CTX, ctx);
-                executableScript.run();
+                UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
+                UpdateScript executableScript = factory.newInstance(script.getParams());
+                executableScript.execute(ctx);
             }
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to execute script", e);

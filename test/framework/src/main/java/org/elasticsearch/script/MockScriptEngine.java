@@ -100,7 +100,11 @@ public class MockScriptEngine implements ScriptEngine {
             UpdateScript.Factory factory = parameters -> new UpdateScript(parameters) {
                 @Override
                 public void execute(Map<String, Object> ctx) {
-                    script.apply(ctx);
+                    final Map<String, Object> vars = new HashMap<>();
+                    vars.put("ctx", ctx);
+                    vars.put("params", parameters);
+                    vars.putAll(parameters);
+                    script.apply(vars);
                 }
             };
             return context.factoryClazz.cast(factory);

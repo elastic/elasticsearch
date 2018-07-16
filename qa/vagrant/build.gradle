@@ -28,8 +28,7 @@ plugins {
 
 dependencies {
   compile "junit:junit:${versions.junit}"
-  compile "org.hamcrest:hamcrest-core:${versions.hamcrest}"
-  compile "org.hamcrest:hamcrest-library:${versions.hamcrest}"
+  compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
 
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -37,6 +36,7 @@ dependencies {
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
 
+  compile "org.elasticsearch.test:framework:${version}"
   compile project(':libs:core')
 
   // pulls in the jar built by this project and its dependencies
@@ -85,11 +85,15 @@ tasks.thirdPartyAudit.excludes = [
         'org.apache.avalon.framework.logger.Logger',
         'org.apache.log.Hierarchy',
         'org.apache.log.Logger',
-        'org.apache.log4j.Category',
-        'org.apache.log4j.Level',
-        'org.apache.log4j.Logger',
-        'org.apache.log4j.Priority',
         //commons-logging provided dependencies
         'javax.servlet.ServletContextEvent',
-        'javax.servlet.ServletContextListener'
+        'javax.servlet.ServletContextListener',
+        // brought in from test framework
+        'org.apache.tools.ant.BuildException',
+        'org.apache.tools.ant.DirectoryScanner',
+        'org.apache.tools.ant.Task',
+        'org.apache.tools.ant.types.FileSet',
+        'org.easymock.EasyMock',
+        'org.easymock.IArgumentMatcher',
+        'org.jmock.core.Constraint'
 ]

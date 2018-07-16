@@ -334,8 +334,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
         sb.append(blocks());
         sb.append(nodes());
-        sb.append("last committed conf: ").append(getLastCommittedConfiguration()).append("\n");
-        sb.append("last accepted conf: ").append(getLastAcceptedConfiguration()).append("\n");
+        sb.append("last committed config: ").append(getLastCommittedConfiguration()).append("\n");
+        sb.append("last accepted config: ").append(getLastAcceptedConfiguration()).append("\n");
         sb.append(routingTable());
         sb.append(getRoutingNodes());
         if (customs.isEmpty() == false) {
@@ -423,6 +423,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.field("version", version);
             builder.field("term", term);
             builder.field("state_uuid", stateUUID);
+            builder.field("last_committed_config", lastCommittedConfiguration);
+            builder.field("last_accepted_config", lastAcceptedConfiguration);
         }
 
         if (metrics.contains(Metric.MASTER_NODE)) {
@@ -945,7 +947,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     /**
      * A collection of persistent node ids, denoting the voting configuration for cluster state changes.
      */
-    public static class VotingConfiguration implements Writeable {
+    public static class VotingConfiguration implements Writeable, ToXContentFragment {
 
         public static final VotingConfiguration EMPTY_CONFIG = new VotingConfiguration(Collections.emptySet());
 
@@ -994,6 +996,15 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         public boolean isEmpty() {
             return nodeIds.isEmpty();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startArray();
+            for (String nodeId : nodeIds) {
+                builder.value(nodeId);
+            }
+            return builder.endArray();
         }
     }
 }

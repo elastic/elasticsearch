@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -142,34 +141,6 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         SSLEngine customEngine = ch.pipeline().get(SslHandler.class).engine();
         assertThat(customEngine.getEnabledProtocols(), arrayContaining("TLSv1.2"));
         assertThat(customEngine.getEnabledProtocols(), not(equalTo(defaultEngine.getEnabledProtocols())));
-    }
-
-    public void testDisablesCompressionByDefaultForSsl() throws Exception {
-        Settings settings = Settings.builder()
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
-
-        Settings.Builder pluginSettingsBuilder = Settings.builder();
-        SecurityNetty4HttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
-        assertThat(HttpTransportSettings.SETTING_HTTP_COMPRESSION.get(pluginSettingsBuilder.build()), is(false));
-    }
-
-    public void testLeavesCompressionOnIfNotSsl() throws Exception {
-        Settings settings = Settings.builder()
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), false).build();
-        Settings.Builder pluginSettingsBuilder = Settings.builder();
-        SecurityNetty4HttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
-        assertThat(pluginSettingsBuilder.build().isEmpty(), is(true));
-    }
-
-    public void testDoesNotChangeExplicitlySetCompression() throws Exception {
-        Settings settings = Settings.builder()
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-                .put(HttpTransportSettings.SETTING_HTTP_COMPRESSION.getKey(), true)
-                .build();
-
-        Settings.Builder pluginSettingsBuilder = Settings.builder();
-        SecurityNetty4HttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
-        assertThat(pluginSettingsBuilder.build().isEmpty(), is(true));
     }
 
     public void testThatExceptionIsThrownWhenConfiguredWithoutSslKey() throws Exception {

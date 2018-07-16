@@ -116,3 +116,105 @@ The default is based on the number of data nodes and the default search thread p
 
 WARNING: `collapse` cannot be used in conjunction with <<search-request-scroll, scroll>>,
 <<search-request-rescore, rescore>> or <<search-request-search-after, search after>>.
+
+==== Second level of collapsing
+
+Second level of collapsing is also supported and is applied to `inner_hits`.
+For example, the following request finds the top scored tweets for
+each country, and within each country finds the top scored tweets
+for each user.
+
+[source,js]
+--------------------------------------------------
+GET /twitter/_search
+{
+    "query": {
+        "match": {
+            "message": "elasticsearch"
+        }
+    },
+    "collapse" : {
+        "field" : "country",
+        "inner_hits" : {
+            "name": "by_location",
+            "collapse" : {"field" : "user"},
+            "size": 3
+        }
+    }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+Response:
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "hits": [
+        {
+            "_index": "twitter",
+            "_type": "_doc",
+            "_id": "9",
+            "_score": ...,
+            "_source": {...},
+            "fields": {"country": ["UK"]},
+            "inner_hits":{
+                "by_location": {
+                    "hits": {
+                       ...,
+                       "hits": [
+                          {
+                            ...
+                            "fields": {"user" : ["user124"]}
+                          },
+                          {
+                            ...
+                            "fields": {"user" : ["user589"]}
+                          },
+                          {
+                            ...
+                             "fields": {"user" : ["user001"]}
+                          }
+                       ]
+                    }
+                 }
+            }
+        },
+        {
+            "_index": "twitter",
+            "_type": "_doc",
+            "_id": "1",
+            "_score": ..,
+            "_source": {...},
+            "fields": {"country": ["Canada"]},
+            "inner_hits":{
+                "by_location": {
+                    "hits": {
+                       ...,
+                       "hits": [
+                          {
+                            ...
+                            "fields": {"user" : ["user444"]}
+                          },
+                          {
+                            ...
+                            "fields": {"user" : ["user1111"]}
+                          },
+                          {
+                            ...
+                             "fields": {"user" : ["user999"]}
+                          }
+                       ]
+                    }
+                 }
+            }
+
+        },
+        ....
+    ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+NOTE: Second level of of collapsing doesn't allow `inner_hits`.

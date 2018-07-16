@@ -51,8 +51,8 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
     private final NioHttpChannel nioHttpChannel;
     private final NioHttpServerTransport transport;
 
-    HttpReadWriteHandler(NioHttpChannel nioHttpChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
-                         NioCorsConfig corsConfig) {
+    public HttpReadWriteHandler(NioHttpChannel nioHttpChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
+                                NioCorsConfig corsConfig) {
         this.nioHttpChannel = nioHttpChannel;
         this.transport = transport;
 

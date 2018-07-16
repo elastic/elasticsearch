@@ -295,6 +295,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     @SuppressWarnings({ "unused" })
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32029")
     public void testSearchRequestAggregations() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -830,6 +831,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
+
 
     @SuppressWarnings("unused")
     public void testMultiSearchTemplateWithInlineScript() throws Exception {

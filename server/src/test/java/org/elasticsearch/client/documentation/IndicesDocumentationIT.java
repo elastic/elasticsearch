@@ -26,6 +26,9 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -96,8 +99,8 @@ public class IndicesDocumentationIT extends ESIntegTestCase {
         getMappingsResponse = client.admin().indices().prepareGetMappings("twitter").get();
         assertEquals(1, getMappingsResponse.getMappings().size());
         indexMapping = getMappingsResponse.getMappings().get("twitter");
-        assertEquals(indexMapping.get("user").getSourceAsMap(),
-                singletonMap("properties", singletonMap("name", singletonMap("type", "text"))));
+        assertEquals(singletonMap("properties", singletonMap("name", singletonMap("type", "text"))),
+                indexMapping.get("user").getSourceAsMap());
 
         // tag::putMapping-request-source-append
         client.admin().indices().preparePutMapping("twitter")   // <1>
@@ -114,8 +117,10 @@ public class IndicesDocumentationIT extends ESIntegTestCase {
         getMappingsResponse = client.admin().indices().prepareGetMappings("twitter").get();
         assertEquals(1, getMappingsResponse.getMappings().size());
         indexMapping = getMappingsResponse.getMappings().get("twitter");
-        assertEquals(indexMapping.get("user").getSourceAsMap(),
-                singletonMap("properties", singletonMap("user_name", singletonMap("type", "text"))));
+        Map<String, Map<?,?>> expected = new HashMap<>();
+        expected.put("name", singletonMap("type", "text"));
+        expected.put("user_name", singletonMap("type", "text"));
+        assertEquals(expected, indexMapping.get("user").getSourceAsMap().get("properties"));
     }
 
 }

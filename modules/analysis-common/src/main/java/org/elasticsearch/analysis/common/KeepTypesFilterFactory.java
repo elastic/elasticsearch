@@ -60,8 +60,8 @@ public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
         }
         final String modeParameter = settings.get(KEEP_TYPES_MODE, KEEP_TYPES_MODE_INCLUDE).toLowerCase(Locale.ROOT);
         if (modeParameter.equals(KEEP_TYPES_MODE_INCLUDE) == false && modeParameter.equals(KEEP_TYPES_MODE_EXCLUDE) == false) {
-            throw new IllegalArgumentException(
-                    "keep_types mode can only be `" + KEEP_TYPES_MODE_INCLUDE + "` or `" + KEEP_TYPES_MODE_INCLUDE + "`");
+            throw new IllegalArgumentException("`keep_types` tokenfilter mode can only be [" + KEEP_TYPES_MODE_INCLUDE + "] or ["
+                    + KEEP_TYPES_MODE_EXCLUDE + "] but was [" + modeParameter + "].");
         }
 
         this.keepTypes = new HashSet<>(arrayKeepTypes);

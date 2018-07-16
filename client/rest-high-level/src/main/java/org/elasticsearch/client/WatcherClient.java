@@ -18,6 +18,15 @@
  */
 package org.elasticsearch.client;
 
+/**
+ * A wrapper for the {@link XPackClient} that provides methods for
+ * accessing the Elastic Licensed Watcher APIs that are shipped with the
+ * default distribution of Elasticsearch. All of these APIs will 404 if run
+ * against the OSS distribution of Elasticsearch.
+ * <p>
+ * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api.html">
+ * X-Pack APIs on elastic.co</a> for more information.
+ */
 public final class WatcherClient {
 
     private final RestHighLevelClient restHighLevelClient;

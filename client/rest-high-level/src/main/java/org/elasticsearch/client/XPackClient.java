@@ -40,46 +40,38 @@ import static java.util.Collections.emptySet;
  */
 public final class XPackClient {
     private final RestHighLevelClient restHighLevelClient;
-    private final DeprecationClient deprecationClient;
-    private final GraphClient graphClient;
+    private final GraphExploreClient graphExploreClient;
     private final LicenseClient licenseClient;
     private final MigrationClient migrationClient;
-    private final MLClient mlClient;
-    private final MonitoringClient monitoringClient;
+    private final MachineLearningClient machineLearningClient;
     private final RollupClient rollupClient;
     private final SecurityClient securityClient;
     private final WatcherClient watcherClient;
 
     XPackClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
-        this.deprecationClient = new DeprecationClient(restHighLevelClient);
-        this.graphClient = new GraphClient(restHighLevelClient);
+        this.graphExploreClient = new GraphExploreClient(restHighLevelClient);
         this.licenseClient = new LicenseClient(restHighLevelClient);
         this.migrationClient = new MigrationClient(restHighLevelClient);
-        this.mlClient = new MLClient(restHighLevelClient);
-        this.monitoringClient = new MonitoringClient(restHighLevelClient);
+        this.machineLearningClient = new MachineLearningClient(restHighLevelClient);
         this.rollupClient = new RollupClient(restHighLevelClient);
         this.securityClient = new SecurityClient(restHighLevelClient);
         this.watcherClient = new WatcherClient(restHighLevelClient);
     }
 
-    public DeprecationClient getDeprecationClient() { return deprecationClient; }
+    public GraphExploreClient graph() { return graphExploreClient; }
 
-    public GraphClient getGraphClient() { return graphClient; }
+    public LicenseClient license() { return licenseClient; }
 
-    public LicenseClient getLicenseClient() { return licenseClient; }
+    public MigrationClient migration() { return migrationClient; }
 
-    public MigrationClient getMigrationClient() { return migrationClient; }
+    public MachineLearningClient ml() { return machineLearningClient; }
 
-    public MLClient getMlClient() { return mlClient; }
+    public RollupClient rollup() { return rollupClient; }
 
-    public MonitoringClient getMonitoringClient() { return monitoringClient; }
+    public SecurityClient security() { return securityClient; }
 
-    public RollupClient getRollupClient() { return rollupClient; }
-
-    public SecurityClient getSecurityClient() { return securityClient; }
-
-    public WatcherClient getWatcherClient() { return watcherClient; }
+    public WatcherClient watcher() { return watcherClient; }
 
     /**
      * Fetch information about X-Pack from the cluster.

@@ -18,5 +18,20 @@
  */
 package org.elasticsearch.client;
 
-public class MonitoringIT extends ESRestHighLevelClientTestCase {
+/**
+ * A wrapper for the {@link XPackClient} that provides methods for
+ * accessing the Elastic Licensed Machine Learning APIs that are shipped with the
+ * default distribution of Elasticsearch. All of these APIs will 404 if run
+ * against the OSS distribution of Elasticsearch.
+ * <p>
+ * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-apis.html">
+ * X-Pack APIs on elastic.co</a> for more information.
+ */
+public final class MachineLearningClient {
+
+    private final RestHighLevelClient restHighLevelClient;
+
+    MachineLearningClient(RestHighLevelClient restHighLevelClient) {
+        this.restHighLevelClient = restHighLevelClient;
+    }
 }

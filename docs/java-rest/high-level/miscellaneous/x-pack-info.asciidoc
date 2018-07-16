@@ -31,7 +31,9 @@ include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-info-respon
 built and the timestamp that the x-pack module was created.
 <2> `LicenseInfo` contains the type of license that the cluster is using
 and its expiration date.
-<3> Basic licenses do not expire and will return this constant.
+<3> Trial Licenses expire 30 days after starting the trial. Basic licenses do not expire and will return a
+`XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS` constant. Basic licenses do not include all
+commercial features.
 <4> `FeatureSetsInfo` contains a `Map` from the name of a feature to
 information about a feature like whether or not it is available under
 the current license.

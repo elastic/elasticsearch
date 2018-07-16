@@ -18,11 +18,5 @@
  */
 package org.elasticsearch.client;
 
-public final class MonitoringClient {
-
-    private final RestHighLevelClient restHighLevelClient;
-
-    MonitoringClient(RestHighLevelClient restHighLevelClient) {
-        this.restHighLevelClient = restHighLevelClient;
-    }
+public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 }

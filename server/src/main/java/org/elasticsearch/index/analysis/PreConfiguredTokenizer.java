@@ -34,7 +34,7 @@ import java.util.function.Supplier;
 public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent<TokenizerFactory> {
     /**
      * Create a pre-configured tokenizer that may not vary at all.
-     *
+     * 
      * @param name the name of the tokenizer in the api
      * @param create builds the tokenizer
      * @param multiTermComponent null if this tokenizer shouldn't be used for multi-term queries, otherwise a supplier for the
@@ -48,7 +48,7 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
 
     /**
      * Create a pre-configured tokenizer that may vary based on the Lucene version.
-     *
+     * 
      * @param name the name of the tokenizer in the api
      * @param create builds the tokenizer
      * @param multiTermComponent null if this tokenizer shouldn't be used for multi-term queries, otherwise a supplier for the
@@ -62,7 +62,7 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
 
     /**
      * Create a pre-configured tokenizer that may vary based on the Elasticsearch version.
-     *
+     * 
      * @param name the name of the tokenizer in the api
      * @param create builds the tokenizer
      * @param multiTermComponent null if this tokenizer shouldn't be used for multi-term queries, otherwise a supplier for the
@@ -75,7 +75,7 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
 
     private final Function<Version, Tokenizer> create;
     private final Function<Version, TokenFilterFactory> multiTermComponent;
-
+    
     private PreConfiguredTokenizer(String name, PreBuiltCacheFactory.CachingStrategy cache, Function<Version, Tokenizer> create,
             @Nullable Function<Version, TokenFilterFactory> multiTermComponent) {
         super(name, cache);

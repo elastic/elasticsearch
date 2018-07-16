@@ -22,8 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Def;
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Parameter;
@@ -31,6 +29,9 @@ import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.node.SSource.Reserved;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Handle;
@@ -135,7 +136,7 @@ public final class SFunction extends AStatement {
             try {
                 Class<?> paramType = painlessLookup.getJavaClassFromPainlessType(this.paramTypeStrs.get(param));
 
-                paramClasses[param] = PainlessLookup.defClassToObjectClass(paramType);
+                paramClasses[param] = PainlessLookupUtility.painlessDefTypeToJavaObjectType(paramType);
                 paramTypes.add(paramType);
                 parameters.add(new Parameter(location, paramNameStrs.get(param), paramType));
             } catch (IllegalArgumentException exception) {
@@ -144,8 +145,8 @@ public final class SFunction extends AStatement {
             }
         }
 
-        org.objectweb.asm.commons.Method method = new org.objectweb.asm.commons.Method(
-            name, MethodType.methodType(PainlessLookup.defClassToObjectClass(rtnType), paramClasses).toMethodDescriptorString());
+        org.objectweb.asm.commons.Method method = new org.objectweb.asm.commons.Method(name, MethodType.methodType(
+                PainlessLookupUtility.painlessDefTypeToJavaObjectType(rtnType), paramClasses).toMethodDescriptorString());
         this.method = new PainlessMethod(name, null, null, rtnType, paramTypes, method, Modifier.STATIC | Modifier.PRIVATE, null);
     }
 

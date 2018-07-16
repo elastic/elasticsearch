@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.def;
+import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -130,7 +130,7 @@ public final class MethodWriter extends GeneratorAdapter {
         mark(end);
     }
 
-    public void writeCast(Cast cast) {
+    public void writeCast(PainlessCast cast) {
         if (cast != null) {
             if (cast.from == char.class && cast.to == String.class) {
                 invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
@@ -225,14 +225,6 @@ public final class MethodWriter extends GeneratorAdapter {
         }
 
         return Type.getType(clazz);
-    }
-
-    public void writeBranch(final Label tru, final Label fals) {
-        if (tru != null) {
-            visitJumpInsn(Opcodes.IFNE, tru);
-        } else if (fals != null) {
-            visitJumpInsn(Opcodes.IFEQ, fals);
-        }
     }
 
     /** Starts a new string concat.

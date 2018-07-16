@@ -67,7 +67,7 @@ public final class SCatch extends AStatement {
         Class<?> clazz;
 
         try {
-            clazz = locals.getDefinition().getJavaClassFromPainlessType(this.type);
+            clazz = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }

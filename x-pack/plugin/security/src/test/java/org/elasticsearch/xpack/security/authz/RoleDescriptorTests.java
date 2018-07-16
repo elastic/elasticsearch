@@ -10,13 +10,20 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
+import org.hamcrest.Matchers;
 
 import java.util.Collections;
 import java.util.Map;
@@ -57,10 +64,14 @@ public class RoleDescriptorTests extends ESTestCase {
                 .resources("*")
                 .build()
         };
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = ConditionalClusterPrivileges.EMPTY_ARRAY;
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
-            new String[] { "sudo" }, Collections.emptyMap(), Collections.emptyMap());
-        assertThat(descriptor.toString(), is("Role[name=test, cluster=[all,none], indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], " +
-                "privileges=[read], field_security=[grant=[body,title], except=null], query={\"query\": {\"match_all\": {}}}],]" +
+            conditionalClusterPrivileges, new String[] { "sudo" }, Collections.emptyMap(), Collections.emptyMap());
+
+        assertThat(descriptor.toString(), is("Role[name=test, cluster=[all,none]" +
+                ", policy=[{APPLICATION:manage:applications=app01,app02}]" +
+                ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], privileges=[read]" +
+                ", field_security=[grant=[body,title], except=null], query={\"query\": {\"match_all\": {}}}],]" +
                 ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]" +
                 ", runAs=[sudo], metadata=[{}]]"));
     }
@@ -81,12 +92,13 @@ public class RoleDescriptorTests extends ESTestCase {
                 .resources("*")
                 .build()
         };
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = ConditionalClusterPrivileges.EMPTY_ARRAY;
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
-            new String[]{ "sudo" }, metadata, Collections.emptyMap());
+            conditionalClusterPrivileges, new String[]{ "sudo" }, metadata, Collections.emptyMap());
         XContentBuilder builder = descriptor.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
         RoleDescriptor parsed = RoleDescriptor.parse("test", BytesReference.bytes(builder), false, XContentType.JSON);
-        assertEquals(parsed, descriptor);
+        assertThat(parsed, equalTo(descriptor));
     }
 
     public void testParse() throws Exception {
@@ -156,6 +168,7 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(rd.getApplicationPrivileges()[1].getResources(), arrayContaining("*"));
         assertThat(rd.getApplicationPrivileges()[1].getPrivileges(), arrayContaining("admin"));
         assertThat(rd.getApplicationPrivileges()[1].getApplication(), equalTo("app2"));
+        assertThat(rd.getConditionalClusterPrivileges(), Matchers.arrayWithSize(0));
 
         q = "{\"applications\": [{\"application\": \"myapp\", \"resources\": [\"*\"], \"privileges\": [\"login\" ]}] }";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
@@ -166,6 +179,7 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(rd.getApplicationPrivileges()[0].getResources(), arrayContaining("*"));
         assertThat(rd.getApplicationPrivileges()[0].getPrivileges(), arrayContaining("login"));
         assertThat(rd.getApplicationPrivileges()[0].getApplication(), equalTo("myapp"));
+        assertThat(rd.getConditionalClusterPrivileges(), Matchers.arrayWithSize(0));
 
         final String badJson
                 = "{\"applications\":[{\"not_supported\": true, \"resources\": [\"*\"], \"privileges\": [\"my-app:login\" ]}] }";
@@ -184,11 +198,22 @@ public class RoleDescriptorTests extends ESTestCase {
                         .query("{\"query\": {\"match_all\": {}}}")
                         .build()
         };
+        final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = {
+            RoleDescriptor.ApplicationResourcePrivileges.builder()
+                .application("my_app")
+                .privileges("read", "write")
+                .resources("*")
+                .build()
+        };
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = ConditionalClusterPrivileges.EMPTY_ARRAY;
+
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
-        final RoleDescriptor descriptor =
-                new RoleDescriptor("test", new String[] { "all", "none" }, groups, new String[] { "sudo" }, metadata);
+        final RoleDescriptor descriptor = new RoleDescriptor("test", new String[]{"all", "none"}, groups, applicationPrivileges,
+            conditionalClusterPrivileges, new String[] { "sudo" }, metadata, null);
         RoleDescriptor.writeTo(descriptor, output);
-        StreamInput streamInput = ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes()));
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
+        StreamInput streamInput = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
+            registry);
         final RoleDescriptor serialized = RoleDescriptor.readFrom(streamInput);
         assertEquals(descriptor, serialized);
     }

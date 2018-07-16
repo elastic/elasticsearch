@@ -69,8 +69,7 @@ public class WatchRequestValidationTests extends ESTestCase {
     }
 
     public void testPutWatchInvalidWatchId() {
-        ActionRequestValidationException e =
-            new PutWatchRequest("id with whitespaces", BytesArray.EMPTY, XContentType.JSON).validate();
+        ActionRequestValidationException e = new PutWatchRequest("id with whitespaces", BytesArray.EMPTY, XContentType.JSON).validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(), hasItem("watch id contains whitespace"));
     }

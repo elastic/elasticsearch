@@ -28,9 +28,12 @@ import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
+import org.elasticsearch.xpack.rollup.Rollup;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -204,6 +207,43 @@ public class PutJobStateMachineTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testNoMappingVersion() {
+        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob("foo").build(), Collections.emptyMap());
+
+        ActionListener<PutRollupJobAction.Response> testListener = ActionListener.wrap(response -> {
+            fail("Listener success should not have been triggered.");
+        }, e -> {
+            assertThat(e.getMessage(), equalTo("Could not determine version of existing rollup metadata for index ["
+                + job.getConfig().getRollupIndex() + "]"));
+        });
+
+        Logger logger = mock(Logger.class);
+        Client client = mock(Client.class);
+
+        ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        doAnswer(invocation -> {
+            GetMappingsResponse response = mock(GetMappingsResponse.class);
+            Map<String, Object> m = new HashMap<>(2);
+            m.put(RollupField.ROLLUP_META,
+                Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
+            MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
+                Collections.singletonMap("_meta", m));
+            ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
+            builder.put(RollupField.TYPE_NAME, meta);
+
+            ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
+            builder2.put(job.getConfig().getRollupIndex(), builder.build());
+
+            when(response.getMappings()).thenReturn(builder2.build());
+            requestCaptor.getValue().onResponse(response);
+            return null;
+        }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
+
+        TransportPutRollupJobAction.updateMapping(job, testListener, mock(PersistentTasksService.class), client, logger);
+        verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
+    }
+
+    @SuppressWarnings("unchecked")
     public void testJobAlreadyInMapping() {
         RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob("foo").build(), Collections.emptyMap());
 
@@ -219,10 +259,12 @@ public class PutJobStateMachineTests extends ESTestCase {
         ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
+            Map<String, Object> m = new HashMap<>(2);
+            m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, Version.V_6_4_0);
+            m.put(RollupField.ROLLUP_META,
+                Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
-                    Collections.singletonMap("_meta",
-                            Collections.singletonMap(RollupField.ROLLUP_META,
-                                    Collections.singletonMap(job.getConfig().getId(), job.getConfig()))));
+                Collections.singletonMap("_meta", m));
             ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
             builder.put(RollupField.TYPE_NAME, meta);
 
@@ -258,9 +300,12 @@ public class PutJobStateMachineTests extends ESTestCase {
         ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
+            Map<String, Object> m = new HashMap<>(2);
+            m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, Version.V_6_4_0);
+            m.put(RollupField.ROLLUP_META,
+                Collections.singletonMap(unrelatedJob.getId(), unrelatedJob));
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
-                    Collections.singletonMap("_meta", Collections.singletonMap(RollupField.ROLLUP_META,
-                                    Collections.singletonMap(unrelatedJob.getId(), unrelatedJob))));
+                Collections.singletonMap("_meta", m));
             ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
             builder.put(RollupField.TYPE_NAME, meta);
 

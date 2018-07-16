@@ -2,7 +2,7 @@
 
 ==== Put Mapping
 
-You can add mappings for a new type already while creating an index:
+You can add mappings for a new type at index creation time:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

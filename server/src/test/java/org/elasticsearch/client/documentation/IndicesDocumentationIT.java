@@ -26,7 +26,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -96,8 +96,8 @@ public class IndicesDocumentationIT extends ESIntegTestCase {
         getMappingsResponse = client.admin().indices().prepareGetMappings("twitter").get();
         assertEquals(1, getMappingsResponse.getMappings().size());
         indexMapping = getMappingsResponse.getMappings().get("twitter");
-        assertThat(indexMapping.get("user"), instanceOf(MappingMetaData.class));
-        assertThat(indexMapping.get("user").getSourceAsMap().toString(), equalTo("{properties={name={type=text}}}"));
+        assertEquals(indexMapping.get("user").getSourceAsMap(),
+                singletonMap("properties", singletonMap("name", singletonMap("type", "text"))));
 
         // tag::putMapping-request-source-append
         client.admin().indices().preparePutMapping("twitter")   // <1>
@@ -114,8 +114,8 @@ public class IndicesDocumentationIT extends ESIntegTestCase {
         getMappingsResponse = client.admin().indices().prepareGetMappings("twitter").get();
         assertEquals(1, getMappingsResponse.getMappings().size());
         indexMapping = getMappingsResponse.getMappings().get("twitter");
-        assertThat(indexMapping.get("user"), instanceOf(MappingMetaData.class));
-        assertThat(indexMapping.get("user").getSourceAsMap().toString(), equalTo("{properties={name={type=text}, user_name={type=text}}}"));
+        assertEquals(indexMapping.get("user").getSourceAsMap(),
+                singletonMap("properties", singletonMap("user_name", singletonMap("type", "text"))));
     }
 
 }

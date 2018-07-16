@@ -483,7 +483,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static void executeDeleteRequestOnPrimary(PrimaryExecutionContext context,
                                                                      MappingUpdatePerformer mappingUpdater) throws Exception {
-        final DeleteRequest request = (DeleteRequest) context.getCurrent();
+        final DeleteRequest request = context.getRequestToExecute();
         final IndexShard primary = context.getPrimary();
         executeOnPrimaryWhileHandlingMappingUpdates(context,
             () -> primary.applyDeleteOperationOnPrimary(request.version(), request.type(), request.id(), request.versionType()),

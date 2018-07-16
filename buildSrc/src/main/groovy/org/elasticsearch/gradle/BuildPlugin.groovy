@@ -847,6 +847,10 @@ class BuildPlugin implements Plugin<Project> {
              * compilation. Unfortunately, by default it is not used for
              * *test* source compilation and isn't used in tests at all. This
              * change makes it available for test compilation.
+             *
+             * Note that this isn't going to work properly with qa projects
+             * but they have no business applying the shadow plugin in the
+             * firstplace.
              */
             SourceSet testSourceSet = project.sourceSets.findByName('test')
             if (testSourceSet != null) {

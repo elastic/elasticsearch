@@ -18,12 +18,6 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -35,6 +29,12 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 /**
  * Holds the specification used to turn {@code do} actions in the YAML suite into REST api calls.
@@ -80,9 +80,9 @@ public class ClientYamlSuiteRestSpec {
      * Parses the complete set of REST spec available under the provided directories
      */
     public static ClientYamlSuiteRestSpec load(String classpathPrefix) throws Exception {
+        Path dir = PathUtils.get(ClientYamlSuiteRestSpec.class.getResource(classpathPrefix).toURI());
         ClientYamlSuiteRestSpec restSpec = new ClientYamlSuiteRestSpec();
         ClientYamlSuiteRestApiParser restApiParser = new ClientYamlSuiteRestApiParser();
-        Path dir = PathUtils.get(ClientYamlSuiteRestSpec.class.getResource(classpathPrefix).toURI());
         try (Stream<Path> stream = Files.walk(dir)) {
             stream.forEach(item -> {
                 if (item.toString().endsWith(".json")) {

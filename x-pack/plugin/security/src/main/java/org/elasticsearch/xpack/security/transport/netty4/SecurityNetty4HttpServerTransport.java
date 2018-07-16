@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.handler.ssl.SslHandler;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -19,18 +17,16 @@ import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.transport.SecurityHttpExceptionHandler;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
 import javax.net.ssl.SSLEngine;
 
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
-import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isNotSslRecordException;
-import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isReceivedCertificateUnknownException;
 
 public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport {
 
+    private final SecurityHttpExceptionHandler securityExceptionHandler;
     private final IPFilter ipFilter;
     private final SSLService sslService;
     private final SSLConfiguration sslConfiguration;
@@ -39,6 +35,7 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
                                              SSLService sslService, ThreadPool threadPool, NamedXContentRegistry xContentRegistry,
                                              Dispatcher dispatcher) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
+        this.securityExceptionHandler = new SecurityHttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
         this.sslService = sslService;
@@ -51,41 +48,11 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
         } else {
             this.sslConfiguration = null;
         }
-
     }
 
     @Override
     protected void onException(HttpChannel channel, Exception e) {
-        if (!lifecycle.started()) {
-            return;
-        }
-
-        if (isNotSslRecordException(e)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("received plaintext http traffic on a https channel, closing connection {}",
-                    channel), e);
-            } else {
-                logger.warn("received plaintext http traffic on a https channel, closing connection {}", channel);
-            }
-            CloseableChannel.closeChannel(channel);
-        } else if (isCloseDuringHandshakeException(e)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("connection {} closed during ssl handshake", channel), e);
-            } else {
-                logger.warn("connection {} closed during ssl handshake", channel);
-            }
-            CloseableChannel.closeChannel(channel);
-        } else if (isReceivedCertificateUnknownException(e)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("http client did not trust server's certificate, closing connection {}",
-                    channel), e);
-            } else {
-                logger.warn("http client did not trust this server's certificate, closing connection {}", channel);
-            }
-            CloseableChannel.closeChannel(channel);
-        } else {
-            super.onException(channel, e);
-        }
+        securityExceptionHandler.accept(channel, e);
     }
 
     @Override
@@ -113,12 +80,6 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
                 ch.pipeline().addFirst("ssl", new SslHandler(sslEngine));
             }
             ch.pipeline().addFirst("ip_filter", new IpFilterRemoteAddressFilter(ipFilter, IPFilter.HTTP_PROFILE_NAME));
-        }
-    }
-
-    public static void overrideSettings(Settings.Builder settingsBuilder, Settings settings) {
-        if (HTTP_SSL_ENABLED.get(settings) && SETTING_HTTP_COMPRESSION.exists(settings) == false) {
-            settingsBuilder.put(SETTING_HTTP_COMPRESSION.getKey(), false);
         }
     }
 }

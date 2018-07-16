@@ -120,6 +120,9 @@
         "messages": {
           "type": "text"
         },
+        "user": {
+          "type": "text"
+        },
         "exception" : {
           "type" : "object",
           "enabled" : false

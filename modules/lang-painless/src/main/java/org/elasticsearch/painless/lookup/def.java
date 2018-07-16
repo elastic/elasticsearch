@@ -17,27 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.elasticsearch.painless.lookup;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.http.HttpServerChannel;
-import org.elasticsearch.nio.NioServerSocketChannel;
+/** Marker class for def type to be used during type analysis. */
+public final class def {
 
-import java.nio.channels.ServerSocketChannel;
+    private def() {
 
-public class NioHttpServerChannel extends NioServerSocketChannel implements HttpServerChannel {
-
-    public NioHttpServerChannel(ServerSocketChannel serverSocketChannel) {
-        super(serverSocketChannel);
-    }
-
-    @Override
-    public void addCloseListener(ActionListener<Void> listener) {
-        addCloseListener(ActionListener.toBiConsumer(listener));
-    }
-
-    @Override
-    public String toString() {
-        return "NioHttpServerChannel{localAddress=" + getLocalAddress() + "}";
     }
 }

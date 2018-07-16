@@ -78,7 +78,7 @@ public class RestoreModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
             ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastId);
             assertThat(forecastStats.getMessages(), anyOf(nullValue(), empty()));
             assertThat(forecastStats.getMemoryUsage(), greaterThan(0L));
-            assertEquals(forecastStats.getRecordCount(), 3L);
+            assertThat(forecastStats.getRecordCount(), equalTo(3L));
         });
 
         closeJob(job.getId());

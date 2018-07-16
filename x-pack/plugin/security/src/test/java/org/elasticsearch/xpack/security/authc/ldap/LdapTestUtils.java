@@ -52,6 +52,7 @@ public class LdapTestUtils {
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(settings, env);
+
         LDAPURL ldapurl = new LDAPURL(url);
         LDAPConnectionOptions options = new LDAPConnectionOptions();
         options.setFollowReferrals(true);

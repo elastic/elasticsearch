@@ -472,6 +472,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testGetConfigurationByContextName() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
         final SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
         sslContext.init(null, null, null);
         final String[] cipherSuites = sslContext.getSupportedSSLParameters().getCipherSuites();

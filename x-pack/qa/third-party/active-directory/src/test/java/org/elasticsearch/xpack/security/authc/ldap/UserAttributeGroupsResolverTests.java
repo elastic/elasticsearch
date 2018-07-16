@@ -91,6 +91,6 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
 
     @Override
     protected String trustPath() {
-        return "/org/elasticsearch/xpack/security/authc/ldap/support/idptrust.jks";
+        return "/org/elasticsearch/xpack/security/authc/ldap/support/ADtrust.jks";
     }
 }

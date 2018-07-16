@@ -175,6 +175,6 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     @Override
     protected String trustPath() {
-        return "/org/elasticsearch/xpack/security/authc/ldap/support/idptrust.jks";
+        return "/idptrust.jks";
     }
 }

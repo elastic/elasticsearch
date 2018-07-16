@@ -104,7 +104,13 @@ public class OpenLdapTests extends ESTestCase {
             builder.put("xpack.security.authc.realms." + REALM_NAME + ".ssl.truststore.path", truststore);
             mockSecureSettings.setString("xpack.security.authc.realms." + REALM_NAME + ".ssl.truststore.secure_password", "changeit");
             builder.put("xpack.security.authc.realms." + REALM_NAME + ".ssl.verification_mode", VerificationMode.CERTIFICATE);
+
+            // If not using global ssl, need to set the truststore for the "full verification" realm
+            builder.put("xpack.security.authc.realms.vmode_full.ssl.truststore.path", truststore);
+            mockSecureSettings.setString("xpack.security.authc.realms.vmode_full.ssl.truststore.secure_password", "changeit");
         }
+        builder.put("xpack.security.authc.realms.vmode_full.ssl.verification_mode", VerificationMode.FULL);
+
         globalSettings = builder.setSecureSettings(mockSecureSettings).build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
         sslService = new SSLService(globalSettings, environment);
@@ -188,10 +194,10 @@ public class OpenLdapTests extends ESTestCase {
         Settings settings = Settings.builder()
             // The certificate used in the vagrant box is valid for "localhost", but not for "127.0.0.1"
             .put(buildLdapSettings(OPEN_LDAP_IP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
-            .put("ssl.verification_mode", VerificationMode.FULL)
             .build();
 
-        RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+        // Pick up the "full" verification mode config
+        RealmConfig config = new RealmConfig("vmode_full", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
             new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -211,10 +217,10 @@ public class OpenLdapTests extends ESTestCase {
         Settings settings = Settings.builder()
             // The certificate used in the vagrant box is valid for "localhost" (but not for "127.0.0.1")
             .put(buildLdapSettings(OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
-            .put("ssl.verification_mode", VerificationMode.FULL)
             .build();
 
-        RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+        // Pick up the "full" verification mode config
+        RealmConfig config = new RealmConfig("vmode_full", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
             new ThreadContext(Settings.EMPTY));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 

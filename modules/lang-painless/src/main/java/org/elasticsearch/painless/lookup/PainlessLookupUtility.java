@@ -25,23 +25,27 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
+/**
+ * This class contains methods shared by {@link PainlessLookupBuilder}, {@link PainlessLookup}, and other classes within
+ * Painless for conversion between type names and types along with some other various utility methods.
+ *
+ * The following terminology is used for variable names throughout the lookup package:
+ *
+ * - javaClass           (Class)         - a java class including def and excluding array type java classes
+ * - javaClassName       (String)        - the fully qualified java class name for a javaClass
+ * - painlessClassName   (String)        - the fully qualified painless name or imported painless name for a painlessClass
+ * - anyClassName        (String)        - either a javaClassName or a painlessClassName
+ * - javaType            (Class)         - a java class excluding def and array type java classes
+ * - painlessType        (Class)         - a java class including def and array type java classes
+ * - javaTypeName        (String)        - the fully qualified java Type name for a javaType
+ * - painlessTypeName    (String)        - the fully qualified painless name or imported painless name for a painlessType
+ * - anyTypeName         (String)        - either a javaTypeName or a painlessTypeName
+ * - painlessClass       (PainlessClass) - a painless class object
+ *
+ * Under ambiguous circumstances most variable names are prefixed with asm, java, or painless.
+ * If the variable name is the same for asm, java, and painless, no prefix is used.
+ */
 public final class PainlessLookupUtility {
-
-    // The following terminology is used for variable names throughout the lookup package:
-    //
-    // - javaClass           (Class)         - a java class including def and excluding array type java classes
-    // - javaClassName       (String)        - the fully qualified java class name for a javaClass
-    // - painlessClassName   (String)        - the fully qualified painless name or imported painless name for a painlessClass
-    // - anyClassName        (String)        - either a javaClassName or a painlessClassName
-    // - javaType            (Class)         - a java class excluding def and array type java classes
-    // - painlessType        (Class)         - a java class including def and array type java classes
-    // - javaTypeName        (String)        - the fully qualified java Type name for a javaType
-    // - painlessTypeName    (String)        - the fully qualified painless name or imported painless name for a painlessType
-    // - anyTypeName         (String)        - either a javaTypeName or a painlessTypeName
-    // - painlessClass       (PainlessClass) - a painless class object
-    //
-    // Under ambiguous circumstances most variable names are prefixed with asm, java, or painless.
-    // If the variable name is the same for asm, java, and painless, no prefix is used.
 
     public static Class<?> javaObjectTypeToPainlessDefType(Class<?> javaType) {
         if (javaType.isArray()) {
@@ -261,14 +265,14 @@ public final class PainlessLookupUtility {
 
     public static boolean isAnyTypeConstant(Class<?> anyType) {
         return anyType == boolean.class ||
-            anyType == byte.class    ||
-            anyType == short.class   ||
-            anyType == char.class    ||
-            anyType == int.class     ||
-            anyType == long.class    ||
-            anyType == float.class   ||
-            anyType == double.class  ||
-            anyType == String.class;
+               anyType == byte.class    ||
+               anyType == short.class   ||
+               anyType == char.class    ||
+               anyType == int.class     ||
+               anyType == long.class    ||
+               anyType == float.class   ||
+               anyType == double.class  ||
+               anyType == String.class;
     }
 
     public static final String DEF_PAINLESS_CLASS_NAME = def.class.getSimpleName();

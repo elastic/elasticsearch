@@ -39,7 +39,7 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             //tag::x-pack-put-watch-execute
-            // you can also use the WatchSourceBuilder from x-pack-transport to create a watch programmatically
+            // you can also use the WatchSourceBuilder from org.elasticsearch.plugin:x-pack-core to create a watch programmatically
             BytesReference watch = new BytesArray("{ \n" +
                 "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
                 "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n" +

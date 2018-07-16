@@ -49,7 +49,7 @@ public class NamingConventionsTask extends LoggedExec {
                     sourceSets.getByName("test").getOutput()
             );
         } catch (URISyntaxException e) {
-            throw new GradleException("Failed to find NamingConventionsCheck class", e);
+            throw new AssertionError(e);
         }
         dependsOn(project.getTasks().matching(it -> "testCompileClasspath".equals(it.getName())));
         getInputs().files(classpath);
@@ -122,10 +122,6 @@ public class NamingConventionsTask extends LoggedExec {
 
     public void setSuccessMarker(File successMarker) {
         this.successMarker = successMarker;
-    }
-
-    public boolean getSkipIntegTestInDisguise() {
-        return skipIntegTestInDisguise;
     }
 
     public boolean isSkipIntegTestInDisguise() {

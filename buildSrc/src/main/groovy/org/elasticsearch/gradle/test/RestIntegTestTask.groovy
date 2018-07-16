@@ -216,7 +216,7 @@ public class RestIntegTestTask extends DefaultTask {
      * @param project The project to add the copy task to
      * @param includePackagedTests true if the packaged tests should be copied, false otherwise
      */
-    public static Task createCopyRestSpecTask(Project project, Provider<Boolean> includePackagedTests) {
+    static Task createCopyRestSpecTask(Project project, Provider<Boolean> includePackagedTests) {
         project.configurations {
             restSpec
         }

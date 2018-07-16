@@ -747,12 +747,15 @@ public class RestHighLevelClientTests extends ESTestCase {
 
                 boolean remove = apiSpec.remove(apiName);
                 if (remove == false && deprecatedMethods.contains(apiName) == false) {
-                    apiNotFound.add(apiName);
+                    //TODO xpack api are currently ignored, we need to load xpack yaml spec too
+                    if (apiName.startsWith("xpack.") == false) {
+                        apiNotFound.add(apiName);
+                    }
                 }
             }
         }
         assertThat("Some client method doesn't match a corresponding API defined in the REST spec: " + apiNotFound,
-            apiNotFound.size(), equalTo(2)); //TODO add xpack stuff
+            apiNotFound.size(), equalTo(0));
 
         //we decided not to support cat API in the high-level REST client, they are supposed to be used from a low-level client
         apiSpec.removeIf(api -> api.startsWith("cat."));

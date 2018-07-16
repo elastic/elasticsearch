@@ -352,6 +352,18 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
+    boolean isNoop(DatafeedConfig datafeed) {
+        return (frequency == null || Objects.equals(frequency, datafeed.getFrequency()))
+                && (queryDelay == null || Objects.equals(queryDelay, datafeed.getQueryDelay()))
+                && (indices == null || Objects.equals(indices, datafeed.getIndices()))
+                && (types == null || Objects.equals(types, datafeed.getTypes()))
+                && (query == null || Objects.equals(query, datafeed.getQuery()))
+                && (scrollSize == null || Objects.equals(scrollSize, datafeed.getQueryDelay()))
+                && (aggregations == null || Objects.equals(aggregations, datafeed.getAggregations()))
+                && (scriptFields == null || Objects.equals(scriptFields, datafeed.getScriptFields()))
+                && (chunkingConfig == null || Objects.equals(chunkingConfig, datafeed.getChunkingConfig()));
+    }
+
     public static class Builder {
 
         private String id;

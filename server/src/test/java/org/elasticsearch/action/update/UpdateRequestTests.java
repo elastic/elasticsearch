@@ -81,9 +81,7 @@ public class UpdateRequestTests extends ESTestCase {
         final Map<String, Function<Map<String, Object>, Object>> scripts =  new HashMap<>();
         scripts.put(
                 "ctx._source.update_timestamp = ctx._now",
-                vars -> {
-                    @SuppressWarnings("unchecked")
-                    final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                ctx -> {
                     @SuppressWarnings("unchecked")
                     final Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
                     source.put("update_timestamp", ctx.get("_now"));
@@ -91,9 +89,7 @@ public class UpdateRequestTests extends ESTestCase {
                 });
         scripts.put(
                 "ctx._source.body = \"foo\"",
-                vars -> {
-                    @SuppressWarnings("unchecked")
-                    final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                ctx -> {
                     @SuppressWarnings("unchecked")
                     final Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
                     source.put("body", "foo");
@@ -101,33 +97,25 @@ public class UpdateRequestTests extends ESTestCase {
                 });
         scripts.put(
                 "ctx._timestamp = ctx._now",
-                vars -> {
-                    @SuppressWarnings("unchecked")
-                    final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                ctx -> {
                     ctx.put("_timestamp", ctx.get("_now"));
                     return null;
                 });
         scripts.put(
                 "ctx.op = delete",
-                vars -> {
-                    @SuppressWarnings("unchecked")
-                    final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                ctx -> {
                     ctx.put("op", "delete");
                     return null;
                 });
         scripts.put(
                 "ctx.op = bad",
-                vars -> {
-                    @SuppressWarnings("unchecked")
-                    final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                ctx -> {
                     ctx.put("op", "bad");
                     return null;
                 });
         scripts.put(
                 "ctx.op = none",
-                vars -> {
-                    @SuppressWarnings("unchecked")
-                    final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                ctx -> {
                     ctx.put("op", "none");
                     return null;
                 });

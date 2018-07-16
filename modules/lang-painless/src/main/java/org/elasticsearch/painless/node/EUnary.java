@@ -21,13 +21,13 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -93,7 +93,8 @@ public final class EUnary extends AExpression {
         promote = AnalyzerCaster.promoteNumeric(child.actual, false);
 
         if (promote == null) {
-            throw createError(new ClassCastException("Cannot apply not [~] to type [" + PainlessLookup.ClassToName(child.actual) + "]."));
+            throw createError(new ClassCastException("Cannot apply not [~] to type " +
+                    "[" + PainlessLookupUtility.anyTypeToPainlessTypeName(child.actual) + "]."));
         }
 
         child.expected = promote;
@@ -122,8 +123,8 @@ public final class EUnary extends AExpression {
         promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
-            throw createError(
-                    new ClassCastException("Cannot apply positive [+] to type [" + PainlessLookup.ClassToName(child.actual) + "]."));
+            throw createError(new ClassCastException("Cannot apply positive [+] to type " +
+                    "[" + PainlessLookupUtility.painlessDefTypeToJavaObjectType(child.actual) + "]."));
         }
 
         child.expected = promote;
@@ -156,8 +157,8 @@ public final class EUnary extends AExpression {
         promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
         if (promote == null) {
-            throw createError(
-                    new ClassCastException("Cannot apply negative [-] to type [" + PainlessLookup.ClassToName(child.actual) + "]."));
+            throw createError(new ClassCastException("Cannot apply negative [-] to type " +
+                    "[" + PainlessLookupUtility.painlessDefTypeToJavaObjectType(child.actual) + "]."));
         }
 
         child.expected = promote;

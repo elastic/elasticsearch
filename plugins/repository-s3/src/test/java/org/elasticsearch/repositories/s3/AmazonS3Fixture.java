@@ -52,6 +52,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLength;
+import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiAlphanumOfLengthBetween;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 
@@ -66,27 +67,28 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
 
     private static final String EC2_PROFILE = "ec2Profile";
 
+    private final Properties properties;
+    private final Random random;
+
     /** List of the buckets stored on this test server **/
     private final Map<String, Bucket> buckets = ConcurrentCollections.newConcurrentMap();
 
     /** Request handlers for the requests made by the S3 client **/
     private final PathTrie<RequestHandler> handlers;
 
-    private final Bucket permanentBucket;
-    private final Bucket temporaryBucket;
-    private final Bucket ec2Bucket;
-
     /**
      * Creates a {@link AmazonS3Fixture}
      */
     private AmazonS3Fixture(final String workingDir, Properties properties) {
         super(workingDir);
-        Random random = new Random(Long.parseUnsignedLong(requireNonNull(properties.getProperty("tests.seed")), 16));
-        this.permanentBucket = new Bucket(properties, buckets, "s3Fixture.permanent", false);
-        this.temporaryBucket = new Bucket(properties, buckets, "s3Fixture.temporary");
-        this.ec2Bucket = new Bucket(properties, buckets, "s3Fixture.ec2", random);
+        this.properties = properties;
+        this.random = new Random(Long.parseUnsignedLong(requireNonNull(properties.getProperty("tests.seed")), 16));
 
-        this.handlers = defaultHandlers(buckets);
+        new Bucket("s3Fixture.permanent", false, null);
+        new Bucket("s3Fixture.temporary", true, null);
+        final Bucket ec2Bucket = new Bucket("s3Fixture.ec2", false, random);
+
+        this.handlers = defaultHandlers(buckets, ec2Bucket.name);
     }
 
     private static String nonAuthPath(Request request) {
@@ -176,7 +178,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     }
 
     /** Builds the default request handlers **/
-    private PathTrie<RequestHandler> defaultHandlers(final Map<String, Bucket> buckets) {
+    private PathTrie<RequestHandler> defaultHandlers(final Map<String, Bucket> buckets, final String ec2BucketName) {
         final PathTrie<RequestHandler> handlers = new PathTrie<>(RestUtils.REST_DECODER);
 
         // HEAD Object
@@ -372,8 +374,8 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
             final String response = "{"
                  + "\"AccessKeyId\": \"" + key + "\","
                  + "\"Expiration\": \"" + DateUtils.formatISO8601Date(expiration) + "\","
-                 + "\"RoleArn\": \"" + profileName + "_ROLE" + "\","
-                 + "\"SecretAccessKey\": \"" + profileName + "_SCR_KEY" + "\","
+                 + "\"RoleArn\": \"" + randomAsciiAlphanumOfLengthBetween(random, 1, 20) + "\","
+                 + "\"SecretAccessKey\": \"" + randomAsciiAlphanumOfLengthBetween(random, 1, 20) + "\","
                  + "\"Token\": \"" + token + "\""
                  + "}";
 
@@ -391,6 +393,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
             return new Response(RestStatus.OK.getStatus(), headers, response.getBytes(UTF_8));
         });
 
+        final Bucket ec2Bucket = buckets.get(ec2BucketName);
         // GET
         //
         // http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
@@ -413,7 +416,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     /**
      * Represents a S3 bucket.
      */
-    static class Bucket {
+    class Bucket {
 
         /** Bucket name **/
         final String name;
@@ -425,29 +428,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         /** Blobs contained in the bucket **/
         final Map<String, byte[]> objects;
 
-        Bucket(final Properties properties, Map<String, Bucket> buckets, final String prefix) {
-            this(properties, buckets, prefix, true);
-        }
-
-        Bucket(final Properties properties,
-               final Map<String, Bucket> buckets,
-               final String prefix,
-               final boolean tokenRequired) {
-            this(properties, buckets, prefix, tokenRequired, null);
-        }
-
-        Bucket(final Properties properties,
-               final Map<String, Bucket> buckets,
-               final String prefix,
-               final Random random) {
-            this(properties, buckets, prefix, false, random);
-        }
-
-        private Bucket(final Properties properties,
-               final Map<String, Bucket> buckets,
-               final String prefix,
-               final boolean tokenRequired,
-               final Random random) {
+        private Bucket(final String prefix, final boolean tokenRequired, final Random random) {
             this.name = prop(properties, prefix + "_bucket_name");
             if (random != null) {
                 this.key = randomAsciiAlphanumOfLength(random, 10);

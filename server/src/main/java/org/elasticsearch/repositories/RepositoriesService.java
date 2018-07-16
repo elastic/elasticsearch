@@ -38,6 +38,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -58,16 +59,20 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     private final ClusterService clusterService;
 
+    private final ThreadPool threadPool;
+
     private final VerifyNodeRepositoryAction verifyAction;
 
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
 
     @Inject
     public RepositoriesService(Settings settings, ClusterService clusterService, TransportService transportService,
-                               Map<String, Repository.Factory> typesRegistry) {
+                               Map<String, Repository.Factory> typesRegistry,
+                               ThreadPool threadPool) {
         super(settings);
         this.typesRegistry = typesRegistry;
         this.clusterService = clusterService;
+        this.threadPool = threadPool;
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
         // Nothing happens there anyway
         if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
@@ -208,39 +213,51 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
     public void verifyRepository(final String repositoryName, final ActionListener<VerifyResponse> listener) {
         final Repository repository = repository(repositoryName);
         try {
-            final String verificationToken = repository.startVerification();
-            if (verificationToken != null) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                 try {
-                    verifyAction.verify(repositoryName, verificationToken, new ActionListener<VerifyResponse>() {
-                        @Override
-                        public void onResponse(VerifyResponse verifyResponse) {
-                            try {
-                                repository.endVerification(verificationToken);
-                            } catch (Exception e) {
-                                logger.warn(() -> new ParameterizedMessage("[{}] failed to finish repository verification", repositoryName), e);
-                                listener.onFailure(e);
-                                return;
-                            }
-                            listener.onResponse(verifyResponse);
-                        }
+                    final String verificationToken = repository.startVerification();
+                    if (verificationToken != null) {
+                        try {
+                            verifyAction.verify(repositoryName, verificationToken, new ActionListener<VerifyResponse>() {
+                                @Override
+                                public void onResponse(VerifyResponse verifyResponse) {
+                                    threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                                        try {
+                                            repository.endVerification(verificationToken);
+                                        } catch (Exception e) {
+                                            logger.warn(() -> new ParameterizedMessage(
+                                                "[{}] failed to finish repository verification", repositoryName), e);
+                                            listener.onFailure(e);
+                                            return;
+                                        }
+                                        listener.onResponse(verifyResponse);
+                                    });
+                                }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
+                                @Override
+                                public void onFailure(Exception e) {
+                                    listener.onFailure(e);
+                                }
+                            });
+                        } catch (Exception e) {
+                            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                                try {
+                                    repository.endVerification(verificationToken);
+                                } catch (Exception inner) {
+                                    inner.addSuppressed(e);
+                                    logger.warn(() -> new ParameterizedMessage(
+                                        "[{}] failed to finish repository verification", repositoryName), inner);
+                                }
+                                listener.onFailure(e);
+                            });
                         }
-                    });
-                } catch (Exception e) {
-                    try {
-                        repository.endVerification(verificationToken);
-                    } catch (Exception inner) {
-                        inner.addSuppressed(e);
-                        logger.warn(() -> new ParameterizedMessage("[{}] failed to finish repository verification", repositoryName), inner);
+                    } else {
+                        listener.onResponse(new VerifyResponse(new DiscoveryNode[0], new VerificationFailure[0]));
                     }
+                } catch (Exception e) {
                     listener.onFailure(e);
                 }
-            } else {
-                listener.onResponse(new VerifyResponse(new DiscoveryNode[0], new VerificationFailure[0]));
-            }
+            });
         } catch (Exception e) {
             listener.onFailure(e);
         }

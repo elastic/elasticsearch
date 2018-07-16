@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -24,6 +25,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
+import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,6 +33,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpdate> {
 
@@ -40,8 +43,12 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     }
 
     public static DatafeedUpdate createRandomized(String datafeedId) {
+        return createRandomized(datafeedId, null);
+    }
+
+    public static DatafeedUpdate createRandomized(String datafeedId, @Nullable DatafeedConfig datafeed) {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(datafeedId);
-        if (randomBoolean()) {
+        if (randomBoolean() && datafeed == null) {
             builder.setJobId(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
@@ -68,7 +75,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             }
             builder.setScriptFields(scriptFields);
         }
-        if (randomBoolean()) {
+        if (randomBoolean() && datafeed == null) {
             // can only test with a single agg as the xcontent order gets randomized by test base class and then
             // the actual xcontent isn't the same and test fail.
             // Testing with a single agg is ok as we don't have special list writeable / xconent logic
@@ -182,6 +189,25 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         assertThat(updatedDatafeed.getAggregations(),
                 equalTo(new AggregatorFactories.Builder().addAggregator(
                         AggregationBuilders.histogram("a").interval(300000).field("time").subAggregation(maxTime))));
+    }
+
+    public void testApply_GivenRandomUpdates_AssertImmutability() {
+        for (int i = 0; i < 100; ++i) {
+            DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig(JobTests.randomValidJobId());
+            if (datafeed.getAggregations() != null) {
+                DatafeedConfig.Builder withoutAggs = new DatafeedConfig.Builder(datafeed);
+                withoutAggs.setAggregations(null);
+                datafeed = withoutAggs.build();
+            }
+            DatafeedUpdate update = createRandomized(datafeed.getId(), datafeed);
+            while (update.isNoop(datafeed)) {
+                update = createRandomized(datafeed.getId(), datafeed);
+            }
+
+            DatafeedConfig updatedDatafeed = update.apply(datafeed, Collections.emptyMap());
+
+            assertThat(datafeed, not(equalTo(updatedDatafeed)));
+        }
     }
 
     @Override

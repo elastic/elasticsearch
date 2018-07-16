@@ -46,8 +46,7 @@ import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
+import org.joda.time.base.BaseDateTime;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -803,8 +802,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo((Object) 4L));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
-            equalTo(new DateTime(date.toInstant().toEpochMilli(), DateTimeZone.UTC)));
+        BaseDateTime dateField = searchResponse.getHits().getAt(0).getFields().get("date_field").getValue();
+        assertThat(dateField.getMillis(), equalTo(date.toInstant().toEpochMilli()));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));

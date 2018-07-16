@@ -168,7 +168,7 @@ public class ScriptServiceTests extends ESTestCase {
         assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.CONTEXT);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, SearchScript.AGGS_CONTEXT);
         assertCompileAccepted("painless", "script", ScriptType.INLINE, ExecutableScript.UPDATE_CONTEXT);
-        assertCompileAccepted("painless", "script", ScriptType.INLINE, ExecutableScript.INGEST_CONTEXT);
+        assertCompileAccepted("painless", "script", ScriptType.INLINE, IngestScript.CONTEXT);
     }
 
     public void testAllowSomeScriptTypeSettings() throws IOException {
@@ -209,13 +209,13 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testCompileNonRegisteredContext() throws IOException {
-        contexts.remove(ExecutableScript.INGEST_CONTEXT.name);
+        contexts.remove(IngestScript.CONTEXT.name);
         buildScriptService(Settings.EMPTY);
 
         String type = scriptEngine.getType();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            scriptService.compile(new Script(ScriptType.INLINE, type, "test", Collections.emptyMap()), ExecutableScript.INGEST_CONTEXT));
-        assertThat(e.getMessage(), containsString("script context [" + ExecutableScript.INGEST_CONTEXT.name + "] not supported"));
+            scriptService.compile(new Script(ScriptType.INLINE, type, "test", Collections.emptyMap()), IngestScript.CONTEXT));
+        assertThat(e.getMessage(), containsString("script context [" + IngestScript.CONTEXT.name + "] not supported"));
     }
 
     public void testCompileCountedInCompilationStats() throws IOException {

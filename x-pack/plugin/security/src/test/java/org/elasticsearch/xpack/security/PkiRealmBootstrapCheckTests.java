@@ -83,7 +83,7 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
     }
 
     private BootstrapCheck.BootstrapCheckResult runCheck(Settings settings, Environment env) throws Exception {
-        return new PkiRealmBootstrapCheck(settings, new SSLService(settings, env)).check(new BootstrapContext(settings, null));
+        return new PkiRealmBootstrapCheck(new SSLService(settings, env)).check(new BootstrapContext(settings, null));
     }
 
     public void testBootstrapCheckWithDisabledRealm() throws Exception {
@@ -112,7 +112,7 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
                 .build();
 
         Environment env = TestEnvironment.newEnvironment(settings);
-        final PkiRealmBootstrapCheck check = new PkiRealmBootstrapCheck(settings, new SSLService(settings, env));
+        final PkiRealmBootstrapCheck check = new PkiRealmBootstrapCheck(new SSLService(settings, env));
         secureSettings.close();
         assertThat(check.check(new BootstrapContext(settings, null)).isFailure(), Matchers.equalTo(expectFail));
     }

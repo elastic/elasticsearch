@@ -112,3 +112,7 @@ integTestRunner {
     List jvmargs = ["-Djava.security.krb5.conf=${krb5conf}","-Dsun.security.krb5.debug=true"]
     jvmArgs jvmargs
 }
+
+if (project.rootProject.vagrantSupported == false) {
+    integTest.enabled = false
+}

@@ -21,12 +21,6 @@ package org.elasticsearch.test.rest;
 
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
@@ -68,16 +62,12 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.anyOf;
@@ -307,25 +297,25 @@ public abstract class ESRestTestCase extends ESTestCase {
      * the snapshots intact in the repository.
      */
     private void wipeSnapshots() throws IOException {
-        for (Map.Entry<String, ?> repo : entityAsMap(adminClient.performRequest("GET", "_snapshot/_all")).entrySet()) {
+        for (Map.Entry<String, ?> repo : entityAsMap(adminClient.performRequest(new Request("GET", "/_snapshot/_all"))).entrySet()) {
             String repoName = repo.getKey();
             Map<?, ?> repoSpec = (Map<?, ?>) repo.getValue();
             String repoType = (String) repoSpec.get("type");
             if (false == preserveSnapshotsUponCompletion() && repoType.equals("fs")) {
                 // All other repo types we really don't have a chance of being able to iterate properly, sadly.
-                String url = "_snapshot/" + repoName + "/_all";
-                Map<String, String> params = singletonMap("ignore_unavailable", "true");
-                List<?> snapshots = (List<?>) entityAsMap(adminClient.performRequest("GET", url, params)).get("snapshots");
+                Request listRequest = new Request("GET", "/_snapshot/" + repoName + "/_all");
+                listRequest.addParameter("ignore_unavailable", "true");
+                List<?> snapshots = (List<?>) entityAsMap(adminClient.performRequest(listRequest)).get("snapshots");
                 for (Object snapshot : snapshots) {
                     Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
                     String name = (String) snapshotInfo.get("snapshot");
                     logger.debug("wiping snapshot [{}/{}]", repoName, name);
-                    adminClient().performRequest("DELETE", "_snapshot/" + repoName + "/" + name);
+                    adminClient().performRequest(new Request("DELETE", "/_snapshot/" + repoName + "/" + name));
                 }
             }
             if (preserveReposUponCompletion() == false) {
                 logger.debug("wiping snapshot repository [{}]", repoName);
-                adminClient().performRequest("DELETE", "_snapshot/" + repoName);
+                adminClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
             }
         }
     }
@@ -334,7 +324,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Remove any cluster settings.
      */
     private void wipeClusterSettings() throws IOException {
-        Map<?, ?> getResponse = entityAsMap(adminClient().performRequest("GET", "/_cluster/settings"));
+        Map<?, ?> getResponse = entityAsMap(adminClient().performRequest(new Request("GET", "/_cluster/settings")));
 
         boolean mustClear = false;
         XContentBuilder clearCommand = JsonXContent.contentBuilder();
@@ -355,8 +345,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         clearCommand.endObject();
 
         if (mustClear) {
-            adminClient().performRequest("PUT", "/_cluster/settings", emptyMap(), new StringEntity(
-                Strings.toString(clearCommand), ContentType.APPLICATION_JSON));
+            Request request = new Request("PUT", "/_cluster/settings");
+            request.setJsonEntity(Strings.toString(clearCommand));
+            adminClient().performRequest(request);
         }
     }
 
@@ -365,7 +356,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * other tests.
      */
     private void logIfThereAreRunningTasks() throws InterruptedException, IOException {
-        Set<String> runningTasks = runningTasks(adminClient().performRequest("GET", "_tasks"));
+        Set<String> runningTasks = runningTasks(adminClient().performRequest(new Request("GET", "/_tasks")));
         // Ignore the task list API - it doesn't count against us
         runningTasks.remove(ListTasksAction.NAME);
         runningTasks.remove(ListTasksAction.NAME + "[n]");
@@ -389,7 +380,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     private void waitForClusterStateUpdatesToFinish() throws Exception {
         assertBusy(() -> {
             try {
-                Response response = adminClient().performRequest("GET", "_cluster/pending_tasks");
+                Response response = adminClient().performRequest(new Request("GET", "/_cluster/pending_tasks"));
                 List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
                 if (false == tasks.isEmpty()) {
                     StringBuilder message = new StringBuilder("there are still running tasks:");
@@ -514,12 +505,12 @@ public abstract class ESRestTestCase extends ESTestCase {
      * @param index index to test for
      **/
     protected static void ensureGreen(String index) throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("wait_for_status", "green");
-        params.put("wait_for_no_relocating_shards", "true");
-        params.put("timeout", "70s");
-        params.put("level", "shards");
-        assertOK(client().performRequest("GET", "_cluster/health/" + index, params));
+        Request request = new Request("GET", "/_cluster/health/" + index);
+        request.addParameter("wait_for_status", "green");
+        request.addParameter("wait_for_no_relocating_shards", "true");
+        request.addParameter("timeout", "70s");
+        request.addParameter("level", "shards");
+        client().performRequest(request);
     }
 
     /**
@@ -527,11 +518,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      * in the cluster and doesn't require to know how many nodes/replica there are.
      */
     protected static void ensureNoInitializingShards() throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("wait_for_no_initializing_shards", "true");
-        params.put("timeout", "70s");
-        params.put("level", "shards");
-        assertOK(client().performRequest("GET", "_cluster/health/", params));
+        Request request = new Request("GET", "/_cluster/health");
+        request.addParameter("wait_for_no_initializing_shards", "true");
+        request.addParameter("timeout", "70s");
+        request.addParameter("level", "shards");
+        client().performRequest(request);
     }
 
     protected static void createIndex(String name, Settings settings) throws IOException {
@@ -539,9 +530,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void createIndex(String name, Settings settings, String mapping) throws IOException {
-        assertOK(client().performRequest(HttpPut.METHOD_NAME, name, Collections.emptyMap(),
-            new StringEntity("{ \"settings\": " + Strings.toString(settings)
-                + ", \"mappings\" : {" + mapping + "} }", ContentType.APPLICATION_JSON)));
+        Request request = new Request("PUT", "/" + name);
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings)
+                + ", \"mappings\" : {" + mapping + "} }");
+        client().performRequest(request);
     }
 
     protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
@@ -549,42 +541,42 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private static void updateIndexSettings(String index, Settings settings) throws IOException {
-        assertOK(client().performRequest("PUT", index + "/_settings", Collections.emptyMap(),
-            new StringEntity(Strings.toString(settings), ContentType.APPLICATION_JSON)));
+        Request request = new Request("PUT", "/" + index + "/_settings");
+        request.setJsonEntity(Strings.toString(settings));
+        client().performRequest(request);
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("flat_settings", "true");
-        Response response = client().performRequest(HttpGet.METHOD_NAME, index + "/_settings", params);
-        assertOK(response);
+        Request request = new Request("GET", "/" + index + "/_settings");
+        request.addParameter("flat_settings", "true");
+        Response response = client().performRequest(request);
         try (InputStream is = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
     }
 
     protected static boolean indexExists(String index) throws IOException {
-        Response response = client().performRequest(HttpHead.METHOD_NAME, index);
+        Response response = client().performRequest(new Request("HEAD", "/" + index));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
     protected static void closeIndex(String index) throws IOException {
-        Response response = client().performRequest(HttpPost.METHOD_NAME, index + "/_close");
+        Response response = client().performRequest(new Request("POST", "/" + index + "/_close"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
     protected static void openIndex(String index) throws IOException {
-        Response response = client().performRequest(HttpPost.METHOD_NAME, index + "/_open");
+        Response response = client().performRequest(new Request("POST", "/" + index + "/_open"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
     protected static boolean aliasExists(String alias) throws IOException {
-        Response response = client().performRequest(HttpHead.METHOD_NAME, "/_alias/" + alias);
+        Response response = client().performRequest(new Request("HEAD", "/_alias/" + alias));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
     protected static boolean aliasExists(String index, String alias) throws IOException {
-        Response response = client().performRequest(HttpHead.METHOD_NAME, "/" + index + "/_alias/" + alias);
+        Response response = client().performRequest(new Request("HEAD", "/" + index + "/_alias/" + alias));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
@@ -602,7 +594,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static Map<String, Object> getAsMap(final String endpoint) throws IOException {
-        Response response = client().performRequest(HttpGet.METHOD_NAME, endpoint);
+        Response response = client().performRequest(new Request("GET", endpoint));
         XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(),
                 response.getEntity().getContent(), false);

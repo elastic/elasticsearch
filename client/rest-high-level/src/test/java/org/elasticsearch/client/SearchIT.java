@@ -19,12 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.explain.ExplainRequest;
@@ -101,85 +97,106 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
     @Before
     public void indexDocuments() throws IOException {
-        StringEntity doc1 = new StringEntity("{\"type\":\"type1\", \"num\":10, \"num2\":50}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/index/type/1", Collections.emptyMap(), doc1);
-        StringEntity doc2 = new StringEntity("{\"type\":\"type1\", \"num\":20, \"num2\":40}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/index/type/2", Collections.emptyMap(), doc2);
-        StringEntity doc3 = new StringEntity("{\"type\":\"type1\", \"num\":50, \"num2\":35}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/index/type/3", Collections.emptyMap(), doc3);
-        StringEntity doc4 = new StringEntity("{\"type\":\"type2\", \"num\":100, \"num2\":10}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/index/type/4", Collections.emptyMap(), doc4);
-        StringEntity doc5 = new StringEntity("{\"type\":\"type2\", \"num\":100, \"num2\":10}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/index/type/5", Collections.emptyMap(), doc5);
-        client().performRequest(HttpPost.METHOD_NAME, "/index/_refresh");
+        {
+            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/type/1");
+            doc1.setJsonEntity("{\"type\":\"type1\", \"num\":10, \"num2\":50}");
+            client().performRequest(doc1);
+            Request doc2 = new Request(HttpPut.METHOD_NAME, "/index/type/2");
+            doc2.setJsonEntity("{\"type\":\"type1\", \"num\":20, \"num2\":40}");
+            client().performRequest(doc2);
+            Request doc3 = new Request(HttpPut.METHOD_NAME, "/index/type/3");
+            doc3.setJsonEntity("{\"type\":\"type1\", \"num\":50, \"num2\":35}");
+            client().performRequest(doc3);
+            Request doc4 = new Request(HttpPut.METHOD_NAME, "/index/type/4");
+            doc4.setJsonEntity("{\"type\":\"type2\", \"num\":100, \"num2\":10}");
+            client().performRequest(doc4);
+            Request doc5 = new Request(HttpPut.METHOD_NAME, "/index/type/5");
+            doc5.setJsonEntity("{\"type\":\"type2\", \"num\":100, \"num2\":10}");
+            client().performRequest(doc5);
+        }
 
+        {
+            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index1/doc/1");
+            doc1.setJsonEntity("{\"field\":\"value1\", \"rating\": 7}");
+            client().performRequest(doc1);
+            Request doc2 = new Request(HttpPut.METHOD_NAME, "/index1/doc/2");
+            doc2.setJsonEntity("{\"field\":\"value2\"}");
+            client().performRequest(doc2);
+        }
 
-        StringEntity doc = new StringEntity("{\"field\":\"value1\", \"rating\": 7}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/index1/doc/1", Collections.emptyMap(), doc);
-        doc = new StringEntity("{\"field\":\"value2\"}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/index1/doc/2", Collections.emptyMap(), doc);
-
-        StringEntity mappings = new StringEntity(
-            "{" +
-            "  \"mappings\": {" +
-            "    \"doc\": {" +
-            "      \"properties\": {" +
-            "        \"rating\": {" +
-            "          \"type\":  \"keyword\"" +
-            "        }" +
-            "      }" +
-            "    }" +
-            "  }" +
-            "}}",
-            ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "/index2", Collections.emptyMap(), mappings);
-        doc = new StringEntity("{\"field\":\"value1\", \"rating\": \"good\"}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/index2/doc/3", Collections.emptyMap(), doc);
-        doc = new StringEntity("{\"field\":\"value2\"}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/index2/doc/4", Collections.emptyMap(), doc);
-
-        doc = new StringEntity("{\"field\":\"value1\"}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/index3/doc/5", Collections.emptyMap(), doc);
-        doc = new StringEntity("{\"field\":\"value2\"}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/index3/doc/6", Collections.emptyMap(), doc);
-
-        mappings = new StringEntity(
-            "{" +
+        {
+            Request create = new Request("PUT", "/index2");
+            create.setJsonEntity(
+                "{" +
                 "  \"mappings\": {" +
                 "    \"doc\": {" +
                 "      \"properties\": {" +
-                "        \"field1\": {" +
-                "          \"type\":  \"keyword\"," +
-                "          \"store\":  true" +
-                "        }," +
-                "        \"field2\": {" +
-                "          \"type\":  \"keyword\"," +
-                "          \"store\":  true" +
+                "        \"rating\": {" +
+                "          \"type\":  \"keyword\"" +
                 "        }" +
                 "      }" +
                 "    }" +
                 "  }" +
-                "}}",
-            ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/index4", Collections.emptyMap(), mappings);
-        doc = new StringEntity("{\"field1\":\"value1\", \"field2\":\"value2\"}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/index4/doc/1", Collections.emptyMap(), doc);
-        StringEntity aliasFilter = new StringEntity(
-            "{" +
-                "    \"actions\" : [" +
-                "        {" +
-                "            \"add\" : {" +
-                "                 \"index\" : \"index4\"," +
-                "                 \"alias\" : \"alias4\"," +
-                "                 \"filter\" : { \"term\" : { \"field2\" : \"value1\" } }" +
-                "            }" +
-                "        }" +
-                "    ]" +
-                "}",
-        ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPost.METHOD_NAME, "/_aliases", Collections.emptyMap(), aliasFilter);
+                "}");
+            client().performRequest(create);
+            Request doc3 = new Request(HttpPut.METHOD_NAME, "/index2/doc/3");
+            doc3.setJsonEntity("{\"field\":\"value1\", \"rating\": \"good\"}");
+            client().performRequest(doc3);
+            Request doc4 = new Request(HttpPut.METHOD_NAME, "/index2/doc/4");
+            doc4.setJsonEntity("{\"field\":\"value2\"}");
+            client().performRequest(doc4);
+        }
 
-        client().performRequest(HttpPost.METHOD_NAME, "/index1,index2,index3,index4/_refresh");
+        {
+            Request doc5 = new Request(HttpPut.METHOD_NAME, "/index3/doc/5");
+            doc5.setJsonEntity("{\"field\":\"value1\"}");
+            client().performRequest(doc5);
+            Request doc6 = new Request(HttpPut.METHOD_NAME, "/index3/doc/6");
+            doc6.setJsonEntity("{\"field\":\"value2\"}");
+            client().performRequest(doc6);
+        }
+
+        {
+            Request create = new Request(HttpPut.METHOD_NAME, "/index4");
+            create.setJsonEntity(
+                    "{" +
+                    "  \"mappings\": {" +
+                    "    \"doc\": {" +
+                    "      \"properties\": {" +
+                    "        \"field1\": {" +
+                    "          \"type\":  \"keyword\"," +
+                    "          \"store\":  true" +
+                    "        }," +
+                    "        \"field2\": {" +
+                    "          \"type\":  \"keyword\"," +
+                    "          \"store\":  true" +
+                    "        }" +
+                    "      }" +
+                    "    }" +
+                    "  }" +
+                    "}");
+            client().performRequest(create);
+            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index4/doc/1");
+            doc1.setJsonEntity("{\"field1\":\"value1\", \"field2\":\"value2\"}");
+            client().performRequest(doc1);
+
+            Request createFilteredAlias = new Request(HttpPost.METHOD_NAME, "/_aliases");
+            createFilteredAlias.setJsonEntity(
+                    "{" +
+                    "  \"actions\" : [" +
+                    "    {" +
+                    "      \"add\" : {" +
+                    "        \"index\" : \"index4\"," +
+                    "        \"alias\" : \"alias4\"," +
+                    "        \"filter\" : { \"term\" : { \"field2\" : \"value1\" } }" +
+                    "      }" +
+                    "    }" +
+                    "  ]" +
+                    "}");
+            client().performRequest(createFilteredAlias);
+        }
+
+        client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
     }
 
     public void testSearchNoQuery() throws IOException {
@@ -377,7 +394,9 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
     public void testSearchWithParentJoin() throws IOException {
         final String indexName = "child_example";
-        StringEntity parentMapping = new StringEntity("{\n" +
+        Request createIndex = new Request(HttpPut.METHOD_NAME, "/" + indexName);
+        createIndex.setJsonEntity(
+                "{\n" +
                 "    \"mappings\": {\n" +
                 "        \"qa\" : {\n" +
                 "            \"properties\" : {\n" +
@@ -388,9 +407,11 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 "            }\n" +
                 "        }\n" +
                 "    }" +
-                "}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/" + indexName, Collections.emptyMap(), parentMapping);
-        StringEntity questionDoc = new StringEntity("{\n" +
+                "}");
+        client().performRequest(createIndex);
+        Request questionDoc = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/qa/1");
+        questionDoc.setJsonEntity(
+                "{\n" +
                 "    \"body\": \"<p>I have Windows 2003 server and i bought a new Windows 2008 server...\",\n" +
                 "    \"title\": \"Whats the best way to file transfer my site from server to a newer one?\",\n" +
                 "    \"tags\": [\n" +
@@ -399,9 +420,12 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 "        \"file-transfer\"\n" +
                 "    ],\n" +
                 "    \"qa_join_field\" : \"question\"\n" +
-                "}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/" + indexName + "/qa/1", Collections.emptyMap(), questionDoc);
-        StringEntity answerDoc1 = new StringEntity("{\n" +
+                "}");
+        client().performRequest(questionDoc);
+        Request answerDoc1 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/qa/2");
+        answerDoc1.addParameter("routing", "1");
+        answerDoc1.setJsonEntity(
+                "{\n" +
                 "    \"owner\": {\n" +
                 "        \"location\": \"Norfolk, United Kingdom\",\n" +
                 "        \"display_name\": \"Sam\",\n" +
@@ -413,9 +437,12 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 "        \"parent\" : \"1\"\n" +
                 "    },\n" +
                 "    \"creation_date\": \"2009-05-04T13:45:37.030\"\n" +
-                "}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/" + indexName + "/qa/2", Collections.singletonMap("routing", "1"), answerDoc1);
-        StringEntity answerDoc2 = new StringEntity("{\n" +
+                "}");
+        client().performRequest(answerDoc1);
+        Request answerDoc2 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/qa/3");
+        answerDoc2.addParameter("routing", "1");
+        answerDoc2.setJsonEntity(
+                "{\n" +
                 "    \"owner\": {\n" +
                 "        \"location\": \"Norfolk, United Kingdom\",\n" +
                 "        \"display_name\": \"Troll\",\n" +
@@ -427,9 +454,9 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 "        \"parent\" : \"1\"\n" +
                 "    },\n" +
                 "    \"creation_date\": \"2009-05-05T13:45:37.030\"\n" +
-                "}", ContentType.APPLICATION_JSON);
-        client().performRequest(HttpPut.METHOD_NAME, "/" + indexName + "/qa/3", Collections.singletonMap("routing", "1"), answerDoc2);
-        client().performRequest(HttpPost.METHOD_NAME, "/_refresh");
+                "}");
+        client().performRequest(answerDoc2);
+        client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
 
         TermsAggregationBuilder leafTermAgg = new TermsAggregationBuilder("top-names", ValueType.STRING)
                 .field("owner.display_name.keyword").size(10);
@@ -506,9 +533,10 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testSearchWithWeirdScriptFields() throws Exception {
-        HttpEntity entity = new NStringEntity("{ \"field\":\"value\"}", ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "test/type/1", Collections.emptyMap(), entity);
-        client().performRequest("POST", "/test/_refresh");
+        Request doc = new Request("PUT", "test/type/1");
+        doc.setJsonEntity("{\"field\":\"value\"}");
+        client().performRequest(doc);
+        client().performRequest(new Request("POST", "/test/_refresh"));
 
         {
             SearchRequest searchRequest = new SearchRequest("test").source(SearchSourceBuilder.searchSource()
@@ -547,13 +575,13 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testSearchScroll() throws Exception {
-
         for (int i = 0; i < 100; i++) {
             XContentBuilder builder = jsonBuilder().startObject().field("field", i).endObject();
-            HttpEntity entity = new NStringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            client().performRequest(HttpPut.METHOD_NAME, "test/type1/" + Integer.toString(i), Collections.emptyMap(), entity);
+            Request doc = new Request(HttpPut.METHOD_NAME, "/test/type1/" + Integer.toString(i));
+            doc.setJsonEntity(Strings.toString(builder));
+            client().performRequest(doc);
         }
-        client().performRequest(HttpPost.METHOD_NAME, "/test/_refresh");
+        client().performRequest(new Request(HttpPost.METHOD_NAME, "/test/_refresh"));
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(35).sort("field", SortOrder.ASC);
         SearchRequest searchRequest = new SearchRequest("test").scroll(TimeValue.timeValueMinutes(2)).source(searchSourceBuilder);

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Definition.def;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.PainlessMethodKey;
+import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -71,14 +71,14 @@ public final class PCallInvoke extends AExpression {
             throw createError(new IllegalArgumentException("Illegal call [" + name + "] on array type."));
         }
 
-        Struct struct = locals.getDefinition().getPainlessStructFromJavaClass(prefix.actual);
+        PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
 
         if (prefix.actual.isPrimitive()) {
-            struct = locals.getDefinition().getPainlessStructFromJavaClass(Definition.getBoxedType(prefix.actual));
+            struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(PainlessLookup.getBoxedType(prefix.actual));
         }
 
-        MethodKey methodKey = new MethodKey(name, arguments.size());
-        Method method = prefix instanceof EStatic ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
+        PainlessMethodKey methodKey = new PainlessMethodKey(name, arguments.size());
+        PainlessMethod method = prefix instanceof EStatic ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
 
         if (method != null) {
             sub = new PSubCallInvoke(location, method, prefix.actual, arguments);

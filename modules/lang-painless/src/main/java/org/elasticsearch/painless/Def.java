@@ -19,13 +19,14 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Struct;
+import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessMethodKey;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.util.BitSet;
 import java.util.Collections;
@@ -60,14 +61,15 @@ public final class Def {
      */
     @SuppressWarnings("unused") // getArrayLength() methods are are actually used, javac just does not know :)
     private static final class ArrayLengthHelper {
-        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+        private static final MethodHandles.Lookup PRIVATE_METHOD_HANDLES_LOOKUP = MethodHandles.lookup();
 
         private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
             Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
                 char[].class, float[].class, double[].class, Object[].class)
                 .collect(Collectors.toMap(Function.identity(), type -> {
                     try {
-                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "getArrayLength", MethodType.methodType(int.class, type));
+                        return PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(
+                                PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass(), "getArrayLength", MethodType.methodType(int.class, type));
                     } catch (ReflectiveOperationException e) {
                         throw new AssertionError(e);
                     }
@@ -116,17 +118,17 @@ public final class Def {
     static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
 
     static {
-        final Lookup lookup = MethodHandles.publicLookup();
+        final MethodHandles.Lookup methodHandlesLookup = MethodHandles.publicLookup();
 
         try {
-            MAP_GET  = lookup.findVirtual(Map.class , "get", MethodType.methodType(Object.class, Object.class));
-            MAP_PUT  = lookup.findVirtual(Map.class , "put", MethodType.methodType(Object.class, Object.class, Object.class));
-            LIST_GET = lookup.findVirtual(List.class, "get", MethodType.methodType(Object.class, int.class));
-            LIST_SET = lookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
-            ITERATOR = lookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class));
-            MAP_INDEX_NORMALIZE = lookup.findStatic(Def.class, "mapIndexNormalize",
+            MAP_GET  = methodHandlesLookup.findVirtual(Map.class , "get", MethodType.methodType(Object.class, Object.class));
+            MAP_PUT  = methodHandlesLookup.findVirtual(Map.class , "put", MethodType.methodType(Object.class, Object.class, Object.class));
+            LIST_GET = methodHandlesLookup.findVirtual(List.class, "get", MethodType.methodType(Object.class, int.class));
+            LIST_SET = methodHandlesLookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
+            ITERATOR = methodHandlesLookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class));
+            MAP_INDEX_NORMALIZE = methodHandlesLookup.findStatic(Def.class, "mapIndexNormalize",
                     MethodType.methodType(Object.class, Map.class, Object.class));
-            LIST_INDEX_NORMALIZE = lookup.findStatic(Def.class, "listIndexNormalize",
+            LIST_INDEX_NORMALIZE = methodHandlesLookup.findStatic(Def.class, "listIndexNormalize",
                     MethodType.methodType(int.class, List.class, int.class));
         } catch (final ReflectiveOperationException roe) {
             throw new AssertionError(roe);
@@ -136,7 +138,7 @@ public final class Def {
         // https://bugs.openjdk.java.net/browse/JDK-8156915
         MethodHandle arrayLengthMHFactory;
         try {
-            arrayLengthMHFactory = lookup.findStatic(MethodHandles.class, "arrayLength",
+            arrayLengthMHFactory = methodHandlesLookup.findStatic(MethodHandles.class, "arrayLength",
                 MethodType.methodType(MethodHandle.class, Class.class));
         } catch (final ReflectiveOperationException roe) {
             arrayLengthMHFactory = null;
@@ -174,31 +176,31 @@ public final class Def {
      * until it finds a matching whitelisted method. If one is not found, it throws an exception.
      * Otherwise it returns the matching method.
      * <p>
-     * @params definition the whitelist
+     * @params painlessLookup the whitelist
      * @param receiverClass Class of the object to invoke the method on.
      * @param name Name of the method.
      * @param arity arity of method
      * @return matching method to invoke. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
-    static Method lookupMethodInternal(Definition definition, Class<?> receiverClass, String name, int arity) {
-        Definition.MethodKey key = new Definition.MethodKey(name, arity);
+    static PainlessMethod lookupMethodInternal(PainlessLookup painlessLookup, Class<?> receiverClass, String name, int arity) {
+        PainlessMethodKey key = new PainlessMethodKey(name, arity);
         // check whitelist for matching method
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            Struct struct = definition.getPainlessStructFromJavaClass(clazz);
+            PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
 
             if (struct != null) {
-                Method method = struct.methods.get(key);
+                PainlessMethod method = struct.methods.get(key);
                 if (method != null) {
                     return method;
                 }
             }
 
             for (Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.getPainlessStructFromJavaClass(iface);
+                struct = painlessLookup.getPainlessStructFromJavaClass(iface);
 
                 if (struct != null) {
-                    Method method = struct.methods.get(key);
+                    PainlessMethod method = struct.methods.get(key);
                     if (method != null) {
                         return method;
                     }
@@ -220,8 +222,8 @@ public final class Def {
      * until it finds a matching whitelisted method. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching method.
      * <p>
-     * @param definition the whitelist
-     * @param lookup caller's lookup
+     * @param painlessLookup the whitelist
+     * @param methodHandlesLookup caller's lookup
      * @param callSiteType callsite's type
      * @param receiverClass Class of the object to invoke the method on.
      * @param name Name of the method.
@@ -230,13 +232,13 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      * @throws Throwable if a method reference cannot be converted to an functional interface
      */
-    static MethodHandle lookupMethod(Definition definition, Lookup lookup, MethodType callSiteType,
-             Class<?> receiverClass, String name, Object args[]) throws Throwable {
+    static MethodHandle lookupMethod(PainlessLookup painlessLookup, MethodHandles.Lookup methodHandlesLookup, MethodType callSiteType,
+                                     Class<?> receiverClass, String name, Object args[]) throws Throwable {
          String recipeString = (String) args[0];
          int numArguments = callSiteType.parameterCount();
          // simple case: no lambdas
          if (recipeString.isEmpty()) {
-             return lookupMethodInternal(definition, receiverClass, name, numArguments - 1).handle;
+             return lookupMethodInternal(painlessLookup, receiverClass, name, numArguments - 1).handle;
          }
 
          // convert recipe string to a bitset for convenience (the code below should be refactored...)
@@ -259,7 +261,7 @@ public final class Def {
 
          // lookup the method with the proper arity, then we know everything (e.g. interface types of parameters).
          // based on these we can finally link any remaining lambdas that were deferred.
-         Method method = lookupMethodInternal(definition, receiverClass, name, arity);
+         PainlessMethod method = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
          MethodHandle handle = method.handle;
 
          int replaced = 0;
@@ -283,8 +285,8 @@ public final class Def {
                  if (signature.charAt(0) == 'S') {
                      // the implementation is strongly typed, now that we know the interface type,
                      // we have everything.
-                     filter = lookupReferenceInternal(definition,
-                                                      lookup,
+                     filter = lookupReferenceInternal(painlessLookup,
+                                                      methodHandlesLookup,
                                                       interfaceType,
                                                       type,
                                                       call,
@@ -294,13 +296,13 @@ public final class Def {
                      // this is dynamically based on the receiver type (and cached separately, underneath
                      // this cache). It won't blow up since we never nest here (just references)
                      MethodType nestedType = MethodType.methodType(interfaceType, captures);
-                     CallSite nested = DefBootstrap.bootstrap(definition,
-                                                              lookup,
+                     CallSite nested = DefBootstrap.bootstrap(painlessLookup,
+                                                              methodHandlesLookup,
                                                               call,
                                                               nestedType,
                                                               0,
                                                               DefBootstrap.REFERENCE,
-                                                              Definition.ClassToName(interfaceType));
+                                                              PainlessLookup.ClassToName(interfaceType));
                      filter = nested.dynamicInvoker();
                  } else {
                      throw new AssertionError();
@@ -322,37 +324,37 @@ public final class Def {
       * This is just like LambdaMetaFactory, only with a dynamic type. The interface type is known,
       * so we simply need to lookup the matching implementation method based on receiver type.
       */
-    static MethodHandle lookupReference(Definition definition, Lookup lookup, String interfaceClass,
-            Class<?> receiverClass, String name) throws Throwable {
-         Class<?> interfaceType = definition.getJavaClassFromPainlessType(interfaceClass);
-         Method interfaceMethod = definition.getPainlessStructFromJavaClass(interfaceType).functionalMethod;
+    static MethodHandle lookupReference(PainlessLookup painlessLookup, MethodHandles.Lookup methodHandlesLookup, String interfaceClass,
+                                        Class<?> receiverClass, String name) throws Throwable {
+         Class<?> interfaceType = painlessLookup.getJavaClassFromPainlessType(interfaceClass);
+         PainlessMethod interfaceMethod = painlessLookup.getPainlessStructFromJavaClass(interfaceType).functionalMethod;
          if (interfaceMethod == null) {
              throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
          }
          int arity = interfaceMethod.arguments.size();
-         Method implMethod = lookupMethodInternal(definition, receiverClass, name, arity);
-        return lookupReferenceInternal(definition, lookup, interfaceType, implMethod.owner.name,
+         PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
+        return lookupReferenceInternal(painlessLookup, methodHandlesLookup, interfaceType, implMethod.owner.name,
                 implMethod.name, receiverClass);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
-    private static MethodHandle lookupReferenceInternal(Definition definition, Lookup lookup,
-            Class<?> clazz, String type, String call, Class<?>... captures)
+    private static MethodHandle lookupReferenceInternal(PainlessLookup painlessLookup, MethodHandles.Lookup methodHandlesLookup,
+                                                        Class<?> clazz, String type, String call, Class<?>... captures)
             throws Throwable {
          final FunctionRef ref;
          if ("this".equals(type)) {
              // user written method
-             Method interfaceMethod = definition.getPainlessStructFromJavaClass(clazz).functionalMethod;
+             PainlessMethod interfaceMethod = painlessLookup.getPainlessStructFromJavaClass(clazz).functionalMethod;
              if (interfaceMethod == null) {
                  throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                    "to [" + Definition.ClassToName(clazz) + "], not a functional interface");
+                                                    "to [" + PainlessLookup.ClassToName(clazz) + "], not a functional interface");
              }
              int arity = interfaceMethod.arguments.size() + captures.length;
              final MethodHandle handle;
              try {
-                 MethodHandle accessor = lookup.findStaticGetter(lookup.lookupClass(),
-                                                                 getUserFunctionHandleFieldName(call, arity),
-                                                                 MethodHandle.class);
+                 MethodHandle accessor = methodHandlesLookup.findStaticGetter(methodHandlesLookup.lookupClass(),
+                                                                              getUserFunctionHandleFieldName(call, arity),
+                                                                              MethodHandle.class);
                  handle = (MethodHandle)accessor.invokeExact();
              } catch (NoSuchFieldException | IllegalAccessException e) {
                  // is it a synthetic method? If we generated the method ourselves, be more helpful. It can only fail
@@ -366,10 +368,10 @@ public final class Def {
              ref = new FunctionRef(clazz, interfaceMethod, call, handle.type(), captures.length);
          } else {
              // whitelist lookup
-             ref = new FunctionRef(definition, clazz, type, call, captures.length);
+             ref = new FunctionRef(painlessLookup, clazz, type, call, captures.length);
          }
          final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
-             lookup,
+             methodHandlesLookup,
              ref.interfaceMethodName,
              ref.factoryMethodType,
              ref.interfaceMethodType,
@@ -407,16 +409,16 @@ public final class Def {
      * until it finds a matching whitelisted getter. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching getter.
      * <p>
-     * @param definition the whitelist
+     * @param painlessLookup the whitelist
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
      * @return pointer to matching field. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted field was found.
      */
-    static MethodHandle lookupGetter(Definition definition, Class<?> receiverClass, String name) {
+    static MethodHandle lookupGetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            Struct struct = definition.getPainlessStructFromJavaClass(clazz);
+            PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.getters.get(name);
@@ -426,7 +428,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.getPainlessStructFromJavaClass(iface);
+                struct = painlessLookup.getPainlessStructFromJavaClass(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.getters.get(name);
@@ -478,16 +480,16 @@ public final class Def {
      * until it finds a matching whitelisted setter. If one is not found, it throws an exception.
      * Otherwise it returns a handle to the matching setter.
      * <p>
-     * @param definition the whitelist
+     * @param painlessLookup the whitelist
      * @param receiverClass Class of the object to retrieve the field from.
      * @param name Name of the field.
      * @return pointer to matching field. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted field was found.
      */
-    static MethodHandle lookupSetter(Definition definition, Class<?> receiverClass, String name) {
+    static MethodHandle lookupSetter(PainlessLookup painlessLookup, Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            Struct struct = definition.getPainlessStructFromJavaClass(clazz);
+            PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.setters.get(name);
@@ -497,7 +499,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.getPainlessStructFromJavaClass(iface);
+                struct = painlessLookup.getPainlessStructFromJavaClass(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.setters.get(name);
@@ -592,14 +594,15 @@ public final class Def {
      */
     @SuppressWarnings("unused") // iterator() methods are are actually used, javac just does not know :)
     private static final class ArrayIteratorHelper {
-        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+        private static final MethodHandles.Lookup PRIVATE_METHOD_HANDLES_LOOKUP = MethodHandles.lookup();
 
         private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
             Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
                 char[].class, float[].class, double[].class, Object[].class)
                 .collect(Collectors.toMap(Function.identity(), type -> {
                     try {
-                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "iterator", MethodType.methodType(Iterator.class, type));
+                        return PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(
+                                PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass(), "iterator", MethodType.methodType(Iterator.class, type));
                     } catch (ReflectiveOperationException e) {
                         throw new AssertionError(e);
                     }
@@ -860,14 +863,14 @@ public final class Def {
      */
     @SuppressWarnings("unused") // normalizeIndex() methods are are actually used, javac just does not know :)
     private static final class ArrayIndexNormalizeHelper {
-        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+        private static final MethodHandles.Lookup PRIVATE_METHOD_HANDLES_LOOKUP = MethodHandles.lookup();
 
         private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
             Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
                 char[].class, float[].class, double[].class, Object[].class)
                 .collect(Collectors.toMap(Function.identity(), type -> {
                     try {
-                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "normalizeIndex",
+                        return PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass(), "normalizeIndex",
                                 MethodType.methodType(int.class, type, int.class));
                     } catch (ReflectiveOperationException e) {
                         throw new AssertionError(e);

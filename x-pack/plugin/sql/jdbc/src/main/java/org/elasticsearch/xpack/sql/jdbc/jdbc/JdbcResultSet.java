@@ -17,7 +17,6 @@ import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
-import java.sql.JDBCType;
 import java.sql.NClob;
 import java.sql.Ref;
 import java.sql.ResultSet;
@@ -344,7 +343,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             throw new SQLException("type is null");
         }
 
-        return getObject(columnIndex, type);
+        return convert(columnIndex, type);
     }
 
     private <T> T convert(int columnIndex, Class<T> type) throws SQLException {
@@ -359,13 +358,6 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return null;
         }
 
-        if (type != null && type.isInstance(val)) {
-            try {
-                return type.cast(val);
-            } catch (ClassCastException cce) {
-                throw new SQLException("unable to convert column " + columnIndex + " to " + type, cce);
-            }
-        }
 
         ColumnInfo columnInfo = cursor.columns().get(columnIndex - 1);
 

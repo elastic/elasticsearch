@@ -265,8 +265,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
         boolean matchAllAliases = matchAllAliases(aliases);
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
-        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
-        for (String index : intersection) {
+        for (String index : concreteIndices) {
             IndexMetaData indexMetaData = indices.get(index);
             List<AliasMetaData> filteredValues = new ArrayList<>();
             for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
@@ -276,11 +275,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 }
             }
 
-            if (!filteredValues.isEmpty()) {
+            if (filteredValues.isEmpty() == false) {
                 // Make the list order deterministic
                 CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasMetaData::alias));
+                mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
             }
-            mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
         }
         return mapBuilder.build();
     }
@@ -1039,7 +1038,22 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             }
 
-            // build all indices map
+            SortedMap<String, AliasOrIndex> aliasAndIndexLookup = Collections.unmodifiableSortedMap(buildAliasAndIndexLookup());
+
+
+            // build all concrete indices arrays:
+            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
+            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
+            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
+            String[] allIndicesArray = allIndices.toArray(new String[allIndices.size()]);
+            String[] allOpenIndicesArray = allOpenIndices.toArray(new String[allOpenIndices.size()]);
+            String[] allClosedIndicesArray = allClosedIndices.toArray(new String[allClosedIndices.size()]);
+
+            return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(),
+                                customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray, aliasAndIndexLookup);
+        }
+
+        private SortedMap<String, AliasOrIndex> buildAliasAndIndexLookup() {
             SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
@@ -1059,17 +1073,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                     });
                 }
             }
-            aliasAndIndexLookup = Collections.unmodifiableSortedMap(aliasAndIndexLookup);
-            // build all concrete indices arrays:
-            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
-            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
-            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            String[] allIndicesArray = allIndices.toArray(new String[allIndices.size()]);
-            String[] allOpenIndicesArray = allOpenIndices.toArray(new String[allOpenIndices.size()]);
-            String[] allClosedIndicesArray = allClosedIndices.toArray(new String[allClosedIndices.size()]);
-
-            return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(),
-                                customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray, aliasAndIndexLookup);
+            aliasAndIndexLookup.values().stream().filter(AliasOrIndex::isAlias)
+                .forEach(alias -> ((AliasOrIndex.Alias) alias).computeAndValidateWriteIndex());
+            return aliasAndIndexLookup;
         }
 
         public static String toXContent(MetaData metaData) throws IOException {

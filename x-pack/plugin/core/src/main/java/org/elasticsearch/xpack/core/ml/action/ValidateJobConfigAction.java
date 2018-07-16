@@ -22,7 +22,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 
-public class ValidateJobConfigAction extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response> {
+public class ValidateJobConfigAction extends Action<ValidateJobConfigAction.Response> {
 
     public static final ValidateJobConfigAction INSTANCE = new ValidateJobConfigAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/validate";

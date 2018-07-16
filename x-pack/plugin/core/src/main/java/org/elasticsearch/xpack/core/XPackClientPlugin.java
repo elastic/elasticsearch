@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -28,6 +29,7 @@ import org.elasticsearch.license.PostStartBasicAction;
 import org.elasticsearch.license.PostStartTrialAction;
 import org.elasticsearch.license.PutLicenseAction;
 import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
+import org.elasticsearch.xpack.core.beats.BeatsFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -83,13 +86,14 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -155,7 +159,6 @@ import java.util.function.Supplier;
 
 public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
 
-    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
     static Optional<String> X_PACK_FEATURE = Optional.of("x-pack");
 
     @Override
@@ -203,7 +206,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
     }
 
     @Override
-    public List<GenericAction> getClientActions() {
+    public List<Action<? extends ActionResponse>> getClientActions() {
         return Arrays.asList(
                 // deprecation
                 DeprecationInfoAction.INSTANCE,
@@ -219,6 +222,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 OpenJobAction.INSTANCE,
                 GetFiltersAction.INSTANCE,
                 PutFilterAction.INSTANCE,
+                UpdateFilterAction.INSTANCE,
                 DeleteFilterAction.INSTANCE,
                 KillProcessAction.INSTANCE,
                 GetBucketsAction.INSTANCE,
@@ -317,6 +321,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.GRAPH, GraphFeatureSetUsage::new),
                 // logstash
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.LOGSTASH, LogstashFeatureSetUsage::new),
+                // beats
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.BEATS, BeatsFeatureSetUsage::new),
                 // ML - Custom metadata
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new),
@@ -325,9 +331,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                         StartDatafeedAction.DatafeedParams::new),
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, OpenJobAction.TASK_NAME,
                         OpenJobAction.JobParams::new),
-                // ML - Task statuses
-                new NamedWriteableRegistry.Entry(Task.Status.class, JobTaskStatus.NAME, JobTaskStatus::new),
-                new NamedWriteableRegistry.Entry(Task.Status.class, DatafeedState.NAME, DatafeedState::fromStream),
+                // ML - Task states
+                new NamedWriteableRegistry.Entry(PersistentTaskState.class, JobTaskState.NAME, JobTaskState::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskState.class, DatafeedState.NAME, DatafeedState::fromStream),
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.MACHINE_LEARNING,
                         MachineLearningFeatureSetUsage::new),
                 // monitoring
@@ -350,7 +356,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // rollup
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ROLLUP, RollupFeatureSetUsage::new),
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, RollupJob.NAME, RollupJob::new),
-                new NamedWriteableRegistry.Entry(Task.Status.class, RollupJobStatus.NAME, RollupJobStatus::new)
+                new NamedWriteableRegistry.Entry(Task.Status.class, RollupJobStatus.NAME, RollupJobStatus::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskState.class, RollupJobStatus.NAME, RollupJobStatus::new)
         );
     }
 
@@ -365,9 +372,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                         StartDatafeedAction.DatafeedParams::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(OpenJobAction.TASK_NAME),
                         OpenJobAction.JobParams::fromXContent),
-                // ML - Task statuses
-                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(DatafeedState.NAME), DatafeedState::fromXContent),
-                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(JobTaskStatus.NAME), JobTaskStatus::fromXContent),
+                // ML - Task states
+                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DatafeedState.NAME), DatafeedState::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(JobTaskState.NAME), JobTaskState::fromXContent),
                 // watcher
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(WatcherMetaData.TYPE),
                         WatcherMetaData::fromXContent),
@@ -375,8 +382,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(LicensesMetaData.TYPE),
                         LicensesMetaData::fromXContent),
                 //rollup
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(RollupField.TASK_NAME), RollupJob::fromXContent),
-                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(RollupJobStatus.NAME), RollupJobStatus::fromXContent)
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(RollupField.TASK_NAME),
+                        RollupJob::fromXContent),
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(RollupJobStatus.NAME),
+                        RollupJobStatus::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(RollupJobStatus.NAME),
+                        RollupJobStatus::fromXContent)
         );
     }
 

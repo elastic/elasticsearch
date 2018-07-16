@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -31,12 +32,12 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import javax.net.SocketFactory;
 import javax.net.ssl.HandshakeCompletedListener;
 import javax.net.ssl.SSLSocket;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
@@ -79,7 +80,7 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
                 .put("xpack.security.transport.ssl.enabled", true).build();
         Transport transport = new SecurityNioTransport(settings1, threadPool,
                 networkService, BigArrays.NON_RECYCLING_INSTANCE, new MockPageCacheRecycler(settings), namedWriteableRegistry,
-                new NoneCircuitBreakerService(), createSSLService()) {
+                new NoneCircuitBreakerService(), null, createSSLService()) {
 
             @Override
             protected Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
@@ -118,7 +119,7 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
     protected void closeConnectionChannel(Transport transport, Transport.Connection connection) throws IOException {
         @SuppressWarnings("unchecked")
         TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) connection;
-        TcpChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
+        CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }
 
     public void testConnectException() throws UnknownHostException {
@@ -159,7 +160,8 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
     @SuppressForbidden(reason = "Need to open socket connection")
     public void testRenegotiation() throws Exception {
         SSLService sslService = createSSLService();
-        SocketFactory factory = sslService.sslSocketFactory(Settings.EMPTY);
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
+        SocketFactory factory = sslService.sslSocketFactory(sslConfiguration);
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
             SocketAccess.doPrivileged(() -> socket.connect(serviceA.boundAddress().publishAddress().address()));
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 public class DeleteStoredScriptResponse extends AcknowledgedResponse {
 
@@ -28,5 +29,9 @@ public class DeleteStoredScriptResponse extends AcknowledgedResponse {
 
     public DeleteStoredScriptResponse(boolean acknowledged) {
         super(acknowledged);
+    }
+
+    public static DeleteStoredScriptResponse fromXContent(XContentParser parser) {
+        return new DeleteStoredScriptResponse(parseAcknowledged(parser));
     }
 }

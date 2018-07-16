@@ -149,13 +149,12 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public void deleteObject(final DeleteObjectRequest request) throws AmazonClientException {
         assertThat(request.getBucketName(), equalTo(bucket));
+        blobs.remove(request.getKey());
+    }
 
-        final String blobName = request.getKey();
-        if (blobs.remove(blobName) == null) {
-            AmazonS3Exception exception = new AmazonS3Exception("[" + blobName + "] does not exist.");
-            exception.setStatusCode(404);
-            throw exception;
-        }
+    @Override
+    public void shutdown() {
+        // TODO check close
     }
 
     @Override

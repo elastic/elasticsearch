@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
 
@@ -50,9 +49,9 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
@@ -86,18 +85,24 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     }
 
     @Override
-    protected void createTestRepository(final String name) {
+    protected void createTestRepository(final String name, boolean verify) {
         assertAcked(client().admin().cluster().preparePutRepository(name)
             .setType(S3Repository.TYPE)
+            .setVerify(verify)
             .setSettings(Settings.builder()
                 .put(S3Repository.BUCKET_SETTING.getKey(), bucket)
-                .put(InternalAwsS3Service.CLIENT_NAME.getKey(), client)
+                .put(S3Repository.CLIENT_NAME.getKey(), client)
                 .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), bufferSize)
                 .put(S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getKey(), serverSideEncryption)
                 .put(S3Repository.CANNED_ACL_SETTING.getKey(), cannedACL)
                 .put(S3Repository.STORAGE_CLASS_SETTING.getKey(), storageClass)
                 .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "not_used_but_this_is_a_secret")
                 .put(S3Repository.SECRET_KEY_SETTING.getKey(), "not_used_but_this_is_a_secret")));
+    }
+
+    @Override
+    protected void afterCreationCheck(Repository repository) {
+        assertThat(repository, instanceOf(S3Repository.class));
     }
 
     @Override
@@ -113,19 +118,23 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
 
         @Override
         public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry) {
-            return Collections.singletonMap(S3Repository.TYPE, (metadata) ->
-                new S3Repository(metadata, env.settings(), registry, new InternalAwsS3Service(env.settings(), emptyMap()) {
-                    @Override
-                    public synchronized AmazonS3 client(final Settings repositorySettings) {
-                        return new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass);
-                    }
-                }));
+            return Collections.singletonMap(S3Repository.TYPE,
+                    (metadata) -> new S3Repository(metadata, env.settings(), registry, new S3Service(env.settings()) {
+                        @Override
+                        public synchronized AmazonS3Reference client(String clientName) {
+                            return new AmazonS3Reference(new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass));
+                        }
+                    }) {
+                        @Override
+                        void overrideCredentialsFromClusterState(S3Service awsService) {
+                        }
+                    });
         }
     }
 
     public void testInsecureRepositoryCredentials() throws Exception {
         final String repositoryName = "testInsecureRepositoryCredentials";
-        createTestRepository(repositoryName);
+        createAndCheckTestRepository(repositoryName);
         final NodeClient nodeClient = internalCluster().getInstance(NodeClient.class);
         final RestGetRepositoriesAction getRepoAction = new RestGetRepositoriesAction(Settings.EMPTY, mock(RestController.class),
                 internalCluster().getInstance(SettingsFilter.class));

@@ -29,7 +29,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -77,6 +76,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static final Logger logger = ESLoggerFactory.getLogger(TransportShardBulkAction.class);
 
+    private final ThreadPool threadPool;
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
 
@@ -87,6 +87,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                     IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             indexNameExpressionResolver, BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE);
+        this.threadPool = threadPool;
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
     }
@@ -204,7 +205,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             return primaryResponse;
 
         } else if (operationResult.getResultType() == Engine.Result.Type.FAILURE) {
-            DocWriteRequest docWriteRequest = replicaRequest.request();
+            DocWriteRequest<?> docWriteRequest = replicaRequest.request();
             Exception failure = operationResult.getFailure();
             if (isConflictException(failure)) {
                 logger.trace(() -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
@@ -239,7 +240,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                                     int requestIndex, UpdateHelper updateHelper,
                                                     LongSupplier nowInMillisSupplier,
                                                     final MappingUpdatePerformer mappingUpdater) throws Exception {
-        final DocWriteRequest itemRequest = request.items()[requestIndex].request();
+        final DocWriteRequest<?> itemRequest = request.items()[requestIndex].request();
         final DocWriteRequest.OpType opType = itemRequest.opType();
         final BulkItemResultHolder responseHolder;
         switch (itemRequest.opType()) {
@@ -485,7 +486,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
             final Engine.Result operationResult;
-            DocWriteRequest docWriteRequest = item.request();
+            DocWriteRequest<?> docWriteRequest = item.request();
             switch (replicaItemExecutionMode(item, i)) {
                 case NORMAL:
                     final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
@@ -509,7 +510,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return location;
     }
 
-    private static Engine.Result performOpOnReplica(DocWriteResponse primaryResponse, DocWriteRequest docWriteRequest,
+    private static Engine.Result performOpOnReplica(DocWriteResponse primaryResponse, DocWriteRequest<?> docWriteRequest,
                                                     IndexShard replica) throws Exception {
         final Engine.Result result;
         switch (docWriteRequest.opType()) {
@@ -604,6 +605,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     class ConcreteMappingUpdatePerformer implements MappingUpdatePerformer {
 
+        @Override
         public void updateMappings(final Mapping update, final ShardId shardId, final String type) {
             assert update != null;
             assert shardId != null;

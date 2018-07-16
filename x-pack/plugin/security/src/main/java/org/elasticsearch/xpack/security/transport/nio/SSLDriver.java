@@ -96,6 +96,10 @@ public class SSLDriver implements AutoCloseable {
         }
     }
 
+    public SSLEngine getSSLEngine() {
+        return engine;
+    }
+
     public boolean hasFlushPending() {
         return networkWriteBuffer.hasRemaining();
     }
@@ -365,6 +369,7 @@ public class SSLDriver implements AutoCloseable {
 
         @Override
         public void read(InboundChannelBuffer buffer) throws SSLException {
+            ensureApplicationBufferSize(buffer);
             boolean continueUnwrap = true;
             while (continueUnwrap && networkReadBuffer.position() > 0) {
                 networkReadBuffer.flip();

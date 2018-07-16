@@ -15,8 +15,6 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.type.DataType.DATE;
-import static org.elasticsearch.xpack.sql.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.sql.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.sql.type.DataType.NESTED;

@@ -1,0 +1,26 @@
+[[painless-filter-context]]
+=== Filter context
+
+Use a Painless script as a {es_version}/query-dsl-script-query.html[filter] in a
+query to include and exclude documents.
+
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`doc` (`Map`, read-only)::
+        Contains the fields of the current document where each field is a
+        `List` of values.
+
+*Return*
+
+`boolean`::
+        Return `true` if the current document should be returned as a result of
+        the query, and `false` otherwise.
+
+
+*API*
+
+The standard <<painless-api-reference, Painless API>> is available.

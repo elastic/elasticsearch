@@ -21,12 +21,12 @@ import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,6 +42,7 @@ import java.util.function.Consumer;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.apache.lucene.util.LuceneTestCase.createTempFile;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 
@@ -57,7 +58,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     public static final String TEST_USER_NAME = "test_user";
     public static final String TEST_PASSWORD_HASHED =
-        new String(Hasher.BCRYPT.hash(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        new String(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt9", "bcrypt8", "bcrypt")).
+            hash(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
     public static final String TEST_ROLE = "user";
     public static final String TEST_SUPERUSER = "test_superuser";
 
@@ -123,6 +125,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
+                .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
                 //TODO: for now isolate security tests from watcher & monitoring (randomize this later)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
@@ -133,7 +137,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                 .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)
                 .put("xpack.security.authc.realms.file.order", 0)
                 .put("xpack.security.authc.realms.index.type", NativeRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.index.order", "1");
+            .put("xpack.security.authc.realms.index.order", "1");
         addNodeSSLSettings(builder);
         return builder.build();
     }
@@ -169,7 +173,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     @Override
     public Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateSecurity.class, Netty4Plugin.class, ReindexPlugin.class, CommonAnalysisPlugin.class);
+        return Arrays.asList(LocalStateSecurity.class, Netty4Plugin.class, ReindexPlugin.class, CommonAnalysisPlugin.class,
+            InternalSettingsPlugin.class);
     }
 
     @Override

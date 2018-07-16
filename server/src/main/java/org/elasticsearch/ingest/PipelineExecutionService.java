@@ -53,7 +53,7 @@ public class PipelineExecutionService implements ClusterStateApplier {
         this.threadPool = threadPool;
     }
 
-    public void executeBulkRequest(Iterable<DocWriteRequest> actionRequests,
+    public void executeBulkRequest(Iterable<DocWriteRequest<?>> actionRequests,
                                    BiConsumer<IndexRequest, Exception> itemFailureHandler,
                                    Consumer<Exception> completionHandler) {
         threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
@@ -65,7 +65,7 @@ public class PipelineExecutionService implements ClusterStateApplier {
 
             @Override
             protected void doRun() throws Exception {
-                for (DocWriteRequest actionRequest : actionRequests) {
+                for (DocWriteRequest<?> actionRequest : actionRequests) {
                     IndexRequest indexRequest = null;
                     if (actionRequest instanceof IndexRequest) {
                         indexRequest = (IndexRequest) actionRequest;

@@ -29,7 +29,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.qa.sql.jdbc.DataLoader.createString;
 import static org.elasticsearch.xpack.qa.sql.jdbc.DataLoader.readFromJarUrl;

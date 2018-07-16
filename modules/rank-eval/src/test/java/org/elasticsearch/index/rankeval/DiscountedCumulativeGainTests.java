@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
@@ -54,7 +55,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
     /**
      * Assuming the docs are ranked in the following order:
      *
-     * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
+     * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
      * -------------------------------------------------------------------------------------------
      * 1 | 3 | 7.0 | 1.0 | 7.0 | 7.0 | 
      * 2 | 2 | 3.0 | 1.5849625007211563 | 1.8927892607143721
@@ -81,7 +82,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          * Check with normalization: to get the maximal possible dcg, sort documents by
          * relevance in descending order
          *
-         * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
+         * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
          * ---------------------------------------------------------------------------------------
          * 1 | 3 | 7.0 | 1.0  | 7.0
          * 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
@@ -100,7 +101,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
      * This tests metric when some documents in the search result don't have a
      * rating provided by the user.
      *
-     * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
+     * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
      * -------------------------------------------------------------------------------------------
      * 1 | 3 | 7.0 | 1.0 | 7.0 2 | 
      * 2 | 3.0 | 1.5849625007211563 | 1.8927892607143721
@@ -133,7 +134,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          * Check with normalization: to get the maximal possible dcg, sort documents by
          * relevance in descending order
          *
-         * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
+         * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
          * ----------------------------------------------------------------------------------------
          * 1 | 3 | 7.0 | 1.0  | 7.0
          * 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
@@ -153,7 +154,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
      * documents than search hits because we restrict DCG to be calculated at the
      * fourth position
      *
-     * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
+     * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
      * -------------------------------------------------------------------------------------------
      * 1 | 3 | 7.0 | 1.0 | 7.0 2 | 
      * 2 | 3.0 | 1.5849625007211563 | 1.8927892607143721
@@ -190,7 +191,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          * Check with normalization: to get the maximal possible dcg, sort documents by
          * relevance in descending order
          *
-         * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1) | (2^(rel_rank) - 1) / log_2(rank + 1)
+         * rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
          * ---------------------------------------------------------------------------------------
          * 1 | 3 | 7.0 | 1.0  | 7.0
          * 2 | 3 | 7.0 | 1.5849625007211563 | 4.416508275000202
@@ -254,9 +255,8 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
 
     public static DiscountedCumulativeGain createTestItem() {
         boolean normalize = randomBoolean();
-        Integer unknownDocRating = Integer.valueOf(randomIntBetween(0, 1000));
-
-        return new DiscountedCumulativeGain(normalize, unknownDocRating, 10);
+        Integer unknownDocRating = frequently() ? Integer.valueOf(randomIntBetween(0, 1000)) : null;
+        return new DiscountedCumulativeGain(normalize, unknownDocRating, randomIntBetween(1, 10));
     }
 
     public void testXContentRoundtrip() throws IOException {
@@ -283,7 +283,25 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
             parser.nextToken();
             XContentParseException exception = expectThrows(XContentParseException.class,
                     () -> DiscountedCumulativeGain.fromXContent(parser));
-            assertThat(exception.getMessage(), containsString("[dcg_at] unknown field"));
+            assertThat(exception.getMessage(), containsString("[dcg] unknown field"));
+        }
+    }
+
+    public void testMetricDetails() {
+        double dcg = randomDoubleBetween(0, 1, true);
+        double idcg = randomBoolean() ? 0.0 : randomDoubleBetween(0, 1, true);
+        double expectedNdcg = idcg != 0 ? dcg / idcg : 0.0;
+        int unratedDocs = randomIntBetween(0, 100);
+        DiscountedCumulativeGain.Detail detail = new DiscountedCumulativeGain.Detail(dcg, idcg, unratedDocs);
+        assertEquals(dcg, detail.getDCG(), 0.0);
+        assertEquals(idcg, detail.getIDCG(), 0.0);
+        assertEquals(expectedNdcg, detail.getNDCG(), 0.0);
+        assertEquals(unratedDocs, detail.getUnratedDocs());
+        if (idcg != 0) {
+            assertEquals("{\"dcg\":{\"dcg\":" + dcg + ",\"ideal_dcg\":" + idcg + ",\"normalized_dcg\":" + expectedNdcg
+                    + ",\"unrated_docs\":" + unratedDocs + "}}", Strings.toString(detail));
+        } else {
+            assertEquals("{\"dcg\":{\"dcg\":" + dcg + ",\"unrated_docs\":" + unratedDocs + "}}", Strings.toString(detail));
         }
     }
 

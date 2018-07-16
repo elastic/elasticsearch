@@ -107,6 +107,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -1113,6 +1114,13 @@ final class RequestConverters {
         ContentType contentType = createContentType(putWatchRequest.xContentType());
         BytesReference source = putWatchRequest.getSource();
         request.setEntity(new ByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
+        return request;
+    }
+
+    static Request xpackUsage(XPackUsageRequest usageRequest) {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(usageRequest.masterNodeTimeout());
         return request;
     }
 

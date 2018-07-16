@@ -425,7 +425,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::create-snapshot-request-waitForCompletion
 
         // tag::create-snapshot-execute
-        CreateSnapshotResponse response = client.snapshot().createSnapshot(request, RequestOptions.DEFAULT);
+        CreateSnapshotResponse response = client.snapshot().create(request, RequestOptions.DEFAULT);
         // end::create-snapshot-execute
 
         // tag::create-snapshot-response
@@ -433,6 +433,12 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::create-snapshot-response
 
         assertEquals(RestStatus.OK, status);
+
+        // tag::create-snapshot-response-snapshot-info
+        SnapshotInfo snapshotInfo = response.getSnapshotInfo(); // <1>
+        // end::create-snapshot-response-snapshot-info
+
+        assertNotNull(snapshotInfo);
     }
 
     public void testSnapshotCreateAsync() throws InterruptedException {
@@ -460,7 +466,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::create-snapshot-execute-async
-            client.snapshot().createSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.snapshot().createAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::create-snapshot-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

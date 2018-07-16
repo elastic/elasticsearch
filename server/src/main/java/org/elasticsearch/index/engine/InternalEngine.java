@@ -691,7 +691,7 @@ public class InternalEngine extends Engine {
                     return true;
                 case PEER_RECOVERY:
                 case REPLICA:
-                    assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL
+                    assert index.version() == 1 && index.versionType() == null
                         : "version: " + index.version() + " type: " + index.versionType();
                     return true;
                 case LOCAL_TRANSLOG_RECOVERY:

@@ -421,9 +421,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         final TransportRequest request = mock(TransportRequest.class);
 
-        assertThat(role.cluster().check(ClusterStateAction.NAME), equalTo(true));
-        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME), equalTo(true));
-        assertThat(role.cluster().check(PutUserAction.NAME), equalTo(false));
+        assertThat(role.cluster().check(ClusterStateAction.NAME, request), equalTo(true));
+        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, request), equalTo(true));
+        assertThat(role.cluster().check(PutUserAction.NAME, request), equalTo(false));
 
         final Predicate<String> allowedRead = role.indices().allowedIndicesMatcher(GetAction.NAME);
         assertThat(allowedRead.test("abc-123"), equalTo(true));

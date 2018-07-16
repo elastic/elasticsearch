@@ -311,7 +311,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 .setQuery(matchQuery("alias", "value1"))
                 .get();
         assertHitCount(response, 1);
-        // user2 has no access to field1, so a query on its field alias should match with the document:
+        // user2 has no access to field1, so a query on its field alias should not match with the document:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setQuery(matchQuery("alias", "value1"))

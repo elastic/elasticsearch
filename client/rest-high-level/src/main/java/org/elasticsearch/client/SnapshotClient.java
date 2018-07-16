@@ -176,7 +176,7 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-    public CreateSnapshotResponse createSnapshot(CreateSnapshotRequest createSnapshotRequest, RequestOptions options)
+    public CreateSnapshotResponse create(CreateSnapshotRequest createSnapshotRequest, RequestOptions options)
         throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(createSnapshotRequest, RequestConverters::createSnapshot, options,
             CreateSnapshotResponse::fromXContent, emptySet());
@@ -188,7 +188,7 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-    public void createSnapshotAsync(CreateSnapshotRequest createSnapshotRequest, RequestOptions options,
+    public void createAsync(CreateSnapshotRequest createSnapshotRequest, RequestOptions options,
                                     ActionListener<CreateSnapshotResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(createSnapshotRequest, RequestConverters::createSnapshot, options,
             CreateSnapshotResponse::fromXContent, listener, emptySet());

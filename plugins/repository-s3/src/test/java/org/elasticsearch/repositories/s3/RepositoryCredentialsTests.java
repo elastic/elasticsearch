@@ -80,6 +80,16 @@ public class RepositoryCredentialsTests extends ESTestCase {
         ProxyS3RepositoryPlugin(Settings settings) {
             super(settings, new ProxyS3Service(settings));
         }
+
+        @Override
+        protected S3Repository createRepository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry registry) {
+            return new S3Repository(metadata, settings, registry, service){
+                @Override
+                protected void assertSnapshotOrGenericThread() {
+                    // eliminate thread name check as we create repo manually on test/main threads
+                }
+            };
+        }
     }
 
     public void testRepositoryCredentialsOverrideSecureCredentials() throws IOException {
@@ -102,8 +112,8 @@ public class RepositoryCredentialsTests extends ESTestCase {
                 .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key")
                 .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret").build());
         try (S3RepositoryPlugin s3Plugin = new ProxyS3RepositoryPlugin(settings);
-                S3Repository s3repo = s3Plugin.createRepository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY);
-                AmazonS3Reference s3Ref = ((S3BlobStore) s3repo.blobStore()).clientReference()) {
+             S3Repository s3repo = createAndStartRepository(metadata, s3Plugin);
+             AmazonS3Reference s3Ref = ((S3BlobStore) s3repo.blobStore()).clientReference()) {
             final AWSCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) s3Ref.client()).credentials.getCredentials();
             assertThat(credentials.getAWSAccessKeyId(), is("insecure_aws_key"));
             assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
@@ -125,8 +135,8 @@ public class RepositoryCredentialsTests extends ESTestCase {
                         .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret")
                         .build());
         try (S3RepositoryPlugin s3Plugin = new ProxyS3RepositoryPlugin(Settings.EMPTY);
-                S3Repository s3repo = s3Plugin.createRepository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY);
-                AmazonS3Reference s3Ref = ((S3BlobStore) s3repo.blobStore()).clientReference()) {
+             S3Repository s3repo = createAndStartRepository(metadata, s3Plugin);
+             AmazonS3Reference s3Ref = ((S3BlobStore) s3repo.blobStore()).clientReference()) {
             final AWSCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) s3Ref.client()).credentials.getCredentials();
             assertThat(credentials.getAWSAccessKeyId(), is("insecure_aws_key"));
             assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
@@ -138,6 +148,12 @@ public class RepositoryCredentialsTests extends ESTestCase {
                         + " the elasticsearch keystore for secure settings.",
                 "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release!"
                         + " See the breaking changes documentation for the next major version.");
+    }
+
+    private S3Repository createAndStartRepository(RepositoryMetaData metadata, S3RepositoryPlugin s3Plugin) {
+        final S3Repository repository = s3Plugin.createRepository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY);
+        repository.start();
+        return repository;
     }
 
     public void testReinitSecureCredentials() throws IOException {
@@ -156,7 +172,7 @@ public class RepositoryCredentialsTests extends ESTestCase {
         }
         final RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", builder.build());
         try (S3RepositoryPlugin s3Plugin = new ProxyS3RepositoryPlugin(settings);
-                S3Repository s3repo = s3Plugin.createRepository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY)) {
+                S3Repository s3repo = createAndStartRepository(metadata, s3Plugin)) {
             try (AmazonS3Reference s3Ref = ((S3BlobStore) s3repo.blobStore()).clientReference()) {
                 final AWSCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) s3Ref.client()).credentials
                         .getCredentials();

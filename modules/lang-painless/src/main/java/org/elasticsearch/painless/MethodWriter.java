@@ -227,14 +227,6 @@ public final class MethodWriter extends GeneratorAdapter {
         return Type.getType(clazz);
     }
 
-    public void writeBranch(final Label tru, final Label fals) {
-        if (tru != null) {
-            visitJumpInsn(Opcodes.IFNE, tru);
-        } else if (fals != null) {
-            visitJumpInsn(Opcodes.IFEQ, fals);
-        }
-    }
-
     /** Starts a new string concat.
      * @return the size of arguments pushed to stack (the object that does string concats, e.g. a StringBuilder)
      */

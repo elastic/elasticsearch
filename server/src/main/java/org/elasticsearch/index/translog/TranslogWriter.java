@@ -40,7 +40,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
@@ -203,23 +202,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             if (previous.v1().equals(data) == false) {
                 Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput()));
                 Translog.Operation prvOp = Translog.readOperation(new BufferedChecksumStreamInput(previous.v1().streamInput()));
-                // we need to exclude versionType from this check because it's removed in 7.0
-                final boolean sameOp;
-                if (prvOp instanceof Translog.Index && newOp instanceof Translog.Index) {
-                    final Translog.Index o1 = (Translog.Index) prvOp;
-                    final Translog.Index o2 = (Translog.Index) newOp;
-                    sameOp = Objects.equals(o1.id(), o2.id()) && Objects.equals(o1.type(), o2.type())
-                        && Objects.equals(o1.source(), o2.source()) && Objects.equals(o1.routing(), o2.routing())
-                        && o1.primaryTerm() == o2.primaryTerm() && o1.seqNo() == o2.seqNo() && o1.version() == o2.version();
-                } else if (prvOp instanceof Translog.Delete && newOp instanceof Translog.Delete) {
-                    final Translog.Delete o1 = (Translog.Delete) prvOp;
-                    final Translog.Delete o2 = (Translog.Delete) newOp;
-                    sameOp = Objects.equals(o1.id(), o2.id()) && Objects.equals(o1.type(), o2.type())
-                        && o1.primaryTerm() == o2.primaryTerm() && o1.seqNo() == o2.seqNo() && o1.version() == o2.version();
-                } else {
-                    sameOp = false;
-                }
-                if (sameOp == false) {
+                if (newOp.equals(prvOp) == false) {
                     throw new AssertionError(
                         "seqNo [" + seqNo + "] was processed twice in generation [" + generation + "], with different data. " +
                             "prvOp [" + prvOp + "], newOp [" + newOp + "]", previous.v2());

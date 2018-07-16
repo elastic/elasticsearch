@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices;
 import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.AnalysisModuleTests.AppendCharFilter;
@@ -50,7 +50,6 @@ import java.io.IOException;
 import java.io.Reader;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -111,7 +110,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
             }
 
             @Override
-            public Map<String, AnalysisProvider<Supplier<Tokenizer>>> getTokenizers() {
+            public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
                 return singletonMap("keyword", (indexSettings, environment, name, settings) ->
                     () -> new MockTokenizer(MockTokenizer.KEYWORD, false));
             }

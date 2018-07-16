@@ -53,6 +53,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
@@ -71,7 +72,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Supplier;
 
 /**
  * Transport action used to execute analyze requests
@@ -185,7 +185,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             }
         } else if (request.tokenizer() != null) {
             final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
-            Tuple<String, Supplier<Tokenizer>> tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers,
+            Tuple<String, TokenizerFactory> tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers,
                         analysisRegistry, environment);
 
             List<CharFilterFactory> charFilterFactoryList =
@@ -213,7 +213,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 parseCharFilterFactories(request, indexSettings, analysisRegistry, environment, true);
 
             final String keywordTokenizerName = "keyword";
-            Supplier<Tokenizer> keywordTokenizerFactory = getTokenizerFactory(analysisRegistry, environment, keywordTokenizerName);
+            TokenizerFactory keywordTokenizerFactory = getTokenizerFactory(analysisRegistry, environment, keywordTokenizerName);
 
             List<TokenFilterFactory> tokenFilterFactoryList =
                 parseTokenFilterFactories(request, indexSettings, analysisRegistry, environment, new Tuple<>(keywordTokenizerName, keywordTokenizerFactory), charFilterFactoryList, true);
@@ -306,7 +306,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         if (customAnalyzer != null) {
             // customAnalyzer = divide charfilter, tokenizer tokenfilters
             CharFilterFactory[] charFilterFactories = customAnalyzer.charFilters();
-            Supplier<Tokenizer> tokenizerFactory = customAnalyzer.tokenizerFactory();
+            TokenizerFactory tokenizerFactory = customAnalyzer.tokenizerFactory();
             TokenFilterFactory[] tokenFilterFactories = customAnalyzer.tokenFilters();
 
             String[][] charFiltersTexts = new String[charFilterFactories != null ? charFilterFactories.length : 0][request.text().length];
@@ -330,7 +330,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 }
 
                 // analyzing only tokenizer
-                Tokenizer tokenizer = tokenizerFactory.get();
+                Tokenizer tokenizer = tokenizerFactory.create();
                 tokenizer.setReader(reader);
                 tokenizerTokenListCreator.analyze(tokenizer, customAnalyzer, field, includeAttributes);
 
@@ -381,12 +381,12 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return detailResponse;
     }
 
-    private static TokenStream createStackedTokenStream(String source, CharFilterFactory[] charFilterFactories, Supplier<Tokenizer> tokenizerFactory, TokenFilterFactory[] tokenFilterFactories, int current) {
+    private static TokenStream createStackedTokenStream(String source, CharFilterFactory[] charFilterFactories, TokenizerFactory tokenizerFactory, TokenFilterFactory[] tokenFilterFactories, int current) {
         Reader reader = new StringReader(source);
         for (CharFilterFactory charFilterFactory : charFilterFactories) {
             reader = charFilterFactory.create(reader);
         }
-        Tokenizer tokenizer = tokenizerFactory.get();
+        Tokenizer tokenizer = tokenizerFactory.create();
         tokenizer.setReader(reader);
         TokenStream tokenStream = tokenizer;
         for (int i = 0; i < current; i++) {
@@ -571,7 +571,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
     }
 
     private static List<TokenFilterFactory> parseTokenFilterFactories(AnalyzeRequest request, IndexSettings indexSettings, AnalysisRegistry analysisRegistry,
-                                                                Environment environment, Tuple<String, Supplier<Tokenizer>> tokenizerFactory,
+                                                                Environment environment, Tuple<String, TokenizerFactory> tokenizerFactory,
                                                                 List<CharFilterFactory> charFilterFactoryList, boolean normalizer) throws IOException {
         List<TokenFilterFactory> tokenFilterFactoryList = new ArrayList<>();
         if (request.tokenFilters() != null && request.tokenFilters().size() > 0) {
@@ -632,10 +632,10 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return tokenFilterFactoryList;
     }
 
-    private static Tuple<String, Supplier<Tokenizer>> parseTokenizerFactory(AnalyzeRequest request, IndexAnalyzers indexAnalzyers,
-                                                                            AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
+    private static Tuple<String, TokenizerFactory> parseTokenizerFactory(AnalyzeRequest request, IndexAnalyzers indexAnalzyers,
+                                                          AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
         String name;
-        Supplier<Tokenizer> tokenizerFactory;
+        TokenizerFactory tokenizerFactory;
         final AnalyzeRequest.NameOrDefinition tokenizer = request.tokenizer();
         // parse anonymous settings
         if (tokenizer.definition != null) {
@@ -644,7 +644,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             if (tokenizerTypeName == null) {
                 throw new IllegalArgumentException("Missing [type] setting for anonymous tokenizer: " + tokenizer.definition);
             }
-            AnalysisModule.AnalysisProvider<Supplier<Tokenizer>> tokenizerFactoryFactory =
+            AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory =
                 analysisRegistry.getTokenizerProvider(tokenizerTypeName);
             if (tokenizerFactoryFactory == null) {
                 throw new IllegalArgumentException("failed to find global tokenizer under [" + tokenizerTypeName + "]");
@@ -653,7 +653,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             name = "_anonymous_tokenizer";
             tokenizerFactory = tokenizerFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_tokenizer", settings);
         } else {
-            AnalysisModule.AnalysisProvider<Supplier<Tokenizer>> tokenizerFactoryFactory;
+            AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory;
             if (indexAnalzyers == null) {
                 tokenizerFactory = getTokenizerFactory(analysisRegistry, environment, tokenizer.name);
                 name = tokenizer.name;
@@ -671,9 +671,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return new Tuple<>(name, tokenizerFactory);
     }
 
-    private static Supplier<Tokenizer> getTokenizerFactory(AnalysisRegistry analysisRegistry, Environment environment, String name) throws IOException {
-        AnalysisModule.AnalysisProvider<Supplier<Tokenizer>> tokenizerFactoryFactory;
-        Supplier<Tokenizer> tokenizerFactory;
+    private static TokenizerFactory getTokenizerFactory(AnalysisRegistry analysisRegistry, Environment environment, String name) throws IOException {
+        AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory;
+        TokenizerFactory tokenizerFactory;
         tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(name);
         if (tokenizerFactoryFactory == null) {
             throw new IllegalArgumentException("failed to find global tokenizer under [" + name + "]");

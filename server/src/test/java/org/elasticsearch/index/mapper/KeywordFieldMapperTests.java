@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -48,7 +49,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
@@ -68,10 +68,17 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Map<String, AnalysisModule.AnalysisProvider<Supplier<Tokenizer>>> getTokenizers() {
-            return singletonMap(
-                "keyword", (indexSettings, environment, name, settings) -> () -> new MockTokenizer(MockTokenizer.KEYWORD, false)
-            );
+        public Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> getTokenizers() {
+            return singletonMap("keyword", (indexSettings, environment, name, settings) -> {
+                class Factory implements TokenizerFactory {
+
+                    @Override
+                    public Tokenizer create() {
+                        return new MockTokenizer(MockTokenizer.KEYWORD, false);
+                    }
+                }
+                return new Factory();
+            });
         }
 
     };

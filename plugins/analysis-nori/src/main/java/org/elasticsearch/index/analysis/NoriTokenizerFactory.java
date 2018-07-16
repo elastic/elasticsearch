@@ -65,7 +65,7 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         return new KoreanTokenizer(KoreanTokenizer.DEFAULT_TOKEN_ATTRIBUTE_FACTORY, userDictionary, decompoundMode, false);
     }
 

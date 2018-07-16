@@ -34,7 +34,7 @@ public class LowerCaseTokenizerFactory extends AbstractTokenizerFactory implemen
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         return new LowerCaseTokenizer();
     }
 

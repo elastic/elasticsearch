@@ -105,7 +105,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         if (matcher == null) {
             return new NGramTokenizer(minGram, maxGram);
         } else {

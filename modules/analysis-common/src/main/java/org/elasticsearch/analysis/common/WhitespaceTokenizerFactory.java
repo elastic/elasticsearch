@@ -39,7 +39,7 @@ public class WhitespaceTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         return new WhitespaceTokenizer(TokenStream.DEFAULT_TOKEN_ATTRIBUTE_FACTORY, maxTokenLength);
     }
 }

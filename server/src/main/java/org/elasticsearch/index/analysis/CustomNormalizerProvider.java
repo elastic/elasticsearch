@@ -19,14 +19,12 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * A custom normalizer that is built out of a char and token filters. On the
@@ -45,8 +43,8 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
         this.analyzerSettings = settings;
     }
 
-    public void build(final String tokenizerName, final Supplier<Tokenizer> tokenizerFactory,
-                      final Map<String, CharFilterFactory> charFilters, final Map<String, TokenFilterFactory> tokenFilters) {
+    public void build(final String tokenizerName, final TokenizerFactory tokenizerFactory, final Map<String, CharFilterFactory> charFilters,
+            final Map<String, TokenFilterFactory> tokenFilters) {
         if (analyzerSettings.get("tokenizer") != null) {
             throw new IllegalArgumentException("Custom normalizer [" + name() + "] cannot configure a tokenizer");
         }

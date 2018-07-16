@@ -24,7 +24,7 @@ public class MlClassicTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         return new MlClassicTokenizer();
     }
 }

@@ -36,7 +36,7 @@ public class StandardTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         StandardTokenizer tokenizer = new StandardTokenizer();
         tokenizer.setMaxTokenLength(maxTokenLength);
         return tokenizer;

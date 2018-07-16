@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,6 +29,7 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.CustomAnalyzerProvider;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 import org.elasticsearch.xpack.core.ml.MlParserType;
@@ -41,7 +41,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 
 /**
@@ -369,7 +368,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             List<CharFilterFactory> charFilterFactoryList =
                     parseCharFilterFactories(analysisRegistry, environment);
 
-            Tuple<String, Supplier<Tokenizer>> tokenizerFactory = parseTokenizerFactory(analysisRegistry,
+            Tuple<String, TokenizerFactory> tokenizerFactory = parseTokenizerFactory(analysisRegistry,
                     environment);
 
             List<TokenFilterFactory> tokenFilterFactoryList = parseTokenFilterFactories(analysisRegistry,
@@ -425,13 +424,13 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
      * Get the tokenizer factory for the configured tokenizer.  The configuration
      * can be the name of an out-of-the-box tokenizer, or a custom definition.
      */
-    private Tuple<String, Supplier<Tokenizer>> parseTokenizerFactory(AnalysisRegistry analysisRegistry,
+    private Tuple<String, TokenizerFactory> parseTokenizerFactory(AnalysisRegistry analysisRegistry,
                                                                   Environment environment) throws IOException {
         final String name;
-        final Supplier<Tokenizer> tokenizerFactory;
+        final TokenizerFactory tokenizerFactory;
         if (tokenizer.name != null) {
             name = tokenizer.name;
-            AnalysisModule.AnalysisProvider<Supplier<Tokenizer>> tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(name);
+            AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(name);
             if (tokenizerFactoryFactory == null) {
                 throw new IllegalArgumentException("Failed to find global tokenizer under [" + name + "]");
             }
@@ -441,7 +440,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             if (tokenizerTypeName == null) {
                 throw new IllegalArgumentException("Missing [type] setting for tokenizer: " + tokenizer.definition);
             }
-            AnalysisModule.AnalysisProvider<Supplier<Tokenizer>> tokenizerFactoryFactory =
+            AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory =
                     analysisRegistry.getTokenizerProvider(tokenizerTypeName);
             if (tokenizerFactoryFactory == null) {
                 throw new IllegalArgumentException("Failed to find global tokenizer under [" + tokenizerTypeName + "]");
@@ -459,7 +458,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
      * element can be the name of an out-of-the-box token filter, or a custom definition.
      */
     private List<TokenFilterFactory> parseTokenFilterFactories(AnalysisRegistry analysisRegistry, Environment environment,
-                                                               Tuple<String, Supplier<Tokenizer>> tokenizerFactory,
+                                                               Tuple<String, TokenizerFactory> tokenizerFactory,
                                                                List<CharFilterFactory> charFilterFactoryList) throws IOException {
         final List<TokenFilterFactory> tokenFilterFactoryList = new ArrayList<>();
         for (NameOrDefinition tokenFilter : tokenFilters) {

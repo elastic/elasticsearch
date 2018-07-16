@@ -20,20 +20,19 @@
 package org.elasticsearch.plugin.analysis.nori;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.NoriAnalyzerProvider;
 import org.elasticsearch.index.analysis.NoriPartOfSpeechStopFilterFactory;
 import org.elasticsearch.index.analysis.NoriReadingFormFilterFactory;
 import org.elasticsearch.index.analysis.NoriTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
 
@@ -47,7 +46,7 @@ public class AnalysisNoriPlugin extends Plugin implements AnalysisPlugin {
     }
 
     @Override
-    public Map<String, AnalysisProvider<Supplier<Tokenizer>>> getTokenizers() {
+    public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
         return singletonMap("nori_tokenizer", NoriTokenizerFactory::new);
     }
 

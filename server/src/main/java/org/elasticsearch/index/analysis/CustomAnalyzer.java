@@ -24,12 +24,11 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 
 import java.io.Reader;
-import java.util.function.Supplier;
 
 public final class CustomAnalyzer extends Analyzer {
 
     private final String tokenizerName;
-    private final Supplier<Tokenizer> tokenizerFactory;
+    private final TokenizerFactory tokenizerFactory;
 
     private final CharFilterFactory[] charFilters;
 
@@ -38,13 +37,13 @@ public final class CustomAnalyzer extends Analyzer {
     private final int positionIncrementGap;
     private final int offsetGap;
 
-    public CustomAnalyzer(String tokenizerName, Supplier<Tokenizer> tokenizerFactory, CharFilterFactory[] charFilters,
+    public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
             TokenFilterFactory[] tokenFilters) {
         this(tokenizerName, tokenizerFactory, charFilters, tokenFilters, 0, -1);
     }
 
-    public CustomAnalyzer(String tokenizerName, Supplier<Tokenizer> tokenizerFactory, CharFilterFactory[] charFilters,
-                          TokenFilterFactory[] tokenFilters, int positionIncrementGap, int offsetGap) {
+    public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
+            TokenFilterFactory[] tokenFilters, int positionIncrementGap, int offsetGap) {
         this.tokenizerName = tokenizerName;
         this.tokenizerFactory = tokenizerFactory;
         this.charFilters = charFilters;
@@ -60,7 +59,7 @@ public final class CustomAnalyzer extends Analyzer {
         return tokenizerName;
     }
 
-    public Supplier<Tokenizer> tokenizerFactory() {
+    public TokenizerFactory tokenizerFactory() {
         return tokenizerFactory;
     }
 
@@ -87,7 +86,7 @@ public final class CustomAnalyzer extends Analyzer {
 
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
-        Tokenizer tokenizer = tokenizerFactory.get();
+        Tokenizer tokenizer = tokenizerFactory.create();
         TokenStream tokenStream = tokenizer;
         for (TokenFilterFactory tokenFilter : tokenFilters) {
             tokenStream = tokenFilter.create(tokenStream);

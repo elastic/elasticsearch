@@ -36,7 +36,7 @@ public class KeywordTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         return new KeywordTokenizer(bufferSize);
     }
 }

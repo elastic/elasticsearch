@@ -37,7 +37,6 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestRuleMarkFailure;
@@ -88,6 +87,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
@@ -1349,12 +1349,12 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         public final IndexAnalyzers indexAnalyzers;
         public final Map<String, TokenFilterFactory> tokenFilter;
-        public final Map<String, Supplier<Tokenizer>> tokenizer;
+        public final Map<String, TokenizerFactory> tokenizer;
         public final Map<String, CharFilterFactory> charFilter;
 
         public TestAnalysis(IndexAnalyzers indexAnalyzers,
                             Map<String, TokenFilterFactory> tokenFilter,
-                            Map<String, Supplier<Tokenizer>> tokenizer,
+                            Map<String, TokenizerFactory> tokenizer,
                             Map<String, CharFilterFactory> charFilter) {
             this.indexAnalyzers = indexAnalyzers;
             this.tokenFilter = tokenFilter;

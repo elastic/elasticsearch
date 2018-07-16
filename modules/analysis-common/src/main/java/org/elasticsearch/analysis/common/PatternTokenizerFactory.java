@@ -47,7 +47,7 @@ public class PatternTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         return new PatternTokenizer(pattern, group);
     }
 }

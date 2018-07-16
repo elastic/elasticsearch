@@ -37,7 +37,6 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -45,7 +44,7 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
     public void testDefaultsNoriAnalysis() throws IOException {
         TestAnalysis analysis = createTestAnalysis(Settings.EMPTY);
 
-        Supplier<Tokenizer> tokenizerFactory = analysis.tokenizer.get("nori_tokenizer");
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("nori_tokenizer");
         assertThat(tokenizerFactory, instanceOf(NoriTokenizerFactory.class));
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("nori_part_of_speech");
@@ -98,7 +97,7 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
             .put("index.analysis.tokenizer.my_tokenizer.decompound_mode", "mixed")
             .build();
         TestAnalysis analysis = createTestAnalysis(settings);
-        Tokenizer tokenizer = analysis.tokenizer.get("my_tokenizer").get();
+        Tokenizer tokenizer = analysis.tokenizer.get("my_tokenizer").create();
         tokenizer.setReader(new StringReader("뿌리가 깊은 나무"));
         assertTokenStreamContents(tokenizer, new String[] {"뿌리", "가", "깊", "은", "나무"});
         tokenizer.setReader(new StringReader("가늠표"));

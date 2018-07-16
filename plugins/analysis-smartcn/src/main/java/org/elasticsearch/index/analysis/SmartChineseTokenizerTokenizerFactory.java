@@ -32,7 +32,7 @@ public class SmartChineseTokenizerTokenizerFactory extends AbstractTokenizerFact
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         return new HMMChineseTokenizer();
     }
 }

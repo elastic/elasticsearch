@@ -33,7 +33,7 @@ public class LetterTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         return new LetterTokenizer();
     }
 }

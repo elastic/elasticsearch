@@ -109,7 +109,7 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         return new CharTokenizer() {
             @Override
             protected boolean isTokenChar(int c) {

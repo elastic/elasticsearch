@@ -61,7 +61,7 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         if (reverse) {
             return new ReversePathHierarchyTokenizer(bufferSize, delimiter, replacement, skip);
         }

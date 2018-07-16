@@ -43,7 +43,7 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         if (matcher == null) {
             return new EdgeNGramTokenizer(minGram, maxGram);
         } else {

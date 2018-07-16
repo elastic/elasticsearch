@@ -20,7 +20,6 @@
 package org.elasticsearch.plugin.analysis.kuromoji;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.JapaneseStopTokenFilterFactory;
@@ -33,13 +32,13 @@ import org.elasticsearch.index.analysis.KuromojiPartOfSpeechFilterFactory;
 import org.elasticsearch.index.analysis.KuromojiReadingFormFilterFactory;
 import org.elasticsearch.index.analysis.KuromojiTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
 
@@ -62,7 +61,7 @@ public class AnalysisKuromojiPlugin extends Plugin implements AnalysisPlugin {
     }
 
     @Override
-    public Map<String, AnalysisProvider<Supplier<Tokenizer>>> getTokenizers() {
+    public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
         return singletonMap("kuromoji_tokenizer", KuromojiTokenizerFactory::new);
     }
 

@@ -31,7 +31,7 @@ import java.util.function.Supplier;
 /**
  * Provides pre-configured, shared {@link Tokenizer}s.
  */
-public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent<Supplier<Tokenizer>> {
+public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent<TokenizerFactory> {
     /**
      * Create a pre-configured tokenizer that may not vary at all.
      *
@@ -90,14 +90,14 @@ public final class PreConfiguredTokenizer extends PreConfiguredAnalysisComponent
         return multiTermComponent != null;
     }
 
-    private interface MultiTermAwareTokenizerFactory extends Supplier<Tokenizer>, MultiTermAwareComponent {}
+    private interface MultiTermAwareTokenizerFactory extends TokenizerFactory, MultiTermAwareComponent {}
 
     @Override
-    protected Supplier<Tokenizer> create(Version version) {
+    protected TokenizerFactory create(Version version) {
         if (multiTermComponent != null) {
             return new MultiTermAwareTokenizerFactory() {
                 @Override
-                public Tokenizer get() {
+                public Tokenizer create() {
                     return create.apply(version);
                 }
 

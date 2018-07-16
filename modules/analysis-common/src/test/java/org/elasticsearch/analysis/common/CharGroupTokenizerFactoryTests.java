@@ -43,7 +43,7 @@ public class CharGroupTokenizerFactoryTests extends ESTokenStreamTestCase {
                 new String[] { "commas" },
                 new String[] { "a", "b", "c", "\\$" })) {
             final Settings settings = newAnalysisSettingsBuilder().putList("tokenize_on_chars", conf).build();
-            expectThrows(RuntimeException.class, () -> new CharGroupTokenizerFactory(indexProperties, null, name, settings).get());
+            expectThrows(RuntimeException.class, () -> new CharGroupTokenizerFactory(indexProperties, null, name, settings).create());
         }
 
         for (String[] conf : Arrays.asList(
@@ -56,7 +56,7 @@ public class CharGroupTokenizerFactoryTests extends ESTokenStreamTestCase {
                 new String[] { "\\r" },
                 new String[] { "f", "o", "o", "symbol" })) {
             final Settings settings = newAnalysisSettingsBuilder().putList("tokenize_on_chars", Arrays.asList(conf)).build();
-            new CharGroupTokenizerFactory(indexProperties, null, name, settings).get();
+            new CharGroupTokenizerFactory(indexProperties, null, name, settings).create();
             // no exception
         }
     }
@@ -67,7 +67,7 @@ public class CharGroupTokenizerFactoryTests extends ESTokenStreamTestCase {
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
         final Settings settings = newAnalysisSettingsBuilder().putList("tokenize_on_chars", "whitespace", ":", "\\u0024").build();
         Tokenizer tokenizer = new CharGroupTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings),
-                null, name, settings).get();
+                null, name, settings).create();
         tokenizer.setReader(new StringReader("foo bar $34 test:test2"));
         assertTokenStreamContents(tokenizer, new String[] {"foo", "bar", "34", "test", "test2"});
     }

@@ -37,7 +37,7 @@ public class UAX29URLEmailTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         UAX29URLEmailTokenizer tokenizer = new UAX29URLEmailTokenizer();
         tokenizer.setMaxTokenLength(maxTokenLength);
         return tokenizer;

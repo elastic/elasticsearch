@@ -86,7 +86,7 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         JapaneseTokenizer t = new JapaneseTokenizer(userDictionary, discartPunctuation, mode);
         int nBestCost = this.nBestCost;
         if (nBestExamples != null) {

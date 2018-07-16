@@ -38,7 +38,6 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -49,7 +48,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
     public void testDefaultsKuromojiAnalysis() throws IOException {
         TestAnalysis analysis = createTestAnalysis();
 
-        Supplier<Tokenizer> tokenizerFactory = analysis.tokenizer.get("kuromoji_tokenizer");
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_tokenizer");
         assertThat(tokenizerFactory, instanceOf(KuromojiTokenizerFactory.class));
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("kuromoji_part_of_speech");
@@ -246,11 +245,11 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
     public void testKuromojiUserDict() throws IOException {
         TestAnalysis analysis = createTestAnalysis();
-        Supplier<Tokenizer> tokenizerFactory = analysis.tokenizer.get("kuromoji_user_dict");
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_user_dict");
         String source = "私は制限スピードを超える。";
         String[] expected = new String[]{"私", "は", "制限スピード", "を", "超える"};
 
-        Tokenizer tokenizer = tokenizerFactory.get();
+        Tokenizer tokenizer = tokenizerFactory.create();
         tokenizer.setReader(new StringReader(source));
         assertSimpleTSOutput(tokenizer, expected);
     }
@@ -258,39 +257,39 @@ public class KuromojiAnalysisTests extends ESTestCase {
     // fix #59
     public void testKuromojiEmptyUserDict() throws IOException {
         TestAnalysis analysis = createTestAnalysis();
-        Supplier<Tokenizer> tokenizerFactory = analysis.tokenizer.get("kuromoji_empty_user_dict");
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_empty_user_dict");
         assertThat(tokenizerFactory, instanceOf(KuromojiTokenizerFactory.class));
     }
 
     public void testNbestCost() throws IOException {
         TestAnalysis analysis = createTestAnalysis();
-        Supplier<Tokenizer> tokenizerFactory = analysis.tokenizer.get("kuromoji_nbest_cost");
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_nbest_cost");
         String source = "鳩山積み";
         String[] expected = new String[] {"鳩", "鳩山", "山積み", "積み"};
 
-        Tokenizer tokenizer = tokenizerFactory.get();
+        Tokenizer tokenizer = tokenizerFactory.create();
         tokenizer.setReader(new StringReader(source));
         assertSimpleTSOutput(tokenizer, expected);
     }
 
     public void testNbestExample() throws IOException {
         TestAnalysis analysis = createTestAnalysis();
-        Supplier<Tokenizer> tokenizerFactory = analysis.tokenizer.get("kuromoji_nbest_examples");
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_nbest_examples");
         String source = "鳩山積み";
         String[] expected = new String[] {"鳩", "鳩山", "山積み", "積み"};
 
-        Tokenizer tokenizer = tokenizerFactory.get();
+        Tokenizer tokenizer = tokenizerFactory.create();
         tokenizer.setReader(new StringReader(source));
         assertSimpleTSOutput(tokenizer, expected);
     }
 
     public void testNbestBothOptions() throws IOException {
         TestAnalysis analysis = createTestAnalysis();
-        Supplier<Tokenizer> tokenizerFactory = analysis.tokenizer.get("kuromoji_nbest_both");
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_nbest_both");
         String source = "鳩山積み";
         String[] expected = new String[] {"鳩", "鳩山", "山積み", "積み"};
 
-        Tokenizer tokenizer = tokenizerFactory.get();
+        Tokenizer tokenizer = tokenizerFactory.create();
         tokenizer.setReader(new StringReader(source));
         assertSimpleTSOutput(tokenizer, expected);
 

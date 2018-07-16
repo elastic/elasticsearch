@@ -52,7 +52,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer get() {
+    public Tokenizer create() {
         if (config == null) {
             return new ICUTokenizer();
         }else{

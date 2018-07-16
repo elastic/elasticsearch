@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.icu.segmentation.ICUTokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -35,7 +34,6 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.function.Supplier;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 
@@ -44,8 +42,8 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
     public void testSimpleIcuTokenizer() throws IOException {
         TestAnalysis analysis = createTestAnalysis();
 
-        Supplier<Tokenizer> tokenizerFactory = analysis.tokenizer.get("icu_tokenizer");
-        ICUTokenizer tokenizer = (ICUTokenizer) tokenizerFactory.get();
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("icu_tokenizer");
+        ICUTokenizer tokenizer = (ICUTokenizer) tokenizerFactory.create();
 
         Reader reader = new StringReader("向日葵, one-two");
         tokenizer.setReader(reader);
@@ -56,8 +54,8 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
         TestAnalysis analysis = createTestAnalysis();
 
         // test the tokenizer with single rule file
-        Supplier<Tokenizer> tokenizerFactory = analysis.tokenizer.get("user_rule_tokenizer");
-        ICUTokenizer tokenizer = (ICUTokenizer) tokenizerFactory.get();
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("user_rule_tokenizer");
+        ICUTokenizer tokenizer = (ICUTokenizer) tokenizerFactory.create();
         Reader reader = new StringReader
             ("One-two punch.  Brang-, not brung-it.  This one--not that one--is the right one, -ish.");
 
@@ -71,8 +69,8 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
         TestAnalysis analysis = createTestAnalysis();
 
         // test the tokenizer with two rule files
-        Supplier<Tokenizer> tokenizerFactory = analysis.tokenizer.get("multi_rule_tokenizer");
-        ICUTokenizer tokenizer = (ICUTokenizer) tokenizerFactory.get();
+        TokenizerFactory tokenizerFactory = analysis.tokenizer.get("multi_rule_tokenizer");
+        ICUTokenizer tokenizer = (ICUTokenizer) tokenizerFactory.create();
         StringReader reader = new StringReader
             ("Some English.  Немного русский.  ข้อความภาษาไทยเล็ก ๆ น้อย ๆ  More English.");
 

@@ -19,15 +19,12 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 
-import java.util.function.Supplier;
-
-public abstract class AbstractTokenizerFactory extends AbstractIndexComponent implements Supplier<Tokenizer> {
+public abstract class AbstractTokenizerFactory extends AbstractIndexComponent implements TokenizerFactory {
     protected final Version version;
 
     public AbstractTokenizerFactory(IndexSettings indexSettings, Settings settings) {

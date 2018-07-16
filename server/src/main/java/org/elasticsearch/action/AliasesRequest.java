@@ -32,6 +32,9 @@ public interface AliasesRequest extends IndicesRequest.Replaceable {
      */
     String[] aliases();
 
+    /**
+     * Returns the aliases as they were originally requested, before any potential name resolution
+     */
     String[] getOriginalAliases();
 
     /**

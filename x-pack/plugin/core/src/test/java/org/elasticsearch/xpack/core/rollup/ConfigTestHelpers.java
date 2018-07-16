@@ -93,7 +93,7 @@ public class ConfigTestHelpers {
         if (ESTestCase.randomBoolean()) {
             dateHistoBuilder.setDelay(new DateHistogramInterval(randomPositiveTimeValue()));
         }
-        dateHistoBuilder.setField(ESTestCase.randomAlphaOfLengthBetween(1, 10 ));
+        dateHistoBuilder.setField(ESTestCase.randomAlphaOfLengthBetween(5, 10));
         return dateHistoBuilder;
     }
 
@@ -111,8 +111,8 @@ public class ConfigTestHelpers {
     }
 
     public static  List<String> getFields() {
-        return IntStream.range(0, ESTestCase.randomIntBetween(1,10))
-                .mapToObj(n -> ESTestCase.randomAlphaOfLengthBetween(1,10))
+        return IntStream.range(0, ESTestCase.randomIntBetween(1, 10))
+                .mapToObj(n -> ESTestCase.randomAlphaOfLengthBetween(5, 10))
                 .collect(Collectors.toList());
     }
 

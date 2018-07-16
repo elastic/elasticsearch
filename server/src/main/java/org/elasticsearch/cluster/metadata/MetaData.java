@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.FeatureAware;
 import org.elasticsearch.cluster.Diff;
@@ -138,8 +137,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     public static final ClusterBlock CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK = new ClusterBlock(13, "cluster read-only / allow delete (api)",
         false, false, true, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
-    public static final Setting<String> SETTING_CLUSTER_DYNAMIC_NAME = new Setting<>("cluster.dynamic_name",
-        settings -> ClusterName.CLUSTER_NAME_SETTING.get(settings).value(), Function.identity(), Property.Dynamic, Property.NodeScope);
+    public static final Setting<String> SETTING_CLUSTER_DYNAMIC_NAME = Setting.simpleString("cluster.dynamic_name",
+        Property.Dynamic, Property.NodeScope);
 
     public static final MetaData EMPTY_META_DATA = builder().build();
 

@@ -4,8 +4,7 @@
 `cluster.dynamic_name`::
 
       Assign a name to the cluster that will appear in info requests (e.g.
-      `GET /`).  If unset, the cluster's dynamic name will default to the
-      normal cluster.name set in `elasticsearch.yml`.
+      `GET /`).
 
 [[cluster-read-only]]
 ==== Metadata

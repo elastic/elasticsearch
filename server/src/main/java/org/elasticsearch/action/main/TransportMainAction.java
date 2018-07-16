@@ -51,15 +51,7 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
         assert Node.NODE_NAME_SETTING.exists(settings);
         final boolean available = clusterState.getBlocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE) == false;
 
-        // If we cannot find the cluster dynamic name in our dynamic settings, we must fallback
-        // into node-level settings
-
-        String clusterDynamicName;
-        if (MetaData.SETTING_CLUSTER_DYNAMIC_NAME.exists(clusterState.getMetaData().settings())) {
-            clusterDynamicName = MetaData.SETTING_CLUSTER_DYNAMIC_NAME.get(clusterState.getMetaData().settings());
-        } else {
-            clusterDynamicName = MetaData.SETTING_CLUSTER_DYNAMIC_NAME.get(settings);
-        }
+        String clusterDynamicName = MetaData.SETTING_CLUSTER_DYNAMIC_NAME.get(clusterState.getMetaData().settings());
         listener.onResponse(
             new MainResponse(Node.NODE_NAME_SETTING.get(settings), Version.CURRENT, clusterState.getClusterName(),
                     clusterState.metaData().clusterUUID(), clusterDynamicName, Build.CURRENT));

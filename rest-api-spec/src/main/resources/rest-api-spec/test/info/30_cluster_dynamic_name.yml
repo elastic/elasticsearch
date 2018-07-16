@@ -5,7 +5,7 @@
       reason: "The cluster dynamic name field is only available in 7.0+"
 
   - do:         {info: {}}
-  - is_true:    cluster_dynamic_name
+  - is_false:    cluster_dynamic_name
 
   - do:
       cluster.put_settings:
@@ -45,4 +45,4 @@
           flat_settings: true
 
   - do:         {info: {}}
-  - is_true:    cluster_dynamic_name
+  - is_false:    cluster_dynamic_name

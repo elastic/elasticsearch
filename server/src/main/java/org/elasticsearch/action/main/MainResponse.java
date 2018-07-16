@@ -91,7 +91,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             out.writeBoolean(true);
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeString(clusterDynamicName);
+            out.writeOptionalString(clusterDynamicName);
         }
     }
 
@@ -106,10 +106,10 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
             in.readBoolean();
         }
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-                clusterDynamicName = in.readString();
-            }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            clusterDynamicName = in.readOptionalString();
         }
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -117,7 +117,9 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("name", nodeName);
         builder.field("cluster_name", clusterName.value());
         builder.field("cluster_uuid", clusterUuid);
-        builder.field("cluster_dynamic_name", clusterDynamicName);
+        if (!Strings.isEmpty(clusterDynamicName)) {
+            builder.field("cluster_dynamic_name", clusterDynamicName);
+        }
         builder.startObject("version")
             .field("number", version.toString())
             .field("build_flavor", build.flavor().displayName())

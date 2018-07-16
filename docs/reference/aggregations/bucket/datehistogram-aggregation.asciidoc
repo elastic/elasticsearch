@@ -72,8 +72,7 @@ All days begin at the earliest possible time, which is usually 00:00:00
 
 * One day (1d) is the interval between the start of the day and the start of
 of the following day in the specified timezone, compensating for any intervening
-time changes, so that the number of hours, minutes, and seconds of the day is
-the same at the start and end.
+time changes.
 * Multiple days (__n__d) are intervals of exactly 24x60x60x1000=86,400,000
 milliseconds each.
 

@@ -95,15 +95,13 @@ public class FollowIndexIT extends ESRestTestCase {
 
     private static void followIndex(String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("POST", "/" + followIndex + "/_xpack/ccr/_follow");
-        request.addParameter("leader_index", leaderIndex);
-        request.addParameter("idle_shard_retry_delay", "10ms");
+        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"idle_shard_retry_delay\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 
     private static void createAndFollowIndex(String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("POST", "/" + followIndex + "/_xpack/ccr/_create_and_follow");
-        request.addParameter("leader_index", leaderIndex);
-        request.addParameter("idle_shard_retry_delay", "10ms");
+        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"idle_shard_retry_delay\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 

@@ -31,6 +31,12 @@ dependencies {
   compile "org.hamcrest:hamcrest-core:${versions.hamcrest}"
   compile "org.hamcrest:hamcrest-library:${versions.hamcrest}"
 
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:fluent-hc:${versions.httpclient}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
+
   compile project(':libs:core')
 
   // pulls in the jar built by this project and its dependencies
@@ -73,3 +79,17 @@ tasks.test.enabled = false
 // this project doesn't get published
 tasks.dependencyLicenses.enabled = false
 tasks.dependenciesInfo.enabled = false
+
+tasks.thirdPartyAudit.excludes = [
+        //commons-logging optional dependencies
+        'org.apache.avalon.framework.logger.Logger',
+        'org.apache.log.Hierarchy',
+        'org.apache.log.Logger',
+        'org.apache.log4j.Category',
+        'org.apache.log4j.Level',
+        'org.apache.log4j.Logger',
+        'org.apache.log4j.Priority',
+        //commons-logging provided dependencies
+        'javax.servlet.ServletContextEvent',
+        'javax.servlet.ServletContextListener'
+]

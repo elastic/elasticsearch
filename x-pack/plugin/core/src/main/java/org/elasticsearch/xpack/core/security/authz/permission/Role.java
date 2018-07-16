@@ -95,7 +95,7 @@ public final class Role {
     public static class Builder {
 
         private final String[] names;
-        private ClusterPermission cluster = ClusterPermission.NONE;
+        private ClusterPermission cluster = ClusterPermission.SimpleClusterPermission.NONE;
         private RunAsPermission runAs = RunAsPermission.NONE;
         private List<IndicesPermission.Group> groups = new ArrayList<>();
         private List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
@@ -107,7 +107,7 @@ public final class Role {
         private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache) {
             this.names = new String[] { rd.getName() };
             if (rd.getClusterPrivileges().length == 0) {
-                cluster = ClusterPermission.NONE;
+                cluster = ClusterPermission.SimpleClusterPermission.NONE;
             } else {
                 this.cluster(ClusterPrivilege.get(Sets.newHashSet(rd.getClusterPrivileges())));
             }
@@ -125,7 +125,7 @@ public final class Role {
         }
 
         public Builder cluster(ClusterPrivilege privilege) {
-            cluster = new ClusterPermission(privilege);
+            cluster = new ClusterPermission.SimpleClusterPermission(privilege);
             return this;
         }
 

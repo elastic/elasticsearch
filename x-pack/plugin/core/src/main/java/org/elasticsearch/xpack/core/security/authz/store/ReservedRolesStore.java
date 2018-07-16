@@ -27,7 +27,7 @@ public class ReservedRolesStore {
             new String[] { "all" },
             new RoleDescriptor.IndicesPrivileges[] {
                     RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build()},
-            new RoleDescriptor.ApplicationResourcePrivileges[]{
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build()
             },
             new String[] { "*" },

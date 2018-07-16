@@ -965,9 +965,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
 
         public boolean hasQuorum(Collection<String> votes) {
-            if (nodeIds.isEmpty()) {
-                return false; // TODO: should we even allow this check on an empty configuration?
-            }
             final HashSet<String> intersection = new HashSet<>(nodeIds);
             intersection.retainAll(votes);
             return intersection.size() * 2 > nodeIds.size();

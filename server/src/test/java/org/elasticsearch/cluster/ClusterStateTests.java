@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 
 import static java.util.Collections.emptyMap;
@@ -55,6 +56,47 @@ public class ClusterStateTests extends ESTestCase {
 
         // state from the same master compare by version
         assertThat(withMaster1a.supersedes(withMaster1b), equalTo(withMaster1a.version() > withMaster1b.version()));
+    }
+
+    public void testVotingConfiguration() {
+        ClusterState.VotingConfiguration config0 = new ClusterState.VotingConfiguration(Sets.newHashSet());
+        assertThat(config0.getNodeIds(), equalTo(Sets.newHashSet()));
+        assertThat(config0.isEmpty(), equalTo(true));
+        assertThat(config0.hasQuorum(Sets.newHashSet()), equalTo(false));
+        assertThat(config0.hasQuorum(Sets.newHashSet("id1")), equalTo(false));
+
+        ClusterState.VotingConfiguration config1 = new ClusterState.VotingConfiguration(Sets.newHashSet("id1"));
+        assertThat(config1.getNodeIds(), equalTo(Sets.newHashSet("id1")));
+        assertThat(config1.isEmpty(), equalTo(false));
+        assertThat(config1.hasQuorum(Sets.newHashSet("id1")), equalTo(true));
+        assertThat(config1.hasQuorum(Sets.newHashSet("id1", "id2")), equalTo(true));
+        assertThat(config1.hasQuorum(Sets.newHashSet("id2")), equalTo(false));
+        assertThat(config1.hasQuorum(Sets.newHashSet()), equalTo(false));
+
+        ClusterState.VotingConfiguration config2 = new ClusterState.VotingConfiguration(Sets.newHashSet("id1", "id2"));
+        assertThat(config2.getNodeIds(), equalTo(Sets.newHashSet("id1", "id2")));
+        assertThat(config2.isEmpty(), equalTo(false));
+        assertThat(config2.hasQuorum(Sets.newHashSet("id1", "id2")), equalTo(true));
+        assertThat(config2.hasQuorum(Sets.newHashSet("id1", "id2", "id3")), equalTo(true));
+        assertThat(config2.hasQuorum(Sets.newHashSet("id1")), equalTo(false));
+        assertThat(config2.hasQuorum(Sets.newHashSet("id2")), equalTo(false));
+        assertThat(config2.hasQuorum(Sets.newHashSet("id3")), equalTo(false));
+        assertThat(config2.hasQuorum(Sets.newHashSet("id1", "id3")), equalTo(false));
+        assertThat(config2.hasQuorum(Sets.newHashSet()), equalTo(false));
+
+        ClusterState.VotingConfiguration config3 = new ClusterState.VotingConfiguration(Sets.newHashSet("id1", "id2", "id3"));
+        assertThat(config3.getNodeIds(), equalTo(Sets.newHashSet("id1", "id2", "id3")));
+        assertThat(config3.isEmpty(), equalTo(false));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id1", "id2")), equalTo(true));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id2", "id3")), equalTo(true));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id1", "id3")), equalTo(true));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id1", "id2", "id3")), equalTo(true));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id1", "id2", "id4")), equalTo(true));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id1")), equalTo(false));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id2")), equalTo(false));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id3")), equalTo(false));
+        assertThat(config3.hasQuorum(Sets.newHashSet("id1", "id4")), equalTo(false));
+        assertThat(config3.hasQuorum(Sets.newHashSet()), equalTo(false));
 
     }
 }

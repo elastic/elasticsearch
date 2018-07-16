@@ -81,7 +81,6 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
     }
 
     public void resync(final IndexShard indexShard, final ActionListener<ResyncTask> listener) {
-        ActionListener<ResyncTask> resyncListener = null;
         Translog.Snapshot snapshot = null;
         try {
             final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
@@ -114,7 +113,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                     return originalSnapshot.next();
                 }
             };
-            resyncListener = new ActionListener<ResyncTask>() {
+            final ActionListener<ResyncTask> resyncListener = new ActionListener<ResyncTask>() {
                 @Override
                 public void onResponse(final ResyncTask resyncTask) {
                     try {
@@ -144,10 +143,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 IOUtils.close(snapshot);
             } catch (IOException inner) {
                 e.addSuppressed(inner);
-            }
-            if (resyncListener != null) {
-                resyncListener.onFailure(e);
-            } else {
+            } finally {
                 listener.onFailure(e);
             }
         }

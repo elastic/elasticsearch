@@ -151,7 +151,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             public void onFailure(Exception e) {
                 try {
                     super.onFailure(e);
-                }finally {
+                } finally {
                     syncCalledLatch.countDown();
                 }
             }
@@ -159,7 +159,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             public void onResponse(PrimaryReplicaSyncer.ResyncTask result) {
                 try {
                     super.onResponse(result);
-                }finally {
+                } finally {
                     syncCalledLatch.countDown();
                 }
             }

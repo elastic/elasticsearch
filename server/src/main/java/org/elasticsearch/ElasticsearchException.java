@@ -1024,10 +1024,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         UNKNOWN_NAMED_OBJECT_EXCEPTION(org.elasticsearch.common.xcontent.UnknownNamedObjectException.class,
                 org.elasticsearch.common.xcontent.UnknownNamedObjectException::new, 148, Version.V_5_2_0),
         TOO_MANY_BUCKETS_EXCEPTION(MultiBucketConsumerService.TooManyBucketsException.class,
-            MultiBucketConsumerService.TooManyBucketsException::new, 149, Version.V_7_0_0_alpha1),
-        CONSENSUS_MESSAGE_REJECTED_EXCEPTION(org.elasticsearch.discovery.zen2.ConsensusMessageRejectedException.class,
-            org.elasticsearch.discovery.zen2.ConsensusMessageRejectedException::new, 150, Version.V_7_0_0_alpha1);
-
+                                   MultiBucketConsumerService.TooManyBucketsException::new, 149,
+            Version.V_7_0_0_alpha1);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

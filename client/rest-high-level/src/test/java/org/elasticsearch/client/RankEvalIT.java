@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -37,7 +35,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -49,19 +46,17 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
 
     @Before
     public void indexDocuments() throws IOException {
-        StringEntity doc = new StringEntity("{\"text\":\"berlin\"}", ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "/index/doc/1", Collections.emptyMap(), doc);
-        doc = new StringEntity("{\"text\":\"amsterdam\"}", ContentType.APPLICATION_JSON);
-        client().performRequest("PUT", "/index/doc/2", Collections.emptyMap(), doc);
-        client().performRequest("PUT", "/index/doc/3", Collections.emptyMap(), doc);
-        client().performRequest("PUT", "/index/doc/4", Collections.emptyMap(), doc);
-        client().performRequest("PUT", "/index/doc/5", Collections.emptyMap(), doc);
-        client().performRequest("PUT", "/index/doc/6", Collections.emptyMap(), doc);
-        client().performRequest("POST", "/index/_refresh");
-
-        // add another index to test basic multi index support
-        client().performRequest("PUT", "/index2/doc/7", Collections.emptyMap(), doc);
-        client().performRequest("POST", "/index2/_refresh");
+        Request berlin = new Request("PUT", "/index/doc/berlin");
+        berlin.setJsonEntity("{\"text\":\"berlin\"}");
+        client().performRequest(berlin);
+        for (int i = 0; i < 6; i++) {
+            // add another index to test basic multi index support
+            String index = i == 0 ? "index2" : "index";
+            Request amsterdam = new Request("PUT", "/" + index + "/doc/amsterdam" + i);
+            amsterdam.setJsonEntity("{\"text\":\"amsterdam\"}");
+            client().performRequest(amsterdam);
+        }
+        client().performRequest(new Request("POST", "/_refresh"));
     }
 
     /**
@@ -71,10 +66,10 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
     public void testRankEvalRequest() throws IOException {
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
-        List<RatedDocument> amsterdamRatedDocs = createRelevant("index" , "2", "3", "4", "5");
-        amsterdamRatedDocs.addAll(createRelevant("index2", "7"));
+        List<RatedDocument> amsterdamRatedDocs = createRelevant("index" , "amsterdam1", "amsterdam2", "amsterdam3", "amsterdam4");
+        amsterdamRatedDocs.addAll(createRelevant("index2", "amsterdam0"));
         RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query", amsterdamRatedDocs, testQuery);
-        RatedRequest berlinRequest = new RatedRequest("berlin_query", createRelevant("index", "1"), testQuery);
+        RatedRequest berlinRequest = new RatedRequest("berlin_query", createRelevant("index", "berlin"), testQuery);
         List<RatedRequest> specifications = new ArrayList<>();
         specifications.add(amsterdamRequest);
         specifications.add(berlinRequest);
@@ -94,7 +89,7 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
         assertEquals(7, hitsAndRatings.size());
         for (RatedSearchHit hit : hitsAndRatings) {
             String id = hit.getSearchHit().getId();
-            if (id.equals("1") || id.equals("6")) {
+            if (id.equals("berlin") || id.equals("amsterdam5")) {
                 assertFalse(hit.getRating().isPresent());
             } else {
                 assertEquals(1, hit.getRating().get().intValue());
@@ -106,7 +101,7 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
         assertEquals(7, hitsAndRatings.size());
         for (RatedSearchHit hit : hitsAndRatings) {
             String id = hit.getSearchHit().getId();
-            if (id.equals("1")) {
+            if (id.equals("berlin")) {
                 assertEquals(1, hit.getRating().get().intValue());
             } else {
                 assertFalse(hit.getRating().isPresent());
@@ -114,7 +109,7 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
         }
 
         // now try this when test2 is closed
-        client().performRequest("POST", "index2/_close", Collections.emptyMap());
+        client().performRequest(new Request("POST", "index2/_close"));
         rankEvalRequest.indicesOptions(IndicesOptions.fromParameters(null, "true", null, SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = execute(rankEvalRequest, highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
     }

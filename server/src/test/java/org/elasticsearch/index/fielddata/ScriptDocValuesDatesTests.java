@@ -49,8 +49,12 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
             dates.setNextDocId(d);
-            if (dates.size() > 0) {
-                assertEquals(expectedDates[d][0], dates.getValue());
+            if (expectedDates[d].length > 0) {
+                assertEquals(expectedDates[d][0] , dates.getValue());
+            } else {
+                Exception e = expectThrows(IllegalStateException.class, () -> dates.getValue());
+                assertEquals("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
             }
 
             assertEquals(values[d].length, dates.size());

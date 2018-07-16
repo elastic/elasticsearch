@@ -486,7 +486,7 @@ The rest endpoint is: `/{index}/_alias/{alias}`.
 [float]
 ==== Examples:
 
-All aliases for the index users:
+All aliases for the index `logs_20162801`:
 
 [source,js]
 --------------------------------------------------

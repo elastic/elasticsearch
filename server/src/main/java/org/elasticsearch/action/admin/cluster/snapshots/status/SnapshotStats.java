@@ -26,12 +26,14 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 
-public class SnapshotStats implements Streamable, ToXContentFragment {
+public class SnapshotStats implements Streamable, ToXContentObject {
 
     private long startTime;
     private long time;
@@ -176,33 +178,130 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject(Fields.STATS)
-            //  incremental starts
-            .startObject(Fields.INCREMENTAL)
-            .field(Fields.FILE_COUNT, getIncrementalFileCount())
-            .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getIncrementalSize()))
-            //  incremental ends
-            .endObject();
+        builder.startObject();
+        {
+            builder.startObject(Fields.INCREMENTAL);
+            {
+                builder.field(Fields.FILE_COUNT, getIncrementalFileCount());
+                builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getIncrementalSize()));
+            }
+            builder.endObject();
 
-        if (getProcessedFileCount() != getIncrementalFileCount()) {
-            //  processed starts
-            builder.startObject(Fields.PROCESSED)
-                .field(Fields.FILE_COUNT, getProcessedFileCount())
-                .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getProcessedSize()))
-                //  processed ends
-                .endObject();
+            if (getProcessedFileCount() != getIncrementalFileCount()) {
+                builder.startObject(Fields.PROCESSED);
+                {
+                    builder.field(Fields.FILE_COUNT, getProcessedFileCount());
+                    builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getProcessedSize()));
+                }
+                builder.endObject();
+            }
+
+            builder.startObject(Fields.TOTAL);
+            {
+                builder.field(Fields.FILE_COUNT, getTotalFileCount());
+                builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getTotalSize()));
+            }
+            builder.endObject();
+
+            // timings stats
+            builder.field(Fields.START_TIME_IN_MILLIS, getStartTime());
+            builder.humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()));
         }
-        //  total starts
-        builder.startObject(Fields.TOTAL)
-            .field(Fields.FILE_COUNT, getTotalFileCount())
-            .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getTotalSize()))
-            //  total ends
-            .endObject();
-       // timings stats
-       builder.field(Fields.START_TIME_IN_MILLIS, getStartTime())
-            .humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()));
-
         return builder.endObject();
+    }
+
+    public static SnapshotStats fromXContent(XContentParser parser) throws IOException {
+        // Parse this old school style instead of using the ObjectParser since there's an impedance mismatch between how the
+        // object has historically been written as JSON versus how it is structured in Java.
+        XContentParser.Token token = parser.currentToken();
+        if (token == null) {
+            token = parser.nextToken();
+        }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        long startTime = 0;
+        long time = 0;
+        int incrementalFileCount = 0;
+        int totalFileCount = 0;
+        int processedFileCount = 0;
+        long incrementalSize = 0;
+        long totalSize = 0;
+        long processedSize = 0;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            String currentName = parser.currentName();
+            token = parser.nextToken();
+            if (currentName.equals(Fields.INCREMENTAL)) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                    String innerName = parser.currentName();
+                    token = parser.nextToken();
+                    if (innerName.equals(Fields.FILE_COUNT)) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        incrementalFileCount = parser.intValue();
+                    } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        incrementalSize = parser.longValue();
+                    } else {
+                        // Unknown sub field, skip
+                        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+                            parser.skipChildren();
+                        }
+                    }
+                }
+            } else if (currentName.equals(Fields.PROCESSED)) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                    String innerName = parser.currentName();
+                    token = parser.nextToken();
+                    if (innerName.equals(Fields.FILE_COUNT)) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        processedFileCount = parser.intValue();
+                    } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        processedSize = parser.longValue();
+                    } else {
+                        // Unknown sub field, skip
+                        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+                            parser.skipChildren();
+                        }
+                    }
+                }
+            } else if (currentName.equals(Fields.TOTAL)) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                    String innerName = parser.currentName();
+                    token = parser.nextToken();
+                    if (innerName.equals(Fields.FILE_COUNT)) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        totalFileCount = parser.intValue();
+                    } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        totalSize = parser.longValue();
+                    } else {
+                        // Unknown sub field, skip
+                        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+                            parser.skipChildren();
+                        }
+                    }
+                }
+            } else if (currentName.equals(Fields.START_TIME_IN_MILLIS)) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                startTime = parser.longValue();
+            } else if (currentName.equals(Fields.TIME_IN_MILLIS)) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                time = parser.longValue();
+            } else {
+                // Unknown field, skip
+                if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+                    parser.skipChildren();
+                }
+            }
+        }
+        return new SnapshotStats(startTime, time, incrementalFileCount, totalFileCount, processedFileCount, incrementalSize, totalSize,
+            processedSize);
     }
 
     void add(SnapshotStats stats) {
@@ -228,5 +327,35 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
             // Update duration
             time = endTime - startTime;
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        SnapshotStats that = (SnapshotStats) o;
+
+        if (startTime != that.startTime) return false;
+        if (time != that.time) return false;
+        if (incrementalFileCount != that.incrementalFileCount) return false;
+        if (totalFileCount != that.totalFileCount) return false;
+        if (processedFileCount != that.processedFileCount) return false;
+        if (incrementalSize != that.incrementalSize) return false;
+        if (totalSize != that.totalSize) return false;
+        return processedSize == that.processedSize;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = (int) (startTime ^ (startTime >>> 32));
+        result = 31 * result + (int) (time ^ (time >>> 32));
+        result = 31 * result + incrementalFileCount;
+        result = 31 * result + totalFileCount;
+        result = 31 * result + processedFileCount;
+        result = 31 * result + (int) (incrementalSize ^ (incrementalSize >>> 32));
+        result = 31 * result + (int) (totalSize ^ (totalSize >>> 32));
+        result = 31 * result + (int) (processedSize ^ (processedSize >>> 32));
+        return result;
     }
 }

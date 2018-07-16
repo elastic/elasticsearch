@@ -650,7 +650,6 @@ class ClusterFormationTasks {
         start.doFirst {
             project.logger.info("Starting node in ${node.clusterName} distribution: ${node.config.distribution}")
         }
-        start.ext.node = node
         return start
 
     }

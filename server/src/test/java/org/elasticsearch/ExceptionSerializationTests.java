@@ -810,6 +810,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(147, org.elasticsearch.env.ShardLockObtainFailedException.class);
         ids.put(148, UnknownNamedObjectException.class);
         ids.put(149, MultiBucketConsumerService.TooManyBucketsException.class);
+        ids.put(150, org.elasticsearch.discovery.zen2.ConsensusMessageRejectedException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.HistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -30,7 +29,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * The configuration object for the histograms in the rollup config
@@ -51,10 +49,6 @@ public class HistoGroupConfig implements Writeable, ToXContentFragment {
 
     private static final ParseField INTERVAL = new ParseField("interval");
     private static final ParseField FIELDS = new ParseField("fields");
-    private static final List<String> MAPPER_TYPES = Stream.of(NumberFieldMapper.NumberType.values())
-            .map(NumberFieldMapper.NumberType::typeName)
-            .collect(Collectors.toList());
-
 
     private final long interval;
     private final String[] fields;
@@ -96,6 +90,7 @@ public class HistoGroupConfig implements Writeable, ToXContentFragment {
                     = new HistogramValuesSourceBuilder(RollupField.formatIndexerAggName(f, HistogramAggregationBuilder.NAME));
             vsBuilder.interval(interval);
             vsBuilder.field(f);
+            vsBuilder.missingBucket(true);
             return vsBuilder;
         }).collect(Collectors.toList());
     }
@@ -125,7 +120,7 @@ public class HistoGroupConfig implements Writeable, ToXContentFragment {
             Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
             if (fieldCaps != null && fieldCaps.isEmpty() == false) {
                 fieldCaps.forEach((key, value) -> {
-                    if (MAPPER_TYPES.contains(key)) {
+                    if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
                         if (value.isAggregatable() == false) {
                             validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
                                     "but is not.");

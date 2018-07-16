@@ -58,6 +58,16 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Tan;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.BitLength;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Char;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.CharLength;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LCase;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LTrim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Length;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -134,6 +144,17 @@ public class FunctionRegistry {
             def(Sinh.class, Sinh::new),
             def(Sqrt.class, Sqrt::new),
             def(Tan.class, Tan::new),
+            // String
+            def(Ascii.class, Ascii::new),
+            def(Char.class, Char::new),
+            def(BitLength.class, BitLength::new),
+            def(CharLength.class, CharLength::new),
+            def(LCase.class, LCase::new),
+            def(Length.class, Length::new),
+            def(LTrim.class, LTrim::new),
+            def(RTrim.class, RTrim::new),
+            def(Space.class, Space::new),
+            def(UCase.class, UCase::new),
         // Special
             def(Score.class, Score::new)));
 
@@ -299,6 +320,7 @@ public class FunctionRegistry {
         T build(Location location, Expression lhs, Expression rhs);
     }
 
+    @SuppressWarnings("overloads")
     private static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder,
             boolean datetime, String... aliases) {
         String primaryName = normalize(function.getSimpleName());

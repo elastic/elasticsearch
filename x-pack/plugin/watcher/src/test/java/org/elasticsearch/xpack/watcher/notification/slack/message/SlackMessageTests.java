@@ -481,8 +481,10 @@ public class SlackMessageTests extends ESTestCase {
         if (randomBoolean()) {
             templateBuilder.setText(randomAlphaOfLength(10));
         }
-        if (randomBoolean()) {
-            int count = randomIntBetween(0, 3);
+        if (templateBuilder.text == null || randomBoolean()) {
+            // ensure at least one attachment in the event the text is null
+            int minimumAttachments = templateBuilder.text == null ? 1 : 0;
+            int count = randomIntBetween(minimumAttachments, 3);
             for (int i = 0; i < count; i++) {
                 Attachment.Template.Builder attachmentBuilder = createRandomAttachmentTemplateBuilder();
                 templateBuilder.addAttachments(attachmentBuilder);

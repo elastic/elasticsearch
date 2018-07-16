@@ -107,6 +107,9 @@ setup:
 
 ---
 "field collapsing and inner_hits":
+  - skip:
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/32055"
 
   - do:
       search:
@@ -146,6 +149,9 @@ setup:
 
 ---
 "field collapsing, inner_hits and maxConcurrentGroupRequests":
+  - skip:
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/32055"
 
   - do:
       search:
@@ -226,6 +232,9 @@ setup:
 
 ---
 "no hits and inner_hits":
+  - skip:
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/32055"
 
   - do:
       search:
@@ -240,6 +249,9 @@ setup:
 
 ---
 "field collapsing and multiple inner_hits":
+  - skip:
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/32055"
 
   - do:
       search:
@@ -292,10 +304,9 @@ setup:
 
 ---
 "field collapsing, inner_hits and version":
-
   - skip:
-      version: " - 6.1.0"
-      reason:  "bug fixed in 6.1.1"
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/32055"
 
   - do:
       search:

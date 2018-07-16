@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
 import java.util.List;
 
@@ -22,6 +23,10 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class WatcherPluginTests extends ESTestCase {
 
@@ -96,5 +101,37 @@ public class WatcherPluginTests extends ESTestCase {
                 .put("node.data", false)
                 .build();
         assertThat(Watcher.getWatcherThreadPoolSize(noDataNodeSettings), is(1));
+    }
+
+    public void testReload() {
+        Settings settings = Settings.builder()
+            .put("xpack.watcher.enabled", true)
+            .put("path.home", createTempDir())
+            .build();
+        NotificationService mockService = mock(NotificationService.class);
+        Watcher watcher = new TestWatcher(settings, mockService);
+
+        watcher.reload(settings);
+        verify(mockService, times(1)).reload(settings);
+    }
+
+    public void testReloadDisabled() {
+        Settings settings = Settings.builder()
+            .put("xpack.watcher.enabled", false)
+            .put("path.home", createTempDir())
+            .build();
+        NotificationService mockService = mock(NotificationService.class);
+        Watcher watcher = new TestWatcher(settings, mockService);
+
+        watcher.reload(settings);
+        verifyNoMoreInteractions(mockService);
+    }
+
+    private class TestWatcher extends Watcher {
+
+        TestWatcher(Settings settings, NotificationService service) {
+            super(settings);
+            reloadableServices.add(service);
+        }
     }
 }

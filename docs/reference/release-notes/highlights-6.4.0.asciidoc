@@ -14,8 +14,8 @@ See also <<release-notes-6.4.0,{es} 6.4.0 release notes>>.
 
 === Analysis
 
-* Option to index phrases on text fields - A new `index_phrases` option has been added to `text` fields. When enabled this option will index 2-shingles of the field in a separate Lucene field to allow faster, more efficient, phrase searches on that field with the trade-off of consuming a bit more disk space in the index.  (https://github.com/elastic/elasticsearch/pull/30450)
-* Korean analysis tools - A new module has been added which provides analysis tools for the Korean language. The new `nori` analyzercan be used to analyze Korean text "out of the box" and custom analyzers can use a tokenizer, part of speech token filter and a Hanja reading form token filter. (https://github.com/elastic/elasticsearch/pull/30397)
+* Option to index phrases on text fields - A new `index_phrases` option has been added to `text` fields. When enabled this option will index 2-shingles of the field in a separate Lucene field to allow faster, more efficient, phrase searches on that field with the trade-off of consuming more disk space in the index.  (https://github.com/elastic/elasticsearch/pull/30450)
+* Korean analysis tools - A new plugin has been added which provides analysis tools for the Korean language. The new `nori` analyzer can be used to analyze Korean text "out of the box" and custom analyzers can use a tokenizer, part of speech token filter and a Hanja reading form token filter. (https://github.com/elastic/elasticsearch/pull/30397)
 * Add multiplexing token filter - This new token filter allows you to run tokens through multiple different tokenfilters and stack the results. For example, you can now easily index the original form of a token, its lowercase form and a stemmed form all at the same position, allowing you to search for stemmed and unstemmed tokens in the same field. (https://github.com/elastic/elasticsearch/pull/31208)
 
 === Mappings
@@ -24,7 +24,7 @@ See also <<release-notes-6.4.0,{es} 6.4.0 release notes>>.
 
 === Rank Eval API
 
-* Expected Reciprocal Rank metric for Rank Eval API - The Expected Reciprocal Rank has been added to the available metrics int he Rank Eval API. ERR is an extension of the classical reciprocal rank which in order to determine the usefulness of a document at position K in the results, it uses the degree of relevance of the document at posiitons less than K as well. (https://github.com/elastic/elasticsearch/pull/31891)
+* Expected Reciprocal Rank metric for Rank Eval API - The Expected Reciprocal Rank has been added to the available metrics in the Rank Eval API. ERR is an extension of the classical reciprocal rank which in order to determine the usefulness of a document at position K in the results, it uses the degree of relevance of the document at posiitons less than K as well. (https://github.com/elastic/elasticsearch/pull/31891)
 
 === Search
 

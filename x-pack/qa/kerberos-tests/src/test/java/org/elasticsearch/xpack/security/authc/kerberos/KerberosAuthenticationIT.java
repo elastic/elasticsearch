@@ -50,7 +50,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     private static final String TEST_USER_WITH_KEYTAB_KEY = "test.userkt";
     private static final String TEST_USER_WITH_KEYTAB_PATH_KEY = "test.userkt.keytab";
     private static final String TEST_USER_WITH_PWD_KEY = "test.userpwd";
-    private static final String TEST_USER_WTIH_PWD_PASSWD_KEY = "test.userpwd.password";
+    private static final String TEST_USER_WITH_PWD_PASSWD_KEY = "test.userpwd.password";
     private static final String TEST_KERBEROS_REALM_NAME = "kerberos";
 
     @Override
@@ -61,14 +61,18 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
 
     /**
      * Creates simple mapping that maps the users from 'kerberos' realm to
-     * the 'super_user' role.
+     * the 'kerb_test' role.
      */
     @Before
     public void setupRoleMapping() throws IOException {
         final String json = Strings // top-level
-                .toString(XContentBuilder.builder(XContentType.JSON.xContent()).startObject().array("roles", new String[] { "super_user" })
-                        .field("enabled", true).startObject("rules").startArray("all").startObject().startObject("field")
-                        .field("realm.name", TEST_KERBEROS_REALM_NAME).endObject().endObject().endArray() // "all"
+                .toString(XContentBuilder.builder(XContentType.JSON.xContent()).startObject()
+                        .array("roles", new String[] { "kerb_test" })
+                        .field("enabled", true)
+                        .startObject("rules")
+                        .startArray("all")
+                        .startObject().startObject("field").field("realm.name", TEST_KERBEROS_REALM_NAME).endObject().endObject()
+                        .endArray() // "all"
                         .endObject() // "rules"
                         .endObject());
 
@@ -89,7 +93,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
 
     public void testLoginByUsernamePassword() throws IOException, LoginException, PrivilegedActionException {
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
-        final String password = System.getProperty(TEST_USER_WTIH_PWD_PASSWD_KEY);
+        final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
         final Boolean enabledDebugLogs = Boolean.valueOf(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
         final CustomHttpClientConfigCallbackHandler callbackHandler = new CustomHttpClientConfigCallbackHandler(userPrincipalName,
                 new SecureString(password.toCharArray()), enabledDebugLogs, restAdminSettings());
@@ -108,7 +112,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
             final Map<String, Object> map = parseResponseAsMap(response.getEntity());
             assertThat(map.get("username"), equalTo(userPrincipalName));
             assertThat(map.get("roles"), instanceOf(List.class));
-            assertThat(((List<?>) map.get("roles")), contains("super_user"));
+            assertThat(((List<?>) map.get("roles")), contains("kerb_test"));
         }
     }
 

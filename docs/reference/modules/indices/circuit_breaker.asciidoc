@@ -13,11 +13,18 @@ These settings can be dynamically updated on a live cluster with the
 [float]
 ==== Parent circuit breaker
 
-The parent-level breaker can be configured with the following setting:
+The parent-level breaker can be configured with the following settings:
+
+`indices.breaker.total.use_real_memory`::
+
+    Whether the parent breaker should take real memory usage into account (`true`) or only
+    consider the amount that is reserved by child circuit breakers (`false`). Defaults to `true`.
 
 `indices.breaker.total.limit`::
 
-    Starting limit for overall parent breaker, defaults to 70% of JVM heap.
+    Starting limit for overall parent breaker, defaults to 70% of JVM heap if
+    `indices.breaker.total.use_real_memory` is `false`. If `indices.breaker.total.use_real_memory`
+    is `true`, defaults to 95% of the JVM heap.
 
 [[fielddata-circuit-breaker]]
 [float]

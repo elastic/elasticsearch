@@ -23,12 +23,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.nio.NioServerSocketChannel;
 
-import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 
 public class NioHttpServerChannel extends NioServerSocketChannel implements HttpServerChannel {
 
-    NioHttpServerChannel(ServerSocketChannel serverSocketChannel) throws IOException {
+    public NioHttpServerChannel(ServerSocketChannel serverSocketChannel) {
         super(serverSocketChannel);
     }
 

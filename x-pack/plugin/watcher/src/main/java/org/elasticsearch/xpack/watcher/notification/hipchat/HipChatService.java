@@ -79,13 +79,13 @@ public class HipChatService extends NotificationService<HipChatAccount> {
         clusterSettings.addAffixUpdateConsumer(SETTING_PORT, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_MESSAGE_DEFAULTS, (s, o) -> {}, (s, o) -> {});
 
-        setAccountSetting(settings);
+        reload(settings);
     }
 
     @Override
-    protected synchronized void setAccountSetting(Settings settings) {
+    public synchronized void reload(Settings settings) {
         defaultServer = new HipChatServer(settings.getByPrefix("xpack.notification.hipchat."));
-        super.setAccountSetting(settings);
+        super.reload(settings);
     }
 
     @Override

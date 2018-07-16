@@ -396,8 +396,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Function visitFunctionExpression(FunctionExpressionContext ctx) {
         FunctionTemplateContext template = ctx.functionTemplate();
-
-        String name = visitIdentifier(template.identifier());
+        String name = template.functionName().getText();
         boolean isDistinct = template.setQuantifier() != null && template.setQuantifier().DISTINCT() != null;
         UnresolvedFunction.ResolutionType resolutionType =
                 isDistinct ? UnresolvedFunction.ResolutionType.DISTINCT : UnresolvedFunction.ResolutionType.STANDARD;

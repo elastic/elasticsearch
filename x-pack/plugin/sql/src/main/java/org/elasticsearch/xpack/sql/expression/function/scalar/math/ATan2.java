@@ -30,7 +30,7 @@ public class ATan2 extends BinaryNumericFunction {
     }
 
     @Override
-    protected NodeInfo<? extends Expression> info() {
+    protected NodeInfo<ATan2> info() {
         return NodeInfo.create(this, ATan2::new, left(), right());
     }
 

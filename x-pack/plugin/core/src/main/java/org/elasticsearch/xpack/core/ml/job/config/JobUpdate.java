@@ -373,6 +373,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
      */
     public Job mergeWithJob(Job source, ByteSizeValue maxModelMemoryLimit) {
         Job.Builder builder = new Job.Builder(source);
+        AnalysisConfig currentAnalysisConfig = source.getAnalysisConfig();
+        AnalysisConfig.Builder newAnalysisConfig = new AnalysisConfig.Builder(currentAnalysisConfig);
+
         if (groups != null) {
             builder.setGroups(groups);
         }
@@ -380,26 +383,23 @@ public class JobUpdate implements Writeable, ToXContentObject {
             builder.setDescription(description);
         }
         if (detectorUpdates != null && detectorUpdates.isEmpty() == false) {
-            AnalysisConfig ac = source.getAnalysisConfig();
-            int numDetectors = ac.getDetectors().size();
+            int numDetectors = currentAnalysisConfig.getDetectors().size();
             for (DetectorUpdate dd : detectorUpdates) {
                 if (dd.getDetectorIndex() >= numDetectors) {
                     throw ExceptionsHelper.badRequestException("Supplied detector_index [{}] is >= the number of detectors [{}]",
                             dd.getDetectorIndex(), numDetectors);
                 }
 
-                Detector.Builder detectorbuilder = new Detector.Builder(ac.getDetectors().get(dd.getDetectorIndex()));
+                Detector.Builder detectorBuilder = new Detector.Builder(currentAnalysisConfig.getDetectors().get(dd.getDetectorIndex()));
                 if (dd.getDescription() != null) {
-                    detectorbuilder.setDetectorDescription(dd.getDescription());
+                    detectorBuilder.setDetectorDescription(dd.getDescription());
                 }
                 if (dd.getRules() != null) {
-                    detectorbuilder.setRules(dd.getRules());
+                    detectorBuilder.setRules(dd.getRules());
                 }
-                ac.getDetectors().set(dd.getDetectorIndex(), detectorbuilder.build());
-            }
 
-            AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(ac);
-            builder.setAnalysisConfig(acBuilder);
+                newAnalysisConfig.setDetector(dd.getDetectorIndex(), detectorBuilder.build());
+            }
         }
         if (modelPlotConfig != null) {
             builder.setModelPlotConfig(modelPlotConfig);
@@ -422,9 +422,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             builder.setResultsRetentionDays(resultsRetentionDays);
         }
         if (categorizationFilters != null) {
-            AnalysisConfig.Builder analysisConfigBuilder = new AnalysisConfig.Builder(source.getAnalysisConfig());
-            analysisConfigBuilder.setCategorizationFilters(categorizationFilters);
-            builder.setAnalysisConfig(analysisConfigBuilder);
+            newAnalysisConfig.setCategorizationFilters(categorizationFilters);
         }
         if (customSettings != null) {
             builder.setCustomSettings(customSettings);
@@ -446,7 +444,46 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (jobVersion != null) {
             builder.setJobVersion(jobVersion);
         }
+
+        builder.setAnalysisConfig(newAnalysisConfig);
         return builder.build();
+    }
+
+    boolean isNoop(Job job) {
+        return (groups == null || Objects.equals(groups, job.getGroups()))
+                && (description == null || Objects.equals(description, job.getDescription()))
+                && (modelPlotConfig == null || Objects.equals(modelPlotConfig, job.getModelPlotConfig()))
+                && (analysisLimits == null || Objects.equals(analysisLimits, job.getAnalysisLimits()))
+                && updatesDetectors(job) == false
+                && (renormalizationWindowDays == null || Objects.equals(renormalizationWindowDays, job.getRenormalizationWindowDays()))
+                && (backgroundPersistInterval == null || Objects.equals(backgroundPersistInterval, job.getBackgroundPersistInterval()))
+                && (modelSnapshotRetentionDays == null || Objects.equals(modelSnapshotRetentionDays, job.getModelSnapshotRetentionDays()))
+                && (resultsRetentionDays == null || Objects.equals(resultsRetentionDays, job.getResultsRetentionDays()))
+                && (categorizationFilters == null
+                        || Objects.equals(categorizationFilters, job.getAnalysisConfig().getCategorizationFilters()))
+                && (customSettings == null || Objects.equals(customSettings, job.getCustomSettings()))
+                && (modelSnapshotId == null || Objects.equals(modelSnapshotId, job.getModelSnapshotId()))
+                && (modelSnapshotMinVersion == null || Objects.equals(modelSnapshotMinVersion, job.getModelSnapshotMinVersion()))
+                && (establishedModelMemory == null || Objects.equals(establishedModelMemory, job.getEstablishedModelMemory()))
+                && (jobVersion == null || Objects.equals(jobVersion, job.getJobVersion()));
+    }
+
+    boolean updatesDetectors(Job job) {
+        AnalysisConfig analysisConfig = job.getAnalysisConfig();
+        if (detectorUpdates == null) {
+            return false;
+        }
+        for (DetectorUpdate detectorUpdate : detectorUpdates) {
+            if (detectorUpdate.description == null && detectorUpdate.rules == null) {
+                continue;
+            }
+            Detector detector = analysisConfig.getDetectors().get(detectorUpdate.detectorIndex);
+            if (Objects.equals(detectorUpdate.description, detector.getDetectorDescription()) == false
+                    || Objects.equals(detectorUpdate.rules, detector.getRules()) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

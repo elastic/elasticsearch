@@ -128,6 +128,10 @@ if (project == rootProject) {
     }
     mavenCentral()
   }
+  test {
+    include "**/*Tests.class"
+    exclude "**/*IT.class"
+  }
 }
 
 /*****************************************************************************
@@ -151,6 +155,18 @@ if (project != rootProject) {
   forbiddenApisTest.enabled = false
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
+
+  // tests can't  be run with randomized test runner
+  // it's fine as we run them as part of :buildSrc
+  test.enabled = false
+  task integTest(type: Test) {
+    exclude "**/*Tests.class"
+    include "**/*IT.class"
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    inputs.dir(file("src/testKit"))
+  }
+  check.dependsOn(integTest)
 
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false

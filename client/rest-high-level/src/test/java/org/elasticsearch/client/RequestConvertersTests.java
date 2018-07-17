@@ -43,6 +43,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -123,6 +124,7 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptType;
@@ -150,6 +152,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -173,6 +176,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -2169,6 +2173,29 @@ public class RequestConvertersTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
+    public void testSnapshotsStatus() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repository = randomIndicesNames(1, 1)[0];
+        String[] snapshots = randomIndicesNames(1, 5);
+        StringBuilder snapshotNames = new StringBuilder(snapshots[0]);
+        for (int idx = 1; idx < snapshots.length; idx++) {
+            snapshotNames.append(",").append(snapshots[idx]);
+        }
+        boolean ignoreUnavailable = randomBoolean();
+        String endpoint = "/_snapshot/" + repository + "/" + snapshotNames.toString() + "/_status";
+
+        SnapshotsStatusRequest snapshotsStatusRequest = new SnapshotsStatusRequest(repository, snapshots);
+        setRandomMasterTimeout(snapshotsStatusRequest, expectedParams);
+        snapshotsStatusRequest.ignoreUnavailable(ignoreUnavailable);
+        expectedParams.put("ignore_unavailable", Boolean.toString(ignoreUnavailable));
+
+        Request request = RequestConverters.snapshotsStatus(snapshotsStatusRequest);
+        assertThat(request.getEndpoint(), equalTo(endpoint));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), is(nullValue()));
+    }
+
     public void testDeleteSnapshot() {
         Map<String, String> expectedParams = new HashMap<>();
         String repository = randomIndicesNames(1, 1)[0];
@@ -2463,6 +2490,37 @@ public class RequestConvertersTests extends ESTestCase {
                 () -> enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), requestContentType), xContentType));
         assertEquals("Mismatching content-type found for request with content-type [" + requestContentType + "], "
                 + "previous requests have content-type [" + xContentType + "]", exception.getMessage());
+    }
+
+    public void testXPackInfo() {
+        XPackInfoRequest infoRequest = new XPackInfoRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        infoRequest.setVerbose(randomBoolean());
+        if (false == infoRequest.isVerbose()) {
+            expectedParams.put("human", "false");
+        }
+        int option = between(0, 2);
+        switch (option) {
+        case 0:
+            infoRequest.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
+            break;
+        case 1:
+            infoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
+            expectedParams.put("categories", "features");
+            break;
+        case 2:
+            infoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES, XPackInfoRequest.Category.BUILD));
+            expectedParams.put("categories", "build,features");
+            break;
+        default:
+            throw new IllegalArgumentException("invalid option [" + option + "]");
+        }
+
+        Request request = RequestConverters.xPackInfo(infoRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack", request.getEndpoint());
+        assertNull(request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
     }
 
     /**

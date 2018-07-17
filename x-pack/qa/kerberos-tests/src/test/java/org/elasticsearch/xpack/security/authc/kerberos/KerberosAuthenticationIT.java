@@ -85,7 +85,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     public void testLoginByKeytab() throws IOException, PrivilegedActionException {
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_KEYTAB_KEY);
         final String keytabPath = System.getProperty(TEST_USER_WITH_KEYTAB_PATH_KEY);
-        final boolean enabledDebugLogs = Boolean.getBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
+        final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
         final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(userPrincipalName,
                 keytabPath, enabledDebugLogs);
         executeRequestAndVerifyResponse(userPrincipalName, callbackHandler);
@@ -94,7 +94,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     public void testLoginByUsernamePassword() throws IOException, PrivilegedActionException {
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
-        final boolean enabledDebugLogs = Boolean.getBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
+        final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
         final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(userPrincipalName,
                 new SecureString(password.toCharArray()), enabledDebugLogs);
         executeRequestAndVerifyResponse(userPrincipalName, callbackHandler);

@@ -21,14 +21,14 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
@@ -69,7 +69,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
                 defPointer = "D" + variable + "." + call + ",1";
             } else {
                 // typed implementation
-                defPointer = "S" + PainlessLookup.ClassToName(captured.clazz) + "." + call + ",1";
+                defPointer = "S" + PainlessLookupUtility.anyTypeToPainlessTypeName(captured.clazz) + "." + call + ",1";
             }
             actual = String.class;
         } else {
@@ -77,7 +77,8 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             // static case
             if (captured.clazz != def.class) {
                 try {
-                    ref = new FunctionRef(locals.getPainlessLookup(), expected, PainlessLookup.ClassToName(captured.clazz), call, 1);
+                    ref = new FunctionRef(
+                            locals.getPainlessLookup(), expected, PainlessLookupUtility.anyTypeToPainlessTypeName(captured.clazz), call, 1);
 
                     // check casts between the interface method and the delegate method are legal
                     for (int i = 0; i < ref.interfaceMethod.arguments.size(); ++i) {
@@ -109,7 +110,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             // typed interface, dynamic implementation
             writer.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
             Type methodType = Type.getMethodType(MethodWriter.getType(expected), MethodWriter.getType(captured.clazz));
-            writer.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, PainlessLookup.ClassToName(expected));
+            writer.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, PainlessLookupUtility.anyTypeToPainlessTypeName(expected));
         } else {
             // typed interface, typed implementation
             writer.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());

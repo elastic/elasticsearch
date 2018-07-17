@@ -19,10 +19,11 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessMethodKey;
-import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -292,7 +293,7 @@ public final class Locals {
         @Override
         public String toString() {
             StringBuilder b = new StringBuilder();
-            b.append("Variable[type=").append(PainlessLookup.ClassToName(clazz));
+            b.append("Variable[type=").append(PainlessLookupUtility.anyTypeToPainlessTypeName(clazz));
             b.append(",name=").append(name);
             b.append(",slot=").append(slot);
             if (readonly) {

@@ -62,8 +62,7 @@ public class TransportBulkShardOperationsAction
         return shardOperationOnPrimary(request.shardId(), request.getOperations(), primary, logger);
     }
 
-    // TODO: move the bulk shard ops api classes to action package? Then the visibility of this method can be
-    // package proctected instead of public.
+    // public for testing purposes only
     public static WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
             final ShardId shardId,
             final List<Translog.Operation> sourceOperations,
@@ -117,6 +116,7 @@ public class TransportBulkShardOperationsAction
         return new WriteReplicaResult<>(request, location, null, replica, logger);
     }
 
+    // public for testing purposes only
     public static Translog.Location applyTranslogOperations(
             final List<Translog.Operation> operations, final IndexShard shard, final Engine.Operation.Origin origin) throws IOException {
         Translog.Location location = null;

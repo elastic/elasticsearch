@@ -6,12 +6,18 @@
 package org.elasticsearch.multi_node;
 
 import org.apache.http.HttpStatus;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.CompoundDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -29,12 +35,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isOneOf;
@@ -73,13 +78,39 @@ public class RollupIT extends ESRestTestCase {
 
     public void testBigRollup() throws Exception {
         final int numDocs = 200;
+        String dateFormat = randomFrom("epoch_second", "date_time");
+
+        // create the test-index index
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("mappings").startObject("_doc")
+                    .startObject("properties")
+                    .startObject("timestamp")
+                    .field("type", "date")
+                    .field("format", dateFormat)
+                    .endObject()
+                    .startObject("value")
+                    .field("type", "integer")
+                    .endObject()
+                    .endObject()
+                    .endObject().endObject();
+            }
+            builder.endObject();
+            final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+            Request req = new Request("PUT", "rollup-docs");
+            req.setEntity(entity);
+            client().performRequest(req);
+        }
+
 
         // index documents for the rollup job
         final StringBuilder bulk = new StringBuilder();
+        final CompoundDateTimeFormatter dateTimeFormatter = DateFormatters.forPattern(dateFormat);
         for (int i = 0; i < numDocs; i++) {
             bulk.append("{\"index\":{\"_index\":\"rollup-docs\",\"_type\":\"_doc\"}}\n");
-            ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochSecond(1531221196 + (60*i)), ZoneId.of("UTC"));
-            String date = zdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+            ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochSecond(1531221196 + (60 * i)), ZoneId.of("UTC"));
+            String date = dateTimeFormatter.format(zdt);
             bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
         }
         bulk.append("\r\n");
@@ -88,13 +119,15 @@ public class RollupIT extends ESRestTestCase {
         bulkRequest.addParameter("refresh", "true");
         bulkRequest.setJsonEntity(bulk.toString());
         client().performRequest(bulkRequest);
+
         // create the rollup job
         final Request createRollupJobRequest = new Request("PUT", "/_xpack/rollup/job/rollup-job-test");
+        int pageSize = randomIntBetween(2, 50);
         createRollupJobRequest.setJsonEntity("{"
             + "\"index_pattern\":\"rollup-*\","
             + "\"rollup_index\":\"results-rollup\","
-            + "\"cron\":\"*/1 * * * * ?\","             // fast cron and big page size so test runs quickly
-            + "\"page_size\":20,"
+            + "\"cron\":\"*/1 * * * * ?\","             // fast cron so test runs quickly
+            + "\"page_size\":" + pageSize + ","
             + "\"groups\":{"
             + "    \"date_histogram\":{"
             + "        \"field\":\"timestamp\","
@@ -142,7 +175,8 @@ public class RollupIT extends ESRestTestCase {
             "    \"date_histo\": {\n" +
             "      \"date_histogram\": {\n" +
             "        \"field\": \"timestamp\",\n" +
-            "        \"interval\": \"1h\"\n" +
+            "        \"interval\": \"1h\",\n" +
+            "        \"format\": \"date_time\"\n" +
             "      },\n" +
             "      \"aggs\": {\n" +
             "        \"the_max\": {\n" +
@@ -226,7 +260,7 @@ public class RollupIT extends ESRestTestCase {
 
     }
 
-    private void waitForRollUpJob(final String rollupJob,String[] expectedStates) throws Exception {
+    private void waitForRollUpJob(final String rollupJob, String[] expectedStates) throws Exception {
         assertBusy(() -> {
             final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
@@ -315,12 +349,6 @@ public class RollupIT extends ESRestTestCase {
             } catch (Exception e) {
                 // ok
             }
-        }
-    }
-
-    private static String responseEntityToString(Response response) throws Exception {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
-            return reader.lines().collect(Collectors.joining("\n"));
         }
     }
 }

@@ -21,6 +21,7 @@ watcher_manager:
   run_as:
     - powerless_user
     - watcher_manager
+    - x_pack_rest_user
 
 watcher_monitor:
   cluster:

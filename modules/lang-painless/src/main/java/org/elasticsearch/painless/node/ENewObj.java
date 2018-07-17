@@ -19,13 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessMethodKey;
+import org.objectweb.asm.Type;
 
 import java.util.List;
 import java.util.Objects;
@@ -104,7 +105,7 @@ public final class ENewObj extends AExpression {
             argument.write(writer, globals);
         }
 
-        writer.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(Type.getType(constructor.target), constructor.method);
     }
 
     @Override

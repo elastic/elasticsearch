@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.objectweb.asm.Type;
@@ -101,22 +102,22 @@ public class FunctionRef {
         interfaceMethodType = interfaceMethod.getMethodType().dropParameterTypes(0, 1);
 
         // the Painless$Script class can be inferred if owner is null
-        if (delegateMethod.owner == null) {
+        if (delegateMethod.target == null) {
             delegateClassName = CLASS_NAME;
             isDelegateInterface = false;
         } else if (delegateMethod.augmentation != null) {
             delegateClassName = delegateMethod.augmentation.getName();
             isDelegateInterface = delegateMethod.augmentation.isInterface();
         } else {
-            delegateClassName = delegateMethod.owner.clazz.getName();
-            isDelegateInterface = delegateMethod.owner.clazz.isInterface();
+            delegateClassName = delegateMethod.target.getName();
+            isDelegateInterface = delegateMethod.target.isInterface();
         }
 
         if ("<init>".equals(delegateMethod.name)) {
             delegateInvokeType = H_NEWINVOKESPECIAL;
         } else if (Modifier.isStatic(delegateMethod.modifiers)) {
             delegateInvokeType = H_INVOKESTATIC;
-        } else if (delegateMethod.owner.clazz.isInterface()) {
+        } else if (delegateMethod.target.isInterface()) {
             delegateInvokeType = H_INVOKEINTERFACE;
         } else {
             delegateInvokeType = H_INVOKEVIRTUAL;
@@ -168,7 +169,7 @@ public class FunctionRef {
         PainlessMethod method = painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod;
         if (method == null) {
             throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                               "to [" + PainlessLookup.ClassToName(expected) + "], not a functional interface");
+                    "to [" + PainlessLookupUtility.anyTypeToPainlessTypeName(expected) + "], not a functional interface");
         }
 
         // lookup requested method

@@ -65,8 +65,6 @@ for (String principal : principals) {
 integTestCluster {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
-    setting 'xpack.security.http.ssl.enabled', 'false'
-    setting 'xpack.security.authc.token.enabled', 'true'
     setting 'xpack.security.authc.realms.file.type', 'file'
     setting 'xpack.security.authc.realms.file.order', '0'
     setting 'xpack.ml.enabled', 'false'
@@ -107,7 +105,7 @@ integTestRunner {
     systemProperty 'test.userkt.keytab', "${peppaKeytab}"
     systemProperty 'test.userpwd', "george@${realm}"
     systemProperty 'test.userpwd.password', "dino"
-    systemProperty 'tests.security.manager', 'false'
+    systemProperty 'tests.security.manager', 'true'
     Path krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
     List jvmargs = ["-Djava.security.krb5.conf=${krb5conf}","-Dsun.security.krb5.debug=true"]
     jvmArgs jvmargs

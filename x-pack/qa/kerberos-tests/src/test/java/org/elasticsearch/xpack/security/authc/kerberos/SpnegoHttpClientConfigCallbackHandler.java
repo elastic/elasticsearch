@@ -16,14 +16,9 @@ import org.apache.http.config.Lookup;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.impl.auth.SPNegoSchemeFactory;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.apache.http.ssl.SSLContexts;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.RestClientBuilder.HttpClientConfigCallback;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
 import org.ietf.jgss.GSSManager;
@@ -31,21 +26,14 @@ import org.ietf.jgss.GSSName;
 import org.ietf.jgss.Oid;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.KeyManagementException;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
+import java.security.AccessControlContext;
+import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.security.cert.CertificateException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.net.ssl.SSLContext;
 import javax.security.auth.Subject;
 import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.CallbackHandler;
@@ -55,20 +43,16 @@ import javax.security.auth.kerberos.KerberosPrincipal;
 import javax.security.auth.login.AppConfigurationEntry;
 import javax.security.auth.login.Configuration;
 import javax.security.auth.login.LoginContext;
-import javax.security.auth.login.LoginException;
 
 /**
  * This class implements {@link HttpClientConfigCallback} which allows for
  * customization of {@link HttpAsyncClientBuilder}.
  * <p>
  * Based on the configuration, configures {@link HttpAsyncClientBuilder} to
- * support spengo auth scheme.
- * <p>
- * It uses {@link Settings} to load trust store and configures
- * {@link HttpAsyncClientBuilder}.<br>
+ * support spengo auth scheme.<br>
  * It uses configured credentials either password or keytab for authentication.
  */
-public class CustomHttpClientConfigCallbackHandler implements HttpClientConfigCallback {
+public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCallback {
     private static final String SUN_KRB5_LOGIN_MODULE = "com.sun.security.auth.module.Krb5LoginModule";
     private static final String CRED_CONF_NAME = "ESClientLoginConf";
     private static final Oid SPNEGO_OID = getSpnegoOid();
@@ -86,75 +70,43 @@ public class CustomHttpClientConfigCallbackHandler implements HttpClientConfigCa
     private final String userPrincipalName;
     private final SecureString password;
     private final String keytabPath;
-    private final Boolean enableDebugLogs;
-    private final Settings settings;
+    private final boolean enableDebugLogs;
     private LoginContext loginContext;
 
     /**
-     * Constructs {@link CustomHttpClientConfigCallbackHandler} with given
+     * Constructs {@link SpnegoHttpClientConfigCallbackHandler} with given
      * principalName and password.
      * 
      * @param userPrincipalName user principal name
      * @param password password for user
      * @param enableDebugLogs if {@code true} enables kerberos debug logs
-     * @param settings {@link Settings}
      */
-    public CustomHttpClientConfigCallbackHandler(final String userPrincipalName, final SecureString password, final Boolean enableDebugLogs,
-            final Settings settings) {
+    public SpnegoHttpClientConfigCallbackHandler(final String userPrincipalName, final SecureString password, final boolean enableDebugLogs) {
         this.userPrincipalName = userPrincipalName;
         this.password = password;
         this.keytabPath = null;
         this.enableDebugLogs = enableDebugLogs;
-        this.settings = settings;
     }
 
     /**
-     * Constructs {@link CustomHttpClientConfigCallbackHandler} with given
+     * Constructs {@link SpnegoHttpClientConfigCallbackHandler} with given
      * principalName and keytab.
      *
      * @param userPrincipalName User principal name
      * @param keytabPath path to keytab file for user
+     * @param enableDebugLogs if {@code true} enables kerberos debug logs
      */
-    public CustomHttpClientConfigCallbackHandler(final String userPrincipalName, final String keytabPath, final Boolean enableDebugLogs,
-            final Settings settings) {
+    public SpnegoHttpClientConfigCallbackHandler(final String userPrincipalName, final String keytabPath, final boolean enableDebugLogs) {
         this.userPrincipalName = userPrincipalName;
         this.keytabPath = keytabPath;
         this.password = null;
         this.enableDebugLogs = enableDebugLogs;
-        this.settings = settings;
     }
 
     @Override
     public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
         setupSpnegoAuthSchemeSupport(httpClientBuilder);
-        setupSSLSettings(httpClientBuilder);
         return httpClientBuilder;
-    }
-
-    private void setupSSLSettings(HttpAsyncClientBuilder httpClientBuilder) {
-        final String keystorePath = settings.get(ESRestTestCase.TRUSTSTORE_PATH);
-        if (keystorePath != null) {
-            final String keystorePass = settings.get(ESRestTestCase.TRUSTSTORE_PASSWORD);
-            if (keystorePass == null) {
-                throw new IllegalStateException(
-                        ESRestTestCase.TRUSTSTORE_PATH + " is provided but not " + ESRestTestCase.TRUSTSTORE_PASSWORD);
-            }
-            final Path path = PathUtils.get(keystorePath);
-            if (!Files.exists(path)) {
-                throw new IllegalStateException(ESRestTestCase.TRUSTSTORE_PATH + " is set but points to a non-existing file");
-            }
-            try (InputStream is = Files.newInputStream(path)) {
-                final KeyStore keyStore = KeyStore.getInstance("jks");
-                keyStore.load(is, keystorePass.toCharArray());
-                final SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
-                final SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
-                httpClientBuilder.setSSLStrategy(sessionStrategy);
-            } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException | CertificateException e) {
-                throw new RuntimeException("Error setting up ssl", e);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
     }
 
     private void setupSpnegoAuthSchemeSupport(HttpAsyncClientBuilder httpClientBuilder) {
@@ -165,9 +117,11 @@ public class CustomHttpClientConfigCallbackHandler implements HttpClientConfigCa
         try {
             final GSSName gssUserPrincipalName = gssManager.createName(userPrincipalName, GSSName.NT_USER_NAME);
             login();
-            final GSSCredential credential = Subject.doAs(loginContext.getSubject(),
+            final AccessControlContext acc = AccessController.getContext();
+            final GSSCredential credential = doAsPrivilegedWrapper(loginContext.getSubject(),
                     (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(gssUserPrincipalName,
-                            GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.INITIATE_ONLY));
+                            GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.INITIATE_ONLY),
+                    acc);
 
             final KerberosCredentialsProvider credentialsProvider = new KerberosCredentialsProvider();
             credentialsProvider.setCredentials(
@@ -176,10 +130,8 @@ public class CustomHttpClientConfigCallbackHandler implements HttpClientConfigCa
             httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
         } catch (GSSException e) {
             throw new RuntimeException(e);
-        } catch (LoginException e) {
-            throw new RuntimeException(e);
         } catch (PrivilegedActionException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException(e.getCause());
         }
         httpClientBuilder.setDefaultAuthSchemeRegistry(authSchemeRegistry);
     }
@@ -189,25 +141,53 @@ public class CustomHttpClientConfigCallbackHandler implements HttpClientConfigCa
      * returns {@link LoginContext}
      *
      * @return {@link LoginContext}
-     * @throws LoginException
+     * @throws PrivilegedActionException
      */
-    public LoginContext login() throws LoginException {
+    public synchronized LoginContext login() throws PrivilegedActionException {
         if (this.loginContext == null) {
-            final Subject subject = new Subject(false, Collections.singleton(new KerberosPrincipal(userPrincipalName)),
-                    Collections.emptySet(), Collections.emptySet());
-            Configuration conf = null;
-            final CallbackHandler callback;
-            if (password != null) {
-                conf = new PasswordJaasConf(userPrincipalName, enableDebugLogs);
-                callback = new KrbCallbackHandler(userPrincipalName, password);
-            } else {
-                conf = new KeytabJaasConf(userPrincipalName, keytabPath, enableDebugLogs);
-                callback = null;
-            }
-            loginContext = new LoginContext(CRED_CONF_NAME, subject, callback, conf);
-            loginContext.login();
+            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                final Subject subject = new Subject(false, Collections.singleton(new KerberosPrincipal(userPrincipalName)),
+                        Collections.emptySet(), Collections.emptySet());
+                Configuration conf = null;
+                final CallbackHandler callback;
+                if (password != null) {
+                    conf = new PasswordJaasConf(userPrincipalName, enableDebugLogs);
+                    callback = new KrbCallbackHandler(userPrincipalName, password);
+                } else {
+                    conf = new KeytabJaasConf(userPrincipalName, keytabPath, enableDebugLogs);
+                    callback = null;
+                }
+                loginContext = new LoginContext(CRED_CONF_NAME, subject, callback, conf);
+                loginContext.login();
+                return null;
+            });
         }
         return loginContext;
+    }
+
+    /**
+     * Privileged Wrapper that invokes action with Subject.doAs to perform work as
+     * given subject.
+     *
+     * @param subject {@link Subject} to be used for this work
+     * @param action {@link PrivilegedExceptionAction} action for performing inside
+     *            Subject.doAs
+     * @param acc the {@link AccessControlContext} to be tied to the specified
+     *            subject and action see
+     *            {@link Subject#doAsPrivileged(Subject, PrivilegedExceptionAction, AccessControlContext)
+     * @return the value returned by the PrivilegedExceptionAction's run method
+     * @throws PrivilegedActionException
+     */
+    static <T> T doAsPrivilegedWrapper(final Subject subject, final PrivilegedExceptionAction<T> action, final AccessControlContext acc)
+            throws PrivilegedActionException {
+        try {
+            return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAsPrivileged(subject, action, acc));
+        } catch (PrivilegedActionException pae) {
+            if (pae.getCause() instanceof PrivilegedActionException) {
+                throw (PrivilegedActionException) pae.getCause();
+            }
+            throw pae;
+        }
     }
 
     /**
@@ -276,7 +256,7 @@ public class CustomHttpClientConfigCallbackHandler implements HttpClientConfigCa
      */
     private static class PasswordJaasConf extends AbstractJaasConf {
 
-        PasswordJaasConf(final String userPrincipalName, final Boolean enableDebugLogs) {
+        PasswordJaasConf(final String userPrincipalName, final boolean enableDebugLogs) {
             super(userPrincipalName, enableDebugLogs);
         }
 
@@ -297,7 +277,7 @@ public class CustomHttpClientConfigCallbackHandler implements HttpClientConfigCa
     private static class KeytabJaasConf extends AbstractJaasConf {
         private final String keytabFilePath;
 
-        KeytabJaasConf(final String userPrincipalName, final String keytabFilePath, final Boolean enableDebugLogs) {
+        KeytabJaasConf(final String userPrincipalName, final String keytabFilePath, final boolean enableDebugLogs) {
             super(userPrincipalName, enableDebugLogs);
             this.keytabFilePath = keytabFilePath;
         }
@@ -312,9 +292,9 @@ public class CustomHttpClientConfigCallbackHandler implements HttpClientConfigCa
 
     private abstract static class AbstractJaasConf extends Configuration {
         private final String userPrincipalName;
-        private final Boolean enableDebugLogs;
+        private final boolean enableDebugLogs;
 
-        AbstractJaasConf(final String userPrincipalName, final Boolean enableDebugLogs) {
+        AbstractJaasConf(final String userPrincipalName, final boolean enableDebugLogs) {
             this.userPrincipalName = userPrincipalName;
             this.enableDebugLogs = enableDebugLogs;
         }
@@ -327,7 +307,7 @@ public class CustomHttpClientConfigCallbackHandler implements HttpClientConfigCa
             options.put("isInitiator", Boolean.TRUE.toString());
             options.put("storeKey", Boolean.TRUE.toString());
             options.put("renewTGT", Boolean.FALSE.toString());
-            options.put("debug", enableDebugLogs.toString());
+            options.put("debug", Boolean.toString(enableDebugLogs));
             addOptions(options);
             return new AppConfigurationEntry[] { new AppConfigurationEntry(SUN_KRB5_LOGIN_MODULE,
                     AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, Collections.unmodifiableMap(options)) };

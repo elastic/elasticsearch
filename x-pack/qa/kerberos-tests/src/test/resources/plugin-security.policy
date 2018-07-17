@@ -1,0 +1,5 @@
+grant {
+  permission javax.security.auth.AuthPermission "doAsPrivileged";
+  permission java.io.FilePermission "${test.userkt.keytab}", "read";
+  permission javax.security.auth.kerberos.DelegationPermission "\"HTTP/localhost@BUILD.ELASTIC.CO\" \"krbtgt/BUILD.ELASTIC.CO@BUILD.ELASTIC.CO\"";
+};

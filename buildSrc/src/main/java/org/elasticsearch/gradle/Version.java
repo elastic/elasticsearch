@@ -29,7 +29,13 @@ public final class Version implements Comparable<Version> {
         this.minor = minor;
         this.revision = revision;
         this.snapshot = snapshot;
-        this.suffix = suffix == null ? "" : suffix;
+        if (suffix == null || suffix.isEmpty()) {
+            this.suffix = "";
+        } else if (suffix.startsWith("-")) {
+            this.suffix = suffix;
+        } else {
+            this.suffix = "-" + suffix;
+        }
 
         int suffixOffset = 0;
         if (this.suffix.isEmpty()) {
@@ -44,7 +50,9 @@ public final class Version implements Comparable<Version> {
                 suffixOffset += 50 + parseSuffixNumber(this.suffix.substring(3));
             }
             else {
-                throw new IllegalArgumentException("Suffix must contain one of: alpha, beta or rc");
+                throw new IllegalArgumentException(
+                    "Suffix must contain one of: alpha, beta or rc instead of: " + this.suffix
+                );
             }
         }
 
@@ -54,7 +62,7 @@ public final class Version implements Comparable<Version> {
 
     private static int parseSuffixNumber(String substring) {
         if (substring.isEmpty()) {
-            throw new IllegalArgumentException("Invalid suffix, must contain a number e.x. alpha2");
+            throw new IllegalArgumentException("Invalid suffix, must contain a number e.x. alpha2 but was ");
         }
         return Integer.parseInt(substring);
     }

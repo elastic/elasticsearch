@@ -27,11 +27,25 @@ public class VersionProperties {
     private static final Map<String, String> versions = new HashMap<String, String>();
     static {
         Properties props = getVersionProperties();
-        elasticsearch = Version.fromString(props.getProperty("elasticsearch"));
+        Version baseVersion = Version.fromString(props.getProperty("elasticsearch"));
+        if (baseVersion.isSnapshot()) {
+            throw new IllegalArgumentException("version.properties can't contain a snapshot version for elasticsearch");
+        }
+        if (baseVersion.getSuffix().isEmpty() == false) {
+            throw new IllegalArgumentException("version.properties can't contain a version suffix for elasticsearch");
+        }
+        elasticsearch = new Version(
+            baseVersion.getMajor(),
+            baseVersion.getMinor(),
+            baseVersion.getRevision(),
+            System.getProperty("build.version_qualifier", "alpha1"),
+            Boolean.parseBoolean(System.getProperty("build.snapshot", "true"))
+        );
         lucene = props.getProperty("lucene");
         for (String property : props.stringPropertyNames()) {
             versions.put(property, props.getProperty(property));
         }
+        versions.put("elasticsearch", elasticsearch.toString());
     }
 
     private static Properties getVersionProperties() {

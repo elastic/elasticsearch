@@ -55,7 +55,7 @@ subprojects {
 
 apply plugin: 'nebula.info-scm'
 String licenseCommit
-if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
+if (VersionProperties.elasticsearch.isSnapshot()) {
   licenseCommit = scminfo.change ?: "master" // leniency for non git builds
 } else {
   licenseCommit = "v${version}"

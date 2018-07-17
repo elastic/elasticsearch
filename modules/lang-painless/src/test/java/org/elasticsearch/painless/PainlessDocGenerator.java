@@ -104,7 +104,7 @@ public class PainlessDocGenerator {
                     struct.constructors.values().stream().sorted(NUMBER_OF_ARGS).forEach(documentMethod);
                     Map<String, PainlessClass> inherited = new TreeMap<>();
                     struct.methods.values().stream().sorted(METHOD_NAME.thenComparing(NUMBER_OF_ARGS)).forEach(method -> {
-                        if (method.owner == struct) {
+                        if (method.target == struct.clazz) {
                             documentMethod(typeStream, method);
                         } else {
                             inherited.put(method.owner.name, method.owner);
@@ -271,14 +271,14 @@ public class PainlessDocGenerator {
         stream.print("link:{");
         stream.print(root);
         stream.print("-javadoc}/");
-        stream.print(classUrlPath(method.augmentation != null ? method.augmentation : method.owner.clazz));
+        stream.print(classUrlPath(method.augmentation != null ? method.augmentation : method.target));
         stream.print(".html#");
         stream.print(methodName(method));
         stream.print("%2D");
         boolean first = true;
         if (method.augmentation != null) {
             first = false;
-            stream.print(method.owner.clazz.getName());
+            stream.print(method.target.getName());
         }
         for (Class<?> clazz: method.arguments) {
             if (first) {
@@ -303,7 +303,7 @@ public class PainlessDocGenerator {
         stream.print("link:{");
         stream.print(root);
         stream.print("-javadoc}/");
-        stream.print(classUrlPath(field.owner.clazz));
+        stream.print(classUrlPath(field.target));
         stream.print(".html#");
         stream.print(field.javaName);
     }
@@ -315,21 +315,21 @@ public class PainlessDocGenerator {
         if (method.augmentation != null) {
             return "painless";
         }
-        return javadocRoot(method.owner);
+        return javadocRoot(method.target);
     }
 
     /**
      * Pick the javadoc root for a {@link PainlessField}.
      */
     private static String javadocRoot(PainlessField field) {
-        return javadocRoot(field.owner);
+        return javadocRoot(field.target);
     }
 
     /**
      * Pick the javadoc root for a {@link PainlessClass}.
      */
-    private static String javadocRoot(PainlessClass struct) {
-        String classPackage = struct.clazz.getPackage().getName();
+    private static String javadocRoot(Class<?> clazz) {
+        String classPackage = clazz.getPackage().getName();
         if (classPackage.startsWith("java")) {
             return "java8";
         }

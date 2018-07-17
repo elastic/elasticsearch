@@ -53,6 +53,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.containsString;
 
 public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
@@ -293,7 +294,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> testSearchCase(query, dataset,
-                aggregation -> aggregation.setNumBuckets(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS+1).field(DATE_FIELD),
+                aggregation -> aggregation.setNumBuckets(DEFAULT_MAX_BUCKETS+1).field(DATE_FIELD),
                 // since an exception is thrown, this assertion won't be invoked.
                 histogram -> assertTrue(false)
             ));

@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -531,7 +532,10 @@ public class FullClusterRestartIT extends ESRestTestCase {
         // check that the rollup job is started using the RollUp API
         final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
         Map<String, Object> getRollupJobResponse = toMap(client().performRequest(getRollupJobRequest));
-        assertThat(ObjectPath.eval("jobs.0.status.job_state", getRollupJobResponse), expectedStates);
+        Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
+        if (job != null) {
+            assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
+        }
 
         // check that the rollup job is started using the Tasks API
         final Request taskRequest = new Request("GET", "_tasks");
@@ -547,15 +551,27 @@ public class FullClusterRestartIT extends ESRestTestCase {
         // check that the rollup job is started using the Cluster State API
         final Request clusterStateRequest = new Request("GET", "_cluster/state/metadata");
         Map<String, Object> clusterStateResponse = toMap(client().performRequest(clusterStateRequest));
-        Map<String, Object> rollupJobTask = ObjectPath.eval("metadata.persistent_tasks.tasks.0", clusterStateResponse);
-        assertThat(ObjectPath.eval("id", rollupJobTask), equalTo("rollup-job-test"));
+        List<Map<String, Object>> rollupJobTasks = ObjectPath.eval("metadata.persistent_tasks.tasks", clusterStateResponse);
 
-        // Persistent task state field has been renamed in 6.4.0 from "status" to "state"
-        final String stateFieldName = (runningAgainstOldCluster && oldClusterVersion.before(Version.V_6_4_0)) ? "status" : "state";
+        boolean hasRollupTask = false;
+        for (Map<String, Object> task : rollupJobTasks) {
+            if (ObjectPath.eval("id", task).equals(rollupJob)) {
+                hasRollupTask = true;
 
-        final String jobStateField = "task.xpack/rollup/job." + stateFieldName + ".job_state";
-        assertThat("Expected field [" + jobStateField + "] to be started or indexing in " + rollupJobTask,
-            ObjectPath.eval(jobStateField, rollupJobTask), expectedStates);
+                // Persistent task state field has been renamed in 6.4.0 from "status" to "state"
+                final String stateFieldName
+                    = (runningAgainstOldCluster && oldClusterVersion.before(Version.V_6_4_0)) ? "status" : "state";
+
+                final String jobStateField = "task.xpack/rollup/job." + stateFieldName + ".job_state";
+                assertThat("Expected field [" + jobStateField + "] to be started or indexing in " + task.get("id"),
+                    ObjectPath.eval(jobStateField, task), expectedStates);
+                break;
+            }
+        }
+        if (hasRollupTask == false) {
+            fail("Expected persistent task for [" + rollupJob + "] but none found.");
+        }
+
     }
 
     private void waitForRollUpJob(final String rollupJob, final Matcher<?> expectedStates) throws Exception {
@@ -563,7 +579,34 @@ public class FullClusterRestartIT extends ESRestTestCase {
             final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-            assertThat(ObjectPath.eval("jobs.0.status.job_state", toMap(getRollupJobResponse)), expectedStates);
+
+            Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
+            if (job != null) {
+                assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
+            }
         }, 30L, TimeUnit.SECONDS);
+    }
+
+    private Map<String, Object> getJob(Response response, String targetJobId) throws IOException {
+        return getJob(ESRestTestCase.entityAsMap(response), targetJobId);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getJob(Map<String, Object> jobsMap, String targetJobId) throws IOException {
+
+        List<Map<String, Object>> jobs =
+            (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobsMap);
+
+        if (jobs == null) {
+            return null;
+        }
+
+        for (Map<String, Object> job : jobs) {
+            String jobId = (String) ((Map<String, Object>) job.get("config")).get("id");
+            if (jobId.equals(targetJobId)) {
+                return job;
+            }
+        }
+        return null;
     }
 }

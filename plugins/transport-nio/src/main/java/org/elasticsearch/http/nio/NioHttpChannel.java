@@ -28,7 +28,7 @@ import java.nio.channels.SocketChannel;
 
 public class NioHttpChannel extends NioSocketChannel implements HttpChannel {
 
-    NioHttpChannel(SocketChannel socketChannel) {
+    public NioHttpChannel(SocketChannel socketChannel) {
         super(socketChannel);
     }
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 
 import java.time.DateTimeException;

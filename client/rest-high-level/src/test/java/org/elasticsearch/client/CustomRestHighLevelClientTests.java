@@ -121,7 +121,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
      * so that they can be used by subclasses to implement custom logic.
      */
     @SuppressForbidden(reason = "We're forced to uses Class#getDeclaredMethods() here because this test checks protected methods")
-    public void testMethodsVisibility() throws ClassNotFoundException {
+    public void testMethodsVisibility() {
         final String[] methodNames = new String[]{"parseEntity",
                                                   "parseResponseException",
                                                   "performRequest",

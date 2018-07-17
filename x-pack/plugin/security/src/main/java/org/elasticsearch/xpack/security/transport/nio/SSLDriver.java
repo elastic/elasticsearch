@@ -352,8 +352,8 @@ public class SSLDriver implements AutoCloseable {
                         // If we need NEED_TASK we should run the tasks immediately
                         if (handshakeStatus != SSLEngineResult.HandshakeStatus.NEED_TASK) {
                             continueHandshaking = false;
-                            break;
                         }
+                        break;
                     case NEED_TASK:
                         runTasks();
                         handshakeStatus = engine.getHandshakeStatus();

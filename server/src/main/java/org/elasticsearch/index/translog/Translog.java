@@ -1009,8 +1009,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public static class Index implements Operation {
 
         public static final int FORMAT_6_0 = 8; // since 6.0.0
-        public static final int FORMAT_NO_PARENT = FORMAT_6_0 + 1; // since 7.0
-        public static final int FORMAT_NO_VERSION_TYPE = FORMAT_NO_PARENT + 1; // since 7.0
+        public static final int FORMAT_7_0 = FORMAT_6_0 + 5; // reserve some versions for 6.x
+        public static final int FORMAT_NO_PARENT = FORMAT_7_0 + 1;
+        public static final int FORMAT_NO_VERSION_TYPE = FORMAT_NO_PARENT + 1;
         public static final int SERIALIZATION_FORMAT = FORMAT_NO_VERSION_TYPE;
 
         private final String id;
@@ -1184,7 +1185,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public static class Delete implements Operation {
 
         private static final int FORMAT_6_0 = 4; // 6.0 - *
-        public static final int FORMAT_NO_VERSION_TYPE = FORMAT_6_0 + 1; // since 7.0
+        private static final int FORMAT_7_0 = FORMAT_6_0 + 5; // reserve some versions for 6.x
+        public static final int FORMAT_NO_VERSION_TYPE = FORMAT_7_0 + 1;
         public static final int SERIALIZATION_FORMAT = FORMAT_NO_VERSION_TYPE;
 
         private final String type, id;

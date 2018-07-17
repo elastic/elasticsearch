@@ -353,7 +353,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final IndexShard indexShard = indexService.getShard(0);
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        
+        searchSourceBuilder.size(0);
+        try(SearchContext context = service.createContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                searchSourceBuilder, new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, true, null, null)))) {
+
+        }
     }
 
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {

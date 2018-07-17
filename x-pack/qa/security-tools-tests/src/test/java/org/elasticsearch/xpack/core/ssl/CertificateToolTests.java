@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.ssl.CertificateTool.GenerateCertificateComma
 import org.elasticsearch.xpack.core.ssl.CertificateTool.Name;
 import org.hamcrest.Matchers;
 import org.junit.After;
+import org.junit.BeforeClass;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -106,6 +107,11 @@ public class CertificateToolTests extends ESTestCase {
         IOUtils.rm(tempDir);
         Files.createDirectories(tempDir);
         return tempDir;
+    }
+
+    @BeforeClass
+    public static void chechFipsJvm() {
+        assumeFalse("Can't run in a FIPS JVM, depends on Non FIPS BouncyCastle", inFipsJvm());
     }
 
     @After

@@ -59,7 +59,6 @@ public class FieldConfigWriter {
     /**
      * Write the Ml autodetect field options to the outputIndex stream.
      */
-    @SuppressWarnings("unused") // CATEGORIZATION_TOKENIZATION_IN_JAVA seems to be used for performance testing
     public void write() throws IOException {
         StringBuilder contents = new StringBuilder();
 
@@ -67,11 +66,7 @@ public class FieldConfigWriter {
         writeFilters(contents);
         writeDetectors(contents);
         writeScheduledEvents(contents);
-
-        if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA == false) {
-            writeAsEnumeratedSettings(CATEGORIZATION_FILTER_PREFIX, config.getCategorizationFilters(),
-                    contents, true);
-        }
+        writeCategorizationFilters(contents);
 
         // As values are written as entire settings rather than part of a
         // clause no quoting is needed
@@ -79,6 +74,14 @@ public class FieldConfigWriter {
 
         logger.debug("FieldConfig:\n" + contents.toString());
         writer.write(contents.toString());
+    }
+
+    @SuppressWarnings("unused") // CATEGORIZATION_TOKENIZATION_IN_JAVA is used for performance testing
+    private void writeCategorizationFilters(StringBuilder contents) {
+        if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA == false) {
+            writeAsEnumeratedSettings(CATEGORIZATION_FILTER_PREFIX, config.getCategorizationFilters(),
+                    contents, true);
+        }
     }
 
     private void writeDetectors(StringBuilder contents) throws IOException {

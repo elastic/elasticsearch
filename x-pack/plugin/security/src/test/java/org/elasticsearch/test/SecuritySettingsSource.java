@@ -298,7 +298,6 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
      * Returns the SSL related configuration settings given the location of a key and certificate and the location
      * of the PEM certificates to be trusted
      *
-     * @param builder
      * @param keyPath             The path to the Private key to be used for SSL
      * @param password            The password with which the private key is protected
      * @param certificatePath     The path to the PEM formatted Certificate encapsulating the public key that corresponds

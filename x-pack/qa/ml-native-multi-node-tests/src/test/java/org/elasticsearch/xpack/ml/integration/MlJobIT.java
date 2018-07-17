@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
@@ -185,23 +186,32 @@ public class MlJobIT extends ESRestTestCase {
                         + "anomaly_detectors/" + jobId2, Collections.emptyMap(), new StringEntity(jobConfig, ContentType.APPLICATION_JSON));
         assertEquals(200, response.getStatusLine().getStatusCode());
 
-        response = client().performRequest("get", "_aliases");
-        assertEquals(200, response.getStatusLine().getStatusCode());
-        String responseAsString = responseEntityToString(response);
+        // With security enabled GET _aliases throws an index_not_found_exception
+        // if no aliases have been created. In multi-node tests the alias may not
+        // appear immediately so wait here.
+        assertBusy(() -> {
+            try {
+                Response aliasesResponse = client().performRequest("get", "_aliases");
+                assertEquals(200, aliasesResponse.getStatusLine().getStatusCode());
+                String responseAsString = responseEntityToString(aliasesResponse);
+                assertThat(responseAsString,
+                        containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName) + "\":{\"aliases\":{"));
+                assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId1)
+                        + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId1 + "\",\"boost\":1.0}}}}"));
+                assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId1) + "\":{}"));
+                assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId2)
+                        + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId2 + "\",\"boost\":1.0}}}}"));
+                assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId2) + "\":{}"));
+            } catch (ResponseException e) {
+                throw new AssertionError(e);
+            }
+        });
 
+        Response indicesResponse = client().performRequest("get", "_cat/indices");
+        assertEquals(200, indicesResponse.getStatusLine().getStatusCode());
+        String responseAsString = responseEntityToString(indicesResponse);
         assertThat(responseAsString,
-                containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName) + "\":{\"aliases\":{"));
-        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId1)
-                + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId1 + "\",\"boost\":1.0}}}}"));
-        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId1) + "\":{}"));
-        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId2)
-                + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId2 + "\",\"boost\":1.0}}}}"));
-        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId2) + "\":{}"));
-
-        response = client().performRequest("get", "_cat/indices");
-        assertEquals(200, response.getStatusLine().getStatusCode());
-        responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName));
+                containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName));
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId1))));
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))));
 
@@ -445,15 +455,24 @@ public class MlJobIT extends ESRestTestCase {
         String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
         createFarequoteJob(jobId);
 
-        Response response = client().performRequest("get", "_cat/aliases");
-        assertEquals(200, response.getStatusLine().getStatusCode());
-        String responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString(readAliasName));
-        assertThat(responseAsString, containsString(writeAliasName));
+        // With security enabled cat aliases throws an index_not_found_exception
+        // if no aliases have been created. In multi-node tests the alias may not
+        // appear immediately so wait here.
+        assertBusy(() -> {
+            try {
+                Response aliasesResponse = client().performRequest(new Request("get", "_cat/aliases"));
+                assertEquals(200, aliasesResponse.getStatusLine().getStatusCode());
+                String responseAsString = responseEntityToString(aliasesResponse);
+                assertThat(responseAsString, containsString(readAliasName));
+                assertThat(responseAsString, containsString(writeAliasName));
+            } catch (ResponseException e) {
+                throw new AssertionError(e);
+            }
+        });
 
         // Manually delete the aliases so that we can test that deletion proceeds
         // normally anyway
-        response = client().performRequest("delete", indexName + "/_alias/" + readAliasName);
+        Response response = client().performRequest("delete", indexName + "/_alias/" + readAliasName);
         assertEquals(200, response.getStatusLine().getStatusCode());
         response = client().performRequest("delete", indexName + "/_alias/" + writeAliasName);
         assertEquals(200, response.getStatusLine().getStatusCode());

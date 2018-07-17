@@ -62,7 +62,8 @@ public class TransportBulkShardOperationsAction
         return shardOperationOnPrimary(request.shardId(), request.getOperations(), primary, logger);
     }
 
-    static WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
+    // public for testing purposes only
+    public static WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
             final ShardId shardId,
             final List<Translog.Operation> sourceOperations,
             final IndexShard primary,
@@ -115,7 +116,8 @@ public class TransportBulkShardOperationsAction
         return new WriteReplicaResult<>(request, location, null, replica, logger);
     }
 
-    private static Translog.Location applyTranslogOperations(
+    // public for testing purposes only
+    public static Translog.Location applyTranslogOperations(
             final List<Translog.Operation> operations, final IndexShard shard, final Engine.Operation.Origin origin) throws IOException {
         Translog.Location location = null;
         for (final Translog.Operation operation : operations) {

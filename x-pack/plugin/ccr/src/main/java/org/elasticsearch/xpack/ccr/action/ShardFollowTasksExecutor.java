@@ -90,8 +90,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         Client followerClient = wrapClient(client, params);
         BiConsumer<TimeValue, Runnable> scheduler =
             (delay, command) -> threadPool.schedule(delay, Ccr.CCR_THREAD_POOL_NAME, command);
-        return new ShardFollowNodeTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers, params,
-            scheduler, params.getIdleShardRetryDelay(), params.getRetryTimeout()) {
+        return new ShardFollowNodeTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers, params, scheduler) {
 
             @Override
             protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {

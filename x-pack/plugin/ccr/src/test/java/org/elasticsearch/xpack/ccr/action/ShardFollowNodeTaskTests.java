@@ -143,8 +143,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         AtomicInteger readCounter = new AtomicInteger();
         AtomicInteger writeCounter = new AtomicInteger();
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(followGlobalCheckpoint, followGlobalCheckpoint);
-        return new ShardFollowNodeTask(1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler,
-            TimeValue.timeValueMillis(10), TimeValue.timeValueMillis(500)) {
+        return new ShardFollowNodeTask(1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler) {
 
             @Override
             protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {

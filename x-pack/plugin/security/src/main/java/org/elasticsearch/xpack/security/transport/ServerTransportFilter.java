@@ -5,11 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
-import io.netty.channel.Channel;
-import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
@@ -20,11 +16,13 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TaskTransportChannel;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
+import org.elasticsearch.transport.nio.NioTcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
@@ -32,16 +30,10 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLPeerUnverifiedException;
-
 import java.io.IOException;
-import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
 
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 
@@ -115,13 +107,12 @@ public interface ServerTransportFilter {
                 unwrappedChannel = ((TaskTransportChannel) unwrappedChannel).getChannel();
             }
 
-            if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel) &&
-                ((TcpTransportChannel) unwrappedChannel).getChannel() instanceof Netty4TcpChannel) {
-                Channel channel = ((Netty4TcpChannel) ((TcpTransportChannel) unwrappedChannel).getChannel()).getLowLevelChannel();
-                SslHandler sslHandler = channel.pipeline().get(SslHandler.class);
-                if (channel.isOpen()) {
-                    assert sslHandler != null : "channel [" + channel + "] did not have a ssl handler. pipeline " + channel.pipeline();
-                    extractClientCertificates(logger, threadContext, sslHandler.engine(), channel);
+            if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel)) {
+                TcpChannel tcpChannel = ((TcpTransportChannel) unwrappedChannel).getChannel();
+                if (tcpChannel instanceof Netty4TcpChannel || tcpChannel instanceof NioTcpChannel) {
+                    if (tcpChannel.isOpen()) {
+                        SSLEngineUtils.extractClientCertificates(logger, threadContext, tcpChannel);
+                    }
                 }
             }
 
@@ -168,27 +159,6 @@ public interface ServerTransportFilter {
                 }, transportChannel.getVersion());
             } else {
                 throw new IllegalStateException("a disabled user should never be sent. " + kibanaUser);
-            }
-        }
-    }
-
-    static void extractClientCertificates(Logger logger, ThreadContext threadContext, SSLEngine sslEngine, Channel channel) {
-        try {
-            Certificate[] certs = sslEngine.getSession().getPeerCertificates();
-            if (certs instanceof X509Certificate[]) {
-                threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, certs);
-            }
-        } catch (SSLPeerUnverifiedException e) {
-            // this happens when client authentication is optional and the client does not provide credentials. If client
-            // authentication was required then this connection should be closed before ever getting into this class
-            assert sslEngine.getNeedClientAuth() == false;
-            assert sslEngine.getWantClientAuth();
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                                "SSL Peer did not present a certificate on channel [{}]", channel), e);
-            } else if (logger.isDebugEnabled()) {
-                logger.debug("SSL Peer did not present a certificate on channel [{}]", channel);
             }
         }
     }

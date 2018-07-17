@@ -200,11 +200,13 @@ import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
+import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTransport;
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -511,21 +513,22 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
             if (NetworkModule.HTTP_TYPE_SETTING.exists(settings)) {
                 final String httpType = NetworkModule.HTTP_TYPE_SETTING.get(settings);
-                if (httpType.equals(SecurityField.NAME4)) {
-                    SecurityNetty4HttpServerTransport.overrideSettings(builder, settings);
+                if (httpType.equals(SecurityField.NAME4) || httpType.equals(SecurityField.NIO)) {
+                    SecurityHttpSettings.overrideSettings(builder, settings);
                 } else {
                     final String message = String.format(
                             Locale.ROOT,
-                            "http type setting [%s] must be [%s] but is [%s]",
+                            "http type setting [%s] must be [%s] or [%s] but is [%s]",
                             NetworkModule.HTTP_TYPE_KEY,
                             SecurityField.NAME4,
+                            SecurityField.NIO,
                             httpType);
                     throw new IllegalArgumentException(message);
                 }
             } else {
                 // default to security4
                 builder.put(NetworkModule.HTTP_TYPE_KEY, SecurityField.NAME4);
-                SecurityNetty4HttpServerTransport.overrideSettings(builder, settings);
+                SecurityHttpSettings.overrideSettings(builder, settings);
             }
             builder.put(SecuritySettings.addUserSettings(settings));
             return builder.build();
@@ -869,8 +872,14 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
-        return Collections.singletonMap(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings,
-                networkService, bigArrays, ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher));
+
+        Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
+        httpTransports.put(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
+            ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher));
+        httpTransports.put(SecurityField.NIO, () -> new SecurityNioHttpServerTransport(settings, networkService, bigArrays,
+            pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService()));
+
+        return httpTransports;
     }
 
     @Override

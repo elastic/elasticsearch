@@ -134,7 +134,6 @@ public class AutoDateHistogramAggregationBuilder
         if (maxBuckets >= 0) {
             int bucketCeiling = maxBuckets / maxRoundingInterval;
             if (numBuckets > bucketCeiling) {
-                System.out.println("OHNOES");
                 throw new IllegalArgumentException(NUM_BUCKETS_FIELD.getPreferredName() +
                     " must be less than " + bucketCeiling);
             }

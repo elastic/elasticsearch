@@ -33,8 +33,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -109,8 +107,8 @@ public class RollupIT extends ESRestTestCase {
         final CompoundDateTimeFormatter dateTimeFormatter = DateFormatters.forPattern(dateFormat);
         for (int i = 0; i < numDocs; i++) {
             bulk.append("{\"index\":{\"_index\":\"rollup-docs\",\"_type\":\"_doc\"}}\n");
-            ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochSecond(1531221196 + (60 * i)), ZoneId.of("UTC"));
-            String date = dateTimeFormatter.format(zdt);
+            Instant dt= Instant.ofEpochSecond(1531221196 + (60 * i));
+            String date = dateTimeFormatter.format(dt);
             bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
         }
         bulk.append("\r\n");

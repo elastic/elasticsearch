@@ -88,14 +88,13 @@ setup:
 
 ---
 "Scripted Field with a null safe dereference (null)":
-    # Change this to ?: once we have it implemented
     - do:
         search:
             body:
                 script_fields:
                     bar:
                         script:
-                            source: "(doc['missing'].value?.length() ?: 0) + params.x;"
+                            source: "(doc['missing'].size() == 0 ? 0 : doc['missing'].value.length()) + params.x;"
                             params:
                                 x: 5
 

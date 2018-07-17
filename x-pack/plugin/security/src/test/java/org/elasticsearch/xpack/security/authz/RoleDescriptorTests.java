@@ -69,7 +69,7 @@ public class RoleDescriptorTests extends ESTestCase {
             conditionalClusterPrivileges, new String[] { "sudo" }, Collections.emptyMap(), Collections.emptyMap());
 
         assertThat(descriptor.toString(), is("Role[name=test, cluster=[all,none]" +
-                ", policy=[{APPLICATION:manage:applications=app01,app02}]" +
+                ", policy=[]" +
                 ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], privileges=[read]" +
                 ", field_security=[grant=[body,title], except=null], query={\"query\": {\"match_all\": {}}}],]" +
                 ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]" +

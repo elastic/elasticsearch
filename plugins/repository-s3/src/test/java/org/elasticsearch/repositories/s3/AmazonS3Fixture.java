@@ -42,7 +42,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -84,11 +83,12 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         this.properties = properties;
         this.random = new Random(Long.parseUnsignedLong(requireNonNull(properties.getProperty("tests.seed")), 16));
 
-        new Bucket("s3Fixture.permanent", false, null);
-        new Bucket("s3Fixture.temporary", true, null);
-        final Bucket ec2Bucket = new Bucket("s3Fixture.ec2", false, random);
+        new Bucket("s3Fixture.permanent", false);
+        new Bucket("s3Fixture.temporary", true);
+        final Bucket ec2Bucket = new Bucket("s3Fixture.ec2",
+            randomAsciiAlphanumOfLength(random, 10), randomAsciiAlphanumOfLength(random, 10));
 
-        this.handlers = defaultHandlers(buckets, ec2Bucket.name);
+        this.handlers = defaultHandlers(buckets, ec2Bucket);
     }
 
     private static String nonAuthPath(Request request) {
@@ -118,51 +118,47 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         final String authorizedPath = authPath(request);
         final RequestHandler handler = handlers.retrieve(authorizedPath, request.getParameters());
         if (handler != null) {
-            final String authorization = request.getHeader("Authorization");
-            if (authorization == null) {
+            final String bucketName = request.getParam("bucket");
+            if (bucketName == null) {
                 return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad access key", "");
             }
-            final Collection<Bucket> values = buckets.values();
-            String permittedBucket = null;
-            for (final Bucket bucket : values) {
-                if (authorization.contains(bucket.key)) {
-                    final String sessionToken = request.getHeader("x-amz-security-token");
-                    if (bucket.token == null) {
-                        if (sessionToken != null) {
-                            return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Unexpected session token", "");
-                        }
-                    } else {
-                        if (sessionToken == null) {
-                            return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "No session token", "");
-                        }
-                        if (sessionToken.equals(bucket.token) == false) {
-                            return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
-                        }
-                    }
-                    permittedBucket = bucket.name;
-                    break;
-                }
+            final Bucket bucket = buckets.get(bucketName);
+            if (bucket == null) {
+                return newBucketNotFoundError(request.getId(), bucketName);
+            }
+            final Response authResponse = authenticateBucket(request, bucket);
+            if (authResponse != null) {
+                return authResponse;
             }
 
-            if (permittedBucket == null) {
-                return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad access key", "");
-            }
-
-            final String bucket = request.getParam("bucket");
-            if (bucket != null && permittedBucket.equals(bucket) == false) {
-                // allow a null bucket to support the multi-object-delete API which
-                // passes the bucket name in the host header instead of the URL.
-                if (buckets.containsKey(bucket)) {
-                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad bucket", "");
-                } else {
-                    return newBucketNotFoundError(request.getId(), bucket);
-                }
-            }
             return handler.handle(request);
 
         } else {
             return newInternalError(request.getId(), "No handler defined for request [" + request + "]");
         }
+    }
+
+    private Response authenticateBucket(Request request, Bucket bucket) {
+        final String authorization = request.getHeader("Authorization");
+        if (authorization == null) {
+            return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad access key", "");
+        }
+        if (authorization.contains(bucket.key)) {
+            final String sessionToken = request.getHeader("x-amz-security-token");
+            if (bucket.token == null) {
+                if (sessionToken != null) {
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Unexpected session token", "");
+                }
+            } else {
+                if (sessionToken == null) {
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "No session token", "");
+                }
+                if (sessionToken.equals(bucket.token) == false) {
+                    return newError(request.getId(), RestStatus.FORBIDDEN, "AccessDenied", "Bad session token", "");
+                }
+            }
+        }
+        return null;
     }
 
     public static void main(final String[] args) throws Exception {
@@ -178,7 +174,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     }
 
     /** Builds the default request handlers **/
-    private PathTrie<RequestHandler> defaultHandlers(final Map<String, Bucket> buckets, final String ec2BucketName) {
+    private PathTrie<RequestHandler> defaultHandlers(final Map<String, Bucket> buckets, final Bucket ec2Bucket) {
         final PathTrie<RequestHandler> handlers = new PathTrie<>(RestUtils.REST_DECODER);
 
         // HEAD Object
@@ -325,7 +321,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // Delete Multiple Objects
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html
-        handlers.insert(authPath(HttpPost.METHOD_NAME, "/"), (request) -> {
+        handlers.insert(nonAuthPath(HttpPost.METHOD_NAME, "/"), (request) -> {
             final List<String> deletes = new ArrayList<>();
             final List<String> errors = new ArrayList<>();
 
@@ -348,7 +344,12 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
 
                                 boolean found = false;
                                 for (Bucket bucket : buckets.values()) {
-                                    if (bucket.objects.remove(objectName) != null) {
+                                    if (bucket.objects.containsKey(objectName)) {
+                                        final Response authResponse = authenticateBucket(request, bucket);
+                                        if (authResponse != null) {
+                                            return authResponse;
+                                        }
+                                        bucket.objects.remove(objectName);
                                         found = true;
                                     }
                                 }
@@ -393,7 +394,6 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
             return new Response(RestStatus.OK.getStatus(), headers, response.getBytes(UTF_8));
         });
 
-        final Bucket ec2Bucket = buckets.get(ec2BucketName);
         // GET
         //
         // http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html
@@ -428,15 +428,16 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         /** Blobs contained in the bucket **/
         final Map<String, byte[]> objects;
 
-        private Bucket(final String prefix, final boolean tokenRequired, final Random random) {
+        private Bucket(final String prefix, final boolean tokenRequired) {
+            this(prefix, prop(properties, prefix + "_key"),
+                tokenRequired ? prop(properties, prefix + "_session_token") : null);
+        }
+
+        private Bucket(final String prefix, final String key, final String token) {
             this.name = prop(properties, prefix + "_bucket_name");
-            if (random != null) {
-                this.key = randomAsciiAlphanumOfLength(random, 10);
-                this.token = randomAsciiAlphanumOfLength(random, 10);
-            } else {
-                this.key = prop(properties, prefix + "_key");
-                this.token = tokenRequired ? prop(properties, prefix + "_session_token") : null;
-            }
+            this.key = key;
+            this.token = token;
+
             this.objects = ConcurrentCollections.newConcurrentMap();
             if (buckets.put(name, this) != null) {
                 throw new IllegalArgumentException("bucket " + name + " is already registered");

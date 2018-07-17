@@ -49,10 +49,4 @@ public abstract class PackagingTestCase {
     public void logTestNameBefore() {
         logger.info("[" + testNameRule.getMethodName() + "]: before test");
     }
-
-    @After
-    public void logTestnameAfter() {
-        logger.info("[" + testNameRule.getMethodName() + "]: after test");
-    }
-
 }

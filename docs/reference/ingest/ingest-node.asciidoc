@@ -2196,3 +2196,5 @@ URL-decodes a string
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+include::x-pack-security-hash-processor.asciidoc[]

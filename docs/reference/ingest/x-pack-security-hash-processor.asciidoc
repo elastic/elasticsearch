@@ -1,0 +1,118 @@
+[role="xpack"]
+[testenv="trial"]
+
+[[Hash Processor]]
+=== Hash Processor
+Creates consistent hashes of one or more fields and stores the results in
+a new field. The hashing scheme is a PBKDF2 (Password-Based Key Derivation Function 2) that applies
+an HMAC (hash-based message authentication code) to produce a derived hash of the field values.
+
+[[hash-options]]
+.Hash Processor Options
+[options="header"]
+|======
+| Name             | Required  | Default  | Description
+| `fields`         | yes       | -        | The field(s) to hash
+| `target_field`   | yes       | -        | The field to insert the hashed field values into
+| `key_setting`    | yes       | -        | The secure setting to retrieve the secret key for the hashing scheme
+| `salt`           | yes       | -        | The salt to use when hashing
+| `method`         | no        | `SHA256` | The cryptographic hash function to use (options - SHA1,SHA256,SHA384,SHA512)
+| `iterations`     | no        | 5        | The number of times the chosen random function will be applied to the secret key to derive the hash
+| `ignore_missing` | no        | `false`  | If `true` and any field in `fields` does not exist or is `null`, the processor quietly exits without modifying the document
+|======
+
+
+[float]
+[[setting-up-key-setting]]
+==== Configuring Secret Key
+
+In order to use the Hash Processor, a secret key must be used. This secret key is used in
+the HMAC function. Since this key is meant to be secret, it needs to be stored in the
+Elasticsearch Key-Store. See {ref}/secure-setting.html[Secure Settings] on how to insert your setting.
+The setting must match `xpack.security.ingest.hash.*.key`. For example, `xpack.security.ingest.hash.my_processor.key`
+is valid. Any other setting affixes are not supported.
+
+[float]
+[[hashing-single-field]]
+==== Hashing a Single Field
+
+The Hash Processor accepts multiple input fields to hash. It should be noted that there is only
+one output field, `target_field`. When `fields` contains only one field, then `target_field` is
+set to the string-value of the hashed input.
+
+[source,js]
+--------------------------------------------------
+{
+  "hash": {
+    "fields": ["user_password"],
+    "target_field": "hashed_user_password",
+    "key_setting": "xpack.security.ingest.hash.my_hash.key",
+    "salt": "_salt"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+As an example, Let's look at how the following input document will be processed:
+
+[source,js]
+--------------------------------------------------
+{
+  "user_name": "kimchy"
+  "user_password": "P@SSW0rD~",
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The above document will hash `user_password` into `hash_user_password` to result in the
+following document structure:
+
+[source,js]
+--------------------------------------------------
+{
+  "user_name": "kimchy"
+  "user_password": "P@SSW0rD~",
+  "hashed_user_password": "<hashed-content>"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+[float]
+[[hashing-multiple-fields]]
+==== Hashing Multiple Fields
+
+When inputing multiple fields, the `target_field` behaves like a container object
+to store the hashed values from each respective field.
+
+Similar to the previous example, we can hash both the `user_password` and `user_name`
+fields.
+
+[source,js]
+--------------------------------------------------
+{
+  "hash": {
+    "fields": ["user_password", "user_name"],
+    "target_field": "hashed_user_info",
+    "key_setting": "xpack.security.ingest.hash.my_hash.key",
+    "salt": "_salt"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The resulting document will look like the following, where
+`hashed_user_info` contains two sub-fields (`user_password` and `user_name`)
+
+[source,js]
+--------------------------------------------------
+{
+  "user_name": "kimchy"
+  "user_password": "P@SSW0rD~",
+  "hashed_user_info": {
+    "user_name": "<hashed-user-name-content>"
+    "user_password": "<hashed-user-password-content>"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

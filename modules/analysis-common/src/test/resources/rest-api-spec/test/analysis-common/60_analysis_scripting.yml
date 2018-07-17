@@ -1,0 +1,17 @@
+## Test analysis scripts
+
+"condition":
+    - do:
+        indices.analyze:
+          body: "Vorsprung Durch Technik"
+          tokenizer: "whitespace"
+          filter:
+            - type: condition
+              script:
+                source: "token.term().length() > 5"
+                filter: [ lowercase ]
+
+    - length: { tokens: 3 }
+    - match: { tokens.0.token: "vorsprung" }
+    - match: { tokens.1.token: "Durch" }
+    - match: { tokens.2.token: "technik" }

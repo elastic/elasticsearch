@@ -29,12 +29,45 @@ public abstract class AnalysisPredicateScript {
      */
     public static class Term {
         public CharSequence term;
+        public int pos;
         public int posInc;
         public int posLen;
         public int startOffset;
         public int endOffset;
         public String type;
         public boolean isKeyword;
+
+        public CharSequence getTerm() {
+            return term;
+        }
+
+        public int getPositionIncrement() {
+            return posInc;
+        }
+
+        public int getPosition() {
+            return pos;
+        }
+
+        public int getPositionLength() {
+            return posLen;
+        }
+
+        public int getStartOffset() {
+            return startOffset;
+        }
+
+        public int getEndOffset() {
+            return endOffset;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public boolean isKeyword() {
+            return isKeyword;
+        }
     }
 
     /**

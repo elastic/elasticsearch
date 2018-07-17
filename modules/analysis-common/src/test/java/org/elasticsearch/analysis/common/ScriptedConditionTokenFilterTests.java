@@ -28,7 +28,7 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("index.analysis.filter.cond.type", "condition")
             .put("index.analysis.filter.cond.script.source", "return \"two\".equals(term.term)")
-            .putList("index.analysis.filter.cond.filters", "uppercase")
+            .putList("index.analysis.filter.cond.filter", "uppercase")
             .put("index.analysis.analyzer.myAnalyzer.type", "custom")
             .put("index.analysis.analyzer.myAnalyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.myAnalyzer.filter", "cond")

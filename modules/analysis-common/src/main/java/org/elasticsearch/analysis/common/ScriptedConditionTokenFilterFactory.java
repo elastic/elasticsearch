@@ -44,7 +44,7 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
         }
         this.factory = scriptService.compile(script, AnalysisPredicateScript.CONTEXT);
 
-        this.filterNames = settings.getAsList("filters");
+        this.filterNames = settings.getAsList("filter");
     }
 
     @Override
@@ -70,6 +70,7 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
             protected boolean shouldFilter() {
                 term.term = termAtt;
                 term.posInc = posIncAtt.getPositionIncrement();
+                term.pos += term.posInc;
                 term.posLen = posLenAtt.getPositionLength();
                 term.startOffset = offsetAtt.startOffset();
                 term.endOffset = offsetAtt.endOffset();

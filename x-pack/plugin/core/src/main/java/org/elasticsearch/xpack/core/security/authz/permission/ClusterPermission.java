@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 
 import java.util.Collection;
 import java.util.Set;
@@ -55,6 +56,10 @@ public abstract class ClusterPermission {
     public static class ConditionalClusterPermission extends ClusterPermission {
         private final Predicate<String> actionPredicate;
         private final Predicate<TransportRequest> requestPredicate;
+
+        public ConditionalClusterPermission(ConditionalClusterPrivilege conditionalPrivilege) {
+            this(conditionalPrivilege.getPrivilege(), conditionalPrivilege.getRequestPredicate());
+        }
 
         public ConditionalClusterPermission(ClusterPrivilege privilege, Predicate<TransportRequest> requestPredicate) {
             super(privilege);

@@ -30,7 +30,7 @@ public class ReservedRolesStore {
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build()
             },
-            new String[] { "*" },
+            null, new String[] { "*" },
             MetadataUtils.DEFAULT_RESERVED_METADATA, Collections.emptyMap());
     public static final Role SUPERUSER_ROLE = Role.builder(SUPERUSER_ROLE_DESCRIPTOR, null).build();
     private static final Map<String, RoleDescriptor> RESERVED_ROLES = initializeReservedRoles();

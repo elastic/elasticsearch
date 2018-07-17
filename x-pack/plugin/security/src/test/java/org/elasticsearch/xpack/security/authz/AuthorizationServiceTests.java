@@ -90,6 +90,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequestBuilder;
@@ -114,6 +116,8 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -139,6 +143,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
@@ -279,6 +284,46 @@ public class AuthorizationServiceTests extends ESTestCase {
             "cluster:admin/snapshot/status", SystemUser.INSTANCE.principal());
         verify(auditTrail).accessDenied(authentication, "cluster:admin/snapshot/status", request,
             new String[]{SystemUser.ROLE_NAME});
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testAuthorizeUsingPolicyConditionals() {
+        final DeletePrivilegesRequest request = new DeletePrivilegesRequest();
+        final Authentication authentication = createAuthentication(new User("user1", "role1"));
+
+        final ConditionalClusterPrivilege conditionalClusterPrivilege = Mockito.mock(ConditionalClusterPrivilege.class);
+        final Predicate<TransportRequest> requestPredicate = r -> r == request;
+        Mockito.when(conditionalClusterPrivilege.getRequestPredicate()).thenReturn(requestPredicate);
+        Mockito.when(conditionalClusterPrivilege.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[] {
+            conditionalClusterPrivilege
+        };
+        RoleDescriptor role = new RoleDescriptor("role1", null, null, null, conditionalClusterPrivileges, null, null ,null);
+        roleMap.put("role1", role);
+
+        authorize(authentication, DeletePrivilegesAction.NAME, request);
+        verify(auditTrail).accessGranted(authentication, DeletePrivilegesAction.NAME, request, new String[]{role.getName()});
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testAuthorizationDeniedWhenPolicyConditionalsDoNotMatch() {
+        final DeletePrivilegesRequest request = new DeletePrivilegesRequest();
+        final Authentication authentication = createAuthentication(new User("user1", "role1"));
+
+        final ConditionalClusterPrivilege conditionalClusterPrivilege = Mockito.mock(ConditionalClusterPrivilege.class);
+        final Predicate<TransportRequest> requestPredicate = r -> false;
+        Mockito.when(conditionalClusterPrivilege.getRequestPredicate()).thenReturn(requestPredicate);
+        Mockito.when(conditionalClusterPrivilege.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[] {
+            conditionalClusterPrivilege
+        };
+        RoleDescriptor role = new RoleDescriptor("role1", null, null, null, conditionalClusterPrivileges, null, null ,null);
+        roleMap.put("role1", role);
+
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, DeletePrivilegesAction.NAME, request),
+            DeletePrivilegesAction.NAME, "user1");
+        verify(auditTrail).accessDenied(authentication, DeletePrivilegesAction.NAME, request, new String[]{role.getName()});
         verifyNoMoreInteractions(auditTrail);
     }
 

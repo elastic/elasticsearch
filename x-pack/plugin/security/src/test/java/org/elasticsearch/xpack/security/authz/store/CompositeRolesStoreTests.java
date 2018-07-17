@@ -28,6 +28,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -36,6 +37,8 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -358,6 +361,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testMergingBasicRoles() {
+        final TransportRequest request1 = mock(TransportRequest.class);
+        final TransportRequest request2 = mock(TransportRequest.class);
+        final TransportRequest request3 = mock(TransportRequest.class);
+
+        ConditionalClusterPrivilege ccp1 = mock(ConditionalClusterPrivilege.class);
+        when(ccp1.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
+        when(ccp1.getRequestPredicate()).thenReturn(req -> req == request1);
         RoleDescriptor role1 = new RoleDescriptor("r1", new String[]{"monitor"}, new IndicesPrivileges[]{
             IndicesPrivileges.builder()
                 .indices("abc-*", "xyz-*")
@@ -378,10 +388,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 .resources("settings/*")
                 .privileges("read")
                 .build()
-        },
+        }, new ConditionalClusterPrivilege[] { ccp1 },
         new String[]{"app-user-1"}, null, null);
 
-        RoleDescriptor role2 = new RoleDescriptor("r2", new String[]{"manage"}, new IndicesPrivileges[]{
+        ConditionalClusterPrivilege ccp2 = mock(ConditionalClusterPrivilege.class);
+        when(ccp2.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
+        when(ccp2.getRequestPredicate()).thenReturn(req -> req == request2);
+        RoleDescriptor role2 = new RoleDescriptor("r2", new String[]{"manage_saml"}, new IndicesPrivileges[]{
             IndicesPrivileges.builder()
                 .indices("abc-*", "ind-2-*")
                 .privileges("all")
@@ -397,7 +410,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 .resources("*")
                 .privileges("read")
                 .build()
-        },
+        }, new ConditionalClusterPrivilege[] { ccp2 },
         new String[]{"app-user-2"}, null, null);
 
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -419,11 +432,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
         CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(role1, role2), cache, privilegeStore, future);
         Role role = future.actionGet();
 
-        final TransportRequest request = mock(TransportRequest.class);
+        assertThat(role.cluster().check(ClusterStateAction.NAME, randomFrom(request1, request2, request3)), equalTo(true));
+        assertThat(role.cluster().check(SamlAuthenticateAction.NAME, randomFrom(request1, request2, request3)), equalTo(true));
+        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, randomFrom(request1, request2, request3)), equalTo(false));
 
-        assertThat(role.cluster().check(ClusterStateAction.NAME, request), equalTo(true));
-        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, request), equalTo(true));
-        assertThat(role.cluster().check(PutUserAction.NAME, request), equalTo(false));
+        assertThat(role.cluster().check(PutUserAction.NAME, randomFrom(request1, request2)), equalTo(true));
+        assertThat(role.cluster().check(PutUserAction.NAME, request3), equalTo(false));
 
         final Predicate<String> allowedRead = role.indices().allowedIndicesMatcher(GetAction.NAME);
         assertThat(allowedRead.test("abc-123"), equalTo(true));

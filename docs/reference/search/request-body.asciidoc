@@ -7,7 +7,7 @@ example:
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/twitter/tweet/_search' -d '{
+$ curl -XGET 'http://localhost:9200/twitter/tweet/_search' -H 'Content-Type: application/json' -d '{
     "query" : {
         "term" : { "user" : "kimchy" }
     }

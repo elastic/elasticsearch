@@ -1856,14 +1856,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(true);
         searchResponse = client().prepareSearch("test").setQuery(range).get();
         assertHitCount(searchResponse, 1);
-
-        Exception ex = expectThrows(Exception.class, () -> client().prepareSearch("test")
-                .setQuery(new RangeQueryBuilder("_type").from(123L).to("zebra").includeLower(true)).get());
-        assertEquals("lower term should be BytesRef but was: java.lang.Long", ex.getCause().getCause().getMessage());
-
-        ex = expectThrows(Exception.class, () -> client().prepareSearch("test")
-                .setQuery(new RangeQueryBuilder("_type").from("ape").to(true).includeLower(true)).get());
-        assertEquals("upper term should be BytesRef but was: java.lang.Boolean", ex.getCause().getCause().getMessage());
     }
 
 }

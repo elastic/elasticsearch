@@ -762,7 +762,8 @@ class BuildPlugin implements Plugin<Project> {
             additionalTest.testClassesDirs = test.testClassesDirs
             additionalTest.configure(commonTestConfig(project))
             additionalTest.configure(config)
-            test.dependsOn(additionalTest)
+            additionalTest.dependsOn(project.tasks.testClasses)
+            project.check.dependsOn(additionalTest)
         });
         return test
     }

@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.mockito.Matchers.any;
@@ -77,7 +78,7 @@ public class SocketChannelContextTests extends ESTestCase {
         when(rawChannel.write(any(ByteBuffer.class))).thenThrow(new IOException());
         when(rawChannel.read(any(ByteBuffer[].class), anyInt(), anyInt())).thenThrow(new IOException());
         when(rawChannel.read(any(ByteBuffer.class))).thenThrow(new IOException());
-        assertFalse(context.hasIOException());
+        assertFalse(context.closeNow());
         expectThrows(IOException.class, () -> {
             if (randomBoolean()) {
                 context.read();
@@ -85,15 +86,31 @@ public class SocketChannelContextTests extends ESTestCase {
                 context.flushChannel();
             }
         });
-        assertTrue(context.hasIOException());
+        assertTrue(context.closeNow());
     }
 
     public void testSignalWhenPeerClosed() throws IOException {
         when(rawChannel.read(any(ByteBuffer[].class), anyInt(), anyInt())).thenReturn(-1L);
         when(rawChannel.read(any(ByteBuffer.class))).thenReturn(-1);
-        assertFalse(context.isPeerClosed());
+        assertFalse(context.closeNow());
         context.read();
-        assertTrue(context.isPeerClosed());
+        assertTrue(context.closeNow());
+    }
+
+    public void testValidateInRegisterCanSucceed() throws IOException {
+        InboundChannelBuffer channelBuffer = InboundChannelBuffer.allocatingInstance();
+        context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, (c) -> true);
+        assertFalse(context.closeNow());
+        context.register();
+        assertFalse(context.closeNow());
+    }
+
+    public void testValidateInRegisterCanFail() throws IOException {
+        InboundChannelBuffer channelBuffer = InboundChannelBuffer.allocatingInstance();
+        context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, (c) -> false);
+        assertFalse(context.closeNow());
+        context.register();
+        assertTrue(context.closeNow());
     }
 
     public void testConnectSucceeds() throws IOException {
@@ -277,7 +294,13 @@ public class SocketChannelContextTests extends ESTestCase {
 
         private TestSocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
                                          ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
-            super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
+            this(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, ALWAYS_ALLOW_CHANNEL);
+        }
+
+        private TestSocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
+                                         ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer,
+                                         Predicate<NioSocketChannel> allowChannelPredicate) {
+            super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, allowChannelPredicate);
         }
 
         @Override
@@ -308,6 +331,11 @@ public class SocketChannelContextTests extends ESTestCase {
         @Override
         public void closeChannel() {
             isClosing.set(true);
+        }
+
+        @Override
+        void doSelectorRegister() {
+            // We do not want to call the actual register with selector method as it will throw a NPE
         }
     }
 

@@ -131,11 +131,15 @@ public class AutoDateHistogramAggregationBuilder
             .reduce(Integer::max).get();
         Settings settings = context.getQueryShardContext().getIndexSettings().getNodeSettings();
         int maxBuckets = MultiBucketConsumerService.MAX_BUCKET_SETTING.get(settings);
-        int bucketCeiling = maxBuckets / maxRoundingInterval;
-        if (numBuckets > bucketCeiling) {
-            throw new IllegalArgumentException(NUM_BUCKETS_FIELD.getPreferredName()+
-                " must be less than " + bucketCeiling);
+        if (maxBuckets >= 0) {
+            int bucketCeiling = maxBuckets / maxRoundingInterval;
+            if (numBuckets > bucketCeiling) {
+                System.out.println("OHNOES");
+                throw new IllegalArgumentException(NUM_BUCKETS_FIELD.getPreferredName() +
+                    " must be less than " + bucketCeiling);
+            }
         }
+
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent, subFactoriesBuilder, metaData);
     }
 

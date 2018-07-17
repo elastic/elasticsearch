@@ -289,17 +289,6 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    public void testWithLargeNumberOfBuckets() {
-        Query query = new MatchAllDocsQuery();
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> testSearchCase(query, dataset,
-                aggregation -> aggregation.setNumBuckets(DEFAULT_MAX_BUCKETS+1).field(DATE_FIELD),
-                // since an exception is thrown, this assertion won't be invoked.
-                histogram -> assertTrue(false)
-            ));
-        assertThat(exception.getMessage(), containsString("must be less than"));
-    }
-
     public void testIntervalDay() throws IOException {
         testSearchCase(new MatchAllDocsQuery(),
                 Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),

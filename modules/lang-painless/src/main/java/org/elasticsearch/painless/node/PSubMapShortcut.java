@@ -24,8 +24,8 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
 
 import java.util.Objects;
 import java.util.Set;
@@ -55,8 +55,8 @@ final class PSubMapShortcut extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        getter = struct.methods.get(new PainlessMethodKey("get", 1));
-        setter = struct.methods.get(new PainlessMethodKey("put", 2));
+        getter = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey("get", 1));
+        setter = struct.methods.get(PainlessLookupUtility.buildPainlessMethodKey("put", 2));
 
         if (getter != null && (getter.rtn == void.class || getter.arguments.size() != 1)) {
             throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + struct.name + "]."));

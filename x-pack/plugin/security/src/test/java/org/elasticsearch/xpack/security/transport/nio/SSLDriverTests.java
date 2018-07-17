@@ -7,21 +7,21 @@ package org.elasticsearch.xpack.security.transport.nio;
 
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.PemUtils;
 
-import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
-import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.TrustManager;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.function.Supplier;
 
 public class SSLDriverTests extends ESTestCase {
@@ -205,19 +205,16 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     private SSLContext getSSLContext() throws Exception {
-        String relativePath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks";
+        String certPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt";
+        String keyPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem";
         SSLContext sslContext;
-        try (InputStream in = Files.newInputStream(getDataPath(relativePath))) {
-            KeyStore keyStore = KeyStore.getInstance("jks");
-            keyStore.load(in, "testclient".toCharArray());
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            tmf.init(keyStore);
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            kmf.init(keyStore, "testclient".toCharArray());
-            sslContext = SSLContext.getInstance("TLSv1.2");
-            sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new SecureRandom());
-            return sslContext;
-        }
+        TrustManager tm = CertParsingUtils.trustManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
+            (certPath))));
+        KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
+            (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), "testclient"::toCharArray), "testclient".toCharArray());
+        sslContext = SSLContext.getInstance("TLSv1.2");
+        sslContext.init(new KeyManager[] { km }, new TrustManager[] { tm }, new SecureRandom());
+        return sslContext;
     }
 
     private void normalClose(SSLDriver sendDriver, SSLDriver receiveDriver) throws IOException {

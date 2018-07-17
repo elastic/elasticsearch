@@ -19,16 +19,16 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessField;
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessClass;
-import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.painless.lookup.PainlessField;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessMethodKey;
+import org.elasticsearch.painless.lookup.def;
 
 import java.util.List;
 import java.util.Map;
@@ -64,7 +64,7 @@ public final class PField extends AStoreable {
         prefix = prefix.cast(locals);
 
         if (prefix.actual.isArray()) {
-            sub = new PSubArrayLength(location, PainlessLookup.ClassToName(prefix.actual), value);
+            sub = new PSubArrayLength(location, PainlessLookupUtility.anyTypeToPainlessTypeName(prefix.actual), value);
         } else if (prefix.actual == def.class) {
             sub = new PSubDefField(location, value);
         } else {
@@ -86,7 +86,7 @@ public final class PField extends AStoreable {
                     new PainlessMethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
                 if (getter != null || setter != null) {
-                    sub = new PSubShortcut(location, value, PainlessLookup.ClassToName(prefix.actual), getter, setter);
+                    sub = new PSubShortcut(location, value, PainlessLookupUtility.anyTypeToPainlessTypeName(prefix.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
                     index.analyze(locals);
@@ -104,7 +104,7 @@ public final class PField extends AStoreable {
 
         if (sub == null) {
             throw createError(new IllegalArgumentException(
-                "Unknown field [" + value + "] for type [" + PainlessLookup.ClassToName(prefix.actual) + "]."));
+                "Unknown field [" + value + "] for type [" + PainlessLookupUtility.anyTypeToPainlessTypeName(prefix.actual) + "]."));
         }
 
         if (nullSafe) {

@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.objectweb.asm.Type;
 
 import java.lang.reflect.Modifier;
 import java.util.Objects;
@@ -63,9 +64,9 @@ final class PSubField extends AStoreable {
         writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
-            writer.getStatic(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
+            writer.getStatic(Type.getType(field.target), field.javaName, MethodWriter.getType(field.clazz));
         } else {
-            writer.getField(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
+            writer.getField(Type.getType(field.target), field.javaName, MethodWriter.getType(field.clazz));
         }
     }
 
@@ -94,9 +95,9 @@ final class PSubField extends AStoreable {
         writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
-            writer.getStatic(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
+            writer.getStatic(Type.getType(field.target), field.javaName, MethodWriter.getType(field.clazz));
         } else {
-            writer.getField(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
+            writer.getField(Type.getType(field.target), field.javaName, MethodWriter.getType(field.clazz));
         }
     }
 
@@ -105,9 +106,9 @@ final class PSubField extends AStoreable {
         writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
-            writer.putStatic(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
+            writer.putStatic(Type.getType(field.target), field.javaName, MethodWriter.getType(field.clazz));
         } else {
-            writer.putField(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
+            writer.putField(Type.getType(field.target), field.javaName, MethodWriter.getType(field.clazz));
         }
     }
 

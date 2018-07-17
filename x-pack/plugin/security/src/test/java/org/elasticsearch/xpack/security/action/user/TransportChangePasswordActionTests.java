@@ -135,8 +135,8 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             .build();
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportChangePasswordAction action = new TransportChangePasswordAction(passwordHashingSettings, mock(ThreadPool.class), transportService,
-            mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
+        TransportChangePasswordAction action = new TransportChangePasswordAction(passwordHashingSettings, mock(ThreadPool.class), 
+            transportService, mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<ChangePasswordResponse> responseRef = new AtomicReference<>();
         action.doExecute(request, new ActionListener<ChangePasswordResponse>() {

@@ -38,60 +38,56 @@ import java.util.function.LongConsumer;
 public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTestCase {
 
     public void testSimpleCcrReplication() throws Exception {
-        try (ReplicationGroup leaderGroup = createGroup(randomInt(2))) {
+        try (ReplicationGroup leaderGroup = createGroup(randomInt(2));
+             ReplicationGroup followerGroup = createFollowGroup(randomInt(2))) {
             leaderGroup.startAll();
             int docCount = leaderGroup.appendDocs(randomInt(64));
             leaderGroup.assertAllEqual(docCount);
-            try (ReplicationGroup followerGroup = createFollowGroup(randomInt(2))) {
-                followerGroup.startAll();
-                ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
-                shardFollowTask.start(followerGroup.getPrimary().getGlobalCheckpoint());
-                docCount += leaderGroup.appendDocs(randomInt(128));
-                leaderGroup.syncGlobalCheckpoint();
+            followerGroup.startAll();
+            ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
+            shardFollowTask.start(followerGroup.getPrimary().getGlobalCheckpoint());
+            docCount += leaderGroup.appendDocs(randomInt(128));
+            leaderGroup.syncGlobalCheckpoint();
 
-                leaderGroup.assertAllEqual(docCount);
-                int expectedCount = docCount;
-                assertBusy(() -> followerGroup.assertAllEqual(expectedCount));
-                shardFollowTask.markAsCompleted();
-            }
+            leaderGroup.assertAllEqual(docCount);
+            int expectedCount = docCount;
+            assertBusy(() -> followerGroup.assertAllEqual(expectedCount));
+            shardFollowTask.markAsCompleted();
         }
     }
 
     public void testFailLeaderReplicaShard() throws Exception {
-        try (ReplicationGroup leaderGroup = createGroup(1 + randomInt(1))) {
+        try (ReplicationGroup leaderGroup = createGroup(1 + randomInt(1));
+             ReplicationGroup followerGroup = createFollowGroup(randomInt(2))) {
             leaderGroup.startAll();
-            try (ReplicationGroup followerGroup = createFollowGroup(randomInt(2))) {
-                followerGroup.startAll();
-                ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
-                shardFollowTask.start(followerGroup.getPrimary().getGlobalCheckpoint());
-                int docCount = 256;
-                leaderGroup.appendDocs(1);
-                Runnable task = () -> {
-                    try {
-                        leaderGroup.appendDocs(docCount - 1);
-                        leaderGroup.syncGlobalCheckpoint();
-                    } catch (Exception e) {
-                        throw new AssertionError(e);
-                    }
-                };
-                Thread thread = new Thread(task);
-                thread.start();
+            followerGroup.startAll();
+            ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
+            shardFollowTask.start(followerGroup.getPrimary().getGlobalCheckpoint());
+            int docCount = 256;
+            leaderGroup.appendDocs(1);
+            Runnable task = () -> {
+                try {
+                    leaderGroup.appendDocs(docCount - 1);
+                    leaderGroup.syncGlobalCheckpoint();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            };
+            Thread thread = new Thread(task);
+            thread.start();
 
-                // Remove and add a new replica
-                IndexShard luckyReplica = randomFrom(leaderGroup.getReplicas());
-                leaderGroup.removeReplica(luckyReplica);
-                luckyReplica.close("stop replica", false);
-                luckyReplica.store().close();
-                leaderGroup.addReplica();
-                leaderGroup.startReplicas(1);
-                thread.join();
+            // Remove and add a new replica
+            IndexShard luckyReplica = randomFrom(leaderGroup.getReplicas());
+            leaderGroup.removeReplica(luckyReplica);
+            luckyReplica.close("stop replica", false);
+            luckyReplica.store().close();
+            leaderGroup.addReplica();
+            leaderGroup.startReplicas(1);
+            thread.join();
 
-                leaderGroup.assertAllEqual(docCount);
-                assertBusy(() -> {
-                    followerGroup.assertAllEqual(docCount);
-                });
-                shardFollowTask.markAsCompleted();
-            }
+            leaderGroup.assertAllEqual(docCount);
+            assertBusy(() -> followerGroup.assertAllEqual(docCount));
+            shardFollowTask.markAsCompleted();
         }
     }
 

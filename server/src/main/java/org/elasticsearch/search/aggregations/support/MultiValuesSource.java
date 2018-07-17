@@ -19,100 +19,68 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Class to encapsulate a set of ValuesSource objects labeled by field name
  */
 public abstract class MultiValuesSource <VS extends ValuesSource> {
-
-    public static class Wrapper<VS> {
-        private MultiValueMode multiValueMode;
-        private VS valueSource;
-
-        public Wrapper(MultiValueMode multiValueMode, VS value) {
-            this.multiValueMode = multiValueMode;
-            this.valueSource = value;
-        }
-
-        public MultiValueMode getMultiValueMode() {
-            return multiValueMode;
-        }
-
-        public VS getValueSource() {
-            return valueSource;
-        }
-    }
-
-    protected Map<String, Wrapper<VS>> values;
+    protected Map<String, VS> values;
 
     public static class NumericMultiValuesSource extends MultiValuesSource<ValuesSource.Numeric> {
-        public NumericMultiValuesSource(MultiValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfigs,
+        public NumericMultiValuesSource(Map<String, ValuesSourceConfig<ValuesSource.Numeric>> valuesSourceConfigs,
                                         QueryShardContext context) throws IOException {
-            values = new HashMap<>(valuesSourceConfigs.getMap().size());
-            for (Map.Entry<String, MultiValuesSourceConfig.Wrapper<ValuesSource.Numeric>> entry : valuesSourceConfigs.getMap().entrySet()) {
-                values.put(entry.getKey(), new Wrapper<>(entry.getValue().getMulti(),
-                    entry.getValue().getConfig().toValuesSource(context)));
+            values = new HashMap<>(valuesSourceConfigs.size());
+            for (Map.Entry<String, ValuesSourceConfig<ValuesSource.Numeric>> entry : valuesSourceConfigs.entrySet()) {
+                values.put(entry.getKey(), entry.getValue().toValuesSource(context));
             }
         }
 
-        public NumericDoubleValues getField(String fieldName, LeafReaderContext ctx) throws IOException {
-            Wrapper<ValuesSource.Numeric> wrapper = values.get(fieldName);
-            if (wrapper == null) {
+        public SortedNumericDoubleValues getField(String fieldName, LeafReaderContext ctx) throws IOException {
+            ValuesSource.Numeric value = values.get(fieldName);
+            if (value == null) {
                 throw new IllegalArgumentException("Could not find field name [" + fieldName + "] in multiValuesSource");
             }
-            return wrapper.getMultiValueMode().select(wrapper.getValueSource().doubleValues(ctx));
-        }
-
-        public NumericDoubleValues getField(String fieldName, double defaultValue, LeafReaderContext ctx) throws IOException {
-            Wrapper<ValuesSource.Numeric> wrapper = values.get(fieldName);
-            if (wrapper == null) {
-                throw new IllegalArgumentException("Could not find field name [" + fieldName + "] in multiValuesSource");
-            }
-            return FieldData.replaceMissing(wrapper.getMultiValueMode().select(wrapper.getValueSource().doubleValues(ctx)), defaultValue);
+            return value.doubleValues(ctx);
         }
     }
 
     public static class BytesMultiValuesSource extends MultiValuesSource<ValuesSource.Bytes> {
-        public BytesMultiValuesSource(MultiValuesSourceConfig<ValuesSource.Bytes> valuesSourceConfigs,
+        public BytesMultiValuesSource(Map<String, ValuesSourceConfig<ValuesSource.Bytes>> valuesSourceConfigs,
                                       QueryShardContext context) throws IOException {
-            values = new HashMap<>(valuesSourceConfigs.getMap().size());
-            for (Map.Entry<String, MultiValuesSourceConfig.Wrapper<ValuesSource.Bytes>> entry : valuesSourceConfigs.getMap().entrySet()) {
-                values.put(entry.getKey(), new Wrapper<>(entry.getValue().getMulti(),
-                    entry.getValue().getConfig().toValuesSource(context)));
+            values = new HashMap<>(valuesSourceConfigs.size());
+            for (Map.Entry<String, ValuesSourceConfig<ValuesSource.Bytes>> entry : valuesSourceConfigs.entrySet()) {
+                values.put(entry.getKey(), entry.getValue().toValuesSource(context));
             }
         }
 
         public Object getField(String fieldName, LeafReaderContext ctx) throws IOException {
-            Wrapper<ValuesSource.Bytes> wrapper = values.get(fieldName);
-            if (wrapper == null) {
+            ValuesSource.Bytes value = values.get(fieldName);
+            if (value == null) {
                 throw new IllegalArgumentException("Could not find field name [" + fieldName + "] in multiValuesSource");
             }
-            return wrapper.getValueSource().bytesValues(ctx);
+            return value.bytesValues(ctx);
         }
     }
 
     public static class GeoPointValuesSource extends MultiValuesSource<ValuesSource.GeoPoint> {
-        public GeoPointValuesSource(MultiValuesSourceConfig<ValuesSource.GeoPoint> valuesSourceConfigs,
+        public GeoPointValuesSource(Map<String, ValuesSourceConfig<ValuesSource.GeoPoint>> valuesSourceConfigs,
                                     QueryShardContext context) throws IOException {
-            values = new HashMap<>(valuesSourceConfigs.getMap().size());
-            for (Map.Entry<String, MultiValuesSourceConfig.Wrapper<ValuesSource.GeoPoint>> entry : valuesSourceConfigs.getMap().entrySet()){
-                values.put(entry.getKey(), new Wrapper<>(entry.getValue().getMulti(),
-                    entry.getValue().getConfig().toValuesSource(context)));
+            values = new HashMap<>(valuesSourceConfigs.size());
+            for (Map.Entry<String, ValuesSourceConfig<ValuesSource.GeoPoint>> entry : valuesSourceConfigs.entrySet()) {
+                values.put(entry.getKey(), entry.getValue().toValuesSource(context));
             }
         }
     }
 
-
     public boolean needsScores() {
-        return values.values().stream().anyMatch(vsWrapper -> vsWrapper.getValueSource().needsScores());
+        return values.values().stream().anyMatch(ValuesSource::needsScores);
     }
 
     public String[] fieldNames() {
@@ -120,6 +88,6 @@ public abstract class MultiValuesSource <VS extends ValuesSource> {
     }
 
     public boolean areValuesSourcesEmpty() {
-        return values.values().stream().allMatch(vsWrapper -> vsWrapper.getValueSource() == null);
+        return values.values().stream().allMatch(Objects::isNull);
     }
 }

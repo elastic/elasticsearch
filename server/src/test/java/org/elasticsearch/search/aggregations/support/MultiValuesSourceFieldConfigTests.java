@@ -35,10 +35,4 @@ public class MultiValuesSourceFieldConfigTests extends ESTestCase {
             () -> new MultiValuesSourceFieldConfig.Builder().setFieldName("foo").setScript(new Script("foo")).build());
         assertThat(e.getMessage(), equalTo("[field] and [script] cannot both be configured.  Please specify one or the other."));
     }
-
-    public void testNullMulti() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new MultiValuesSourceFieldConfig.Builder().setFieldName("foo").setMulti(null).build());
-        assertThat(e.getMessage(), equalTo("[multi] cannot be null"));
-    }
 }

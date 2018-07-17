@@ -26,8 +26,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.MultiValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -36,9 +36,9 @@ import java.util.Map;
 
 public class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory<Numeric, WeightedAvgAggregatorFactory> {
 
-    public WeightedAvgAggregatorFactory(String name,  MultiValuesSourceConfig<Numeric> configs,
-                                        DocValueFormat format,
-                                        SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+    public WeightedAvgAggregatorFactory(String name,  Map<String, ValuesSourceConfig<Numeric>> configs,
+                                        DocValueFormat format, SearchContext context, AggregatorFactory<?> parent,
+                                        AggregatorFactories.Builder subFactoriesBuilder,
                                         Map<String, Object> metaData) throws IOException {
         super(name, configs, format, context, parent, subFactoriesBuilder, metaData);
     }
@@ -50,8 +50,9 @@ public class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator doCreateInternal(MultiValuesSourceConfig<Numeric> configs, DocValueFormat format, Aggregator parent,
-                                          boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
+    protected Aggregator doCreateInternal(Map<String, ValuesSourceConfig<Numeric>> configs, DocValueFormat format,
+                                          Aggregator parent, boolean collectsFromSingleBucket,
+                                          List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metaData) throws IOException {
         MultiValuesSource.NumericMultiValuesSource numericMultiVS
             = new MultiValuesSource.NumericMultiValuesSource(configs, context.getQueryShardContext());

@@ -32,11 +32,11 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.MultiValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceParseHelper;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -99,10 +99,10 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
 
     @Override
     protected MultiValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context,
-                                                                        MultiValuesSourceConfig<Numeric> configs,
-                                                                        DocValueFormat format,
-                                                                        AggregatorFactory<?> parent,
-                                                                        Builder subFactoriesBuilder) throws IOException {
+                                                                    Map<String, ValuesSourceConfig<Numeric>> configs,
+                                                                    DocValueFormat format,
+                                                                    AggregatorFactory<?> parent,
+                                                                    Builder subFactoriesBuilder) throws IOException {
         return new WeightedAvgAggregatorFactory(name, configs, format, context, parent, subFactoriesBuilder, metaData);
     }
 

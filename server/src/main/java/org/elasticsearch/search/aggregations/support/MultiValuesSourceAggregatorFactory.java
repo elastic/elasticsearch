@@ -33,10 +33,10 @@ import java.util.Map;
 public abstract class MultiValuesSourceAggregatorFactory<VS extends ValuesSource, AF extends MultiValuesSourceAggregatorFactory<VS, AF>>
         extends AggregatorFactory<AF> {
 
-    protected final MultiValuesSourceConfig<VS> configs;
+    protected final Map<String, ValuesSourceConfig<VS>> configs;
     protected final DocValueFormat format;
 
-    public MultiValuesSourceAggregatorFactory(String name, MultiValuesSourceConfig<VS> configs,
+    public MultiValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig<VS>> configs,
                                               DocValueFormat format, SearchContext context,
                                               AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
                                               Map<String, Object> metaData) throws IOException {
@@ -56,7 +56,7 @@ public abstract class MultiValuesSourceAggregatorFactory<VS extends ValuesSource
     protected abstract Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                                                  Map<String, Object> metaData) throws IOException;
 
-    protected abstract Aggregator doCreateInternal(MultiValuesSourceConfig<VS> configs,
+    protected abstract Aggregator doCreateInternal(Map<String, ValuesSourceConfig<VS>> configs,
                                                    DocValueFormat format, Aggregator parent, boolean collectsFromSingleBucket,
                                                    List<PipelineAggregator> pipelineAggregators,
                                                    Map<String, Object> metaData) throws IOException;

@@ -22,8 +22,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -77,8 +78,8 @@ public class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue 
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-        final NumericDoubleValues docValues = valuesSources.getField(VALUE_FIELD.getPreferredName(), ctx);
-        final NumericDoubleValues docWeights = valuesSources.getField(WEIGHT_FIELD.getPreferredName(), 1.0, ctx);
+        final SortedNumericDoubleValues docValues = valuesSources.getField(VALUE_FIELD.getPreferredName(), ctx);
+        final SortedNumericDoubleValues docWeights = valuesSources.getField(WEIGHT_FIELD.getPreferredName(), ctx);
 
         return new LeafBucketCollectorBase(sub, docValues) {
             @Override
@@ -88,13 +89,23 @@ public class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue 
                 sumCompensations = bigArrays.grow(sumCompensations, bucket + 1);
                 weightCompensations = bigArrays.grow(weightCompensations, bucket + 1);
 
-                if (docValues.advanceExact(doc)) {
-                    boolean advanced = docWeights.advanceExact(doc);
-                    assert advanced;
-                    final double weight = docWeights.doubleValue();
+                if (docValues.advanceExact(doc) && docWeights.advanceExact(doc)) {
+                    if (docWeights.docValueCount() > 1) {
+                        throw new AggregationExecutionException("Encountered more than one weight for a " +
+                            "single document. Use a script to combine multiple weights-per-doc into a single value.");
+                    }
+                    // There should always be one weight if advanceExact lands us here, either
+                    // a real weight or a `missing` value
+                    assert docWeights.docValueCount() == 1;
+                    final double weight = docWeights.nextValue();
 
-                    kahanSum(docValues.doubleValue() * weight, sums, sumCompensations, bucket);
-                    kahanSum(weight, weights, weightCompensations, bucket);
+                    final int numValues = docValues.docValueCount();
+                    assert numValues > 0;
+
+                    for (int i = 0; i < numValues; i++) {
+                        kahanSum(docValues.nextValue() * weight, sums, sumCompensations, bucket);
+                        kahanSum(weight, weights, weightCompensations, bucket);
+                    }
                 }
             }
         };

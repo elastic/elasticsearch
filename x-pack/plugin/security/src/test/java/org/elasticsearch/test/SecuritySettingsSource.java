@@ -42,6 +42,7 @@ import java.util.function.Consumer;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.apache.lucene.util.LuceneTestCase.createTempFile;
+import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
@@ -103,7 +104,12 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         this.subfolderPrefix = scope.name();
         this.sslEnabled = sslEnabled;
         this.hostnameVerificationEnabled = randomBoolean();
-        this.usePEM = randomBoolean();
+        // Use PEM instead of JKS stores so that we can run these in a FIPS 140 JVM
+        if (inFipsJvm()) {
+            this.usePEM = true;
+        } else {
+            this.usePEM = randomBoolean();
+        }
     }
 
     Path nodePath(final int nodeOrdinal) {
@@ -137,7 +143,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                 .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)
                 .put("xpack.security.authc.realms.file.order", 0)
                 .put("xpack.security.authc.realms.index.type", NativeRealmSettings.TYPE)
-            .put("xpack.security.authc.realms.index.order", "1");
+                .put("xpack.security.authc.realms.index.order", "1");
         addNodeSSLSettings(builder);
         return builder.build();
     }
@@ -286,6 +292,23 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                     secureSettings.setString(prefix + "xpack.ssl.truststore.secure_password", password));
             }
         }
+    }
+
+    /**
+     * Returns the SSL related configuration settings given the location of a key and certificate and the location
+     * of the PEM certificates to be trusted
+     *
+     * @param builder
+     * @param keyPath             The path to the Private key to be used for SSL
+     * @param password            The password with which the private key is protected
+     * @param certificatePath     The path to the PEM formatted Certificate encapsulating the public key that corresponds
+     *                            to the Private Key specified in {@code keyPath}. Will be presented to incoming
+     *                            SSL connections.
+     * @param trustedCertificates A list of PEM formatted certificates that will be trusted.
+     */
+    public static void addSSLSettingsForPEMFiles(Settings.Builder builder, String keyPath, String password,
+                                                 String certificatePath, List<String> trustedCertificates) {
+        addSSLSettingsForPEMFiles(builder, "", keyPath, password, certificatePath, trustedCertificates, true, true, true);
     }
 
     private static void addSSLSettingsForPEMFiles(Settings.Builder builder, String prefix, String keyPath, String password,

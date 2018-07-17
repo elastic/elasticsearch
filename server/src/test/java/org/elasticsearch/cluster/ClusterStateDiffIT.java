@@ -97,7 +97,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 if (i > 0) {
                     clusterState = builder.build();
                 }
-                switch (randomInt(4)) {
+                switch (randomInt(5)) {
                     case 0:
                         builder = randomNodes(clusterState);
                         break;
@@ -113,11 +113,14 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                     case 4:
                         builder = randomMetaDataChanges(clusterState);
                         break;
+                    case 5:
+                        builder = randomVotingConfiguration(clusterState);
+                        break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
                 }
             }
-            clusterState = builder.incrementVersion().build();
+            clusterState = builder.incrementVersion().term(randomLong()).build();
 
             if (randomIntBetween(0, 10) < 1) {
                 // Update cluster state via full serialization from time to time
@@ -141,7 +144,10 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             try {
                 // Check non-diffable elements
                 assertThat(clusterStateFromDiffs.version(), equalTo(clusterState.version()));
+                assertThat(clusterStateFromDiffs.term(), equalTo(clusterState.term()));
                 assertThat(clusterStateFromDiffs.stateUUID(), equalTo(clusterState.stateUUID()));
+                assertThat(clusterStateFromDiffs.getLastAcceptedConfiguration(), equalTo(clusterState.getLastAcceptedConfiguration()));
+                assertThat(clusterStateFromDiffs.getLastCommittedConfiguration(), equalTo(clusterState.getLastCommittedConfiguration()));
 
                 // Check nodes
                 assertThat(clusterStateFromDiffs.nodes().getNodes(), equalTo(clusterState.nodes().getNodes()));
@@ -188,6 +194,20 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
         logger.info("Final cluster state:[{}]", clusterState.toString());
 
+    }
+
+    private ClusterState.Builder randomVotingConfiguration(ClusterState clusterState) {
+        ClusterState.Builder builder = ClusterState.builder(clusterState);
+        if (randomBoolean()) {
+            builder.lastCommittedConfiguration(
+                new ClusterState.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
+        }
+        if (randomBoolean()) {
+            builder.lastAcceptedConfiguration(
+                new ClusterState.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))));
+        }
+
+        return builder;
     }
 
     /**

@@ -1,8 +1,6 @@
 [[release-notes-6.3.1]]
 == {es} version 6.3.1
 
-Also see <<breaking-changes-6.3>>.
-
 [IMPORTANT]
 .Known issue with Elasticsearch 6.3.x on JDK 10
 ======================================================
@@ -48,7 +46,10 @@ upstream to the JDK maintainers and the workaround will be necessary until a
 version of the JDK that is not prone to this issue is released. For additional
 background, see {issue}31425[#31425].
 
-+
+======================================================
+
+Also see <<breaking-changes-6.3>>.
+
 [[bug-6.3.1]]
 [float]
 === Bug fixes
@@ -102,14 +103,21 @@ Watcher::
 [[release-notes-6.3.0]]
 == {es} version 6.3.0
 
-[float]
-=== Known issues
+[IMPORTANT]
+.Known issue upgrading from 5.x
+======================================================
 
-Upgrades from any 5.x version will fail for indexes which are prepared using the <<indices-synced-flush, _synced flush API>>, or were automatically sync-flushed due to inactivity. If upgrading from those versions, please wait for 6.3.1 to be released.
+Upgrades from any 5.x version will fail for indexes which are prepared using the
+<<indices-synced-flush, _synced flush API>>, or were automatically sync-flushed
+due to inactivity. If upgrading from those versions, please wait for 6.3.1 to be
+released.
 
-Clusters with a Gold or Platinum license that are upgrading to 6.3 will need to explicitly set
-`xpack.security.enabled: true` in `elasticsearch.yml` to upgrade successfully.
-If this value is not set, the cluster will be unable to form after upgrade.
+Clusters with a Gold or Platinum license that are upgrading to 6.3 will need to
+explicitly set `xpack.security.enabled: true` in `elasticsearch.yml` to upgrade
+successfully.  If this value is not set, the cluster will be unable to form
+after upgrade.
+
+======================================================
 
 [IMPORTANT]
 .Known issue with Elasticsearch 6.3.x on JDK 10
@@ -156,7 +164,8 @@ upstream to the JDK maintainers and the workaround will be necessary until a
 version of the JDK that is not prone to this issue is released. For additional
 background, see {issue}31425[#31425].
 
-+
+======================================================
+
 Also see <<breaking-changes-6.3>>.
 
 [[breaking-6.3.0]]

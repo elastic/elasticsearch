@@ -8,7 +8,7 @@ Also see <<breaking-changes-6.3>>.
 ======================================================
 
 There appears to be a bug in JDK 10 impacting Elasticsearch 6.3.x (note that the
-official Docker image is based on JDK 10). The issue appears to impact the C2
+official Docker images are based on JDK 10). The issue appears to impact the C2
 compiler on hardware that supports
 https://en.wikipedia.org/wiki/AVX-512[AVX-512 instructions] (e.g., Skylake-X
 CPUs). The issue manifests as a segmentation fault in Java code executing

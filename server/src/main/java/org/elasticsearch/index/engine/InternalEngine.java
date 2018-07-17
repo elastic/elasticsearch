@@ -903,7 +903,9 @@ public class InternalEngine extends Engine {
                 if (prevSeqNo.isPresent() == false || prevSeqNo.getAsLong() < index.seqNo()) {
                     plan = IndexingStrategy.processNormally(prevSeqNo.isPresent() == false, index.seqNo(), index.version());
                 } else {
-                    plan = IndexingStrategy.processAsStaleOp(softDeleteEnabled, index.seqNo(), index.version(), prevSeqNo.getAsLong());
+                    final boolean addStaleOpToLucene = this.softDeleteEnabled;
+                    plan = IndexingStrategy.processAsStaleOp(addStaleOpToLucene, index.seqNo(), index.version(),
+                        addStaleOpToLucene ? prevSeqNo.getAsLong() : -1);
                 }
             }
         }
@@ -1070,8 +1072,9 @@ public class InternalEngine extends Engine {
                 "can only index into lucene or have a preflight result but not both." +
                     "indexIntoLucene: " + indexIntoLucene
                     + "  earlyResultOnPreFlightError:" + earlyResultOnPreFlightError;
-            assert (addStaleOpToLucene && seqNoOfNewerDocIfStale > seqNoForIndexing) || (addStaleOpToLucene == false && seqNoOfNewerDocIfStale == -1) :
-                "stale=" + addStaleOpToLucene + " ,seqno_for_indexing=" + seqNoForIndexing + " ,seqno_of_newer_doc=" + seqNoOfNewerDocIfStale;
+            // TODO: assert greater (i.e. remove or equals) after rollback is implemented
+            assert (addStaleOpToLucene && seqNoOfNewerDocIfStale >= seqNoForIndexing) || (addStaleOpToLucene == false && seqNoOfNewerDocIfStale == -1) :
+                "stale=" + addStaleOpToLucene + ", seqno_for_indexing=" + seqNoForIndexing + ", seqno_of_newer_doc=" + seqNoOfNewerDocIfStale;
             this.currentNotFoundOrDeleted = currentNotFoundOrDeleted;
             this.useLuceneUpdateDocument = useLuceneUpdateDocument;
             this.seqNoForIndexing = seqNoForIndexing;

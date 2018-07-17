@@ -117,6 +117,37 @@ public class ConsensusState extends AbstractComponent {
     }
 
     /**
+     * Used to bootstrap a cluster by injecting the initial state and configuration.
+     *
+     * @param initialState The initial state to use.
+     * @throws ConsensusMessageRejectedException if the arguments were incompatible with the current state of this object.
+     */
+    public void setInitialState(ClusterState initialState) {
+
+        final long lastAcceptedVersion = persistedState.getLastAcceptedVersion();
+        if (lastAcceptedVersion != 0) {
+            logger.debug("setInitialState: rejecting since last-accepted version {} > 0", lastAcceptedVersion);
+            throw new ConsensusMessageRejectedException("initial state already set: last-accepted version now " + lastAcceptedVersion);
+        }
+
+        assert persistedState.getLastAcceptedTerm() == 0;
+        assert persistedState.getLastAcceptedConfiguration().isEmpty();
+        assert persistedState.getLastCommittedConfiguration().isEmpty();
+        assert initialState.getLastAcceptedConfiguration().isEmpty() == false;
+        assert initialState.getLastCommittedConfiguration().isEmpty() == false;
+        assert initialState.term() == 0;
+        assert initialState.version() == 1;
+
+        assert lastPublishedVersion == 0;
+        assert lastPublishedConfiguration.isEmpty();
+        assert electionWon == false;
+        assert joinVotes.nodes.isEmpty();
+        assert publishVotes.nodes.isEmpty();
+
+        persistedState.setLastAcceptedState(initialState);
+    }
+
+    /**
      * May be safely called at any time to move this instance to a new term.
      *
      * @param startJoinRequest The startJoinRequest, specifying the node requesting the join.
@@ -149,6 +180,7 @@ public class ConsensusState extends AbstractComponent {
      * May be called on receipt of a Join from the given sourceNode.
      *
      * @param join The Join received.
+     * @return true iff this join was not already added
      * @throws ConsensusMessageRejectedException if the arguments were incompatible with the current state of this object.
      */
     public boolean handleJoin(Join join) {
@@ -231,6 +263,9 @@ public class ConsensusState extends AbstractComponent {
             throw new ConsensusMessageRejectedException("incoming cluster state version " + clusterState.version() +
                 " lower or equal to last published version " + lastPublishedVersion);
         }
+
+        assert getLastCommittedConfiguration().equals(clusterState.getLastCommittedConfiguration()) :
+            "last committed configuration should not change";
 
         if (clusterState.getLastAcceptedConfiguration().equals(getLastAcceptedConfiguration()) == false
             && getLastCommittedConfiguration().equals(getLastAcceptedConfiguration()) == false) {
@@ -353,31 +388,6 @@ public class ConsensusState extends AbstractComponent {
 
         persistedState.markLastAcceptedConfigAsCommitted();
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
-    }
-
-    public void setInitialState(ClusterState initialState) {
-
-        final long lastAcceptedVersion = persistedState.getLastAcceptedVersion();
-        if (lastAcceptedVersion != 0) {
-            logger.debug("setInitialState: rejecting since last-accepted version {} > 0", lastAcceptedVersion);
-            throw new ConsensusMessageRejectedException("initial state already set: last-accepted version now " + lastAcceptedVersion);
-        }
-
-        assert persistedState.getLastAcceptedTerm() == 0;
-        assert persistedState.getLastAcceptedConfiguration().isEmpty();
-        assert persistedState.getLastCommittedConfiguration().isEmpty();
-        assert initialState.getLastAcceptedConfiguration().isEmpty() == false;
-        assert initialState.getLastCommittedConfiguration().isEmpty() == false;
-        assert initialState.term() == 0;
-        assert initialState.version() == 1;
-
-        assert lastPublishedVersion == 0;
-        assert lastPublishedConfiguration.isEmpty();
-        assert electionWon == false;
-        assert joinVotes.nodes.isEmpty();
-        assert publishVotes.nodes.isEmpty();
-
-        persistedState.setLastAcceptedState(initialState);
     }
 
     public interface PersistedState {

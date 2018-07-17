@@ -30,7 +30,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -279,7 +278,7 @@ public class PainlessLookupBuilder {
                 Class<?> painlessParameterClass = getJavaClassFromPainlessType(painlessParameterTypeName);
 
                 painlessParametersTypes.add(painlessParameterClass);
-                javaClassParameters[parameterCount] = PainlessLookup.defClassToObjectClass(painlessParameterClass);
+                javaClassParameters[parameterCount] = PainlessLookupUtility.painlessDefTypeToJavaObjectType(painlessParameterClass);
             } catch (IllegalArgumentException iae) {
                 throw new IllegalArgumentException("struct not defined for constructor parameter [" + painlessParameterTypeName + "] " +
                     "with owner struct [" + ownerStructName + "] and constructor parameters " +
@@ -364,7 +363,8 @@ public class PainlessLookupBuilder {
                 Class<?> painlessParameterClass = getJavaClassFromPainlessType(painlessParameterTypeName);
 
                 painlessParametersTypes.add(painlessParameterClass);
-                javaClassParameters[parameterCount + augmentedOffset] = PainlessLookup.defClassToObjectClass(painlessParameterClass);
+                javaClassParameters[parameterCount + augmentedOffset] =
+                        PainlessLookupUtility.painlessDefTypeToJavaObjectType(painlessParameterClass);
             } catch (IllegalArgumentException iae) {
                 throw new IllegalArgumentException("struct not defined for method parameter [" + painlessParameterTypeName + "] " +
                     "with owner struct [" + ownerStructName + "] and method with name [" + whitelistMethod.javaMethodName + "] " +
@@ -393,7 +393,7 @@ public class PainlessLookupBuilder {
                 "and parameters " + whitelistMethod.painlessParameterTypeNames, iae);
         }
 
-        if (javaMethod.getReturnType() != PainlessLookup.defClassToObjectClass(painlessReturnClass)) {
+        if (javaMethod.getReturnType() != PainlessLookupUtility.painlessDefTypeToJavaObjectType(painlessReturnClass)) {
             throw new IllegalArgumentException("specified return type class [" + painlessReturnClass + "] " +
                 "does not match the return type class [" + javaMethod.getReturnType() + "] for the " +
                 "method with name [" + whitelistMethod.javaMethodName + "] " +
@@ -711,64 +711,11 @@ public class PainlessLookupBuilder {
         return painless;
     }
 
-    public Class<?> getJavaClassFromPainlessType(String painlessType) {
-        Class<?> javaClass = painlessTypesToJavaClasses.get(painlessType);
-
-        if (javaClass != null) {
-            return javaClass;
-        }
-        int arrayDimensions = 0;
-        int arrayIndex = painlessType.indexOf('[');
-
-        if (arrayIndex != -1) {
-            int length = painlessType.length();
-
-            while (arrayIndex < length) {
-                if (painlessType.charAt(arrayIndex) == '[' && ++arrayIndex < length && painlessType.charAt(arrayIndex++) == ']') {
-                    ++arrayDimensions;
-                } else {
-                    throw new IllegalArgumentException("invalid painless type [" + painlessType + "].");
-                }
-            }
-
-            painlessType = painlessType.substring(0, painlessType.indexOf('['));
-            javaClass = painlessTypesToJavaClasses.get(painlessType);
-
-            char braces[] = new char[arrayDimensions];
-            Arrays.fill(braces, '[');
-            String descriptor = new String(braces);
-
-            if (javaClass == boolean.class) {
-                descriptor += "Z";
-            } else if (javaClass == byte.class) {
-                descriptor += "B";
-            } else if (javaClass == short.class) {
-                descriptor += "S";
-            } else if (javaClass == char.class) {
-                descriptor += "C";
-            } else if (javaClass == int.class) {
-                descriptor += "I";
-            } else if (javaClass == long.class) {
-                descriptor += "J";
-            } else if (javaClass == float.class) {
-                descriptor += "F";
-            } else if (javaClass == double.class) {
-                descriptor += "D";
-            } else {
-                descriptor += "L" + javaClass.getName() + ";";
-            }
-
-            try {
-                return Class.forName(descriptor);
-            } catch (ClassNotFoundException cnfe) {
-                throw new IllegalStateException("invalid painless type [" + painlessType + "]", cnfe);
-            }
-        }
-
-        throw new IllegalArgumentException("invalid painless type [" + painlessType + "]");
-    }
-
     public PainlessLookup build() {
         return new PainlessLookup(painlessTypesToJavaClasses, javaClassesToPainlessStructs);
+    }
+
+    public Class<?> getJavaClassFromPainlessType(String painlessType) {
+        return PainlessLookupUtility.painlessTypeNameToPainlessType(painlessType, painlessTypesToJavaClasses);
     }
 }

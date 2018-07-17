@@ -19,12 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.util.Objects;
 import java.util.Set;
@@ -63,6 +63,6 @@ final class ECast extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToString(PainlessLookup.ClassToName(cast.to), child);
+        return singleLineToString(PainlessLookupUtility.anyTypeToPainlessTypeName(cast.to), child);
     }
 }

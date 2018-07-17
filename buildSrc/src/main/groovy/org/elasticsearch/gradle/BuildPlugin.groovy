@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
@@ -36,12 +37,14 @@ import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
+import org.gradle.api.artifacts.SelfResolvingDependency
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
+import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
@@ -498,7 +501,41 @@ class BuildPlugin implements Plugin<Project> {
                     }
                 }
             }
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                project.publishing {
+                    publications {
+                        nebula(MavenPublication) {
+                            artifact project.tasks.shadowJar
+                            artifactId = project.archivesBaseName
+                            /*
+                            * Configure the pom to include the "shadow" as compile dependencies
+                            * because that is how we're using them but remove all other dependencies
+                            * because they've been shaded into the jar.
+                            */
+                            pom.withXml { XmlProvider xml ->
+                                Node root = xml.asNode()
+                                root.remove(root.dependencies)
+                                Node dependenciesNode = root.appendNode('dependencies')
+                                project.configurations.shadow.allDependencies.each {
+                                    if (false == it instanceof SelfResolvingDependency) {
+                                        Node dependencyNode = dependenciesNode.appendNode('dependency')
+                                        dependencyNode.appendNode('groupId', it.group)
+                                        dependencyNode.appendNode('artifactId', it.name)
+                                        dependencyNode.appendNode('version', it.version)
+                                        dependencyNode.appendNode('scope', 'compile')
+                                    }
+                                }
+                                // Be tidy and remove the element if it is empty
+                                if (dependenciesNode.children.empty) {
+                                    root.remove(dependenciesNode)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
+
     }
 
     /** Adds compiler settings to the project */
@@ -660,6 +697,28 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            /*
+             * When we use the shadow plugin we entirely replace the
+             * normal jar with the shadow jar so we no longer want to run
+             * the jar task.
+             */
+            project.tasks.jar.enabled = false
+            project.tasks.shadowJar {
+                /*
+                 * Replace the default "shadow" classifier with null
+                 * which will leave the classifier off of the file name.
+                 */
+                classifier = null
+                /*
+                 * Not all cases need service files merged but it is
+                 * better to be safe
+                 */
+                mergeServiceFiles()
+            }
+            // Make sure we assemble the shadow jar
+            project.tasks.assemble.dependsOn project.tasks.shadowJar
+        }
     }
 
     /** Returns a closure of common configuration shared by unit and integration tests. */
@@ -744,6 +803,18 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             exclude '**/*$*.class'
+
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                /*
+                 * If we make a shaded jar we test against it.
+                 */
+                classpath -= project.tasks.compileJava.outputs.files
+                classpath -= project.configurations.compile
+                classpath -= project.configurations.runtime
+                classpath += project.configurations.shadow
+                classpath += project.tasks.shadowJar.outputs.files
+                dependsOn project.tasks.shadowJar
+            }
         }
     }
 
@@ -766,7 +837,26 @@ class BuildPlugin implements Plugin<Project> {
             additionalTest.dependsOn(project.tasks.testClasses)
             test.dependsOn(additionalTest)
         });
-        return test
+
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            /*
+             * We need somewhere to configure dependencies that we don't wish
+             * to shade into the jar. The shadow plugin creates a "shadow"
+             * configuration which  is *almost* exactly that. It is never
+             * bundled into the shaded jar but is used for main source
+             * compilation. Unfortunately, by default it is not used for
+             * *test* source compilation and isn't used in tests at all. This
+             * change makes it available for test compilation.
+             *
+             * Note that this isn't going to work properly with qa projects
+             * but they have no business applying the shadow plugin in the
+             * firstplace.
+             */
+            SourceSet testSourceSet = project.sourceSets.findByName('test')
+            if (testSourceSet != null) {
+                testSourceSet.compileClasspath += project.configurations.shadow
+            }
+        }
     }
 
     private static configurePrecommit(Project project) {

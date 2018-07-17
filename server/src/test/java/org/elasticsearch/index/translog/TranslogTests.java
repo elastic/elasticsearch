@@ -2932,6 +2932,24 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    /** Make sure that it's ok to close a translog snapshot multiple times */
+    public void testCloseSnapshotTwice() throws Exception {
+        int numOps = between(0, 10);
+        for (int i = 0; i < numOps; i++) {
+            Translog.Index op = new Translog.Index("doc", randomAlphaOfLength(10), i, primaryTerm.get(), new byte[]{1});
+            translog.add(op);
+            if (randomBoolean()) {
+                translog.rollGeneration();
+            }
+        }
+        for (int i = 0; i < 5; i++) {
+            Translog.Snapshot snapshot = translog.newSnapshot();
+            assertThat(snapshot, SnapshotMatchers.size(numOps));
+            snapshot.close();
+            snapshot.close();
+        }
+    }
+
     static class SortedSnapshot implements Translog.Snapshot {
         private final Translog.Snapshot snapshot;
         private List<Translog.Operation> operations = null;

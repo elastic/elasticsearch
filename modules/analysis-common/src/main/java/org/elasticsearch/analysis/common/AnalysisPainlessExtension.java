@@ -3,7 +3,6 @@ package org.elasticsearch.analysis.common;
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
-import org.elasticsearch.script.AnalysisPredicateScript;
 import org.elasticsearch.script.ScriptContext;
 
 import java.util.Collections;

@@ -134,6 +134,8 @@ import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -149,7 +151,7 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
-public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
+public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, ScriptPlugin {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(CommonAnalysisPlugin.class));
 
@@ -159,6 +161,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool, ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry, Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         this.scriptService.set(scriptService);
         return Collections.emptyList();
+    }
+
+    @Override
+    @SuppressWarnings("rawtypes")  // TODO ScriptPlugin needs to change this to pass precommit?
+    public List<ScriptContext> getContexts() {
+        return Collections.singletonList(AnalysisPredicateScript.CONTEXT);
     }
 
     @Override

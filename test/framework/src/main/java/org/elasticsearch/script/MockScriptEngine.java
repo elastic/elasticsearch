@@ -128,9 +128,6 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(ScriptedMetricAggContexts.ReduceScript.class)) {
             ScriptedMetricAggContexts.ReduceScript.Factory factory = mockCompiled::createMetricAggReduceScript;
             return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(AnalysisPredicateScript.class)) {
-            AnalysisPredicateScript.Factory factory = mockCompiled::createAnalysisPredicateScript;
-            return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
@@ -211,15 +208,6 @@ public class MockScriptEngine implements ScriptEngine {
 
         public ScriptedMetricAggContexts.ReduceScript createMetricAggReduceScript(Map<String, Object> params, List<Object> states) {
             return new MockMetricAggReduceScript(params, states, script != null ? script : ctx -> 42d);
-        }
-
-        public AnalysisPredicateScript createAnalysisPredicateScript() {
-            return new AnalysisPredicateScript() {
-                @Override
-                public boolean execute(Term term) {
-                    return true;
-                }
-            };
         }
     }
 

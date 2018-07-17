@@ -13,7 +13,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.ReferringFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.script.AnalysisPredicateScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
@@ -56,7 +55,7 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
             return in;
         };
         AnalysisPredicateScript script = factory.newInstance();
-        final AnalysisPredicateScript.Term term = new AnalysisPredicateScript.Term();
+        final AnalysisPredicateScript.Token token = new AnalysisPredicateScript.Token();
         return new ConditionalTokenFilter(tokenStream, filter) {
 
             CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
@@ -68,15 +67,15 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
 
             @Override
             protected boolean shouldFilter() {
-                term.term = termAtt;
-                term.posInc = posIncAtt.getPositionIncrement();
-                term.pos += term.posInc;
-                term.posLen = posLenAtt.getPositionLength();
-                term.startOffset = offsetAtt.startOffset();
-                term.endOffset = offsetAtt.endOffset();
-                term.type = typeAtt.type();
-                term.isKeyword = keywordAtt.isKeyword();
-                return script.execute(term);
+                token.term = termAtt;
+                token.posInc = posIncAtt.getPositionIncrement();
+                token.pos += token.posInc;
+                token.posLen = posLenAtt.getPositionLength();
+                token.startOffset = offsetAtt.startOffset();
+                token.endOffset = offsetAtt.endOffset();
+                token.type = typeAtt.type();
+                token.isKeyword = keywordAtt.isKeyword();
+                return script.execute(token);
             }
         };
     }

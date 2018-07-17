@@ -3,12 +3,13 @@
 "condition":
     - do:
         indices.analyze:
-          body: "Vorsprung Durch Technik"
-          tokenizer: "whitespace"
-          filter:
-            - type: condition
-              script:
-                source: "token.term().length() > 5"
+          body:
+            text: "Vorsprung Durch Technik"
+            tokenizer: "whitespace"
+            filter:
+              - type: condition
+                script:
+                  source: "token.getTerm().length() > 5"
                 filter: [ lowercase ]
 
     - length: { tokens: 3 }

@@ -16,8 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-
-class org.elasticsearch.script.AnalysisPredicateScript$Term {
+class org.elasticsearch.analysis.common.AnalysisPredicateScript$Token {
   CharSequence getTerm()
   int getPosition()
   int getPositionIncrement()

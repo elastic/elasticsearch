@@ -17,7 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.script;
+package org.elasticsearch.analysis.common;
+
+import org.elasticsearch.script.ScriptContext;
 
 /**
  * A predicate based on the current token in a TokenStream
@@ -27,7 +29,7 @@ public abstract class AnalysisPredicateScript {
     /**
      * Encapsulation of the state of the current token
      */
-    public static class Term {
+    public static class Token {
         public CharSequence term;
         public int pos;
         public int posInc;
@@ -73,13 +75,13 @@ public abstract class AnalysisPredicateScript {
     /**
      * Returns {@code true} if the current term matches the predicate
      */
-    public abstract boolean execute(Term term);
+    public abstract boolean execute(Token token);
 
     public interface Factory {
         AnalysisPredicateScript newInstance();
     }
 
-    public static final String[] PARAMETERS = new String[]{ "term" };
+    public static final String[] PARAMETERS = new String[]{ "token" };
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("analysis", Factory.class);
 
 }

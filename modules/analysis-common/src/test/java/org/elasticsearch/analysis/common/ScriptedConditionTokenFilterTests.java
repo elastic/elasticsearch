@@ -9,7 +9,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.script.AnalysisPredicateScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -37,11 +36,12 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
 
         AnalysisPredicateScript.Factory factory = () -> new AnalysisPredicateScript() {
             @Override
-            public boolean execute(Term term) {
+            public boolean execute(Token term) {
                 return "two".contentEquals(term.term);
             }
         };
 
+        @SuppressWarnings("unchecked")
         ScriptService scriptService = new ScriptService(indexSettings, Collections.emptyMap(), Collections.emptyMap()){
             @Override
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {

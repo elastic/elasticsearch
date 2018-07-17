@@ -72,7 +72,6 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "    \"cluster_uuid\" : \"_na_\",\n" +
                     "    \"term\" : 0,\n" +
                     "    \"version\" : 0,\n" +
-                    "    \"term\" : 0,\n" +
                     "    \"state_uuid\" : \"" + clusterState.stateUUID() + "\",\n" +
                     "    \"last_committed_config\" : [ ],\n" +
                     "    \"last_accepted_config\" : [ ],\n" +
@@ -144,7 +143,6 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "    \"cluster_uuid\" : \"_na_\",\n" +
                     "    \"term\" : 0,\n" +
                     "    \"version\" : 0,\n" +
-                    "    \"term\" : 0,\n" +
                     "    \"state_uuid\" : \"" + clusterState.stateUUID() + "\",\n" +
                     "    \"last_committed_config\" : [ ],\n" +
                     "    \"last_accepted_config\" : [ ],\n" +

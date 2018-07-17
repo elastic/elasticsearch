@@ -62,7 +62,7 @@ public final class Version implements Comparable<Version> {
 
     private static int parseSuffixNumber(String substring) {
         if (substring.isEmpty()) {
-            throw new IllegalArgumentException("Invalid suffix, must contain a number e.x. alpha2 but was ");
+            throw new IllegalArgumentException("Invalid suffix, must contain a number e.x. alpha2");
         }
         return Integer.parseInt(substring);
     }
@@ -154,6 +154,12 @@ public final class Version implements Comparable<Version> {
     public int hashCode() {
 
         return Objects.hash(major, minor, revision, id, snapshot, suffix);
+    }
+
+    public boolean isSameVersionNumber(Version other) {
+        return major == other.major &&
+            minor == other.minor &&
+            revision == other.revision;
     }
 
     public int getMajor() {

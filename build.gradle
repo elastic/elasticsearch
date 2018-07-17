@@ -106,7 +106,7 @@ subprojects {
  * in a branch if there are only betas and rcs in the branch so we have
  * *something* to test against. */
 VersionCollection versions = new VersionCollection(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
-if (versions.currentVersion != VersionProperties.elasticsearch) {
+if (versions.currentVersion.isSameVersionNumber(VersionProperties.elasticsearch) == false) {
   throw new GradleException("The last version in Versions.java [${versions.currentVersion}] does not match " +
           "VersionProperties.elasticsearch [${VersionProperties.elasticsearch}]")
 }

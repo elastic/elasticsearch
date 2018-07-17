@@ -113,20 +113,20 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
         public String toString() {
             return "Item [response=" + response + ", exception=" + exception + "]";
         }
-        
-        
+
+
     }
 
     private Item[] items;
-    private long tookInMillis; 
-    
+    private long tookInMillis;
+
     MultiSearchTemplateResponse() {
     }
 
     public MultiSearchTemplateResponse(Item[] items, long tookInMillis) {
         this.items = items;
         this.tookInMillis = tookInMillis;
-    }    
+    }
 
     @Override
     public Iterator<Item> iterator() {
@@ -139,7 +139,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     public Item[] getResponses() {
         return this.items;
     }
-    
+
     /**
      * How long the msearch_template took.
      */
@@ -154,7 +154,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
         for (int i = 0; i < items.length; i++) {
             items[i] = Item.readItem(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             tookInMillis = in.readVLong();
         }
     }
@@ -166,7 +166,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
         for (Item item : items) {
             item.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeVLong(tookInMillis);
         }
     }
@@ -174,7 +174,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field("took", tookInMillis);       
+        builder.field("took", tookInMillis);
         builder.startArray(Fields.RESPONSES);
         for (Item item : items) {
             if (item.isFailure()) {
@@ -193,7 +193,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     static final class Fields {
         static final String RESPONSES = "responses";
     }
-    
+
     public static MultiSearchTemplateResponse fromXContext(XContentParser parser) {
         //The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
         MultiSearchResponse mSearchResponse = MultiSearchResponse.fromXContext(parser);
@@ -208,7 +208,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
             }
             templateResponses[i++] = new Item(stResponse, item.getFailure());
         }
-        return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());    
+        return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());
     }
 
     @Override

@@ -191,7 +191,7 @@ public class MultiGetRequest extends ActionRequest
             type = in.readOptionalString();
             id = in.readString();
             routing = in.readOptionalString();
-            if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().before(Version.V_7_0_0)) {
                 in.readOptionalString(); // _parent
             }
             storedFields = in.readOptionalStringArray();
@@ -207,7 +207,7 @@ public class MultiGetRequest extends ActionRequest
             out.writeOptionalString(type);
             out.writeString(id);
             out.writeOptionalString(routing);
-            if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().before(Version.V_7_0_0)) {
                 out.writeOptionalString(null); // _parent
             }
             out.writeOptionalStringArray(storedFields);

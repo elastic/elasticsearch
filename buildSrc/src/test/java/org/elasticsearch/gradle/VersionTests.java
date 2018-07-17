@@ -161,6 +161,44 @@ public class VersionTests extends GradleUnitTestCase {
         new Version(7, 1, 1, "foo1", true);
     }
 
+    public void testIsSameVersionNumber() {
+        assertIsSameVersion(
+            new Version(7, 1, 1, "rc1", true),
+            new Version(7, 1, 1, "rc1", true)
+        );
+        assertIsSameVersion(
+            new Version(7, 1, 1, "rc1", true),
+            new Version(7, 1, 1, "alpha1", true)
+        );
+        assertIsSameVersion(
+            new Version(7, 1, 1, "rc1", true),
+            new Version(7, 1, 1, "rc1", false)
+        );
+
+        assertIsNotSameVersion(
+            new Version(7, 1, 1, "rc1", true),
+            new Version(7, 1, 2, "rc1", true)
+        );
+        assertIsNotSameVersion(
+            new Version(7, 1, 1, "rc1", true),
+            new Version(7, 2, 1, "rc1", true)
+        );
+        assertIsNotSameVersion(
+            new Version(7, 1, 1, "rc1", true),
+            new Version(8, 1, 1, "rc1", true)
+        );
+    }
+
+    private void assertIsSameVersion(Version oneVersion, Version otherVersion) {
+        assertTrue(oneVersion.isSameVersionNumber(otherVersion));
+        assertTrue(otherVersion.isSameVersionNumber(oneVersion));
+    }
+
+    private void assertIsNotSameVersion(Version oneVersion, Version otherVersion) {
+        assertFalse(oneVersion.isSameVersionNumber(otherVersion));
+        assertFalse(otherVersion.isSameVersionNumber(oneVersion));
+    }
+
     private void assertOrder(Version smaller, Version bigger) {
         assertEquals(smaller + " should be smaller than " + bigger, -1, smaller.compareTo(bigger));
     }

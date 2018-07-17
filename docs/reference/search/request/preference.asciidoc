@@ -9,35 +9,29 @@ account. However, it may sometimes be desirable to try and route certain
 searches to certain sets of shard copies, for instance to make better use of
 per-copy caches.
 
-Preferences do not _guarantee_ that any particular shard copies are used in a
-search, and on a changing index this may mean that repeated searches may yield
-different results if they are executed on different shard copies which are in
-different refresh states.
-
 The `preference` is a query string parameter which can be set to:
 
 [horizontal]
 `_primary`::
-	The operation will be executed only on primary shards.
-	deprecated[6.1.0, will be removed in 7.0, use `_only_nodes` or
-	`_prefer_nodes`]
+	The operation will be executed only on primary shards.  deprecated[6.1.0,
+	will be removed in 7.0. See the warning below for more information.]
 
 `_primary_first`::
-	The operation will be executed on primary shards if possible, but will
-	fall back to other shards if not. deprecated[6.1.0, will be removed in
-	7.0, use `_only_nodes` or `_prefer_nodes`]
+	The operation will be executed on primary shards if possible, but will fall
+	back to other shards if not. deprecated[6.1.0, will be removed in 7.0. See
+	the warning below for more information.]
 
 `_replica`::
-	The operation will be executed only on replica shards. If there are
-	multiple replicas then the order of preference between them is
-	unspecified.  deprecated[6.1.0, will be removed in 7.0, use
-	`_only_nodes` or `_prefer_nodes`]
+	The operation will be executed only on replica shards. If there are multiple
+	replicas then the order of preference between them is unspecified.
+	deprecated[6.1.0, will be removed in 7.0. See the warning below for more
+	information.]
 
 `_replica_first`::
-	The operation will be executed on replica shards if possible, but will
-	fall back to other shards if not. If there are multiple replicas then
-	the order of preference between them is unspecified.  deprecated[6.1.0,
-	will be removed in 7.0, use `_only_nodes` or `_prefer_nodes`]
+	The operation will be executed on replica shards if possible, but will fall
+	back to other shards if not. If there are multiple replicas then the order of
+	preference between them is unspecified.  deprecated[6.1.0, will be removed in
+	7.0. See the warning below for more information.]
 
 `_only_local`::
 	The operation will be executed only on shards allocated to the local
@@ -72,8 +66,9 @@ Custom (string) value::
 	each time: the cluster state, and therefore the selected shards, may change
 	for a number of reasons including shard relocations and shard failures, and
 	nodes may sometimes reject searches causing fallbacks to alternative nodes.
-	A good candidate for a custom preference value is something like the web
-	session id or the user name.
+	However, in practice the ordering of shards tends to remain stable for long
+	periods of time. A good candidate for a custom preference value is something
+	like the web session id or the user name.
 
 For instance, use the user's session ID `xyzabc123` as follows:
 
@@ -90,12 +85,22 @@ GET /_search?preference=xyzabc123
 ------------------------------------------------
 // CONSOLE
 
+NOTE: The `_only_local` preference guarantees only to use shard copies on the
+local node, which is sometimes useful for troubleshooting. All other options do
+not _fully_ guarantee that any particular shard copies are used in a search,
+and on a changing index this may mean that repeated searches may yield
+different results if they are executed on different shard copies which are in
+different refresh states.
+
 WARNING: The `_primary`, `_primary_first`, `_replica` and `_replica_first` are
-not recommended, and will be removed in a future version. They do not help to
-avoid inconsistent results that arise from the use of shards that have
-different refresh states, and Elasticsearch uses synchronous replication so the
-primary does not in general hold fresher data than its replicas. The
-`_primary_first` and `_replica_first` preferences silently fall back to
-non-preferred copies if it is not possible to search the preferred copies. The
-`_primary` and `_replica` preferences will silently change their preferred
-shards if a replica is promoted to primary, which can happen at any time.
+deprecated as their use is not recommended. They do not help to avoid
+inconsistent results that arise from the use of shards that have different
+refresh states, and Elasticsearch uses synchronous replication so the primary
+does not in general hold fresher data than its replicas. The `_primary_first`
+and `_replica_first` preferences silently fall back to non-preferred copies if
+it is not possible to search the preferred copies. The `_primary` and
+`_replica` preferences will silently change their preferred shards if a replica
+is promoted to primary, which can happen at any time. The `_primary` preference
+can also put undesirable extra load on the primary shards. The cache-related
+benefits of these options can also be obtained using `_only_nodes`,
+`_prefer_nodes`, or a custom string value instead.

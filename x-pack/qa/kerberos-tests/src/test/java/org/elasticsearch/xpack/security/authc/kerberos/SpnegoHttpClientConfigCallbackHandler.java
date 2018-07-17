@@ -76,12 +76,13 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
     /**
      * Constructs {@link SpnegoHttpClientConfigCallbackHandler} with given
      * principalName and password.
-     * 
+     *
      * @param userPrincipalName user principal name
      * @param password password for user
      * @param enableDebugLogs if {@code true} enables kerberos debug logs
      */
-    public SpnegoHttpClientConfigCallbackHandler(final String userPrincipalName, final SecureString password, final boolean enableDebugLogs) {
+    public SpnegoHttpClientConfigCallbackHandler(final String userPrincipalName, final SecureString password,
+            final boolean enableDebugLogs) {
         this.userPrincipalName = userPrincipalName;
         this.password = password;
         this.keytabPath = null;

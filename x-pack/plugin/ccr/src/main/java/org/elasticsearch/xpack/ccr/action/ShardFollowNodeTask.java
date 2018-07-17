@@ -70,13 +70,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo).reversed());
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
-                        ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, TimeValue idleShardChangesRequestDelay,
-                        TimeValue retryTimeout) {
+                        ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler) {
         super(id, type, action, description, parentTask, headers);
         this.params = params;
         this.scheduler = scheduler;
-        this.retryTimeout = retryTimeout;
-        this.idleShardChangesRequestDelay = idleShardChangesRequestDelay;
+        this.retryTimeout = params.getRetryTimeout();
+        this.idleShardChangesRequestDelay = params.getIdleShardRetryDelay();
     }
 
     void start(long followerGlobalCheckpoint) {

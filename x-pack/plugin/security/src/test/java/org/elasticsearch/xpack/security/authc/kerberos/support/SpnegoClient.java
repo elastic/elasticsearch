@@ -12,6 +12,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidator;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
@@ -49,7 +50,7 @@ import javax.security.auth.login.LoginException;
  * Use {@link #close()} to release and dispose {@link LoginContext} and
  * {@link GSSContext} after usage.
  */
-class SpnegoClient implements AutoCloseable {
+public class SpnegoClient implements AutoCloseable {
     private static final Logger LOGGER = ESLoggerFactory.getLogger(SpnegoClient.class);
 
     public static final String CRED_CONF_NAME = "PasswordConf";
@@ -69,7 +70,7 @@ class SpnegoClient implements AutoCloseable {
      * @throws PrivilegedActionException
      * @throws GSSException
      */
-    SpnegoClient(final String userPrincipalName, final SecureString password, final String servicePrincipalName)
+    public SpnegoClient(final String userPrincipalName, final SecureString password, final String servicePrincipalName)
             throws PrivilegedActionException, GSSException {
         String oldUseSubjectCredsOnlyFlag = null;
         try {
@@ -100,7 +101,7 @@ class SpnegoClient implements AutoCloseable {
      * @return Base64 encoded token
      * @throws PrivilegedActionException
      */
-    String getBase64EncodedTokenForSpnegoHeader() throws PrivilegedActionException {
+    public String getBase64EncodedTokenForSpnegoHeader() throws PrivilegedActionException {
         final byte[] outToken = KerberosTestCase.doAsWrapper(loginContext.getSubject(),
                 (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(new byte[0], 0, 0));
         return Base64.getEncoder().encodeToString(outToken);
@@ -115,7 +116,7 @@ class SpnegoClient implements AutoCloseable {
      *         nothing to be sent.
      * @throws PrivilegedActionException
      */
-    String handleResponse(final String base64Token) throws PrivilegedActionException {
+    public String handleResponse(final String base64Token) throws PrivilegedActionException {
         if (gssContext.isEstablished()) {
             throw new IllegalStateException("GSS Context has already been established");
         }
@@ -148,9 +149,9 @@ class SpnegoClient implements AutoCloseable {
     }
 
     /**
-     * @return {@code true} If the context was established
+     * @return {@code true} If the gss security context was established
      */
-    boolean isEstablished() {
+    public boolean isEstablished() {
         return gssContext.isEstablished();
     }
 
@@ -196,12 +197,10 @@ class SpnegoClient implements AutoCloseable {
             final Map<String, String> options = new HashMap<>();
             options.put("principal", principal);
             options.put("storeKey", Boolean.TRUE.toString());
-            options.put("useTicketCache", Boolean.FALSE.toString());
-            options.put("useKeyTab", Boolean.FALSE.toString());
-            options.put("renewTGT", Boolean.FALSE.toString());
-            options.put("refreshKrb5Config", Boolean.TRUE.toString());
             options.put("isInitiator", Boolean.TRUE.toString());
             options.put("debug", Boolean.TRUE.toString());
+            // Refresh Krb5 config during tests as the port keeps changing for kdc server
+            options.put("refreshKrb5Config", Boolean.TRUE.toString());
 
             return new AppConfigurationEntry[] { new AppConfigurationEntry(SUN_KRB5_LOGIN_MODULE,
                     AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, Collections.unmodifiableMap(options)) };

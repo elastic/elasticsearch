@@ -67,18 +67,17 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
         final boolean nullKerberosAuthnToken = rarely();
         final KerberosAuthenticationToken kerberosAuthenticationToken =
                 nullKerberosAuthnToken ? null : new KerberosAuthenticationToken(decodedTicket);
-
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
-        kerberosRealm.authenticate(kerberosAuthenticationToken, future);
-        AuthenticationResult result = future.actionGet();
-        assertThat(result, is(notNullValue()));
         if (nullKerberosAuthnToken) {
-            assertThat(result.getStatus(), is(equalTo(AuthenticationResult.Status.CONTINUE)));
+            expectThrows(AssertionError.class,
+                    () -> kerberosRealm.authenticate(kerberosAuthenticationToken, PlainActionFuture.newFuture()));
         } else {
+            final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+            kerberosRealm.authenticate(kerberosAuthenticationToken, future);
+            AuthenticationResult result = future.actionGet();
+            assertThat(result, is(notNullValue()));
             if (validTicket) {
                 final String expectedUsername = maybeRemoveRealmName(username);
-                final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, null,
-                        true);
+                final User expectedUser = new User(expectedUsername, roles.toArray(new String[roles.size()]), null, null, null, true);
                 assertSuccessAuthenticationResult(expectedUser, outToken, result);
             } else {
                 assertThat(result.getStatus(), is(equalTo(AuthenticationResult.Status.TERMINATE)));

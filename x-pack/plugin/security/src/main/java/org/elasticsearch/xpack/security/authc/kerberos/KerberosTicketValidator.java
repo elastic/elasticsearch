@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.security.authc.kerberos.support;
+package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
@@ -41,7 +41,7 @@ import javax.security.auth.login.LoginException;
  * It may respond with token which needs to be communicated with the peer.
  */
 public class KerberosTicketValidator {
-    static final Oid SPNEGO_OID = getSpnegoOid();
+    public static final Oid SPNEGO_OID = getSpnegoOid();
 
     private static Oid getSpnegoOid() {
         Oid oid = null;
@@ -262,8 +262,6 @@ public class KerberosTicketValidator {
             options.put("useKeyTab", Boolean.TRUE.toString());
             options.put("storeKey", Boolean.TRUE.toString());
             options.put("doNotPrompt", Boolean.TRUE.toString());
-            options.put("renewTGT", Boolean.FALSE.toString());
-            options.put("refreshKrb5Config", Boolean.TRUE.toString());
             options.put("isInitiator", Boolean.FALSE.toString());
             options.put("debug", Boolean.toString(krbDebug));
 

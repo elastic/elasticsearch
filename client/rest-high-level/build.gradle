@@ -169,3 +169,7 @@ integTestRunner {
   classpath += shadowJar.outputs.files
   dependsOn shadowJar
 }
+
+integTestCluster {
+  setting 'xpack.license.self_generated.type', 'trial'
+}

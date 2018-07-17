@@ -40,10 +40,38 @@ import static java.util.Collections.emptySet;
  */
 public final class XPackClient {
     private final RestHighLevelClient restHighLevelClient;
+    private final GraphExploreClient graphExploreClient;
+    private final LicenseClient licenseClient;
+    private final MigrationClient migrationClient;
+    private final MachineLearningClient machineLearningClient;
+    private final RollupClient rollupClient;
+    private final SecurityClient securityClient;
+    private final WatcherClient watcherClient;
 
     XPackClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
+        this.graphExploreClient = new GraphExploreClient(restHighLevelClient);
+        this.licenseClient = new LicenseClient(restHighLevelClient);
+        this.migrationClient = new MigrationClient(restHighLevelClient);
+        this.machineLearningClient = new MachineLearningClient(restHighLevelClient);
+        this.rollupClient = new RollupClient(restHighLevelClient);
+        this.securityClient = new SecurityClient(restHighLevelClient);
+        this.watcherClient = new WatcherClient(restHighLevelClient);
     }
+
+    public GraphExploreClient graph() { return graphExploreClient; }
+
+    public LicenseClient license() { return licenseClient; }
+
+    public MigrationClient migration() { return migrationClient; }
+
+    public MachineLearningClient ml() { return machineLearningClient; }
+
+    public RollupClient rollup() { return rollupClient; }
+
+    public SecurityClient security() { return securityClient; }
+
+    public WatcherClient watcher() { return watcherClient; }
 
     /**
      * Fetch information about X-Pack from the cluster.

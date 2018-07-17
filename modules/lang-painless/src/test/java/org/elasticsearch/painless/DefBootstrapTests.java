@@ -28,11 +28,12 @@ import java.util.Collections;
 import java.util.HashMap;
 
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.test.ESTestCase;
 
 public class DefBootstrapTests extends ESTestCase {
-    private final PainlessLookup painlessLookup = new PainlessLookup(Whitelist.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup = new PainlessLookupBuilder(Whitelist.BASE_WHITELISTS).build();
 
     /** calls toString() on integers, twice */
     public void testOneType() throws Throwable {

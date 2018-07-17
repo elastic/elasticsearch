@@ -49,6 +49,7 @@ import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -187,7 +188,9 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                         // Disable native ML autodetect_process as the c++ controller won't be available
 //                        .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
                         .put(XPackSettings.SECURITY_ENABLED.getKey(), useSecurity);
-                if (useSecurity == false && builder.get(NetworkModule.TRANSPORT_TYPE_KEY) == null) {
+                String transport = builder.get(NetworkModule.TRANSPORT_TYPE_KEY);
+                if (useSecurity == false && (transport == null || SecurityField.NAME4.equals(transport)
+                    || SecurityField.NIO.equals(transport))) {
                     builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
                 }
                 return builder.build();

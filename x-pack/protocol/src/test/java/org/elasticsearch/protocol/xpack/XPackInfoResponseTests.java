@@ -21,11 +21,11 @@ package org.elasticsearch.protocol.xpack;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.license.LicenseStatus;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.BuildInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
+import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.util.HashMap;

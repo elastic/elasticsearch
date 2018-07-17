@@ -121,16 +121,15 @@ if a field is useful for aggregating later, and how you might wish to use it (te
 
 === Grouping Limitations with heterogeneous indices
 
-There is a known limitation to Rollup groups, due to some internal implementation details at this time.  The Rollup feature leverages
-the `composite` aggregation from Elasticsearch.  At the moment, the composite agg only returns buckets when all keys in the tuple are non-null.
-Put another way, if the you request keys `[A,B,C]` in the composite aggregation, the only documents that are aggregated are those that have
-_all_ of the keys `A, B` and `C`.
+There was previously a limitation in how Rollup could handle indices that had heterogeneous mappings (multiple, unrelated/non-overlapping
+mappings).  The recommendation at the time was to configure a separate job per data "type".  For example, you might configure a separate
+job for each Beats module that you had enabled (one for `process`, another for `filesystem`, etc).
 
-Because Rollup uses the composite agg during the indexing process, it inherits this behavior.  Practically speaking, if all of the documents
-in your index are homogeneous (they have the same mapping), you can ignore this limitation and stop reading now.
+This recommendation was driven by internal implementation details that caused document counts to be potentially incorrect if a single "merged"
+job was used.
 
-However, if you have a heterogeneous collection of documents that you wish to roll up, you may need to configure two or more jobs to
-accurately cover the original data.
+This limitation has since been alleviated.  As of 6.4.0, it is now considered best practice to combine all rollup configurations
+into a single job.
 
 As an example, if your index has two types of documents:
 
@@ -157,7 +156,7 @@ and
 --------------------------------------------------
 // NOTCONSOLE
 
-it may be tempting to create a single, combined rollup job which covers both of these document types, something like this:
+the best practice is to combine them into a single rollup job which covers both of these document types, like this:
 
 [source,js]
 --------------------------------------------------
@@ -191,222 +190,10 @@ PUT _xpack/rollup/job/combined
 --------------------------------------------------
 // NOTCONSOLE
 
-You can see that it includes a `terms` grouping on both "node" and "title", fields that are mutually exclusive in the document types.
-*This will not work.*  Because the `composite` aggregation (and by extension, Rollup) only returns buckets when all keys are non-null,
-and there are no documents that have both a "node" field and a "title" field, this rollup job will not produce any rollups.
-
-Instead, you should configure two independent jobs (sharing the same index, or going to separate indices):
-
-[source,js]
---------------------------------------------------
-PUT _xpack/rollup/job/sensor
-{
-    "index_pattern": "data-*",
-    "rollup_index": "data_rollup",
-    "cron": "*/30 * * * * ?",
-    "page_size" :1000,
-    "groups" : {
-      "date_histogram": {
-        "field": "timestamp",
-        "interval": "1h",
-        "delay": "7d"
-      },
-      "terms": {
-        "fields": ["node"]
-      }
-    },
-    "metrics": [
-        {
-            "field": "temperature",
-            "metrics": ["min", "max", "sum"]
-        }
-    ]
-}
---------------------------------------------------
-// NOTCONSOLE
-
-[source,js]
---------------------------------------------------
-PUT _xpack/rollup/job/purchases
-{
-    "index_pattern": "data-*",
-    "rollup_index": "data_rollup",
-    "cron": "*/30 * * * * ?",
-    "page_size" :1000,
-    "groups" : {
-      "date_histogram": {
-        "field": "timestamp",
-        "interval": "1h",
-        "delay": "7d"
-      },
-      "terms": {
-        "fields": ["title"]
-      }
-    },
-    "metrics": [
-        {
-            "field": "price",
-            "metrics": ["avg"]
-        }
-    ]
-}
---------------------------------------------------
-// NOTCONSOLE
-
-Notice that each job now deals with a single "document type", and will not run into the limitations described above.  We are working on changes
-in core Elasticsearch to remove this limitation from the `composite` aggregation, and the documentation will be updated accordingly
-when this particular scenario is fixed.
-
 === Doc counts and overlapping jobs
 
-There is an issue with doc counts, related to the above grouping limitation.  Imagine you have two Rollup jobs saving to the same index, where
-one job is a "subset" of another job.
+There was previously an issue with document counts on "overlapping" job configurations, driven by the same internal implementation detail.
+If there were  two Rollup jobs saving to the same index, where one job is a "subset" of another job, it was possible that document counts
+could be incorrect for certain aggregation arrangements.
 
-For example, you might have jobs with these two groupings:
-
-[source,js]
---------------------------------------------------
-PUT _xpack/rollup/job/sensor-all
-{
-    "groups" : {
-      "date_histogram": {
-        "field": "timestamp",
-        "interval": "1h",
-        "delay": "7d"
-      },
-      "terms": {
-        "fields": ["node"]
-      }
-    },
-    "metrics": [
-        {
-            "field": "price",
-            "metrics": ["avg"]
-        }
-    ]
-    ...
-}
---------------------------------------------------
-// NOTCONSOLE
-
-and
-
-[source,js]
---------------------------------------------------
-PUT _xpack/rollup/job/sensor-building
-{
-    "groups" : {
-      "date_histogram": {
-        "field": "timestamp",
-        "interval": "1h",
-        "delay": "7d"
-      },
-      "terms": {
-        "fields": ["node", "building"]
-      }
-    }
-    ...
-}
---------------------------------------------------
-// NOTCONSOLE
-
-
-The first job `sensor-all` contains the groupings and metrics that apply to all data in the index.  The second job is rolling up a subset
-of data (in different buildings) which also include a building identifier.  You did this because combining them would run into the limitation
-described in the previous section.
-
-This _mostly_ works, but can sometimes return incorrect `doc_counts` when you search.  All metrics will be valid however.
-
-The issue arises from the composite agg limitation described before, combined with search-time optimization.  Imagine you try to run the
-following aggregation:
-
-[source,js]
---------------------------------------------------
-"aggs" : {
-  "nodes": {
-    "terms": {
-      "field": "node"
-    }
-  }
-}
---------------------------------------------------
-// NOTCONSOLE
-
-This aggregation could be serviced by either `sensor-all` or `sensor-building` job, since they both group on the node field.  So the RollupSearch
-API will search both of them and merge results.  This will result in *correct* doc_counts and *correct* metrics.  No problem here.
-
-The issue arises from an aggregation that can _only_ be serviced by `sensor-building`, like this one:
-
-[source,js]
---------------------------------------------------
-"aggs" : {
-  "nodes": {
-    "terms": {
-      "field": "node"
-    },
-    "aggs": {
-      "building": {
-        "terms": {
-          "field": "building"
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// NOTCONSOLE
-
-Now we run into a problem.  The RollupSearch API will correctly identify that only `sensor-building` job has all the required components
-to answer the aggregation, and will search it exclusively.  Unfortunately, due to the composite aggregation limitation, that job only
-rolled up documents that have both a "node" and a "building" field.  Meaning that the doc_counts for the `"nodes"` aggregation will not
-include counts for any document that doesn't have `[node, building]` fields.
-
-- The `doc_count` for `"nodes"` aggregation will be incorrect because it only contains counts for `nodes` that also have buildings
-- The `doc_count` for `"buildings"` aggregation will be correct
-- Any metrics, on any level, will be correct
-
-==== Workarounds
-
-There are two main workarounds if you find yourself with a schema like the above.
-
-Easiest and most robust method: use separate indices to store your rollups.  The limitations arise because you have several document
-schemas co-habitating in a single index, which makes it difficult for rollups to correctly summarize.  If you make several rollup
-jobs and store them in separate indices, these sorts of difficulties do not arise.  It does, however, keep you from searching across several
-different rollup indices at the same time.
-
-The other workaround is to include an "off-target" aggregation in the query, which pulls in the "superset" job and corrects the doc counts.
-The RollupSearch API determines the best job to search for each "leaf node" in the aggregation tree.  So if we include a metric agg on `price`,
-which was only defined in the `sensor-all` job, that will "pull in" the other job:
-
-[source,js]
---------------------------------------------------
-"aggs" : {
-  "nodes": {
-    "terms": {
-      "field": "node"
-    },
-    "aggs": {
-      "building": {
-        "terms": {
-          "field": "building"
-        }
-      },
-      "avg_price": {
-        "avg": { "field": "price" } <1>
-      }
-    }
-  }
-}
---------------------------------------------------
-// NOTCONSOLE
-<1> Adding an avg aggregation here will fix the doc counts
-
-Because only `sensor-all` job had an `avg` on the price field, the RollupSearch API is forced to pull in that additional job for searching,
-and will merge/correct the doc_counts as appropriate.  This sort of workaround applies to any additional aggregation -- metric or bucketing --
-although it can be tedious to look through the jobs and determine the right one to add.
-
-==== Status
-
-We realize this is an onerous limitation, and somewhat breaks the rollup contract of "pick the fields to rollup, we do the rest".  We are
-actively working to get the limitation to `composite` agg fixed, and the related issues in Rollup.  The documentation will be updated when
-the fix is implemented.
+This issue has also since been eliminated in 6.4.0.

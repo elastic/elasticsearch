@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.objectweb.asm.Type;
@@ -168,7 +169,7 @@ public class FunctionRef {
         PainlessMethod method = painlessLookup.getPainlessStructFromJavaClass(expected).functionalMethod;
         if (method == null) {
             throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                               "to [" + PainlessLookup.ClassToName(expected) + "], not a functional interface");
+                    "to [" + PainlessLookupUtility.anyTypeToPainlessTypeName(expected) + "], not a functional interface");
         }
 
         // lookup requested method

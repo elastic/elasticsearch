@@ -835,7 +835,7 @@ class BuildPlugin implements Plugin<Project> {
             additionalTest.configure(commonTestConfig(project))
             additionalTest.configure(config)
             additionalTest.dependsOn(project.tasks.testClasses)
-            test.dependsOn(additionalTest)
+            project.check.dependsOn(additionalTest)
         });
 
         project.plugins.withType(ShadowPlugin).whenPluginAdded {

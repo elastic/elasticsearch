@@ -147,8 +147,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         ActionListener.wrap(r -> handler.accept(r.getGlobalCheckpoint()), errorHandler);
                     new CCRAction(request, listener, followerGroup).execute();
                 };
-                Thread thread = new Thread(task);
-                thread.start();
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(task);
             }
 
             @Override
@@ -175,8 +174,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     assert exception != null;
                     errorHandler.accept(exception);
                 };
-                Thread thread = new Thread(task);
-                thread.start();
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(task);
             }
 
             @Override

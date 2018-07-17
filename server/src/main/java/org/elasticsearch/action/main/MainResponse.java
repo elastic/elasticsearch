@@ -57,24 +57,53 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         this.build = build;
     }
 
+    /**
+     * Retrieves the `node.name` parameter configured on the node answering this request
+     * @return the value of `node.name`
+     */
     public String getNodeName() {
         return nodeName;
     }
 
+    /**
+     * Retrieves the version of Elasticsearch running on the node answering this request
+     * @return the installed Elasticsearch version
+     */
     public Version getVersion() {
         return version;
     }
 
+    /**
+     * Retrieves the `cluster.name` parameter configured on the node answering this request.
+     * Note that `cluster.name` will be identical across all nodes in the cluster.
+     * @return the value of `cluster.name`
+     */
     public ClusterName getClusterName() {
         return clusterName;
     }
 
+    /**
+     * Retrieves the generated universally-unique identifier for the Elasticsearch cluster
+     * the queried node is a part of
+     * @return the UUID
+     */
     public String getClusterUuid() {
         return clusterUuid;
     }
 
+    /**
+     * Retrieves the `cluster.dynamic_name` parameter configured on the cluster.  This is
+     * a dynamic setting that may be updated by the user on a running cluster.  This field
+     * exists to provide users a way to dynamically assign a friendly identifier to a cluster.
+     * @return
+     */
     public String getClusterDynamicName() { return clusterDynamicName; }
 
+    /**
+     * Retrieves information about the build of Elasticsearch running on the node answering
+     * this request.
+     * @return the installed Elasticsearch build information
+     */
     public Build getBuild() {
         return build;
     }
@@ -117,7 +146,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("name", nodeName);
         builder.field("cluster_name", clusterName.value());
         builder.field("cluster_uuid", clusterUuid);
-        if (!Strings.isEmpty(clusterDynamicName)) {
+        if (false == Strings.isEmpty(clusterDynamicName)) {
             builder.field("cluster_dynamic_name", clusterDynamicName);
         }
         builder.startObject("version")

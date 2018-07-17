@@ -113,7 +113,6 @@ class PrecommitTasks {
             forbiddenApisCliJar 'de.thetaphi:forbiddenapis:2.5'
         }
         Task forbiddenApisCli = project.tasks.create('forbiddenApisCli')
-        project.ext.getForbiddenSignaturesFile = { name -> project.getForbiddenSignaturesFile(name) }
 
         project.sourceSets.forEach { sourceSet ->
             forbiddenApisCli.dependsOn(
@@ -155,7 +154,7 @@ class PrecommitTasks {
         return forbiddenApisCli
     }
 
-    private static File getForbiddenSignaturesFile(project, String name) {
+    private static File getForbiddenSignaturesFile(Project project, String name) {
         return project.rootProject.file('buildSrc/src/main/resources/forbidden/' + name + '.txt')
     }
 

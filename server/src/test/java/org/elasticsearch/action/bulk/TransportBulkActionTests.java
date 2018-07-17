@@ -66,7 +66,6 @@ public class TransportBulkActionTests extends ESTestCase {
     private ThreadPool threadPool;
 
     private TestTransportBulkAction bulkAction;
-    private TransportShardBulkAction shardBulkAction;
 
     class TestTransportBulkAction extends TransportBulkAction {
 
@@ -162,7 +161,6 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testRoutingResolvesToWriteIndexAliasMetaData() throws Exception {
-        ClusterState oldState = clusterService.state();
         clusterService.submitStateUpdateTask("_update", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {

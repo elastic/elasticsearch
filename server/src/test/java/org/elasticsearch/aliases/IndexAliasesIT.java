@@ -94,7 +94,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> client().index(indexRequest("alias1").type("type1").id("1").source(source("2", "test"),
                 XContentType.JSON)).actionGet());
-        assertThat(exception.getMessage(), equalTo("Alias [alias1] points to an index [test] with [is_write_index=false]"));
+        assertThat(exception.getMessage(), equalTo("no write index is defined for alias [alias1]." +
+            " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
+            " indices without one being designated as a write index"));
 
         logger.info("--> aliasing index [test] with [alias1]");
         assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1"));
@@ -116,14 +118,16 @@ public class IndexAliasesIT extends ESIntegTestCase {
         exception = expectThrows(IllegalArgumentException.class,
             () -> client().index(indexRequest("alias1").type("type1").id("1").source(source("2", "test"),
                 XContentType.JSON)).actionGet());
-        assertThat(exception.getMessage(),
-            equalTo("Alias [alias1] points to multiple indices with none set as a write-index [is_write_index=true]"));
+        assertThat(exception.getMessage(), equalTo("no write index is defined for alias [alias1]." +
+            " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
+            " indices without one being designated as a write index"));
 
         logger.info("--> deleting against [alias1], should fail now");
         exception = expectThrows(IllegalArgumentException.class,
             () -> client().delete(deleteRequest("alias1").type("type1").id("1")).actionGet());
-        assertThat(exception.getMessage(),
-            equalTo("Alias [alias1] points to multiple indices with none set as a write-index [is_write_index=true]"));
+        assertThat(exception.getMessage(), equalTo("no write index is defined for alias [alias1]." +
+            " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
+            " indices without one being designated as a write index"));
 
         logger.info("--> remove aliasing index [test_x] with [alias1]");
         assertAcked(admin().indices().prepareAliases().removeAlias("test_x", "alias1"));

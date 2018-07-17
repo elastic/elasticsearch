@@ -187,14 +187,16 @@ public class MetaDataTests extends ESTestCase {
     }
 
     public void testResolveWriteIndexRouting() {
+        boolean aliasZeroWrite = randomBoolean();
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
             .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putAlias(AliasMetaData.builder("alias0").build())
+            .putAlias(AliasMetaData.builder("alias0").writeIndex(aliasZeroWrite).build())
             .putAlias(AliasMetaData.builder("alias1").routing("1").build())
             .putAlias(AliasMetaData.builder("alias2").routing("1,2").build())
-            .putAlias(AliasMetaData.builder("alias3").writeIndex(false).build());
+            .putAlias(AliasMetaData.builder("alias3").writeIndex(false).build())
+            .putAlias(AliasMetaData.builder("alias4").routing("1,2").writeIndex(true).build());
         MetaData metaData = MetaData.builder().put(builder).build();
 
         // no alias, no index
@@ -222,6 +224,9 @@ public class MetaDataTests extends ESTestCase {
         exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting("1", "alias2"));
         assertThat(exception.getMessage(),
             is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+        exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting(randomFrom("1", null), "alias4"));
+        assertThat(exception.getMessage(),
+            is("index/alias [alias4] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
 
         // alias with no write index
         exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting("1", "alias3"));
@@ -234,7 +239,7 @@ public class MetaDataTests extends ESTestCase {
             .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putAlias(AliasMetaData.builder("alias0").writeIndex(true).build())
+            .putAlias(AliasMetaData.builder("alias0").writeIndex(!aliasZeroWrite).build())
             .putAlias(AliasMetaData.builder("alias1").routing("0").writeIndex(true).build())
             .putAlias(AliasMetaData.builder("alias2").writeIndex(true).build());
         MetaData metaDataTwoIndices = MetaData.builder(metaData).put(builder2).build();

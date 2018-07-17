@@ -1107,8 +1107,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             new UpdateRequest("test-alias", "_type", "_id"), new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> indexNameExpressionResolver.concreteWriteIndex(state, request));
-        assertThat(exception.getMessage(),
-            equalTo("Alias [test-alias] points to an index [test-0] with [is_write_index=false]"));
+        assertThat(exception.getMessage(), equalTo("no write index is defined for alias [test-alias]." +
+                " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
+                " indices without one being designated as a write index"));
     }
 
     public void testConcreteWriteIndexWithNoWriteIndexWithMultipleIndices() {
@@ -1126,16 +1127,18 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             new UpdateRequest("test-alias", "_type", "_id"), new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> indexNameExpressionResolver.concreteWriteIndex(state, request));
-        assertThat(exception.getMessage(),
-            equalTo("Alias [test-alias] points to multiple indices with none set as a write-index [is_write_index=true]"));
+        assertThat(exception.getMessage(), equalTo("no write index is defined for alias [test-alias]." +
+            " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
+            " indices without one being designated as a write index"));
     }
 
     public void testAliasResolutionNotAllowingMultipleIndices() {
+        boolean test0WriteIndex = randomBoolean();
         MetaData.Builder mdBuilder = MetaData.builder()
             .put(indexBuilder("test-0").state(State.OPEN)
-                .putAlias(AliasMetaData.builder("test-alias").writeIndex(randomFrom(false, null))))
+                .putAlias(AliasMetaData.builder("test-alias").writeIndex(randomFrom(test0WriteIndex, null))))
             .put(indexBuilder("test-1").state(State.OPEN)
-                .putAlias(AliasMetaData.builder("test-alias").writeIndex(randomFrom(false, null))));
+                .putAlias(AliasMetaData.builder("test-alias").writeIndex(randomFrom(!test0WriteIndex, null))));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         String[] strings = indexNameExpressionResolver
             .indexAliases(state, "test-0", x -> true, true, "test-*");

@@ -196,13 +196,9 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
                 IndexMetaData writeIndex = alias.getWriteIndex();
                 if (writeIndex == null) {
-                    if (alias.getIndices().size() > 1) {
-                        throw new IllegalArgumentException("Alias [" + alias.getAliasName() +
-                            "] points to multiple indices with none set as a write-index [is_write_index=true]");
-                    } else {
-                        throw new IllegalArgumentException("Alias [" + alias.getAliasName() + "] points to an index ["
-                            + alias.getIndices().get(0).getIndex().getName() + "] with [is_write_index=false]");
-                    }
+                    throw new IllegalArgumentException("no write index is defined for alias [" + alias.getAliasName() + "]." +
+                        " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
+                        " indices without one being designated as a write index");
                 }
                 concreteIndices.add(writeIndex.getIndex());
             } else {

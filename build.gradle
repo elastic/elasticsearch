@@ -579,20 +579,19 @@ gradle.projectsEvaluated {
       }
     }
   }
-  project.allprojects.forEach { outer ->
-    project.allprojects.forEach { inner ->
-      if (inner.path == outer.path) {
-        // same project, do nothing
-        return
-      }
-      if (inner.name == outer.name && inner.group == outer.group) {
-        throw new GradleException(
-                "Detected that two projects: ${inner.path} and ${outer.path} " +
-                        "have the same name and group: ${inner.group}:${inner.name}. " +
-                        "This doesn't currently work correctly in Gradle, see: " +
-                        "https://github.com/gradle/gradle/issues/847"
-        )
-      }
+  // Having the same group and name for distinct projects causes Gradle to consider them equal when resolving
+  // dependencies leading to hard to debug failures. Run a check across all project and prevent this from happening.
+  // see: https://github.com/gradle/gradle/issues/847
+  Map coordsToProject = [:]
+  project.allprojects.forEach { p ->
+    String coords = "${p.group}:${p.name}"
+    if (false == coordsToProject.putIfAbsent(coords, p)) {
+      throw new GradleException(
+              "Detected that two projects: ${p.path} and ${coordsToProject[coords].path} " +
+                      "have the same name and group: ${coords}. " +
+                      "This doesn't currently work correctly in Gradle, see: " +
+                      "https://github.com/gradle/gradle/issues/847"
+      )
     }
   }
 }

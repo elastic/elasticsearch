@@ -120,6 +120,7 @@ final class SoftDeletesPolicy {
     Query getRetentionQuery() {
         return new BooleanQuery.Builder()
             .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getMinRetainedSeqNo(), Long.MAX_VALUE), BooleanClause.Occur.SHOULD)
+            // Since updated_by_seqno is an updatable DV, we have to do a linear scan to find matches of its range query.
             .add(NumericDocValuesField.newSlowRangeQuery(SeqNoFieldMapper.UPDATED_BY_SEQNO_NAME,
                 globalCheckpointSupplier.getAsLong() + 1, Long.MAX_VALUE), BooleanClause.Occur.SHOULD)
             .build();

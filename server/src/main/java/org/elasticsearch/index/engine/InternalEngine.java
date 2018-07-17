@@ -971,7 +971,7 @@ public class InternalEngine extends Engine {
         index.parsedDoc().version().setLongValue(plan.versionForIndexing);
         try {
             if (plan.addStaleOpToLucene) {
-                addStaleDocs(index.docs(), plan.seqNoOfNewerVersion);
+                addStaleDocs(index.docs(), plan.seqNoOfNewerDocIfStale);
             } else if (plan.useLuceneUpdateDocument) {
                 updateDocs(index.uid(), plan, index.docs());
             } else {
@@ -1058,26 +1058,27 @@ public class InternalEngine extends Engine {
         final long versionForIndexing;
         final boolean indexIntoLucene;
         final boolean addStaleOpToLucene;
-        final long seqNoOfNewerVersion; // the seqno of the newer copy of this _uid if exists; otherwise -1
+        final long seqNoOfNewerDocIfStale; // the seqno of the newer copy of this _uid if exists; otherwise -1
         final Optional<IndexResult> earlyResultOnPreFlightError;
 
         private IndexingStrategy(boolean currentNotFoundOrDeleted, boolean useLuceneUpdateDocument,
                                  boolean indexIntoLucene, boolean addStaleOpToLucene, long seqNoForIndexing,
-                                 long versionForIndexing, long seqNoOfNewerVersion, IndexResult earlyResultOnPreFlightError) {
+                                 long versionForIndexing, long seqNoOfNewerDocIfStale, IndexResult earlyResultOnPreFlightError) {
             assert useLuceneUpdateDocument == false || indexIntoLucene :
                 "use lucene update is set to true, but we're not indexing into lucene";
             assert (indexIntoLucene && earlyResultOnPreFlightError != null) == false :
                 "can only index into lucene or have a preflight result but not both." +
                     "indexIntoLucene: " + indexIntoLucene
                     + "  earlyResultOnPreFlightError:" + earlyResultOnPreFlightError;
+            assert (addStaleOpToLucene && seqNoOfNewerDocIfStale > seqNoForIndexing) || (addStaleOpToLucene == false && seqNoOfNewerDocIfStale == -1) :
+                "stale=" + addStaleOpToLucene + " ,seqno_for_indexing=" + seqNoForIndexing + " ,seqno_of_newer_doc=" + seqNoOfNewerDocIfStale;
             this.currentNotFoundOrDeleted = currentNotFoundOrDeleted;
             this.useLuceneUpdateDocument = useLuceneUpdateDocument;
             this.seqNoForIndexing = seqNoForIndexing;
             this.versionForIndexing = versionForIndexing;
             this.indexIntoLucene = indexIntoLucene;
             this.addStaleOpToLucene = addStaleOpToLucene;
-            this.seqNoOfNewerVersion = seqNoOfNewerVersion;
-            assert addStaleOpToLucene == false || seqNoOfNewerVersion >= 0 : "stale op [" + seqNoForIndexing + "] with invalid newer seqno";
+            this.seqNoOfNewerDocIfStale = seqNoOfNewerDocIfStale;
             this.earlyResultOnPreFlightError =
                 earlyResultOnPreFlightError == null ? Optional.empty() :
                     Optional.of(earlyResultOnPreFlightError);

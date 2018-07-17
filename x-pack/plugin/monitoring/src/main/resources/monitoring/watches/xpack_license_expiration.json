@@ -8,7 +8,7 @@
       "alert_index": ".monitoring-alerts-6",
       "cluster_uuid": "${monitoring.watch.cluster_uuid}",
       "type": "monitoring",
-      "version_created": 6020099,
+      "version_created": 6040099,
       "watch": "${monitoring.watch.id}"
     }
   },

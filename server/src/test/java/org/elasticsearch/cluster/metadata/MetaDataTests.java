@@ -187,12 +187,15 @@ public class MetaDataTests extends ESTestCase {
     }
 
     public void testResolveWriteIndexRouting() {
-        boolean aliasZeroWrite = randomBoolean();
+        AliasMetaData.Builder aliasZeroBuilder = AliasMetaData.builder("alias0");
+        if (randomBoolean()) {
+            aliasZeroBuilder.writeIndex(true);
+        }
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
             .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putAlias(AliasMetaData.builder("alias0").writeIndex(aliasZeroWrite).build())
+            .putAlias(aliasZeroBuilder.build())
             .putAlias(AliasMetaData.builder("alias1").routing("1").build())
             .putAlias(AliasMetaData.builder("alias2").routing("1,2").build())
             .putAlias(AliasMetaData.builder("alias3").writeIndex(false).build())
@@ -235,18 +238,21 @@ public class MetaDataTests extends ESTestCase {
 
 
         // aliases with multiple indices
+        AliasMetaData.Builder aliasZeroBuilderTwo = AliasMetaData.builder("alias0");
+        if (randomBoolean()) {
+            aliasZeroBuilder.writeIndex(false);
+        }
         IndexMetaData.Builder builder2 = IndexMetaData.builder("index2")
             .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putAlias(AliasMetaData.builder("alias0").writeIndex(!aliasZeroWrite).build())
+            .putAlias(aliasZeroBuilderTwo.build())
             .putAlias(AliasMetaData.builder("alias1").routing("0").writeIndex(true).build())
             .putAlias(AliasMetaData.builder("alias2").writeIndex(true).build());
         MetaData metaDataTwoIndices = MetaData.builder(metaData).put(builder2).build();
 
         // verify that new write index is used
         assertThat("0", equalTo(metaDataTwoIndices.resolveWriteIndexRouting("0", "alias1")));
-
     }
 
     public void testUnknownFieldClusterMetaData() throws IOException {

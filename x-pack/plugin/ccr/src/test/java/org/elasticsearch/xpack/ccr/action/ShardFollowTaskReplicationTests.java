@@ -129,7 +129,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         AtomicBoolean stopped = new AtomicBoolean(false);
         return new ShardFollowNodeTask(1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler) {
             @Override
-            protected void updateMapping(LongConsumer handler) {
+            protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {
                 // noop, as mapping updates are not tested
                 handler.accept(1L);
             }

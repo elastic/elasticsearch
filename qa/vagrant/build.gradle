@@ -29,6 +29,7 @@ plugins {
 dependencies {
   compile "junit:junit:${versions.junit}"
   compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
 
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -36,7 +37,6 @@ dependencies {
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
 
-  compile "org.elasticsearch.test:framework:${version}"
   compile project(':libs:core')
 
   // pulls in the jar built by this project and its dependencies
@@ -81,14 +81,18 @@ tasks.dependencyLicenses.enabled = false
 tasks.dependenciesInfo.enabled = false
 
 tasks.thirdPartyAudit.excludes = [
-        //commons-logging optional dependencies
+        // commons-logging optional dependencies
         'org.apache.avalon.framework.logger.Logger',
         'org.apache.log.Hierarchy',
         'org.apache.log.Logger',
-        //commons-logging provided dependencies
+        'org.apache.log4j.Category',
+        'org.apache.log4j.Level',
+        'org.apache.log4j.Logger',
+        'org.apache.log4j.Priority',
+        // commons-logging provided dependencies
         'javax.servlet.ServletContextEvent',
         'javax.servlet.ServletContextListener',
-        // brought in from test framework
+        // from randomized testing
         'org.apache.tools.ant.BuildException',
         'org.apache.tools.ant.DirectoryScanner',
         'org.apache.tools.ant.Task',

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.packaging.test;
 
+import com.carrotsearch.randomizedtesting.JUnit3MethodProvider;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.lucene.util.LuceneJUnit3MethodProvider;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -32,7 +32,7 @@ import org.junit.runner.RunWith;
 
 @RunWith(RandomizedRunner.class)
 @TestMethodProviders({
-    LuceneJUnit3MethodProvider.class
+    JUnit3MethodProvider.class
 })
 /**
  * Class that all packaging test cases should inherit from. This makes working with the packaging tests more similar to what we're

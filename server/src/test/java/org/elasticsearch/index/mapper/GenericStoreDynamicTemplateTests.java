@@ -35,13 +35,14 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/genericstore/test-mapping.json");
         IndexService index = createIndex("test");
         client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping, XContentType.JSON).get();
-        DocumentMapper docMapper = index.mapperService().documentMapper("person");
+
+        MapperService mapperService = index.mapperService();
+
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/genericstore/test-data.json");
-        ParsedDocument parsedDoc = docMapper.parse(SourceToParse.source("test", "person", "1", new BytesArray(json),
-                XContentType.JSON));
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(
+            SourceToParse.source("test", "person", "1", new BytesArray(json), XContentType.JSON));
         client().admin().indices().preparePutMapping("test").setType("person")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
-        docMapper = index.mapperService().documentMapper("person");
         Document doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
@@ -49,8 +50,8 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        FieldMapper fieldMapper = docMapper.mappers().getFieldMapper("name");
-        assertThat(fieldMapper.fieldType().stored(), equalTo(true));
+        MappedFieldType fieldType = mapperService.fullName("name");
+        assertThat(fieldType.stored(), equalTo(true));
 
         boolean stored = false;
         for (IndexableField field : doc.getFields("age")) {
@@ -58,7 +59,7 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         }
         assertTrue(stored);
 
-        fieldMapper = docMapper.mappers().getFieldMapper("age");
-        assertThat(fieldMapper.fieldType().stored(), equalTo(true));
+        fieldType = mapperService.fullName("age");
+        assertThat(fieldType.stored(), equalTo(true));
     }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -55,9 +56,15 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     }
 
     private void testMultiField(String mapping) throws Exception {
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
+        IndexService indexService = createIndex("test");
+        MapperService mapperService = indexService.mapperService();
+
+        indexService.mapperService().merge("person", new CompressedXContent(mapping),
+            MapperService.MergeReason.MAPPING_UPDATE);
+
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
-        Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
+        Document doc = mapperService.documentMapper().parse(
+            SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -84,37 +91,37 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(f.name(), equalTo("object1.multi1.string"));
         assertThat(f.binaryValue(), equalTo(new BytesRef("2010-01-01")));
 
-        assertThat(docMapper.mappers().getFieldMapper("name"), notNullValue());
-        assertThat(docMapper.mappers().getFieldMapper("name"), instanceOf(TextFieldMapper.class));
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getFieldMapper("name").fieldType().stored(), equalTo(true));
-        assertThat(docMapper.mappers().getFieldMapper("name").fieldType().tokenized(), equalTo(true));
+        assertThat(mapperService.fullName("name"), notNullValue());
+        assertThat(mapperService.fullName("name"), instanceOf(TextFieldType.class));
+        assertNotSame(IndexOptions.NONE, mapperService.fullName("name").indexOptions());
+        assertThat(mapperService.fullName("name").stored(), equalTo(true));
+        assertThat(mapperService.fullName("name").tokenized(), equalTo(true));
 
-        assertThat(docMapper.mappers().getFieldMapper("name.indexed"), notNullValue());
-        assertThat(docMapper.mappers().getFieldMapper("name.indexed"), instanceOf(TextFieldMapper.class));
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name.indexed").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getFieldMapper("name.indexed").fieldType().stored(), equalTo(false));
-        assertThat(docMapper.mappers().getFieldMapper("name.indexed").fieldType().tokenized(), equalTo(true));
+        assertThat(mapperService.fullName("name.indexed"), notNullValue());
+        assertThat(mapperService.fullName("name"), instanceOf(TextFieldType.class));
+        assertNotSame(IndexOptions.NONE, mapperService.fullName("name.indexed").indexOptions());
+        assertThat(mapperService.fullName("name.indexed").stored(), equalTo(false));
+        assertThat(mapperService.fullName("name.indexed").tokenized(), equalTo(true));
 
-        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed"), notNullValue());
-        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed"), instanceOf(TextFieldMapper.class));
-        assertEquals(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name.not_indexed").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed").fieldType().stored(), equalTo(true));
-        assertThat(docMapper.mappers().getFieldMapper("name.not_indexed").fieldType().tokenized(), equalTo(true));
+        assertThat(mapperService.fullName("name.not_indexed"), notNullValue());
+        assertThat(mapperService.fullName("name"), instanceOf(TextFieldType.class));
+        assertEquals(IndexOptions.NONE, mapperService.fullName("name.not_indexed").indexOptions());
+        assertThat(mapperService.fullName("name.not_indexed").stored(), equalTo(true));
+        assertThat(mapperService.fullName("name.not_indexed").tokenized(), equalTo(true));
 
-        assertThat(docMapper.mappers().getFieldMapper("name.test1"), notNullValue());
-        assertThat(docMapper.mappers().getFieldMapper("name.test1"), instanceOf(TextFieldMapper.class));
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("name.test1").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getFieldMapper("name.test1").fieldType().stored(), equalTo(true));
-        assertThat(docMapper.mappers().getFieldMapper("name.test1").fieldType().tokenized(), equalTo(true));
-        assertThat(docMapper.mappers().getFieldMapper("name.test1").fieldType().eagerGlobalOrdinals(), equalTo(true));
+        assertThat(mapperService.fullName("name.test1"), notNullValue());
+        assertThat(mapperService.fullName("name"), instanceOf(TextFieldType.class));
+        assertNotSame(IndexOptions.NONE, mapperService.fullName("name.test1").indexOptions());
+        assertThat(mapperService.fullName("name.test1").stored(), equalTo(true));
+        assertThat(mapperService.fullName("name.test1").tokenized(), equalTo(true));
+        assertThat(mapperService.fullName("name.test1").eagerGlobalOrdinals(), equalTo(true));
 
-        assertThat(docMapper.mappers().getFieldMapper("object1.multi1"), notNullValue());
-        assertThat(docMapper.mappers().getFieldMapper("object1.multi1"), instanceOf(DateFieldMapper.class));
-        assertThat(docMapper.mappers().getFieldMapper("object1.multi1.string"), notNullValue());
-        assertThat(docMapper.mappers().getFieldMapper("object1.multi1.string"), instanceOf(KeywordFieldMapper.class));
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getFieldMapper("object1.multi1.string").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getFieldMapper("object1.multi1.string").fieldType().tokenized(), equalTo(false));
+        assertThat(mapperService.fullName("object1.multi1"), notNullValue());
+        assertThat(mapperService.fullName("object1.multi1"), instanceOf(DateFieldMapper.DateFieldType.class));
+        assertThat(mapperService.fullName("object1.multi1.string"), notNullValue());
+        assertThat(mapperService.fullName("object1.multi1.string"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertNotSame(IndexOptions.NONE, mapperService.fullName("object1.multi1.string").indexOptions());
+        assertThat(mapperService.fullName("object1.multi1.string").tokenized(), equalTo(false));
     }
 
     public void testBuildThenParse() throws Exception {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 
 import java.time.DateTimeException;
@@ -40,6 +41,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.function.Consumer;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
 import static java.time.temporal.ChronoField.DAY_OF_WEEK;
@@ -221,11 +223,15 @@ public class DateFormatters {
         .toFormatter(Locale.ROOT));
 
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 1, 4, SignStyle.NORMAL)
+        .appendValue(ChronoField.YEAR, 1, 5, SignStyle.NORMAL)
+        .optionalStart()
         .appendLiteral('-')
         .appendValue(MONTH_OF_YEAR, 1, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
         .appendLiteral('-')
         .appendValue(DAY_OF_MONTH, 1, 2, SignStyle.NOT_NEGATIVE)
+        .optionalEnd()
+        .optionalEnd()
         .toFormatter(Locale.ROOT);
 
     private static final CompoundDateTimeFormatter DATE = new CompoundDateTimeFormatter(DATE_FORMATTER);
@@ -323,14 +329,21 @@ public class DateFormatters {
     private static final CompoundDateTimeFormatter DATE_OPTIONAL_TIME = new CompoundDateTimeFormatter(STRICT_DATE_OPTIONAL_TIME.printer,
         new DateTimeFormatterBuilder()
         .append(DATE_FORMATTER)
-        .parseLenient()
         .optionalStart()
         .appendLiteral('T')
-        .append(HOUR_MINUTE_FORMATTER)
+        .optionalStart()
+        .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
         .optionalStart()
         .appendLiteral(':')
         .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
         .appendFraction(MILLI_OF_SECOND, 1, 3, true)
+        .optionalEnd()
+        .optionalEnd()
+        .optionalEnd()
         .optionalEnd()
         .append(OPTIONAL_TIME_ZONE_FORMATTER)
         .optionalEnd()
@@ -587,7 +600,15 @@ public class DateFormatters {
         .appendValue(ChronoField.INSTANT_SECONDS)
         .toFormatter(Locale.ROOT));
 
-    private static final CompoundDateTimeFormatter EPOCH_MILLIS = new CompoundDateTimeFormatter(new DateTimeFormatterBuilder()
+    private static final Consumer<DateTimeFormatter[]> UTC_ONLY_VALIDATOR = (parsers) -> {
+        for (DateTimeFormatter parser : parsers) {
+            if (parser.getZone() != null && ZoneOffset.UTC.equals(parser.getZone()) == false) {
+                throw new IllegalArgumentException("epoch parsers must be in time zone UTC, found " + parser.getZone());
+            }
+        }
+    };
+    private static final CompoundDateTimeFormatter EPOCH_MILLIS = new CompoundDateTimeFormatter(UTC_ONLY_VALIDATOR,
+        new DateTimeFormatterBuilder()
         .appendValue(ChronoField.INSTANT_SECONDS, 1, 19, SignStyle.NEVER)
         .appendValue(ChronoField.MILLI_OF_SECOND, 3)
         .toFormatter(Locale.ROOT));

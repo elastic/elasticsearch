@@ -25,11 +25,11 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.LockableLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
@@ -262,8 +262,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         }
     }
 
-    public static class ObservableClusterStateWaitStep extends IndexLifecycleRunnerTests.MockClusterStateWaitStep
-            implements NamedWriteable {
+    public static class ObservableClusterStateWaitStep extends ClusterStateWaitStep implements NamedWriteable {
         public static final String NAME = "observable_cluster_state_action";
 
         public ObservableClusterStateWaitStep(StepKey current, StepKey next) {
@@ -299,6 +298,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
         public String getWriteableName() {
             return NAME;
         }
+
         @Override
         public Result isConditionMet(Index index, ClusterState clusterState) {
             boolean complete = clusterState.metaData().index("test").getSettings()
@@ -309,7 +309,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
 
     public static class ObservableAction extends MockAction {
 
-        public ObservableAction(List<Step> steps, boolean safe) {
+        ObservableAction(List<Step> steps, boolean safe) {
             super(steps, safe);
         }
 

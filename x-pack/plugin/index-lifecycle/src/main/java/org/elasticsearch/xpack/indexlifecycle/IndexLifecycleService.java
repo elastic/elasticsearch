@@ -123,9 +123,7 @@ public class IndexLifecycleService extends AbstractComponent
         if (event.localNodeMaster()) { // only act if we are master, otherwise
                                        // keep idle until elected
             IndexLifecycleMetadata lifecycleMetadata = event.state().metaData().custom(IndexLifecycleMetadata.TYPE);
-            if (lifecycleMetadata != null
-                    && (event.changedCustomMetaDataSet().contains(IndexLifecycleMetadata.TYPE) ||
-                        lifecycleMetadata.getPolicies().size() != policyRegistry.getLifecyclePolicyMap().size())) {
+            if (lifecycleMetadata != null) {
                 // update policy steps registry
                 policyRegistry.update(event.state(), client, nowSupplier);
             }

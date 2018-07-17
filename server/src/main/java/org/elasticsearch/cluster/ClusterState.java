@@ -162,9 +162,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     public static final long UNKNOWN_VERSION = -1;
 
-    private final long version;
-
     private final long term;
+
+    private final long version;
 
     private final String stateUUID;
 
@@ -189,17 +189,17 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     // built on demand
     private volatile RoutingNodes routingNodes;
 
-    public ClusterState(long version, long term, String stateUUID, ClusterState state) {
-        this(state.clusterName, version, term, stateUUID, state.metaData(), state.routingTable(), state.nodes(), state.blocks(),
+    public ClusterState(long term, long version, String stateUUID, ClusterState state) {
+        this(state.clusterName, term, version, stateUUID, state.metaData(), state.routingTable(), state.nodes(), state.blocks(),
             state.customs(), state.getLastCommittedConfiguration(), state.getLastAcceptedConfiguration(), false);
     }
 
-    public ClusterState(ClusterName clusterName, long version, long term, String stateUUID, MetaData metaData, RoutingTable routingTable,
+    public ClusterState(ClusterName clusterName, long term, long version, String stateUUID, MetaData metaData, RoutingTable routingTable,
                         DiscoveryNodes nodes, ClusterBlocks blocks, ImmutableOpenMap<String, Custom> customs,
                         VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
                         boolean wasReadFromDiff) {
-        this.version = version;
         this.term = term;
+        this.version = version;
         this.stateUUID = stateUUID;
         this.clusterName = clusterName;
         this.metaData = metaData;
@@ -212,16 +212,16 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         this.wasReadFromDiff = wasReadFromDiff;
     }
 
+    public long term() {
+        return term;
+    }
+
     public long version() {
         return this.version;
     }
 
     public long getVersion() {
         return version();
-    }
-
-    public long term() {
-        return term;
     }
 
     /**
@@ -308,9 +308,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("cluster uuid: ").append(metaData.clusterUUID()).append("\n");
-        sb.append("version: ").append(version).append("\n");
         sb.append("term: ").append(term).append("\n");
+        sb.append("version: ").append(version).append("\n");
         sb.append("state uuid: ").append(stateUUID).append("\n");
+        sb.append("last committed config: ").append(getLastCommittedConfiguration()).append("\n");
+        sb.append("last accepted config: ").append(getLastAcceptedConfiguration()).append("\n");
         sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
         sb.append("meta data version: ").append(metaData.version()).append("\n");
         final String TAB = "   ";
@@ -334,8 +336,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
         sb.append(blocks());
         sb.append(nodes());
-        sb.append("last committed config: ").append(getLastCommittedConfiguration()).append("\n");
-        sb.append("last accepted config: ").append(getLastAcceptedConfiguration()).append("\n");
         sb.append(routingTable());
         sb.append(getRoutingNodes());
         if (customs.isEmpty() == false) {
@@ -420,8 +420,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         builder.field("cluster_uuid", metaData().clusterUUID());
 
         if (metrics.contains(Metric.VERSION)) {
-            builder.field("version", version);
             builder.field("term", term);
+            builder.field("version", version);
             builder.field("state_uuid", stateUUID);
             builder.field("last_committed_config", lastCommittedConfiguration);
             builder.field("last_accepted_config", lastAcceptedConfiguration);
@@ -624,8 +624,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     public static class Builder {
 
         private final ClusterName clusterName;
-        private long version = 0;
         private long term = 0;
+        private long version = 0;
         private String uuid = UNKNOWN_UUID;
         private VotingConfiguration lastCommittedConfiguration = VotingConfiguration.EMPTY_CONFIG;
         private VotingConfiguration lastAcceptedConfiguration = VotingConfiguration.EMPTY_CONFIG;
@@ -639,8 +639,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         public Builder(ClusterState state) {
             this.clusterName = state.clusterName;
-            this.version = state.version();
             this.term = state.term();
+            this.version = state.version();
             this.uuid = state.stateUUID();
             this.lastCommittedConfiguration = state.getLastCommittedConfiguration();
             this.lastAcceptedConfiguration = state.getLastAcceptedConfiguration();
@@ -693,13 +693,13 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return this;
         }
 
-        public Builder version(long version) {
-            this.version = version;
+        public Builder term(long term) {
+            this.term = term;
             return this;
         }
 
-        public Builder term(long term) {
-            this.term = term;
+        public Builder version(long version) {
+            this.version = version;
             return this;
         }
 
@@ -748,7 +748,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             if (UNKNOWN_UUID.equals(uuid)) {
                 uuid = UUIDs.randomBase64UUID();
             }
-            return new ClusterState(clusterName, version, term, uuid, metaData, routingTable, nodes, blocks, customs.build(),
+            return new ClusterState(clusterName, term, version, uuid, metaData, routingTable, nodes, blocks, customs.build(),
                 lastCommittedConfiguration, lastAcceptedConfiguration, fromDiff);
         }
 
@@ -781,10 +781,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     public static ClusterState readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
         ClusterName clusterName = new ClusterName(in);
         Builder builder = new Builder(clusterName);
-        builder.version = in.readLong();
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             builder.term = in.readLong();
         }
+        builder.version = in.readLong();
         builder.uuid = in.readString();
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             builder.lastCommittedConfiguration(new VotingConfiguration(in));
@@ -805,10 +805,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         clusterName.writeTo(out);
-        out.writeLong(version);
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeLong(term);
         }
+        out.writeLong(version);
         out.writeString(stateUUID);
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             lastCommittedConfiguration.writeTo(out);
@@ -835,9 +835,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     private static class ClusterStateDiff implements Diff<ClusterState> {
 
-        private final long toVersion;
-
         private final long toTerm;
+
+        private final long toVersion;
 
         private final String fromUuid;
 
@@ -862,8 +862,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         ClusterStateDiff(ClusterState before, ClusterState after) {
             fromUuid = before.stateUUID;
             toUuid = after.stateUUID;
-            toVersion = after.version;
             toTerm = after.term;
+            toVersion = after.version;
             clusterName = after.clusterName;
             lastCommittedConfiguration = after.lastCommittedConfiguration;
             lastAcceptedConfiguration = after.lastAcceptedConfiguration;
@@ -878,12 +878,12 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             clusterName = new ClusterName(in);
             fromUuid = in.readString();
             toUuid = in.readString();
-            toVersion = in.readLong();
             if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                 toTerm = in.readLong();
             } else {
                 toTerm = 0L;
             }
+            toVersion = in.readLong();
             if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                 lastCommittedConfiguration = new VotingConfiguration(in);
                 lastAcceptedConfiguration = new VotingConfiguration(in);
@@ -903,10 +903,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             clusterName.writeTo(out);
             out.writeString(fromUuid);
             out.writeString(toUuid);
-            out.writeLong(toVersion);
             if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                 out.writeLong(toTerm);
             }
+            out.writeLong(toVersion);
             if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                 lastCommittedConfiguration.writeTo(out);
                 lastAcceptedConfiguration.writeTo(out);
@@ -929,8 +929,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 throw new IncompatibleClusterStateVersionException(state.version, state.stateUUID, toVersion, fromUuid);
             }
             builder.stateUUID(toUuid);
-            builder.version(toVersion);
             builder.term(toTerm);
+            builder.version(toVersion);
             builder.lastCommittedConfiguration(lastCommittedConfiguration);
             builder.lastAcceptedConfiguration(lastAcceptedConfiguration);
             builder.routingTable(routingTable.apply(state.routingTable));

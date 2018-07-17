@@ -76,28 +76,4 @@ public final class PainlessClass {
 
         this.functionalMethod = functionalMethod;
     }
-
-    public PainlessClass freeze(PainlessMethod functionalMethod) {
-        return new PainlessClass(this, functionalMethod);
-    }
-
-    @Override
-    public boolean equals(Object object) {
-        if (this == object) {
-            return true;
-        }
-
-        if (object == null || getClass() != object.getClass()) {
-            return false;
-        }
-
-        PainlessClass struct = (PainlessClass)object;
-
-        return name.equals(struct.name);
-    }
-
-    @Override
-    public int hashCode() {
-        return name.hashCode();
-    }
 }

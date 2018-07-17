@@ -69,6 +69,16 @@ SIN             |SCALAR
 SINH            |SCALAR
 SQRT            |SCALAR
 TAN             |SCALAR
+ASCII           |SCALAR
+CHAR            |SCALAR
+BIT_LENGTH      |SCALAR
+CHAR_LENGTH     |SCALAR
+LCASE           |SCALAR
+LENGTH          |SCALAR
+LTRIM           |SCALAR
+RTRIM           |SCALAR
+SPACE           |SCALAR
+UCASE           |SCALAR
 SCORE           |SCORE
 ;
 
@@ -90,6 +100,7 @@ ACOS            |SCALAR
 ASIN            |SCALAR
 ATAN            |SCALAR
 ATAN2           |SCALAR
+ASCII           |SCALAR
 ;
 
 showFunctionsWithPatternChar

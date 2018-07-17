@@ -30,6 +30,7 @@ import org.junit.BeforeClass;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,7 +38,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.security.KeyStore;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
@@ -76,16 +77,16 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
         try {
             try (RestClient client = buildRestClient()) {
                 try {
-                    client.performRequest("GET", "/");
+                    client.performRequest(new Request("GET", "/"));
                     fail("connection should have been rejected due to SSL handshake");
                 } catch (Exception e) {
-                    assertThat(e.getMessage(), containsString("General SSLEngine problem"));
+                    assertThat(e, instanceOf(SSLHandshakeException.class));
                 }
             }
 
             SSLContext.setDefault(getSslContext());
             try (RestClient client = buildRestClient()) {
-                Response response = client.performRequest("GET", "/");
+                Response response = client.performRequest(new Request("GET", "/"));
                 assertEquals(200, response.getStatusLine().getStatusCode());
             }
         } finally {

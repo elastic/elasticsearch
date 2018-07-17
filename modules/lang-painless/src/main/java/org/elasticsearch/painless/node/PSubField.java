@@ -19,12 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessField;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.lang.reflect.Modifier;
 import java.util.Objects;
@@ -35,9 +35,9 @@ import java.util.Set;
  */
 final class PSubField extends AStoreable {
 
-    private final Field field;
+    private final PainlessField field;
 
-    PSubField(Location location, Field field) {
+    PSubField(Location location, PainlessField field) {
         super(location);
 
         this.field = Objects.requireNonNull(field);
@@ -51,8 +51,8 @@ final class PSubField extends AStoreable {
     @Override
     void analyze(Locals locals) {
          if (write && Modifier.isFinal(field.modifiers)) {
-             throw createError(new IllegalArgumentException(
-                 "Cannot write to read-only field [" + field.name + "] for type [" + Definition.ClassToName(field.clazz) + "]."));
+             throw createError(new IllegalArgumentException("Cannot write to read-only field [" + field.name + "] for type " +
+                     "[" + PainlessLookupUtility.anyTypeToPainlessTypeName(field.clazz) + "]."));
          }
 
         actual = field.clazz;

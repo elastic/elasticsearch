@@ -11,8 +11,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.License;
-import org.elasticsearch.license.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
@@ -66,16 +66,16 @@ public class MlRemoteLicenseCheckerTests extends ESTestCase {
 
     public void testLicenseSupportsML() {
         XPackInfoResponse.LicenseInfo licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "trial", "trial",
-                License.Status.ACTIVE, randomNonNegativeLong());
+                LicenseStatus.ACTIVE, randomNonNegativeLong());
         assertTrue(MlRemoteLicenseChecker.licenseSupportsML(licenseInfo));
 
-        licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "trial", "trial", License.Status.EXPIRED, randomNonNegativeLong());
+        licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "trial", "trial", LicenseStatus.EXPIRED, randomNonNegativeLong());
         assertFalse(MlRemoteLicenseChecker.licenseSupportsML(licenseInfo));
 
-        licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "GOLD", "GOLD", License.Status.ACTIVE, randomNonNegativeLong());
+        licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "GOLD", "GOLD", LicenseStatus.ACTIVE, randomNonNegativeLong());
         assertFalse(MlRemoteLicenseChecker.licenseSupportsML(licenseInfo));
 
-        licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "PLATINUM", "PLATINUM", License.Status.ACTIVE, randomNonNegativeLong());
+        licenseInfo = new XPackInfoResponse.LicenseInfo("uid", "PLATINUM", "PLATINUM", LicenseStatus.ACTIVE, randomNonNegativeLong());
         assertTrue(MlRemoteLicenseChecker.licenseSupportsML(licenseInfo));
     }
 
@@ -186,14 +186,14 @@ public class MlRemoteLicenseCheckerTests extends ESTestCase {
     }
 
     private XPackInfoResponse.LicenseInfo createPlatinumLicenseResponse() {
-        return new XPackInfoResponse.LicenseInfo("uid", "PLATINUM", "PLATINUM", License.Status.ACTIVE, randomNonNegativeLong());
+        return new XPackInfoResponse.LicenseInfo("uid", "PLATINUM", "PLATINUM", LicenseStatus.ACTIVE, randomNonNegativeLong());
     }
 
     private XPackInfoResponse.LicenseInfo createBasicLicenseResponse() {
-        return new XPackInfoResponse.LicenseInfo("uid", "BASIC", "BASIC", License.Status.ACTIVE, randomNonNegativeLong());
+        return new XPackInfoResponse.LicenseInfo("uid", "BASIC", "BASIC", LicenseStatus.ACTIVE, randomNonNegativeLong());
     }
 
     private XPackInfoResponse.LicenseInfo createExpiredLicenseResponse() {
-        return new XPackInfoResponse.LicenseInfo("uid", "PLATINUM", "PLATINUM", License.Status.EXPIRED, randomNonNegativeLong());
+        return new XPackInfoResponse.LicenseInfo("uid", "PLATINUM", "PLATINUM", LicenseStatus.EXPIRED, randomNonNegativeLong());
     }
 }

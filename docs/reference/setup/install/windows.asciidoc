@@ -34,10 +34,6 @@ ifeval::["{release-state}"!="unreleased"]
 
 Download the `.msi` package for Elasticsearch v{version} from https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.msi
 
-Alternatively, you can download the following package, which contains only 
-features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.msi
-
 endif::[]
 
 [[install-msi-gui]]

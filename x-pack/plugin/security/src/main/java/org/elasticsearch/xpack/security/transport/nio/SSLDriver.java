@@ -96,6 +96,10 @@ public class SSLDriver implements AutoCloseable {
         }
     }
 
+    public SSLEngine getSSLEngine() {
+        return engine;
+    }
+
     public boolean hasFlushPending() {
         return networkWriteBuffer.hasRemaining();
     }

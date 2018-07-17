@@ -56,7 +56,7 @@ You can analyze text using the mappings for a particular field in an index:
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[analyze-field-request]
 ---------------------------------------------------
 
-==== Optional arguemnts
+==== Optional arguments
 The following arguments can also optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]

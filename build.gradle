@@ -574,6 +574,7 @@ subprojects { project ->
       commandLine "${->new File(rootProject.compilerJavaHome, 'bin/jar')}",
           'xf', "${-> jarTask.outputs.files.singleFile}", 'META-INF/LICENSE.txt', 'META-INF/NOTICE.txt'
       workingDir destination
+      onlyIf {jarTask.enabled}
       doFirst {
         project.delete(destination)
         Files.createDirectories(destination)
@@ -582,6 +583,7 @@ subprojects { project ->
 
     final Task checkNotice = project.task("verify${jarTask.name.capitalize()}Notice") {
       dependsOn extract
+      onlyIf {jarTask.enabled}
       doLast {
         final List<String> noticeLines = Files.readAllLines(project.noticeFile.toPath())
         final Path noticePath = extract.destination.resolve('META-INF/NOTICE.txt')
@@ -592,6 +594,7 @@ subprojects { project ->
 
     final Task checkLicense = project.task("verify${jarTask.name.capitalize()}License") {
       dependsOn extract
+      onlyIf {jarTask.enabled}
       doLast {
         final List<String> licenseLines = Files.readAllLines(project.licenseFile.toPath())
         final Path licensePath = extract.destination.resolve('META-INF/LICENSE.txt')

@@ -37,7 +37,7 @@ import java.util.List;
  * Converts messages to lists of tokens that will be fed to the ML categorization algorithm.
  *
  * The code in {@link #makeAnalyzer} and the methods it calls is largely copied from {@link TransportAnalyzeAction}.
- * Unfortunately there is no easy to to reuse a subset of the <code>_analyze</code> action implementation, as the
+ * Unfortunately there is no easy way to reuse a subset of the <code>_analyze</code> action implementation, as the
  * logic required here is not quite identical to that of {@link TransportAnalyzeAction}, and the required code is
  * hard to partially reuse.
  * TODO: consider refactoring ES core to allow more reuse.

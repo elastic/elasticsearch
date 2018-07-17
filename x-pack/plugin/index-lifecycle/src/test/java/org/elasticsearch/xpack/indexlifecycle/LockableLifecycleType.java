@@ -40,6 +40,5 @@ public class LockableLifecycleType implements LifecycleType {
 
     @Override
     public void writeTo(StreamOutput out) {
-
     }
 }

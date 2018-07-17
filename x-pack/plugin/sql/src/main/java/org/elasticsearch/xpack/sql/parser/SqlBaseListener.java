@@ -746,6 +746,16 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitFunctionTemplate(SqlBaseParser.FunctionTemplateContext ctx);
   /**
+   * Enter a parse tree produced by {@link SqlBaseParser#functionName}.
+   * @param ctx the parse tree
+   */
+  void enterFunctionName(SqlBaseParser.FunctionNameContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#functionName}.
+   * @param ctx the parse tree
+   */
+  void exitFunctionName(SqlBaseParser.FunctionNameContext ctx);
+  /**
    * Enter a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link SqlBaseParser#constant}.
    * @param ctx the parse tree

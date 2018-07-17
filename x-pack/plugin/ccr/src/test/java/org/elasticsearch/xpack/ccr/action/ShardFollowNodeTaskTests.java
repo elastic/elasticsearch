@@ -147,7 +147,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             TimeValue.timeValueMillis(10), TimeValue.timeValueMillis(500)) {
 
             @Override
-            protected void updateMapping(LongConsumer handler) {
+            protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {
                 mappingUpdateCounter.incrementAndGet();
                 handler.accept(imdVersion.get());
             }

@@ -88,8 +88,8 @@ public class PainlessDocGenerator {
                 Path typePath = apiRootPath.resolve(struct.name + ".asciidoc");
                 logger.info("Writing [{}.asciidoc]", struct.name);
                 try (PrintStream typeStream = new PrintStream(
-                    Files.newOutputStream(typePath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
-                    false, StandardCharsets.UTF_8.name())) {
+                        Files.newOutputStream(typePath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                        false, StandardCharsets.UTF_8.name())) {
                     emitGeneratedWarning(typeStream);
                     typeStream.print("[[");
                     emitAnchor(typeStream, struct.clazz);

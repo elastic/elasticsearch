@@ -310,7 +310,7 @@ public class PainlessLookupBuilder {
             }
 
             painlessConstructor = methodCache.computeIfAbsent(buildMethodCacheKey(ownerStruct.name, "<init>", painlessParametersTypes),
-                key -> new PainlessMethod("<init>", ownerStruct, null, void.class, painlessParametersTypes,
+                key -> new PainlessMethod("<init>", ownerStruct.clazz, null, void.class, painlessParametersTypes,
                     asmConstructor, javaConstructor.getModifiers(), javaHandle));
             ownerStruct.constructors.put(painlessMethodKey, painlessConstructor);
         } else if (painlessConstructor.arguments.equals(painlessParametersTypes) == false){
@@ -419,7 +419,7 @@ public class PainlessLookupBuilder {
 
                 painlessMethod = methodCache.computeIfAbsent(
                     buildMethodCacheKey(ownerStruct.name, whitelistMethod.javaMethodName, painlessParametersTypes),
-                    key -> new PainlessMethod(whitelistMethod.javaMethodName, ownerStruct, null, painlessReturnClass,
+                    key -> new PainlessMethod(whitelistMethod.javaMethodName, ownerStruct.clazz, null, painlessReturnClass,
                         painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle));
                 ownerStruct.staticMethods.put(painlessMethodKey, painlessMethod);
             } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn == painlessReturnClass &&
@@ -445,7 +445,7 @@ public class PainlessLookupBuilder {
 
                 painlessMethod = methodCache.computeIfAbsent(
                     buildMethodCacheKey(ownerStruct.name, whitelistMethod.javaMethodName, painlessParametersTypes),
-                    key -> new PainlessMethod(whitelistMethod.javaMethodName, ownerStruct, javaAugmentedClass, painlessReturnClass,
+                    key -> new PainlessMethod(whitelistMethod.javaMethodName, ownerStruct.clazz, javaAugmentedClass, painlessReturnClass,
                         painlessParametersTypes, asmMethod, javaMethod.getModifiers(), javaMethodHandle));
                 ownerStruct.methods.put(painlessMethodKey, painlessMethod);
             } else if ((painlessMethod.name.equals(whitelistMethod.javaMethodName) && painlessMethod.rtn.equals(painlessReturnClass) &&
@@ -501,7 +501,7 @@ public class PainlessLookupBuilder {
                 painlessField = fieldCache.computeIfAbsent(
                     buildFieldCacheKey(ownerStruct.name, whitelistField.javaFieldName, painlessFieldClass.getName()),
                     key -> new PainlessField(whitelistField.javaFieldName, javaField.getName(),
-                        ownerStruct, painlessFieldClass, javaField.getModifiers(), null, null));
+                        ownerStruct.clazz, painlessFieldClass, javaField.getModifiers(), null, null));
                 ownerStruct.staticMembers.put(whitelistField.javaFieldName, painlessField);
             } else if (painlessField.clazz != painlessFieldClass) {
                 throw new IllegalArgumentException("illegal duplicate static fields [" + whitelistField.javaFieldName + "] " +
@@ -530,7 +530,7 @@ public class PainlessLookupBuilder {
                 painlessField = fieldCache.computeIfAbsent(
                     buildFieldCacheKey(ownerStruct.name, whitelistField.javaFieldName, painlessFieldClass.getName()),
                     key -> new PainlessField(whitelistField.javaFieldName, javaField.getName(),
-                        ownerStruct, painlessFieldClass, javaField.getModifiers(), javaMethodHandleGetter, javaMethodHandleSetter));
+                        ownerStruct.clazz, painlessFieldClass, javaField.getModifiers(), javaMethodHandleGetter, javaMethodHandleSetter));
                 ownerStruct.members.put(whitelistField.javaFieldName, painlessField);
             } else if (painlessField.clazz != painlessFieldClass) {
                 throw new IllegalArgumentException("illegal duplicate member fields [" + whitelistField.javaFieldName + "] " +
@@ -615,8 +615,8 @@ public class PainlessLookupBuilder {
 
             for (PainlessField field : child.members.values()) {
                 if (owner.members.get(field.name) == null) {
-                    owner.members.put(field.name,
-                        new PainlessField(field.name, field.javaName, owner, field.clazz, field.modifiers, field.getter, field.setter));
+                    owner.members.put(field.name, new PainlessField(
+                            field.name, field.javaName, owner.clazz, field.clazz, field.modifiers, field.getter, field.setter));
                 }
             }
         }

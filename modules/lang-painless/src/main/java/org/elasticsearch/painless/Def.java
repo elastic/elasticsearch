@@ -334,8 +334,8 @@ public final class Def {
          }
          int arity = interfaceMethod.arguments.size();
          PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
-        return lookupReferenceInternal(painlessLookup, methodHandlesLookup, interfaceType, implMethod.owner.name,
-                implMethod.name, receiverClass);
+        return lookupReferenceInternal(painlessLookup, methodHandlesLookup, interfaceType,
+                PainlessLookupUtility.anyTypeToPainlessTypeName(implMethod.target), implMethod.name, receiverClass);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */

@@ -21,6 +21,7 @@ package org.elasticsearch.painless.lookup;
 
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
@@ -30,7 +31,7 @@ import java.util.List;
 
 public class PainlessMethod {
     public final String name;
-    public final PainlessClass owner;
+    public final Class<?> target;
     public final Class<?> augmentation;
     public final Class<?> rtn;
     public final List<Class<?>> arguments;
@@ -38,11 +39,11 @@ public class PainlessMethod {
     public final int modifiers;
     public final MethodHandle handle;
 
-    public PainlessMethod(String name, PainlessClass owner, Class<?> augmentation, Class<?> rtn, List<Class<?>> arguments,
+    public PainlessMethod(String name, Class<?> target, Class<?> augmentation, Class<?> rtn, List<Class<?>> arguments,
                           org.objectweb.asm.commons.Method method, int modifiers, MethodHandle handle) {
         this.name = name;
         this.augmentation = augmentation;
-        this.owner = owner;
+        this.target = target;
         this.rtn = rtn;
         this.arguments = Collections.unmodifiableList(arguments);
         this.method = method;
@@ -85,11 +86,11 @@ public class PainlessMethod {
             for (int i = 0; i < arguments.size(); i++) {
                 params[i] = PainlessLookupUtility.painlessDefTypeToJavaObjectType(arguments.get(i));
             }
-            returnValue = owner.clazz;
+            returnValue = target;
         } else {
             // virtual/interface method: add receiver class
             params = new Class<?>[1 + arguments.size()];
-            params[0] = owner.clazz;
+            params[0] = target;
             for (int i = 0; i < arguments.size(); i++) {
                 params[i + 1] = PainlessLookupUtility.painlessDefTypeToJavaObjectType(arguments.get(i));
             }
@@ -106,8 +107,8 @@ public class PainlessMethod {
             clazz = augmentation;
             type = org.objectweb.asm.Type.getType(augmentation);
         } else {
-            clazz = owner.clazz;
-            type = owner.type;
+            clazz = target;
+            type = Type.getType(target);
         }
 
         if (Modifier.isStatic(modifiers)) {

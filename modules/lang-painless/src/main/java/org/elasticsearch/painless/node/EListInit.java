@@ -26,6 +26,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.lookup.def;
+import org.objectweb.asm.Type;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -90,7 +91,7 @@ public final class EListInit extends AExpression {
 
         writer.newInstance(MethodWriter.getType(actual));
         writer.dup();
-        writer.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(Type.getType(constructor.target), constructor.method);
 
         for (AExpression value : values) {
             writer.dup();

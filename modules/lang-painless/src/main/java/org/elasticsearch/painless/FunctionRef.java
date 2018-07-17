@@ -102,22 +102,22 @@ public class FunctionRef {
         interfaceMethodType = interfaceMethod.getMethodType().dropParameterTypes(0, 1);
 
         // the Painless$Script class can be inferred if owner is null
-        if (delegateMethod.owner == null) {
+        if (delegateMethod.target == null) {
             delegateClassName = CLASS_NAME;
             isDelegateInterface = false;
         } else if (delegateMethod.augmentation != null) {
             delegateClassName = delegateMethod.augmentation.getName();
             isDelegateInterface = delegateMethod.augmentation.isInterface();
         } else {
-            delegateClassName = delegateMethod.owner.clazz.getName();
-            isDelegateInterface = delegateMethod.owner.clazz.isInterface();
+            delegateClassName = delegateMethod.target.getName();
+            isDelegateInterface = delegateMethod.target.isInterface();
         }
 
         if ("<init>".equals(delegateMethod.name)) {
             delegateInvokeType = H_NEWINVOKESPECIAL;
         } else if (Modifier.isStatic(delegateMethod.modifiers)) {
             delegateInvokeType = H_INVOKESTATIC;
-        } else if (delegateMethod.owner.clazz.isInterface()) {
+        } else if (delegateMethod.target.isInterface()) {
             delegateInvokeType = H_INVOKEINTERFACE;
         } else {
             delegateInvokeType = H_INVOKEVIRTUAL;

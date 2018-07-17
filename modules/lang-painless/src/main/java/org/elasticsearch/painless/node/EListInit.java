@@ -23,8 +23,8 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Type;
 
@@ -62,14 +62,15 @@ public final class EListInit extends AExpression {
 
         actual = ArrayList.class;
 
-        constructor =
-                locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).constructors.get(new PainlessMethodKey("<init>", 0));
+        constructor = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).constructors
+                .get(PainlessLookupUtility.buildPainlessMethodKey("<init>", 0));
 
         if (constructor == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        method = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).methods.get(new PainlessMethodKey("add", 1));
+        method = locals.getPainlessLookup().getPainlessStructFromJavaClass(actual).methods
+                .get(PainlessLookupUtility.buildPainlessMethodKey("add", 1));
 
         if (method == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));

@@ -331,6 +331,12 @@ class ClusterFormationTasks {
         }
         // increase script compilation limit since tests can rapid-fire script compilations
         esConfig['script.max_compilations_rate'] = '2048/1m'
+        // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
+        // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
+        // can retry on circuit breaking exceptions, we can revert again to the default configuration.
+        if (node.nodeVersion.major >= 7) {
+            esConfig['indices.breaker.total.use_real_memory'] = false
+        }
         esConfig.putAll(node.config.settings)
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)

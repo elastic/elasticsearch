@@ -15,6 +15,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import javax.net.ssl.SSLHandshakeException;
@@ -95,7 +96,8 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
                 .build();
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
-        SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(settings);
+        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
+        SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster()
                 .getInstance(Transport.class, node).boundAddress().publishAddress();
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {

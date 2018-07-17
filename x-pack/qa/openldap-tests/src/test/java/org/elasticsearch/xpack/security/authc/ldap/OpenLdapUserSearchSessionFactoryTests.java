@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.OpenLdapTests;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
+@TestLogging("org.elasticsearch.xpack.core.ssl.SSLService:TRACE")
 public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
 
     private Settings globalSettings;
@@ -77,7 +79,8 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
                 .put("user_search.base_dn", userSearchBase)
                 .put("group_search.user_attribute", "uid")
                 .put("bind_dn", "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
-                .put("user_search.pool.enabled", randomBoolean());
+                .put("user_search.pool.enabled", randomBoolean())
+                .put("ssl.verification_mode", "full");
         if (useSecureBindPassword) {
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString("secure_bind_password", OpenLdapTests.PASSWORD);
@@ -89,11 +92,11 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         Settings.Builder builder = Settings.builder()
                 .put(globalSettings, false);
-        builder.put(Settings.builder().put(config.settings(), false).normalizePrefix("xpack.security.authc.realms.ldap.").build());
+        builder.put(Settings.builder().put(config.settings(), false).normalizePrefix("xpack.security.authc.realms.oldap-test.").build());
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.merge(globalSecureSettings);
         if (useSecureBindPassword) {
-            secureSettings.setString("xpack.security.authc.realms.ldap.secure_bind_password", OpenLdapTests.PASSWORD);
+            secureSettings.setString("xpack.security.authc.realms.oldap-test.secure_bind_password", OpenLdapTests.PASSWORD);
         }
         builder.setSecureSettings(secureSettings);
         Settings settings = builder.build();

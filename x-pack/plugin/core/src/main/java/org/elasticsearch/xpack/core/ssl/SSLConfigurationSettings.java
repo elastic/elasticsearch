@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Bridges SSLConfiguration into the {@link Settings} framework, using {@link Setting} objects.
@@ -221,4 +223,10 @@ public class SSLConfigurationSettings {
                 CLIENT_AUTH_SETTING_PROFILES, VERIFICATION_MODE_SETTING_PROFILES);
     }
 
+    public List<Setting<SecureString>> getSecureSettingsInUse(Settings settings) {
+        return Stream.of(this.truststorePassword, this.x509KeyPair.keystorePassword,
+            this.x509KeyPair.keystoreKeyPassword, this.x509KeyPair.keyPassword)
+            .filter(s -> s.exists(settings))
+            .collect(Collectors.toList());
+    }
 }

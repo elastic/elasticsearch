@@ -26,6 +26,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.PainlessMethodKey;
 import org.elasticsearch.painless.lookup.def;
+import org.objectweb.asm.Type;
 
 import java.util.HashMap;
 import java.util.List;
@@ -109,7 +110,7 @@ public final class EMapInit extends AExpression {
 
         writer.newInstance(MethodWriter.getType(actual));
         writer.dup();
-        writer.invokeConstructor(constructor.owner.type, constructor.method);
+        writer.invokeConstructor(Type.getType(constructor.target), constructor.method);
 
         for (int index = 0; index < keys.size(); ++index) {
             AExpression key = keys.get(index);

@@ -35,6 +35,10 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -68,7 +72,7 @@ public class ScriptDocValuesMissingV6BehaviourTests extends ESTestCase {
     }
 
     public void testEpochForMissingValueDate() throws IOException {
-        final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
+        final ZonedDateTime EPOCH = ZonedDateTime.ofInstant(Instant.EPOCH, ZoneId.of("UTC"));
         long[][] values = new long[between(3, 10)][];
         for (int d = 0; d < values.length; d++) {
             values[d] = new long[0];

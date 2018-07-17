@@ -435,16 +435,16 @@ public class SSLDriver implements AutoCloseable {
         }
 
         private void maybeFinishHandshake() {
-            // We only acknowledge that we are done handshaking if there are no bytes that need to be written
             if (engine.isOutboundDone() || engine.isInboundDone()) {
+                // If the engine is partially closed, immediate transition to close mode.
                 if (currentMode.isHandshake()) {
                     currentMode = new CloseMode(true);
                 } else {
                     String message = "Expected to be in handshaking mode. Instead in non-handshaking mode: " + currentMode;
                     throw new AssertionError(message);
                 }
-
             } else if (hasFlushPending() == false) {
+                // We only acknowledge that we are done handshaking if there are no bytes that need to be written
                 if (currentMode.isHandshake()) {
                     currentMode = new ApplicationMode();
                 } else {

@@ -459,6 +459,10 @@ Machine Learning::
 * Add control message to start background persistence {ml-pull}19[#19]
 * Fail start up if state is missing {ml-pull}4[#4]
 * Do not log incorrect model memory limit {ml-pull}3[#3]
+* Fix background persistence - in 6.1 and 6.2 background persisted models were only visible after jobs were closed
+* Fix anomaly detection for buckets with fewer than two values when using the `varp` function
+* Fix typical values and model plot bounds when using the `multivariate_by_fields` option
+* Fix typical values, forecast confidence intervals and model plot bounds for models with multiple modes
 
 Mapping::
 * Delay _uid field data deprecation warning {pull}30651[#30651] (issue: {issue}30625[#30625])

@@ -345,6 +345,17 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testSizeZeroSearch() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        
+    }
+
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<QuerySpec<?>> getQueries() {

@@ -67,7 +67,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private volatile int numConcurrentWrites = 0;
     private volatile long followerGlobalCheckpoint = 0;
     private volatile long currentIndexMetadataVersion = 0;
-    private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo).reversed());
+    private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
                         ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler) {
@@ -198,7 +198,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     coordinateWrites();
                 }
 
-                if (newMinRequiredSeqNo < maxRequiredSeqNo) {
+                if (newMinRequiredSeqNo <= maxRequiredSeqNo) {
                     int newSize = (int) (maxRequiredSeqNo - newMinRequiredSeqNo) + 1;
                     LOGGER.trace("{} received [{}] ops, still missing [{}/{}], continuing to read...",
                         params.getFollowShardId(), response.getOperations().length, newMinRequiredSeqNo, maxRequiredSeqNo);
@@ -306,7 +306,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     @Override
     public Status getStatus() {
-        return new Status(leaderGlobalCheckpoint, lastRequestedSeqno, followerGlobalCheckpoint, numConcurrentReads, numConcurrentWrites);
+        return new Status(leaderGlobalCheckpoint, lastRequestedSeqno, followerGlobalCheckpoint, numConcurrentReads,
+            numConcurrentWrites, currentIndexMetadataVersion);
     }
 
     public static class Status implements Task.Status {
@@ -318,9 +319,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         static final ParseField LAST_REQUESTED_SEQNO_FIELD = new ParseField("last_requested_seqno");
         static final ParseField NUMBER_OF_CONCURRENT_READS_FIELD = new ParseField("number_of_concurrent_reads");
         static final ParseField NUMBER_OF_CONCURRENT_WRITES_FIELD = new ParseField("number_of_concurrent_writes");
+        static final ParseField INDEX_METADATA_VERSION_FIELD = new ParseField("index_metadata_version");
 
         static final ConstructingObjectParser<Status, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            args -> new Status((long) args[0], (long) args[1], (long) args[2], (int) args[3], (int) args[4]));
+            args -> new Status((long) args[0], (long) args[1], (long) args[2], (int) args[3], (int) args[4], (long) args[5]));
 
         static {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), LEADER_GLOBAL_CHECKPOINT_FIELD);
@@ -328,6 +330,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_GLOBAL_CHECKPOINT_FIELD);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_READS_FIELD);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_WRITES_FIELD);
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_METADATA_VERSION_FIELD);
         }
 
         private final long leaderGlobalCheckpoint;
@@ -335,14 +338,16 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         private final long followerGlobalCheckpoint;
         private final int numberOfConcurrentReads;
         private final int numberOfConcurrentWrites;
+        private final long indexMetadataVersion;
 
         Status(long leaderGlobalCheckpoint, long lastRequestedSeqno, long followerGlobalCheckpoint,
-               int numberOfConcurrentReads, int numberOfConcurrentWrites) {
+               int numberOfConcurrentReads, int numberOfConcurrentWrites, long indexMetadataVersion) {
             this.leaderGlobalCheckpoint = leaderGlobalCheckpoint;
             this.lastRequestedSeqno = lastRequestedSeqno;
             this.followerGlobalCheckpoint = followerGlobalCheckpoint;
             this.numberOfConcurrentReads = numberOfConcurrentReads;
             this.numberOfConcurrentWrites = numberOfConcurrentWrites;
+            this.indexMetadataVersion = indexMetadataVersion;
         }
 
         public Status(StreamInput in) throws IOException {
@@ -351,6 +356,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.followerGlobalCheckpoint = in.readZLong();
             this.numberOfConcurrentReads = in.readVInt();
             this.numberOfConcurrentWrites = in.readVInt();
+            this.indexMetadataVersion = in.readVLong();
         }
 
         public long getLeaderGlobalCheckpoint() {
@@ -373,6 +379,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return numberOfConcurrentWrites;
         }
 
+        public long getIndexMetadataVersion() {
+            return indexMetadataVersion;
+        }
+
         @Override
         public String getWriteableName() {
             return NAME;
@@ -385,6 +395,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             out.writeZLong(followerGlobalCheckpoint);
             out.writeVInt(numberOfConcurrentReads);
             out.writeVInt(numberOfConcurrentWrites);
+            out.writeVLong(indexMetadataVersion);
         }
 
         @Override
@@ -396,6 +407,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 builder.field(LAST_REQUESTED_SEQNO_FIELD.getPreferredName(), lastRequestedSeqno);
                 builder.field(NUMBER_OF_CONCURRENT_READS_FIELD.getPreferredName(), numberOfConcurrentReads);
                 builder.field(NUMBER_OF_CONCURRENT_WRITES_FIELD.getPreferredName(), numberOfConcurrentWrites);
+                builder.field(INDEX_METADATA_VERSION_FIELD.getPreferredName(), indexMetadataVersion);
             }
             builder.endObject();
             return builder;
@@ -414,13 +426,14 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 lastRequestedSeqno == status.lastRequestedSeqno &&
                 followerGlobalCheckpoint == status.followerGlobalCheckpoint &&
                 numberOfConcurrentReads == status.numberOfConcurrentReads &&
-                numberOfConcurrentWrites == status.numberOfConcurrentWrites;
+                numberOfConcurrentWrites == status.numberOfConcurrentWrites &&
+                indexMetadataVersion == status.indexMetadataVersion;
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(leaderGlobalCheckpoint, lastRequestedSeqno, followerGlobalCheckpoint, numberOfConcurrentReads,
-                numberOfConcurrentWrites);
+                numberOfConcurrentWrites, indexMetadataVersion);
         }
 
         public String toString() {

@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -108,7 +107,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
 
     /**
      * Mock of the script service. The script that is run looks at the
-     * "_aggs" parameter visible when executing the script and simply returns the count.
+     * "states" context variable visible when executing the script and simply returns the count.
      * This should be equal to the number of input InternalScriptedMetrics that are reduced
      * in total.
      */
@@ -117,7 +116,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         // mock script always retuns the size of the input aggs list as result
         @SuppressWarnings("unchecked")
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
-                Collections.singletonMap(REDUCE_SCRIPT_NAME, script -> ((List<Object>) script.get("_aggs")).size()));
+                Collections.singletonMap(REDUCE_SCRIPT_NAME, script -> ((List<Object>) script.get("states")).size()));
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
     }
@@ -130,7 +129,6 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         assertEquals(firstAgg.getMetaData(), reduced.getMetaData());
         if (hasReduceScript) {
             assertEquals(inputs.size(), reduced.aggregation());
-            assertWarnings(ScriptedMetricAggContexts.AGG_PARAM_DEPRECATION_WARNING);
         } else {
             assertEquals(inputs.size(), ((List<Object>) reduced.aggregation()).size());
         }

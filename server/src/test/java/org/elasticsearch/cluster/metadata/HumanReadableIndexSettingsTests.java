@@ -22,8 +22,10 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
+
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 
@@ -42,6 +44,7 @@ public class HumanReadableIndexSettingsTests extends ESTestCase {
 
         assertEquals(versionCreated.toString(), humanSettings.get(IndexMetaData.SETTING_VERSION_CREATED_STRING, null));
         assertEquals(versionUpgraded.toString(), humanSettings.get(IndexMetaData.SETTING_VERSION_UPGRADED_STRING, null));
-        assertEquals(new DateTime(created, DateTimeZone.UTC).toString(), humanSettings.get(IndexMetaData.SETTING_CREATION_DATE_STRING, null));
+        ZonedDateTime creationDate = ZonedDateTime.ofInstant(Instant.ofEpochMilli(created), ZoneOffset.UTC);
+        assertEquals(creationDate.toString(), humanSettings.get(IndexMetaData.SETTING_CREATION_DATE_STRING, null));
     }
 }

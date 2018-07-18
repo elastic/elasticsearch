@@ -154,6 +154,7 @@ The Java High Level REST Client supports the following Snapshot APIs:
 * <<java-rest-high-snapshot-verify-repository>>
 * <<java-rest-high-snapshot-create-snapshot>>
 * <<java-rest-high-snapshot-get-snapshots>>
+* <<java-rest-high-snapshot-snapshots-status>>
 * <<java-rest-high-snapshot-delete-snapshot>>
 
 include::snapshot/get_repository.asciidoc[]
@@ -162,6 +163,7 @@ include::snapshot/delete_repository.asciidoc[]
 include::snapshot/verify_repository.asciidoc[]
 include::snapshot/create_snapshot.asciidoc[]
 include::snapshot/get_snapshots.asciidoc[]
+include::snapshot/snapshots_status.asciidoc[]
 include::snapshot/delete_snapshot.asciidoc[]
 
 == Tasks APIs

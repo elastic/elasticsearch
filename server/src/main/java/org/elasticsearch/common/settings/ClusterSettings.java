@@ -254,6 +254,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS,
                     HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
                     HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
+                    HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING,
                     HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,

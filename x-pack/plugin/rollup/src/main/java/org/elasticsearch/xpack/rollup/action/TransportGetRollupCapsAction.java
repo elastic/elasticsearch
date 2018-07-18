@@ -44,7 +44,6 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
     @Override
     protected void doExecute(Task task, GetRollupCapsAction.Request request, ActionListener<GetRollupCapsAction.Response> listener) {
-
         Map<String, RollableIndexCaps> allCaps = getCaps(request.getIndexPattern(), clusterService.state().getMetaData().indices());
         listener.onResponse(new GetRollupCapsAction.Response(allCaps));
     }
@@ -67,7 +66,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
                 jobCaps.forEach(jobCap -> {
                     String pattern = indexPattern.equals(MetaData.ALL)
-                            ? jobCap.getIndexPattern() : indexPattern;
+                        ? jobCap.getIndexPattern() : indexPattern;
 
                     // Do we already have an entry for this index pattern?
                     RollableIndexCaps indexCaps = allCaps.get(pattern);
@@ -98,7 +97,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
         }
 
         RollupIndexCaps caps = RollupIndexCaps.parseMetadataXContent(
-                new BytesArray(rollupMapping.source().uncompressed()), indexName);
+            new BytesArray(rollupMapping.source().uncompressed()), indexName);
 
         if (caps.hasCaps()) {
             return Optional.of(caps);

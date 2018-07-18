@@ -104,6 +104,7 @@ dependencies {
   compile 'de.thetaphi:forbiddenapis:2.5'
   compile 'org.apache.rat:apache-rat:0.11'
   compile "org.elasticsearch:jna:4.5.1"
+  compile 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
   testCompile "junit:junit:${props.getProperty('junit')}"
 }
 
@@ -128,6 +129,10 @@ if (project == rootProject) {
     }
     mavenCentral()
   }
+  test {
+    include "**/*Tests.class"
+    exclude "**/*IT.class"
+  }
 }
 
 /*****************************************************************************
@@ -151,6 +156,18 @@ if (project != rootProject) {
   forbiddenApisTest.enabled = false
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
+
+  // tests can't  be run with randomized test runner
+  // it's fine as we run them as part of :buildSrc
+  test.enabled = false
+  task integTest(type: Test) {
+    exclude "**/*Tests.class"
+    include "**/*IT.class"
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    inputs.dir(file("src/testKit"))
+  }
+  check.dependsOn(integTest)
 
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false

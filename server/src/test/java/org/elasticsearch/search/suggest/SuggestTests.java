@@ -197,9 +197,9 @@ public class SuggestTests extends ESTestCase {
         String secondWord = randomAlphaOfLength(10);
         Text suggestionText = new Text(suggestedWord + " " + secondWord);
         Text highlighted = new Text("<em>" + suggestedWord + "</em> " + secondWord);
-        PhraseSuggestion.Entry.Option option1 = new Option(suggestionText, highlighted, 0.7f, false);
-        PhraseSuggestion.Entry.Option option2 = new Option(suggestionText, highlighted, 0.8f, true);
-        PhraseSuggestion.Entry.Option option3 = new Option(suggestionText, highlighted, 0.6f);
+        PhraseSuggestion.Entry.Option option1 = new PhraseSuggestion.Entry.Option(suggestionText, highlighted, 0.7f, false);
+        PhraseSuggestion.Entry.Option option2 = new PhraseSuggestion.Entry.Option(suggestionText, highlighted, 0.8f, true);
+        PhraseSuggestion.Entry.Option option3 = new PhraseSuggestion.Entry.Option(suggestionText, highlighted, 0.6f);
         assertEquals(suggestionText, option1.getText());
         assertEquals(highlighted, option1.getHighlighted());
         assertFalse(option1.collateMatch());

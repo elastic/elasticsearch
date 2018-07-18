@@ -19,14 +19,12 @@
 
 package org.elasticsearch.packaging.test;
 
+import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.runners.MethodSorters;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -52,8 +50,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public abstract class RpmPreservationTestCase {
+@TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
+public abstract class RpmPreservationTestCase extends PackagingTestCase {
 
     private static Installation installation;
 
@@ -71,7 +69,6 @@ public abstract class RpmPreservationTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    @Test
     public void test10Install() {
         assertRemoved(distribution());
         installation = install(distribution());
@@ -79,7 +76,6 @@ public abstract class RpmPreservationTestCase {
         verifyPackageInstallation(installation, distribution());
     }
 
-    @Test
     public void test20Remove() {
         assumeThat(installation, is(notNullValue()));
 
@@ -95,7 +91,6 @@ public abstract class RpmPreservationTestCase {
         assertFalse(Files.exists(installation.envFile));
     }
 
-    @Test
     public void test30PreserveConfig() {
         final Shell sh = new Shell();
 

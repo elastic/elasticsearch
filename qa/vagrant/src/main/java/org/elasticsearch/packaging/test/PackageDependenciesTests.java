@@ -22,7 +22,6 @@ package org.elasticsearch.packaging.test;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
-import org.junit.Test;
 
 import java.util.regex.Pattern;
 
@@ -37,10 +36,9 @@ import static org.junit.Assume.assumeTrue;
 /**
  * Tests that linux packages correctly declare their dependencies and their conflicts
  */
-public class PackageDependenciesTests {
+public class PackageDependenciesTests extends PackagingTestCase {
 
-    @Test
-    public void debDependencies() {
+    public void testDebDependencies() {
         assumeTrue(Platforms.isDPKG());
 
         final Shell sh = new Shell();
@@ -55,8 +53,7 @@ public class PackageDependenciesTests {
         assertTrue(Pattern.compile("(?m)^ Conflicts: elasticsearch$").matcher(ossResult.stdout).find());
     }
 
-    @Test
-    public void rpmDependencies() {
+    public void testRpmDependencies() {
         assumeTrue(Platforms.isRPM());
 
         final Shell sh = new Shell();

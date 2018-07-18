@@ -19,6 +19,7 @@
 
 package org.elasticsearch.packaging.test;
 
+import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Shell;
@@ -26,9 +27,6 @@ import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.runners.MethodSorters;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -59,8 +57,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public abstract class PackageTestCase {
+@TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
+public abstract class PackageTestCase extends PackagingTestCase {
 
     private static Installation installation;
 
@@ -77,7 +75,6 @@ public abstract class PackageTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    @Test
     public void test10InstallPackage() {
         assertRemoved(distribution());
         installation = install(distribution());
@@ -85,7 +82,6 @@ public abstract class PackageTestCase {
         verifyPackageInstallation(installation, distribution());
     }
 
-    @Test
     public void test20PluginsCommandWhenNoPlugins() {
         assumeThat(installation, is(notNullValue()));
 
@@ -93,7 +89,6 @@ public abstract class PackageTestCase {
         assertThat(sh.run(installation.bin("elasticsearch-plugin") + " list").stdout, isEmptyString());
     }
 
-    @Test
     public void test30InstallDoesNotStartServer() {
         assumeThat(installation, is(notNullValue()));
 
@@ -101,7 +96,6 @@ public abstract class PackageTestCase {
         assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
     }
 
-    @Test
     public void test40StartServer() throws IOException {
         assumeThat(installation, is(notNullValue()));
 
@@ -110,7 +104,6 @@ public abstract class PackageTestCase {
         verifyPackageInstallation(installation, distribution()); // check startup script didn't change permissions
     }
 
-    @Test
     public void test50Remove() {
         assumeThat(installation, is(notNullValue()));
 
@@ -162,7 +155,6 @@ public abstract class PackageTestCase {
         assertFalse(Files.exists(SYSTEMD_SERVICE));
     }
 
-    @Test
     public void test60Reinstall() {
         assumeThat(installation, is(notNullValue()));
 

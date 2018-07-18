@@ -19,14 +19,12 @@
 
 package org.elasticsearch.packaging.test;
 
+import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.runners.MethodSorters;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -49,8 +47,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public abstract class DebPreservationTestCase {
+@TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
+public abstract class DebPreservationTestCase extends PackagingTestCase {
 
     private static Installation installation;
 
@@ -68,7 +66,6 @@ public abstract class DebPreservationTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    @Test
     public void test10Install() {
         assertRemoved(distribution());
         installation = install(distribution());
@@ -76,7 +73,6 @@ public abstract class DebPreservationTestCase {
         verifyPackageInstallation(installation, distribution());
     }
 
-    @Test
     public void test20Remove() {
         assumeThat(installation, is(notNullValue()));
 
@@ -112,7 +108,6 @@ public abstract class DebPreservationTestCase {
         assertTrue(Files.exists(installation.envFile));
     }
 
-    @Test
     public void test30Purge() {
         assumeThat(installation, is(notNullValue()));
 

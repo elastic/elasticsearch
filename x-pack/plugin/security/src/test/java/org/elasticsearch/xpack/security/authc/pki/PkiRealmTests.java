@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -61,12 +62,15 @@ import static org.mockito.Mockito.when;
 public class PkiRealmTests extends ESTestCase {
 
     private Settings globalSettings;
+    private XPackLicenseState licenseState;
 
     @Before
     public void setup() throws Exception {
         globalSettings = Settings.builder()
                 .put("path.home", createTempDir())
                 .build();
+        licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isAuthorizingRealmAllowed()).thenReturn(true);
     }
 
     public void testTokenSupport() {
@@ -161,7 +165,7 @@ public class PkiRealmTests extends ESTestCase {
         List<Realm> allRealms = CollectionUtils.arrayAsArrayList(otherRealms);
         allRealms.add(realm);
         Collections.shuffle(allRealms, random());
-        realm.initialize(allRealms);
+        realm.initialize(allRealms, licenseState);
         return realm;
     }
 
@@ -182,7 +186,7 @@ public class PkiRealmTests extends ESTestCase {
         UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         PkiRealm realm = new PkiRealm(new RealmConfig("", Settings.builder().put("username_pattern", "OU=(.*?),").build(), globalSettings,
             TestEnvironment.newEnvironment(globalSettings), threadContext), roleMapper);
-        realm.initialize(Collections.emptyList());
+        realm.initialize(Collections.emptyList(), licenseState);
         Mockito.doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             listener.onResponse(Collections.emptySet());
@@ -213,7 +217,7 @@ public class PkiRealmTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(globalSettings);
         PkiRealm realm = new PkiRealm(new RealmConfig("", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
             threadContext), roleMapper);
-        realm.initialize(Collections.emptyList());
+        realm.initialize(Collections.emptyList(), licenseState);
         Mockito.doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             listener.onResponse(Collections.emptySet());
@@ -245,7 +249,7 @@ public class PkiRealmTests extends ESTestCase {
         final ThreadContext threadContext = new ThreadContext(globalSettings);
         PkiRealm realm = new PkiRealm(new RealmConfig("", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
             threadContext), roleMapper);
-        realm.initialize(Collections.emptyList());
+        realm.initialize(Collections.emptyList(), licenseState);
         Mockito.doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             listener.onResponse(Collections.emptySet());

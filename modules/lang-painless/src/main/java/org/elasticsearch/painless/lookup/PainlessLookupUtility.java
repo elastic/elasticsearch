@@ -167,7 +167,7 @@ public final class PainlessLookupUtility {
                 Arrays.fill(arrayBraces, '[');
 
                 try {
-                    return Class.forName(new String(arrayBraces) + def.class.getName() + ";");
+                    return Class.forName(new String(arrayBraces) + "L" + def.class.getName() + ";");
                 } catch (ClassNotFoundException cnfe) {
                     throw new IllegalStateException("internal error", cnfe);
                 }
@@ -196,7 +196,7 @@ public final class PainlessLookupUtility {
                 Arrays.fill(arrayBraces, '[');
 
                 try {
-                    return Class.forName(new String(arrayBraces) + Object.class.getName() + ";");
+                    return Class.forName(new String(arrayBraces) + "L" + Object.class.getName() + ";");
                 } catch (ClassNotFoundException cnfe) {
                     throw new IllegalStateException("internal error", cnfe);
                 }

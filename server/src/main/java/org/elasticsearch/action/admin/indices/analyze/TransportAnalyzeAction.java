@@ -631,27 +631,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                     tokenFilterFactory = (TokenFilterFactory) ((MultiTermAwareComponent) tokenFilterFactory).getMultiTermComponent();
                 }
                 tokenFilterFactoryList.add(tokenFilterFactory);
-                if (tokenFilterFactory instanceof ReferringFilterFactory) {
-                    referringFilters.add((ReferringFilterFactory)tokenFilterFactory);
-                }
             }
-        }
-        if (referringFilters.isEmpty() == false) {
-            if (indexSettings == null) {
-                Settings settings = Settings.builder()
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                    .build();
-                IndexMetaData metaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(settings).build();
-                indexSettings = new IndexSettings(metaData, Settings.EMPTY);
-            }
-            Map<String, TokenFilterFactory> prebuiltFilters = analysisRegistry.buildTokenFilterFactories(indexSettings);
-            for (ReferringFilterFactory rff : referringFilters) {
-                rff.setReferences(prebuiltFilters);
-            }
-
         }
         if (referringFilters.isEmpty() == false) {
             // The request included at least one custom referring tokenfilter that has not already been built by the

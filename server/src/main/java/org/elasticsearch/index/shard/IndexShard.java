@@ -525,6 +525,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             // set this last, once we finished updating all internal state.
             this.shardRouting = newRouting;
+
+            assert this.shardRouting.primary() == false ||
+                this.shardRouting.started() == false || // note that we use started and not active to avoid relocating shards
+                this.replicationTracker.isPrimaryMode()
+                : "an started primary must be in primary mode " + this.shardRouting;
             shardStateUpdated.countDown();
         }
         if (currentRouting != null && currentRouting.active() == false && newRouting.active()) {

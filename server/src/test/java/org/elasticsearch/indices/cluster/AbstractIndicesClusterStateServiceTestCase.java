@@ -362,7 +362,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             } else if (shardRouting.primary()) {
                 // note: it's ok for a replica in post recovery to be started and promoted at once
                 // this can happen when the primary failed after we sent the start shard message
-                assertTrue("a replica can only be promoted when started", shardRouting.started());
+                assertTrue("a replica can only be promoted when active. current: " + this.shardRouting + " new: " + shardRouting,
+                    shardRouting.active());
             }
             this.shardRouting = shardRouting;
             if (shardRouting.primary()) {

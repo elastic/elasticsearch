@@ -21,17 +21,6 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.gradle.api.internal.provider.Providers
 
-buildscript {
-  repositories {
-    maven {
-      url 'https://plugins.gradle.org/m2/'
-    }
-  }
-  dependencies {
-    classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
-  }
-}
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'nebula.maven-base-publish'
@@ -44,49 +33,6 @@ archivesBaseName = 'elasticsearch-rest-high-level-client'
 //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
 Task copyRestSpec = RestIntegTestTask.createCopyRestSpecTask(project, Providers.FALSE)
 test.dependsOn(copyRestSpec)
-
-publishing {
-  publications {
-    nebula(MavenPublication) {
-      artifact shadowJar
-      artifactId = archivesBaseName
-      /*
-       * Configure the pom to include the "shadow" as compile dependencies
-       * because that is how we're using them but remove all other dependencies
-       * because they've been shaded into the jar.
-       */
-      pom.withXml { XmlProvider xml ->
-        Node root = xml.asNode()
-        root.remove(root.dependencies)
-        Node dependenciesNode = root.appendNode('dependencies')
-        project.configurations.shadow.allDependencies.each {
-          if (false == it instanceof SelfResolvingDependency) {
-            Node dependencyNode = dependenciesNode.appendNode('dependency')
-            dependencyNode.appendNode('groupId', it.group)
-            dependencyNode.appendNode('artifactId', it.name)
-            dependencyNode.appendNode('version', it.version)
-            dependencyNode.appendNode('scope', 'compile')
-          }
-        }
-      }
-    }
-  }
-}
-
-/*
- * We need somewhere to configure dependencies that we don't wish to shade
- * into the high level REST client. The shadow plugin creates a "shadow"
- * configuration which is *almost* exactly that. It is never bundled into
- * the shaded jar but is used for main source compilation. Unfortunately,
- * by default it is not used for *test* source compilation and isn't used
- * in tests at all. This change makes it available for test compilation.
- * A change below makes it available for testing.
- */
-sourceSets {
-  test {
-    compileClasspath += configurations.shadow
-  }
-}
 
 dependencies {
   /*
@@ -123,49 +69,4 @@ forbiddenApisMain {
   // specified
   signaturesURLs += [PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
   signaturesURLs += [file('src/main/resources/forbidden/rest-high-level-signatures.txt').toURI().toURL()]
-}
-
-shadowJar {
-  classifier = null
-  mergeServiceFiles()
-}
-
-// We don't need normal jar, we use shadow jar instead
-jar.enabled = false
-assemble.dependsOn shadowJar
-
-javadoc {
-  /*
-   * Bundle all of the javadoc from all of the shaded projects into this one
-   * so we don't *have* to publish javadoc for all of the "client" jars.
-   */
-  configurations.compile.dependencies.all { Dependency dep ->
-    Project p = dependencyToProject(dep)
-    if (p != null) {
-      evaluationDependsOn(p.path)
-      source += p.sourceSets.main.allJava
-    }
-  }
-}
-
-/*
- * Use the jar for testing so we have tests of the bundled jar.
- * Use the "shadow" configuration for testing because we need things
- * in it.
- */
-test {
-  classpath -= compileJava.outputs.files
-  classpath -= configurations.compile
-  classpath -= configurations.runtime
-  classpath += configurations.shadow
-  classpath += shadowJar.outputs.files
-  dependsOn shadowJar
-}
-integTestRunner {
-  classpath -= compileJava.outputs.files
-  classpath -= configurations.compile
-  classpath -= configurations.runtime
-  classpath += configurations.shadow
-  classpath += shadowJar.outputs.files
-  dependsOn shadowJar
 }

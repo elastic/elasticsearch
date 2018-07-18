@@ -158,7 +158,7 @@ public final class PainlessLookupUtility {
                     painlessTypeName.charAt(arrayIndex++) == ']') {
                     ++arrayDimensions;
                 } else {
-                    throw new IllegalArgumentException("invalid painless type [" + painlessTypeName + "].");
+                    throw new IllegalArgumentException("painless type [" + painlessTypeName + "] not found");
                 }
             }
 
@@ -192,7 +192,7 @@ public final class PainlessLookupUtility {
             try {
                 return Class.forName(javaDescriptor);
             } catch (ClassNotFoundException cnfe) {
-                throw new IllegalStateException("painless type [" + painlessTypeName + "] not found", cnfe);
+                throw new IllegalArgumentException("painless type [" + painlessTypeName + "] not found", cnfe);
             }
         }
 
@@ -207,7 +207,7 @@ public final class PainlessLookupUtility {
         }
 
         if (javaClasses.contains(painlessType) == false) {
-            throw new IllegalStateException("painless type [" + painlessTypeName + "] not found");
+            throw new IllegalArgumentException("painless type [" + painlessTypeName + "] not found");
         }
     }
 

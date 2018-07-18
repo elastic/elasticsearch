@@ -14,8 +14,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.CompoundDateTimeFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -33,6 +31,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -76,7 +77,7 @@ public class RollupIT extends ESRestTestCase {
 
     public void testBigRollup() throws Exception {
         final int numDocs = 200;
-        String dateFormat = randomFrom("epoch_second", "date_time");
+        String dateFormat = "strict_date_optional_time";
 
         // create the test-index index
         try (XContentBuilder builder = jsonBuilder()) {
@@ -104,11 +105,10 @@ public class RollupIT extends ESRestTestCase {
 
         // index documents for the rollup job
         final StringBuilder bulk = new StringBuilder();
-        final CompoundDateTimeFormatter dateTimeFormatter = DateFormatters.forPattern(dateFormat);
         for (int i = 0; i < numDocs; i++) {
             bulk.append("{\"index\":{\"_index\":\"rollup-docs\",\"_type\":\"_doc\"}}\n");
-            Instant dt= Instant.ofEpochSecond(1531221196 + (60 * i));
-            String date = dateTimeFormatter.format(dt);
+            ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochSecond(1531221196 + (60*i)), ZoneId.of("UTC"));
+            String date = zdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
             bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
         }
         bulk.append("\r\n");

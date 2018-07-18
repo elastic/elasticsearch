@@ -156,14 +156,14 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.jobId = jobId;
         this.queryDelay = queryDelay;
         this.frequency = frequency;
-        this.indices = indices;
-        this.types = types;
+        this.indices = indices == null ? null : Collections.unmodifiableList(indices);
+        this.types = types == null ? null : Collections.unmodifiableList(types);
         this.query = query;
         this.aggregations = aggregations;
-        this.scriptFields = scriptFields;
+        this.scriptFields = scriptFields == null ? null : Collections.unmodifiableList(scriptFields);
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
-        this.headers = Objects.requireNonNull(headers);
+        this.headers = Collections.unmodifiableMap(headers);
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {
@@ -172,19 +172,19 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.queryDelay = in.readOptionalTimeValue();
         this.frequency = in.readOptionalTimeValue();
         if (in.readBoolean()) {
-            this.indices = in.readList(StreamInput::readString);
+            this.indices = Collections.unmodifiableList(in.readList(StreamInput::readString));
         } else {
             this.indices = null;
         }
         if (in.readBoolean()) {
-            this.types = in.readList(StreamInput::readString);
+            this.types = Collections.unmodifiableList(in.readList(StreamInput::readString));
         } else {
             this.types = null;
         }
         this.query = in.readNamedWriteable(QueryBuilder.class);
         this.aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
         if (in.readBoolean()) {
-            this.scriptFields = in.readList(SearchSourceBuilder.ScriptField::new);
+            this.scriptFields = Collections.unmodifiableList(in.readList(SearchSourceBuilder.ScriptField::new));
         } else {
             this.scriptFields = null;
         }
@@ -195,7 +195,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            this.headers = in.readMap(StreamInput::readString, StreamInput::readString);
+            this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
         } else {
             this.headers = Collections.emptyMap();
         }

@@ -45,7 +45,7 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
 
     @SuppressWarnings("unchecked")
     public static ConstructingObjectParser<RolloverInfo, String> PARSER = new ConstructingObjectParser<>("rollover_info", false,
-        (a, alias) -> new RolloverInfo(alias, (List<Condition>) a[0], (Long) a[1]));
+        (a, alias) -> new RolloverInfo(alias, (List<Condition<?>>) a[0], (Long) a[1]));
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
             (p, c, n) -> p.namedObject(Condition.class, n, c), CONDITION_FIELD);
@@ -53,10 +53,10 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
     }
 
     private final String alias;
-    private final List<Condition> metConditions;
+    private final List<Condition<?>> metConditions;
     private final long time;
 
-    public RolloverInfo(String alias, List<Condition> metConditions, long time) {
+    public RolloverInfo(String alias, List<Condition<?>> metConditions, long time) {
         this.alias = alias;
         this.metConditions = metConditions;
         this.time = time;
@@ -65,7 +65,7 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
     public RolloverInfo(StreamInput in) throws IOException {
         this.alias = in.readString();
         this.time = in.readVLong();
-        this.metConditions = in.readNamedWriteableList(Condition.class);
+        this.metConditions = (List) in.readNamedWriteableList(Condition.class);
     }
 
     public static RolloverInfo parse(XContentParser parser, String alias) {
@@ -76,7 +76,7 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
         return alias;
     }
 
-    public List<Condition> getMetConditions() {
+    public List<Condition<?>> getMetConditions() {
         return metConditions;
     }
 
@@ -99,7 +99,7 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(alias);
         builder.startObject(CONDITION_FIELD.getPreferredName());
-        for (Condition condition : metConditions) {
+        for (Condition<?> condition : metConditions) {
             condition.toXContent(builder, params);
         }
         builder.endObject();

@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
-import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
-import org.elasticsearch.xpack.sql.client.shared.StringUtils;
-import org.elasticsearch.xpack.sql.client.shared.Version;
+import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
+import org.elasticsearch.xpack.sql.client.StringUtils;
+import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 
 import java.net.URI;
@@ -22,8 +22,8 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.sql.client.shared.UriUtils.parseURI;
-import static org.elasticsearch.xpack.sql.client.shared.UriUtils.removeQuery;
+import static org.elasticsearch.xpack.sql.client.UriUtils.parseURI;
+import static org.elasticsearch.xpack.sql.client.UriUtils.removeQuery;
 
 /**
  / Supports the following syntax

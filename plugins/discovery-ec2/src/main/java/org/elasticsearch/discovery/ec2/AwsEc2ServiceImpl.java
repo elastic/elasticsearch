@@ -19,12 +19,9 @@
 
 package org.elasticsearch.discovery.ec2;
 
-import java.util.Random;
-import java.util.concurrent.atomic.AtomicReference;
-
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
@@ -38,6 +35,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LazyInitializable;
+
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicReference;
 
 class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
 
@@ -99,7 +99,7 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
 
     // pkg private for tests
     static AWSCredentialsProvider buildCredentials(Logger logger, Ec2ClientSettings clientSettings) {
-        final BasicAWSCredentials credentials = clientSettings.credentials;
+        final AWSCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
             logger.debug("Using either environment variables, system properties or instance profile credentials");
             return new DefaultAWSCredentialsProviderChain();

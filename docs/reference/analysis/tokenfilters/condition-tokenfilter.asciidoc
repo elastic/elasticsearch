@@ -7,7 +7,7 @@ only applies the subfilters to the current token if it matches the predicate.
 [float]
 === Options
 [horizontal]
-filters:: a list of token filters to apply to the current token if the predicate
+filter:: a chain of token filters to apply to the current token if the predicate
   matches. These can be any token filters defined elsewhere in the index mappings.
 
 script:: a predicate script that determines whether or not the filters will be applied
@@ -35,7 +35,7 @@ PUT /condition_example
                     "type" : "condition",
                     "filter" : [ "lowercase" ],
                     "script" : {
-                        "source" : "term.term().length() < 5"  <1>
+                        "source" : "token.getTerm().length() < 5"  <1>
                     }
                 }
             }
@@ -79,7 +79,7 @@ And it'd respond:
       "start_offset": 5,
       "end_offset": 15,
       "type": "<ALPHANUM>",
-      "position": 0
+      "position": 1
     }
   ]
 }

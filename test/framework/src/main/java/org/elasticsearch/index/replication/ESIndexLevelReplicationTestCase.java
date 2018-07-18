@@ -98,7 +98,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
     protected final Index index = new Index("test", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
-    private final Map<String, String> indexMapping = Collections.singletonMap("type", "{ \"type\": {} }");
+    protected final Map<String, String> indexMapping = Collections.singletonMap("type", "{ \"type\": {} }");
 
     protected ReplicationGroup createGroup(int replicas) throws IOException {
         return createGroup(replicas, Settings.EMPTY);
@@ -157,7 +157,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 }
             });
 
-        ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
+        protected ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
             primary = newShard(primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting), () -> {});
             replicas = new CopyOnWriteArrayList<>();
@@ -451,7 +451,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
     }
 
-    abstract class ReplicationAction<Request extends ReplicationRequest<Request>,
+    protected abstract class ReplicationAction<Request extends ReplicationRequest<Request>,
         ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
         Response extends ReplicationResponse> {
         private final Request request;
@@ -459,7 +459,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         private final ReplicationGroup replicationGroup;
         private final String opType;
 
-        ReplicationAction(Request request, ActionListener<Response> listener, ReplicationGroup group, String opType) {
+        protected ReplicationAction(Request request, ActionListener<Response> listener, ReplicationGroup group, String opType) {
             this.request = request;
             this.listener = listener;
             this.replicationGroup = group;
@@ -585,11 +585,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
         }
 
-        class PrimaryResult implements ReplicationOperation.PrimaryResult<ReplicaRequest> {
+        protected class PrimaryResult implements ReplicationOperation.PrimaryResult<ReplicaRequest> {
             final ReplicaRequest replicaRequest;
             final Response finalResponse;
 
-            PrimaryResult(ReplicaRequest replicaRequest, Response finalResponse) {
+            public PrimaryResult(ReplicaRequest replicaRequest, Response finalResponse) {
                 this.replicaRequest = replicaRequest;
                 this.finalResponse = finalResponse;
             }

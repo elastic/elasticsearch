@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Assertions;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -57,9 +58,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -70,7 +72,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     public static final String MASTER_UPDATE_THREAD_NAME = "masterService#updateTask";
 
-    private BiConsumer<ClusterChangedEvent, Discovery.AckListener> clusterStatePublisher;
+    protected Discovery.Publisher clusterStatePublisher;
 
     private java.util.function.Supplier<ClusterState> clusterStateSupplier;
 
@@ -92,7 +94,7 @@ public class MasterService extends AbstractLifecycleComponent {
         this.slowTaskLoggingThreshold = slowTaskLoggingThreshold;
     }
 
-    public synchronized void setClusterStatePublisher(BiConsumer<ClusterChangedEvent, Discovery.AckListener> publisher) {
+    public synchronized void setClusterStatePublisher(Discovery.Publisher publisher) {
         clusterStatePublisher = publisher;
     }
 
@@ -104,12 +106,16 @@ public class MasterService extends AbstractLifecycleComponent {
     protected synchronized void doStart() {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
         Objects.requireNonNull(clusterStateSupplier, "please set a cluster state supplier before starting");
-        threadPoolExecutor = EsExecutors.newSinglePrioritizing(
+        threadPoolExecutor = createThreadPoolExecutor();
+        taskBatcher = new Batcher(logger, threadPoolExecutor);
+    }
+
+    protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+        return EsExecutors.newSinglePrioritizing(
                 nodeName() + "/" + MASTER_UPDATE_THREAD_NAME,
                 daemonThreadFactory(settings, MASTER_UPDATE_THREAD_NAME),
                 threadPool.getThreadContext(),
                 threadPool.scheduler());
-        taskBatcher = new Batcher(logger, threadPoolExecutor);
     }
 
     class Batcher extends TaskBatcher {
@@ -222,46 +228,97 @@ public class MasterService extends AbstractLifecycleComponent {
                 }
 
                 logger.debug("publishing cluster state version [{}]", newClusterState.version());
-                try {
-                    clusterStatePublisher.accept(clusterChangedEvent, taskOutputs.createAckListener(threadPool, newClusterState));
-                } catch (Discovery.FailedToCommitClusterStateException t) {
-                    final long version = newClusterState.version();
-                    logger.warn(() -> new ParameterizedMessage(
-                            "failing [{}]: failed to commit cluster state version [{}]", summary, version), t);
-                    taskOutputs.publishingFailed(t);
-                    return;
-                }
+                publish(clusterChangedEvent, taskOutputs, startTimeNS);
 
-                taskOutputs.processedDifferentClusterState(previousClusterState, newClusterState);
+            } catch (Exception e) {
+                handleException(summary, startTimeNS, newClusterState, e);
+            }
+        }
+    }
+
+    protected void publish(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeNS) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Exception> optionalException = new AtomicReference<>();
+        clusterStatePublisher.publish(clusterChangedEvent, new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void aVoid) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                optionalException.set(e);
+                latch.countDown();
+            }
+        }, taskOutputs.createAckListener(threadPool, clusterChangedEvent.state()));
+
+        // indefinitely wait for publication to complete
+        try {
+            latch.await();
+            final ActionListener<Void> publishListener = getPublishListener(clusterChangedEvent, taskOutputs, startTimeNS);
+
+            if (optionalException.get() == null) {
+                publishListener.onResponse(null);
+            } else {
+                publishListener.onFailure(optionalException.get());
+            }
+        } catch (InterruptedException e) {
+            logger.debug(() -> new ParameterizedMessage(
+                "interrupted while publishing cluster state [{}]", clusterChangedEvent.source()), e);
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    protected ActionListener<Void> getPublishListener(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeNS) {
+        return new ActionListener<Void>() {
+
+            @Override
+            public void onResponse(Void ignore) {
+                taskOutputs.processedDifferentClusterState(clusterChangedEvent.previousState(), clusterChangedEvent.state());
 
                 try {
                     taskOutputs.clusterStatePublished(clusterChangedEvent);
                 } catch (Exception e) {
                     logger.error(() -> new ParameterizedMessage(
-                            "exception thrown while notifying executor of new cluster state publication [{}]",
-                            summary), e);
+                        "exception thrown while notifying executor of new cluster state publication [{}]",
+                        clusterChangedEvent.source()), e);
                 }
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
-                logger.debug("processing [{}]: took [{}] done publishing updated cluster state (version: {}, uuid: {})", summary,
-                    executionTime, newClusterState.version(),
-                    newClusterState.stateUUID());
-                warnAboutSlowTaskIfNeeded(executionTime, summary);
-            } catch (Exception e) {
-                TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
-                final long version = newClusterState.version();
-                final String stateUUID = newClusterState.stateUUID();
-                final String fullState = newClusterState.toString();
-                logger.warn(() -> new ParameterizedMessage(
-                        "failed to publish updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
-                        executionTime,
-                        version,
-                        stateUUID,
-                        summary,
-                        fullState),
-                    e);
-                // TODO: do we want to call updateTask.onFailure here?
+                logger.debug("processing [{}]: took [{}] done publishing updated cluster state (version: {}, uuid: {})",
+                    clusterChangedEvent.source(),
+                    executionTime, clusterChangedEvent.state().version(),
+                    clusterChangedEvent.state().stateUUID());
+                warnAboutSlowTaskIfNeeded(executionTime, clusterChangedEvent.source());
             }
-        }
+
+            @Override
+            public void onFailure(Exception exception) {
+                if (exception instanceof Discovery.FailedToCommitClusterStateException) {
+                    final long version = clusterChangedEvent.state().version();
+                    logger.warn(() -> new ParameterizedMessage(
+                        "failing [{}]: failed to commit cluster state version [{}]", clusterChangedEvent.source(), version), exception);
+                    taskOutputs.publishingFailed((Discovery.FailedToCommitClusterStateException) exception);
+                } else {
+                    handleException(clusterChangedEvent.source(), startTimeNS, clusterChangedEvent.state(), exception);
+                }
+            }
+        };
+    }
+
+    private void handleException(String summary, long startTimeNS, ClusterState newClusterState, Exception e) {
+        TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
+        final long version = newClusterState.version();
+        final String stateUUID = newClusterState.stateUUID();
+        final String fullState = newClusterState.toString();
+        logger.warn(() -> new ParameterizedMessage(
+                "failed to publish updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
+                executionTime,
+                version,
+                stateUUID,
+                summary,
+                fullState),
+            e);
+        // TODO: do we want to call updateTask.onFailure here?
     }
 
     public TaskOutputs calculateTaskOutputs(TaskInputs taskInputs, ClusterState previousClusterState, long startTimeNS) {
@@ -276,7 +333,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         if (previousClusterState != newClusterState) {
             // only the master controls the version numbers
-            Builder builder = ClusterState.builder(newClusterState).incrementVersion();
+            Builder builder = incrementVersion(newClusterState);
             if (previousClusterState.routingTable() != newClusterState.routingTable()) {
                 builder.routingTable(RoutingTable.builder(newClusterState.routingTable())
                     .version(newClusterState.routingTable().version() + 1).build());
@@ -289,6 +346,10 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         return newClusterState;
+    }
+
+    public Builder incrementVersion(ClusterState clusterState) {
+        return ClusterState.builder(clusterState).incrementVersion();
     }
 
     /**
@@ -335,7 +396,7 @@ public class MasterService extends AbstractLifecycleComponent {
     /**
      * Output created by executing a set of tasks provided as TaskInputs
      */
-    class TaskOutputs {
+    protected class TaskOutputs {
         public final TaskInputs taskInputs;
         public final ClusterState previousClusterState;
         public final ClusterState newClusterState;

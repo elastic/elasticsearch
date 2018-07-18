@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.single;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -59,7 +60,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     }
 
     @Override
-    public synchronized void publish(final ClusterChangedEvent event,
+    public synchronized void publish(final ClusterChangedEvent event, ActionListener<Void> publishListener,
                                      final AckListener ackListener) {
         clusterState = event.state();
         ackListener.onCommit(TimeValue.ZERO);
@@ -68,24 +69,18 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
         ClusterApplyListener listener = new ClusterApplyListener() {
             @Override
             public void onSuccess(String source) {
-                latch.countDown();
+                publishListener.onResponse(null);
                 ackListener.onNodeAck(transportService.getLocalNode(), null);
             }
 
             @Override
             public void onFailure(String source, Exception e) {
-                latch.countDown();
+                publishListener.onFailure(e);
                 ackListener.onNodeAck(transportService.getLocalNode(), e);
                 logger.warn(() -> new ParameterizedMessage("failed while applying cluster state locally [{}]", event.source()), e);
             }
         };
         clusterApplier.onNewClusterState("apply-locally-on-node[" + event.source() + "]", () -> clusterState, listener);
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     @Override

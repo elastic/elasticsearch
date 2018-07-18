@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -40,13 +41,15 @@ public interface Discovery extends LifecycleComponent {
      * Publish all the changes to the cluster from the master (can be called just by the master). The publish
      * process should apply this state to the master as well!
      *
+     * The publishListener allows to wait for the publication to go through.
+     *
      * The {@link AckListener} allows to keep track of the ack received from nodes, and verify whether
      * they updated their own cluster state or not.
      *
      * The method is guaranteed to throw a {@link FailedToCommitClusterStateException} if the change is not committed and should be rejected.
      * Any other exception signals the something wrong happened but the change is committed.
      */
-    void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener);
+    void publish(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> publishListener, AckListener ackListener);
 
     interface AckListener {
         /**
@@ -63,6 +66,10 @@ public interface Discovery extends LifecycleComponent {
          * @param e the optional exception
          */
         void onNodeAck(DiscoveryNode node, @Nullable Exception e);
+    }
+
+    interface Publisher {
+        void publish(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> publishListener, AckListener ackListener);
     }
 
     class FailedToCommitClusterStateException extends ElasticsearchException {

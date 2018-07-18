@@ -158,7 +158,7 @@ public class RankEvalResponseTests extends ESTestCase {
                 "    \"details\": {" +
                 "        \"coffee_query\": {" +
                 "            \"quality_level\": 0.1," +
-                "            \"unknown_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}]," +
+                "            \"unrated_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}]," +
                 "            \"hits\":[{\"hit\":{\"_index\":\"index\",\"_type\":\"\",\"_id\":\"123\",\"_score\":1.0}," +
                 "                       \"rating\":5}," +
                 "                      {\"hit\":{\"_index\":\"index\",\"_type\":\"\",\"_id\":\"456\",\"_score\":1.0}," +

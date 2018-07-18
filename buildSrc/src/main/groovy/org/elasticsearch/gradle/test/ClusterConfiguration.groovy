@@ -137,7 +137,10 @@ class ClusterConfiguration {
         this.project = project
     }
 
-    Map<String, String> systemProperties = new HashMap<>()
+    // **Note** for systemProperties, settings, keystoreFiles etc:
+    // value could be a GString that is evaluated to just a String
+    // there are cases when value depends on task that is not executed yet on configuration stage
+    Map<String, Object> systemProperties = new HashMap<>()
 
     Map<String, Object> settings = new HashMap<>()
 
@@ -157,7 +160,7 @@ class ClusterConfiguration {
     List<Object> dependencies = new ArrayList<>()
 
     @Input
-    void systemProperty(String property, String value) {
+    void systemProperty(String property, Object value) {
         systemProperties.put(property, value)
     }
 

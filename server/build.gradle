@@ -334,7 +334,22 @@ if (isEclipse == false || project.path == ":server-tests") {
     classpath = project.test.classpath
     testClassesDirs = project.test.testClassesDirs
     include '**/*IT.class'
+    // TODO: remove ScriptedMetricAggParamsV6CompatIT for 7.0
+    exclude '**/ScriptedMetricAggParamsV6CompatIT.class'
   }
+
+  // TODO: remove this task dedicated to ScriptedMetricAggParamsV6CompatIT for 7.0
+  task scriptedMetricAggDeprecatedParamIntegTest(type: RandomizedTestingTask,
+                                                 description: 'Dedicated backwards compatibility integration test',
+                                                 dependsOn: integTest.dependsOn.collect()) {
+    configure(BuildPlugin.commonTestConfig(project))
+    classpath = integTest.classpath
+    testClassesDirs = integTest.testClassesDirs
+    systemProperty 'es.aggregations.enableDeprecatedScriptedMetricAggParam', 'true'
+    include '**/ScriptedMetricAggParamsV6CompatIT.class'
+  }
+  integTest.dependsOn scriptedMetricAggDeprecatedParamIntegTest
+
   check.dependsOn integTest
   integTest.mustRunAfter test
 }

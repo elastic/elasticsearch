@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.security.authc.kerberos.support;
+package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
@@ -50,7 +50,7 @@ import javax.security.auth.login.LoginException;
  * Use {@link #close()} to release and dispose {@link LoginContext} and
  * {@link GSSContext} after usage.
  */
-public class SpnegoClient implements AutoCloseable {
+class SpnegoClient implements AutoCloseable {
     private static final Logger LOGGER = ESLoggerFactory.getLogger(SpnegoClient.class);
 
     public static final String CRED_CONF_NAME = "PasswordConf";
@@ -70,7 +70,7 @@ public class SpnegoClient implements AutoCloseable {
      * @throws PrivilegedActionException
      * @throws GSSException
      */
-    public SpnegoClient(final String userPrincipalName, final SecureString password, final String servicePrincipalName)
+    SpnegoClient(final String userPrincipalName, final SecureString password, final String servicePrincipalName)
             throws PrivilegedActionException, GSSException {
         String oldUseSubjectCredsOnlyFlag = null;
         try {
@@ -101,7 +101,7 @@ public class SpnegoClient implements AutoCloseable {
      * @return Base64 encoded token
      * @throws PrivilegedActionException
      */
-    public String getBase64EncodedTokenForSpnegoHeader() throws PrivilegedActionException {
+    String getBase64EncodedTokenForSpnegoHeader() throws PrivilegedActionException {
         final byte[] outToken = KerberosTestCase.doAsWrapper(loginContext.getSubject(),
                 (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(new byte[0], 0, 0));
         return Base64.getEncoder().encodeToString(outToken);
@@ -116,7 +116,7 @@ public class SpnegoClient implements AutoCloseable {
      *         nothing to be sent.
      * @throws PrivilegedActionException
      */
-    public String handleResponse(final String base64Token) throws PrivilegedActionException {
+    String handleResponse(final String base64Token) throws PrivilegedActionException {
         if (gssContext.isEstablished()) {
             throw new IllegalStateException("GSS Context has already been established");
         }
@@ -151,7 +151,7 @@ public class SpnegoClient implements AutoCloseable {
     /**
      * @return {@code true} If the gss security context was established
      */
-    public boolean isEstablished() {
+    boolean isEstablished() {
         return gssContext.isEstablished();
     }
 

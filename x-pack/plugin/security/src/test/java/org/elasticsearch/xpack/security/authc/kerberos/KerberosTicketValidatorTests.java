@@ -14,8 +14,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidator;
-import org.elasticsearch.xpack.security.authc.kerberos.support.KerberosTestCase;
-import org.elasticsearch.xpack.security.authc.kerberos.support.SpnegoClient;
 import org.ietf.jgss.GSSException;
 
 import java.io.IOException;

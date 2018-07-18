@@ -41,7 +41,7 @@ import javax.security.auth.login.LoginException;
  * It may respond with token which needs to be communicated with the peer.
  */
 public class KerberosTicketValidator {
-    public static final Oid SPNEGO_OID = getSpnegoOid();
+    static final Oid SPNEGO_OID = getSpnegoOid();
 
     private static Oid getSpnegoOid() {
         Oid oid = null;

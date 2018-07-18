@@ -28,7 +28,7 @@ abstract class TermVersionResponse extends TransportResponse {
     protected final long term;
     protected final long version;
 
-    public TermVersionResponse(long term, long version) {
+    TermVersionResponse(long term, long version) {
         assert term >= 0;
         assert version >= 0;
 
@@ -36,7 +36,7 @@ abstract class TermVersionResponse extends TransportResponse {
         this.version = version;
     }
 
-    public TermVersionResponse(StreamInput in) throws IOException {
+    TermVersionResponse(StreamInput in) throws IOException {
         this(in.readLong(), in.readLong());
     }
 

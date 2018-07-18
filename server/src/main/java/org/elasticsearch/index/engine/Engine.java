@@ -1651,12 +1651,4 @@ public abstract class Engine implements Closeable {
      * Tries to prune buffered deletes from the version map.
      */
     public abstract void maybePruneDeletes();
-
-    /**
-     * Try to undo the colliding operation (whose seqno equals to the newOp's) in this engine.
-     * If the colliding operation matches the newOp, this method won't undo the existing operation and return false.
-     *
-     * @return {@code true} if there is a difference between the colliding operation and the new operation
-     */
-    public abstract boolean maybeRollback(MapperService mapperService, Engine.Operation newOp) throws IOException;
 }

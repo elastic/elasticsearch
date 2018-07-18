@@ -4192,7 +4192,9 @@ public class InternalEngineTests extends EngineTestCase {
         Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
         Map<String, Long> liveDocs = new HashMap<>();    // must not have any delete tombstone for live docs
         Map<String, Long> deletedDocs = new HashMap<>(); // deletes after global checkpoint must be retained
-        try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(searcher, createMapperService("test"), 100, 0, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+            Lucene.noDeletesReaderWrapper().apply(searcher.getDirectoryReader()),
+            createMapperService("test"), searcher, 100, 0, Long.MAX_VALUE, false)) {
             searcher = null;
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
@@ -5111,6 +5113,8 @@ public class InternalEngineTests extends EngineTestCase {
                     rolledBackCount++;
                     applyOperations(Collections.singletonList(resyncOp), replicaEngine);
                     replicaEngine.refresh("test", Engine.SearcherScope.INTERNAL);
+                }else {
+                    replicaEngine.getLocalCheckpointTracker().markSeqNoAsCompleted(resyncOp.seqNo());
                 }
             }
             assertThat(rolledBackCount, equalTo(numOpsToRollback));

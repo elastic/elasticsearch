@@ -62,6 +62,7 @@ import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.lease.Releasable;
@@ -170,6 +171,7 @@ public class InternalEngine extends Engine {
     private final boolean softDeleteEnabled;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
+    private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> noDeletesReaderWrapper = Lucene.noDeletesReaderWrapper();
 
     /**
      * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
@@ -2484,8 +2486,8 @@ public class InternalEngine extends Engine {
         }
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
-            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, minSeqNo, maxSeqNo, requiredFullRange);
+            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(noDeletesReaderWrapper.apply(searcher.getDirectoryReader()),
+                mapperService, searcher, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, minSeqNo, maxSeqNo, requiredFullRange);
             searcher = null;
             return snapshot;
         } finally {
@@ -2599,52 +2601,47 @@ public class InternalEngine extends Engine {
         }
     }
 
-    @Override
-    public boolean maybeRollback(MapperService mapperService, Operation newOp) throws IOException {
-        Searcher engineSearcher = null;
-        try {
-            engineSearcher = acquireSearcher("rollback", SearcherScope.INTERNAL);
-            IndexSearcher searcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
+    /**
+     * Try to rollback the colliding operation (whose seqno equals to the newOp's) in this engine.
+     * If the colliding operation matches the newOp, this method won't undo the existing operation and return false.
+     * @return {@code true} if there is a difference between the colliding operation and the new operation
+     */
+    boolean maybeRollback(MapperService mapperService, Operation newOp) throws IOException {
+        try (ReleasableLock ignored = readLock.acquire();
+             Searcher engineSearcher = acquireSearcher("rollback", SearcherScope.INTERNAL)) {
+            IndexSearcher searcher = new IndexSearcher(noDeletesReaderWrapper.apply(engineSearcher.getDirectoryReader()));
             searcher.setQueryCache(null);
-            final FieldsVisitor fields;
-            final Query currentVersionQuery = LongPoint.newExactQuery(SeqNoFieldMapper.NAME, newOp.seqNo());
-            try (ReleasableLock ignored = readLock.acquire()) {
-                final TopDocs collidingDocs = searcher.search(currentVersionQuery, 1,
-                    new Sort(new SortedNumericSortField(SeqNoFieldMapper.PRIMARY_TERM_NAME, SortField.Type.LONG, true)));
-                if (collidingDocs.totalHits == 0) {
-                    return true; // not found is equivalent to rolled back
-                }
-                List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
-                LeafReaderContext collidingSegment = leaves.get(ReaderUtil.subIndex(collidingDocs.scoreDocs[0].doc, leaves));
-                int collidingDocId = collidingDocs.scoreDocs[0].doc - collidingSegment.docBase;
-                long collidingTerm = Lucene.readNumericDV(collidingSegment.reader(), SeqNoFieldMapper.PRIMARY_TERM_NAME, collidingDocId);
-                if (collidingTerm == newOp.primaryTerm()) {
-                    // matches with the existing doc
-                    localCheckpointTracker.markSeqNoAsCompleted(newOp.seqNo());
-                    return false;
-                }
-                // Look up the _uid
-                fields = new FieldsVisitor(false);
-                collidingSegment.reader().document(collidingDocId, fields);
-                fields.postProcess(mapperService);
+            CollidingDoc collidingDoc = findCollidingDoc(searcher, mapperService, newOp.seqNo(), newOp.primaryTerm(), false);
+            if (collidingDoc != null && collidingDoc.term == newOp.primaryTerm()) {
+                return false;
             }
-            try (ReleasableLock ignored = writeLock.acquire()) {
-                // delete the current version by marking it as rolled back
-                while (tryUpdateDocValues(searcher, currentVersionQuery, softDeleteField, rolledbackField) == false) {
-                    final Searcher oldSearcher = engineSearcher;
-                    engineSearcher = null;
-                    IOUtils.close(oldSearcher);
-                    refresh("rollback", SearcherScope.INTERNAL);
-                    engineSearcher = acquireSearcher("rollback", SearcherScope.INTERNAL);
-                    searcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
-                    searcher.setQueryCache(null);
-                }
-                // restore the previous version
-                if (fields.uid() != null) {
-                    final BytesRef uid = Uid.encodeId(fields.uid().id());
-                    try (Releasable uidLock = versionMap.acquireLock(uid)) {
-                        restorePreviousVersion(searcher, uid, newOp.seqNo());
-                    }
+        }
+        Searcher engineSearcher = null;
+        try (ReleasableLock ignored = writeLock.acquire()) {
+            refresh("rollback", SearcherScope.INTERNAL);
+            engineSearcher = acquireSearcher("rollback", SearcherScope.INTERNAL);
+            IndexSearcher searcher = new IndexSearcher(noDeletesReaderWrapper.apply(engineSearcher.getDirectoryReader()));
+            searcher.setQueryCache(null);
+            CollidingDoc collidingDoc = findCollidingDoc(searcher, mapperService, newOp.seqNo(), newOp.primaryTerm(), true);
+            if (collidingDoc != null && collidingDoc.term == newOp.primaryTerm()) {
+                return false;
+            }
+            // delete the current version by marking it as rolled back
+            final Query currentVersionQuery = LongPoint.newExactQuery(SeqNoFieldMapper.NAME, newOp.seqNo());
+            while (tryUpdateDocValues(searcher, currentVersionQuery, softDeleteField, rolledbackField) == false) {
+                final Searcher oldSearcher = engineSearcher;
+                engineSearcher = null;
+                IOUtils.close(oldSearcher);
+                refresh("rollback", SearcherScope.INTERNAL);
+                engineSearcher = acquireSearcher("rollback", SearcherScope.INTERNAL);
+                searcher = new IndexSearcher(noDeletesReaderWrapper.apply(engineSearcher.getDirectoryReader()));
+                searcher.setQueryCache(null);
+            }
+            // restore the previous version
+            if (collidingDoc != null && collidingDoc.uid != null) {
+                final BytesRef uid = Uid.encodeId(collidingDoc.uid.id());
+                try (Releasable uidLock = versionMap.acquireLock(uid)) {
+                    restorePreviousVersion(searcher, uid, newOp.seqNo());
                 }
             }
             return true;
@@ -2661,20 +2658,13 @@ public class InternalEngine extends Engine {
     }
 
     private void restorePreviousVersion(IndexSearcher searcher, BytesRef uid, long seqNo) throws IOException {
+        assert writeLock.isHeldByCurrentThread() : Thread.currentThread().getName();
+        final BooleanQuery newerVersionQuery = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term(IdFieldMapper.NAME, uid)), BooleanClause.Occur.FILTER)
+            .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, seqNo + 1, Long.MAX_VALUE), BooleanClause.Occur.FILTER).build();
         // we should only restore if the current is the latest version.
-        final VersionValue versionValue = versionMap.getUnderLock(uid);
-        if (versionValue != null) {
-            assert versionValue.seqNo >= seqNo : "stale version_map seqno=" + seqNo + ",uid=" + uid + ",version_value=" + versionValue;
-            if (versionValue.seqNo > seqNo) {
-                return;
-            }
-        } else {
-            final BooleanQuery newerVersionQuery = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term(IdFieldMapper.NAME, uid)), BooleanClause.Occur.FILTER)
-                .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, seqNo + 1, Long.MAX_VALUE), BooleanClause.Occur.FILTER).build();
-            if (searcher.count(newerVersionQuery) > 0) {
-                return;
-            }
+        if (searcher.count(newerVersionQuery) > 0) {
+            return;
         }
         final BooleanQuery prevVersionQuery = new BooleanQuery.Builder()
             .add(new TermQuery(new Term(IdFieldMapper.NAME, uid)), BooleanClause.Occur.FILTER)
@@ -2704,7 +2694,7 @@ public class InternalEngine extends Engine {
                     IOUtils.close(oldEngineSearcher);
                     refresh("rollback", SearcherScope.INTERNAL);
                     engineSearcher = acquireSearcher("rollback", SearcherScope.INTERNAL);
-                    searcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
+                    searcher = new IndexSearcher(noDeletesReaderWrapper.apply(engineSearcher.getDirectoryReader()));
                     searcher.setQueryCache(null);
                 }
                 // if the update was aborted/retried, we need to refresh here to avoid exposing a partial change.
@@ -2721,7 +2711,6 @@ public class InternalEngine extends Engine {
             versionMap.putDeleteUnderLock(uid, new DeleteVersionValue(
                 prevVersion, prevSeqNo, prevTerm, config().getThreadPool().relativeTimeInMillis()));
         }
-        return;
     }
 
     /** @return false if the update was aborted due to merges, the caller need to refresh an engine, then retry */
@@ -2739,5 +2728,38 @@ public class InternalEngine extends Engine {
             }
         } while (lastDoc != null);
         return true;
+    }
+
+    private static class CollidingDoc {
+        final long term;
+        final Uid uid;
+        CollidingDoc(long term, Uid uid) {
+            this.term = term;
+            this.uid = uid;
+        }
+    }
+
+    private CollidingDoc findCollidingDoc(IndexSearcher searcher, MapperService mapperService,
+                                          long seqNo, long newTerm, boolean loadUid) throws IOException {
+        TopDocs topDocs = searcher.search(LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo), 1,
+            // we need to sort to find the primary term in case the target is a nested doc.
+            new Sort(new SortedNumericSortField(SeqNoFieldMapper.PRIMARY_TERM_NAME, SortField.Type.LONG, true)));
+        if (topDocs.totalHits == 0) {
+            return null;
+        }
+        List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
+        LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(topDocs.scoreDocs[0].doc, leaves));
+        int docId = topDocs.scoreDocs[0].doc - leaf.docBase;
+        long existingTerm = Lucene.readNumericDV(leaf.reader(), SeqNoFieldMapper.PRIMARY_TERM_NAME, docId);
+        if (existingTerm == newTerm || loadUid == false) {
+            // if term matches, we don't need load _uid because we won't rollback
+            return new CollidingDoc(existingTerm, null);
+        } else {
+            final FieldsVisitor fields;
+            fields = new FieldsVisitor(false);
+            leaf.reader().document(docId, fields);
+            fields.postProcess(mapperService);
+            return new CollidingDoc(existingTerm, fields.uid());
+        }
     }
 }

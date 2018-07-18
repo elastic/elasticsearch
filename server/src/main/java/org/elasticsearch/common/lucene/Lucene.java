@@ -35,6 +35,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -70,11 +71,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -843,18 +846,106 @@ public class Lucene {
     }
 
     /**
-     * Wraps a directory reader to include all live docs.
-     * The wrapped reader can be used to query all documents.
-     *
-     * @param in the input directory reader
-     * @return the wrapped reader
+     * Creates a wrapper that wraps a provided directory reader to make all docs as live except those marked as rolled back.
+     * The wrapped reader should be used to query history in Lucene index.
      */
-    public static DirectoryReader wrapAllDocsLive(DirectoryReader in) throws IOException {
-        return new DirectoryReaderWithAllLiveDocs(in);
+    public static CheckedFunction<DirectoryReader, DirectoryReader, IOException> noDeletesReaderWrapper() {
+        NoDeletesReaderWrapper wrapper = new NoDeletesReaderWrapper();
+        return wrapper::wrapNoDeletes;
     }
 
-    private static final class DirectoryReaderWithAllLiveDocs extends FilterDirectoryReader {
-        static final class SubReaderWithLiveDocs extends FilterLeafReader {
+    // pkg level for testing
+    static final class NoDeletesReaderWrapper {
+        // Docs are marked as rolled back only via changing the rollback docValues field. This update will increase the docValuesGen.
+        // We can use CoreCacheKey of the reader as the key, then recompute if the associated liveDocs has a different docValuesGen.
+        final Map<IndexReader.CacheKey, NoDeletesLiveDocs> liveDocsCache = ConcurrentCollections.newConcurrentMap();
+
+        DirectoryReader wrapNoDeletes(DirectoryReader in) throws IOException {
+            return new NoDeletesDirectoryReader(in);
+        }
+
+        private static final class NoDeletesLiveDocs {
+            final int numDocs;
+            final FixedBitSet bits;
+            final long docValueGen;
+            NoDeletesLiveDocs(FixedBitSet bits, int numDocs, long docValuesGen) {
+                assert numDocs == bits.cardinality();
+                this.numDocs = numDocs;
+                this.bits = bits;
+                this.docValueGen = docValuesGen;
+            }
+        }
+
+        private final class NoDeletesDirectoryReader extends FilterDirectoryReader {
+            NoDeletesDirectoryReader(DirectoryReader in) throws IOException {
+                super(in, new NoDeletesSubReaderWrapper());
+            }
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+                return new NoDeletesDirectoryReader(in);
+            }
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return null; // Modifying liveDocs
+            }
+        }
+
+        private final class NoDeletesSubReaderWrapper extends FilterDirectoryReader.SubReaderWrapper {
+            @Override
+            public LeafReader wrap(LeafReader leaf) {
+                try {
+                    if (leaf.getLiveDocs() == null) {
+                        return leaf;
+                    }
+                    DocIdSetIterator rollbackDocs = DocValuesFieldExistsQuery.getDocValuesDocIdSetIterator(ROLLED_BACK_FIELD, leaf);
+                    if (rollbackDocs == null) {
+                        return new SubReaderWithLiveDocs(leaf, null, leaf.maxDoc());
+                    }
+                    final SegmentReader segmentReader = segmentReader(leaf);
+                    final long docValuesGen = segmentReader.getSegmentInfo().getDocValuesGen();
+                    final IndexReader.CacheHelper cacheHelper = segmentReader.getCoreCacheHelper();
+                    final NoDeletesLiveDocs liveDocs;
+                    if (cacheHelper != null) {
+                        liveDocs = liveDocsCache.compute(cacheHelper.getKey(), (k, v) -> {
+                            if (v == null) {
+                                // only need to register for the first time
+                                cacheHelper.addClosedListener(liveDocsCache::remove);
+                            }
+                            if (v == null || v.docValueGen != docValuesGen) {
+                                return makeLiveDocs(segmentReader, rollbackDocs, docValuesGen);
+                            } else {
+                                assert v.bits.equals(makeLiveDocs(leaf, rollbackDocs, docValuesGen).bits);
+                                return v;
+                            }
+                        });
+                    } else {
+                        liveDocs = makeLiveDocs(segmentReader, rollbackDocs, docValuesGen);
+                    }
+                    return new SubReaderWithLiveDocs(leaf, liveDocs.bits, liveDocs.numDocs);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            NoDeletesLiveDocs makeLiveDocs(LeafReader leaf, DocIdSetIterator rollbackDocs, long docValuesGen) {
+                try {
+                    int rollbackCount = 0;
+                    FixedBitSet liveDocs = new FixedBitSet(leaf.maxDoc());
+                    liveDocs.set(0, liveDocs.length());
+                    int docId;
+                    while ((docId = rollbackDocs.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                        assert leaf.getLiveDocs().get(docId) == false : "doc [" + docId + "] is rolled back but not deleted";
+                        liveDocs.clear(docId);
+                        rollbackCount++;
+                    }
+                    return new NoDeletesLiveDocs(liveDocs, liveDocs.length() - rollbackCount, docValuesGen);
+                } catch (IOException ex) {
+                    throw new UncheckedIOException(ex);
+                }
+            }
+        }
+
+        private static final class SubReaderWithLiveDocs extends FilterLeafReader {
             final Bits liveDocs;
             final int numDocs;
             SubReaderWithLiveDocs(LeafReader in, Bits liveDocs, int numDocs) {
@@ -878,43 +969,6 @@ public class Lucene {
             public CacheHelper getReaderCacheHelper() {
                 return null; // Modifying liveDocs
             }
-        }
-        DirectoryReaderWithAllLiveDocs(DirectoryReader in) throws IOException {
-            super(in, new FilterDirectoryReader.SubReaderWrapper() {
-                @Override
-                public LeafReader wrap(LeafReader leaf) {
-                    try {
-                        if (leaf.getLiveDocs() == null) {
-                            return leaf;
-                        }
-                        DocIdSetIterator rollbackDocs = DocValuesFieldExistsQuery.getDocValuesDocIdSetIterator(ROLLED_BACK_FIELD, leaf);
-                        if (rollbackDocs == null) {
-                            return new SubReaderWithLiveDocs(leaf, null, leaf.maxDoc());
-                        }
-                        int rollbackCount = 0;
-                        FixedBitSet liveDocs = new FixedBitSet(leaf.maxDoc());
-                        liveDocs.set(0, liveDocs.length());
-                        int docId;
-                        while ((docId = rollbackDocs.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                            assert leaf.getLiveDocs().get(docId) == false : "doc [" + docId + "] is rolled back but not deleted";
-                            liveDocs.clear(docId);
-                            rollbackCount++;
-                        }
-                        return new SubReaderWithLiveDocs(leaf, liveDocs, leaf.maxDoc() - rollbackCount);
-                    } catch (IOException ex) {
-                        throw new UncheckedIOException(ex);
-                    }
-                }
-            });
-        }
-        @Override
-        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return wrapAllDocsLive(in);
-        }
-
-        @Override
-        public CacheHelper getReaderCacheHelper() {
-            return null; // Modifying liveDocs
         }
     }
 

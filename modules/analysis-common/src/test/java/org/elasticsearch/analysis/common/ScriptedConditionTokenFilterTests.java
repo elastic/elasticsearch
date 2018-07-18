@@ -26,7 +26,7 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
         Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("index.analysis.filter.cond.type", "condition")
-            .put("index.analysis.filter.cond.script.source", "return \"two\".equals(term.term)")
+            .put("index.analysis.filter.cond.script.source", "token.getTerm().length() > 5")
             .putList("index.analysis.filter.cond.filter", "uppercase")
             .put("index.analysis.analyzer.myAnalyzer.type", "custom")
             .put("index.analysis.analyzer.myAnalyzer.tokenizer", "standard")
@@ -36,8 +36,8 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
 
         AnalysisPredicateScript.Factory factory = () -> new AnalysisPredicateScript() {
             @Override
-            public boolean execute(Token term) {
-                return "two".contentEquals(term.term);
+            public boolean execute(Token token) {
+                return token.getTerm().length() > 5;
             }
         };
 
@@ -46,7 +46,7 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
             @Override
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                 assertEquals(context, AnalysisPredicateScript.CONTEXT);
-                assertEquals(new Script("return \"two\".equals(term.term)"), script);
+                assertEquals(new Script("token.getTerm().length() > 5"), script);
                 return (FactoryType) factory;
             }
         };
@@ -60,8 +60,8 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
 
         try (NamedAnalyzer analyzer = analyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);
-            assertAnalyzesTo(analyzer, "one two three", new String[]{
-                "one", "TWO", "three"
+            assertAnalyzesTo(analyzer, "Vorsprung Durch Technik", new String[]{
+                "VORSPRUNG", "Durch", "TECHNIK"
             });
         }
 

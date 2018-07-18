@@ -52,6 +52,7 @@ import org.elasticsearch.index.analysis.CustomAnalyzerProvider;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.ReferringFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -574,6 +575,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                                                                 Environment environment, Tuple<String, TokenizerFactory> tokenizerFactory,
                                                                 List<CharFilterFactory> charFilterFactoryList, boolean normalizer) throws IOException {
         List<TokenFilterFactory> tokenFilterFactoryList = new ArrayList<>();
+        List<ReferringFilterFactory> referringFilters = new ArrayList<>();
         if (request.tokenFilters() != null && request.tokenFilters().size() > 0) {
             List<AnalyzeRequest.NameOrDefinition> tokenFilters = request.tokenFilters();
             for (AnalyzeRequest.NameOrDefinition tokenFilter : tokenFilters) {
@@ -627,7 +629,27 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                     tokenFilterFactory = (TokenFilterFactory) ((MultiTermAwareComponent) tokenFilterFactory).getMultiTermComponent();
                 }
                 tokenFilterFactoryList.add(tokenFilterFactory);
+                if (tokenFilterFactory instanceof ReferringFilterFactory) {
+                    referringFilters.add((ReferringFilterFactory)tokenFilterFactory);
+                }
             }
+        }
+        if (referringFilters.isEmpty() == false) {
+            if (indexSettings == null) {
+                Settings settings = Settings.builder()
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                    .build();
+                IndexMetaData metaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(settings).build();
+                indexSettings = new IndexSettings(metaData, Settings.EMPTY);
+            }
+            Map<String, TokenFilterFactory> prebuiltFilters = analysisRegistry.buildTokenFilterFactories(indexSettings);
+            for (ReferringFilterFactory rff : referringFilters) {
+                rff.setReferences(prebuiltFilters);
+            }
+
         }
         return tokenFilterFactoryList;
     }

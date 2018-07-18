@@ -8,9 +8,9 @@
             tokenizer: "whitespace"
             filter:
               - type: condition
+                filter: [ "lowercase" ]
                 script:
                   source: "token.getTerm().length() > 5"
-                filter: [ lowercase ]
 
     - length: { tokens: 3 }
     - match: { tokens.0.token: "vorsprung" }

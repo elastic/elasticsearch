@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.ingest.Processors;
 
 import java.util.Map;
 
@@ -37,7 +37,7 @@ public final class BytesProcessor extends AbstractStringProcessor {
 
     @Override
     protected Long process(String value) {
-        return ByteSizeValue.parseBytesSizeValue(value, null, getField()).getBytes();
+        return Processors.bytes(value);
     }
 
     @Override

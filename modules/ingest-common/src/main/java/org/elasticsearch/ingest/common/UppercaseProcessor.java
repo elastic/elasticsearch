@@ -19,7 +19,8 @@
 
 package org.elasticsearch.ingest.common;
 
-import java.util.Locale;
+import org.elasticsearch.ingest.Processors;
+
 import java.util.Map;
 
 /**
@@ -36,7 +37,7 @@ public final class UppercaseProcessor extends AbstractStringProcessor {
 
     @Override
     protected String process(String value) {
-        return value.toUpperCase(Locale.ROOT);
+        return Processors.uppercase(value);
     }
 
     @Override

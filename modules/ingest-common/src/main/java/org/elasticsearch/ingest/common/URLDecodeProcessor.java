@@ -19,8 +19,8 @@
 
 package org.elasticsearch.ingest.common;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
+import org.elasticsearch.ingest.Processors;
+
 import java.util.Map;
 
 /**
@@ -36,11 +36,7 @@ public final class URLDecodeProcessor extends AbstractStringProcessor {
 
     @Override
     protected String process(String value) {
-        try {
-            return URLDecoder.decode(value, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            throw new IllegalArgumentException("could not URL-decode field[" + getField() + "]", e);
-        }
+        return Processors.urlDecode(value);
     }
 
     @Override

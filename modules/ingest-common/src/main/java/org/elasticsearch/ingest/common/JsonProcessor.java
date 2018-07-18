@@ -19,19 +19,12 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.Processors;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -69,39 +62,10 @@ public final class JsonProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument document) throws Exception {
-        Object fieldValue = document.getFieldValue(field, Object.class);
-        BytesReference bytesRef = (fieldValue == null) ? new BytesArray("null") : new BytesArray(fieldValue.toString());
-        try (InputStream stream = bytesRef.streamInput();
-             XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
-            XContentParser.Token token = parser.nextToken();
-            Object value = null;
-            if (token == XContentParser.Token.VALUE_NULL) {
-                value = null;
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                value = parser.text();
-            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                value = parser.numberValue();
-            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                value = parser.booleanValue();
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                value = parser.map();
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                value = parser.list();
-            } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                throw new IllegalArgumentException("cannot read binary value");
-            }
-            if (addToRoot && (value instanceof Map)) {
-                for (Map.Entry<String, Object> entry : ((Map<String, Object>) value).entrySet()) {
-                    document.setFieldValue(entry.getKey(), entry.getValue());
-                }
-            } else if (addToRoot) {
-                throw new IllegalArgumentException("cannot add non-map fields to root of document");
-            } else {
-                document.setFieldValue(targetField, value);
-            }
-        } catch (IOException e) {
-            throw new IllegalArgumentException(e);
+        if (addToRoot) {
+           Processors.json(document.getSourceAndMetadata(), field);
+        } else {
+            document.setFieldValue(targetField, Processors.json(document.getFieldValue(field, Object.class)));
         }
     }
 

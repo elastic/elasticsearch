@@ -19,6 +19,8 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ingest.Processors;
+
 import java.util.Map;
 
 /**
@@ -35,7 +37,7 @@ public final class TrimProcessor extends AbstractStringProcessor {
 
     @Override
     protected String process(String value) {
-        return value.trim();
+        return Processors.trim(value);
     }
 
     @Override

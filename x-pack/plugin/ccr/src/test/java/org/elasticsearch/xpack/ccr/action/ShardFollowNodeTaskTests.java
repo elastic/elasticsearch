@@ -574,8 +574,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         AtomicBoolean stopped = new AtomicBoolean(false);
         ShardFollowTask params = new ShardFollowTask(null, new ShardId("follow_index", "", 0),
             new ShardId("leader_index", "", 0), maxBatchOperationCount, maxConcurrentReadBatches, maxBatchSizeInBytes,
-            maxConcurrentWriteBatches, bufferWriteLimit, TimeValue.timeValueMillis(500), TimeValue.timeValueMillis(10),
-            Collections.emptyMap());
+            maxConcurrentWriteBatches, bufferWriteLimit, TimeValue.ZERO, TimeValue.ZERO, Collections.emptyMap());
 
         shardChangesRequests = new ArrayList<>();
         bulkShardOperationRequests = new ArrayList<>();
@@ -584,8 +583,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         mappingUpdateFailures = new LinkedList<>();
         imdVersions = new LinkedList<>();
         followerGlobalCheckpoints = new LinkedList<>();
-        return new ShardFollowNodeTask(1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(),
-            params, scheduler, TimeValue.ZERO, TimeValue.ZERO) {
+        return new ShardFollowNodeTask(1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler) {
 
             @Override
             protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {

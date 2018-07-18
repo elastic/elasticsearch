@@ -2,18 +2,17 @@ package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
-import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.TaskOutcome;
 
 import java.util.Arrays;
 
 public class NamingConventionsTaskIT extends GradleIntegrationTestCase {
 
+    public static final String SAMPLE_PROJECT = "namingConventionsSelfTest";
+
     public void testPluginCanBeApplied() {
-        BuildResult result = GradleRunner.create()
-            .withProjectDir(getProjectDir("namingConventionsSelfTest"))
+        BuildResult result = getGradleRunner(SAMPLE_PROJECT)
             .withArguments("hello", "-s", "-PcheckForTestsInMain=false")
-            .withPluginClasspath()
             .build();
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":hello").getOutcome());
@@ -22,10 +21,8 @@ public class NamingConventionsTaskIT extends GradleIntegrationTestCase {
     }
 
     public void testNameCheckFailsAsItShould() {
-        BuildResult result = GradleRunner.create()
-            .withProjectDir(getProjectDir("namingConventionsSelfTest"))
+        BuildResult result = getGradleRunner(SAMPLE_PROJECT)
             .withArguments("namingConventions", "-s", "-PcheckForTestsInMain=false")
-            .withPluginClasspath()
             .buildAndFail();
 
         assertNotNull("task did not run", result.task(":namingConventions"));
@@ -47,10 +44,8 @@ public class NamingConventionsTaskIT extends GradleIntegrationTestCase {
     }
 
     public void testNameCheckFailsAsItShouldWithMain() {
-        BuildResult result = GradleRunner.create()
-            .withProjectDir(getProjectDir("namingConventionsSelfTest"))
+        BuildResult result = getGradleRunner(SAMPLE_PROJECT)
             .withArguments("namingConventions", "-s", "-PcheckForTestsInMain=true")
-            .withPluginClasspath()
             .buildAndFail();
 
         assertNotNull("task did not run", result.task(":namingConventions"));

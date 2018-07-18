@@ -562,14 +562,14 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endObject();
         SourceToParse source = SourceToParse.source("test", "_doc", "1", BytesReference.bytes(json), json.contentType());
         DocumentMapper mapper = indexService.mapperService().documentMapper("_doc");
-        assertNull(mapper.mappers().getFieldMapper("field.raw"));
+        assertNull(mapper.mappers().getMapper("field.raw"));
         ParsedDocument parsed = mapper.parse(source);
         assertNotNull(parsed.dynamicMappingsUpdate());
 
         indexService.mapperService().merge("_doc", new CompressedXContent(parsed.dynamicMappingsUpdate().toString()),
             MapperService.MergeReason.MAPPING_UPDATE);
         mapper = indexService.mapperService().documentMapper("_doc");
-        assertNotNull(mapper.mappers().getFieldMapper("field.raw"));
+        assertNotNull(mapper.mappers().getMapper("field.raw"));
         parsed = mapper.parse(source);
         assertNull(parsed.dynamicMappingsUpdate());
     }
@@ -625,11 +625,11 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
         defaultMapper = index.mapperService().documentMapper("type");
-        FieldMapper mapper = defaultMapper.mappers().getFieldMapper("s_long");
-        assertThat(mapper.fieldType().typeName(), equalTo("long"));
+        Mapper mapper = defaultMapper.mappers().getMapper("s_long");
+        assertThat(mapper.typeName(), equalTo("long"));
 
-        mapper = defaultMapper.mappers().getFieldMapper("s_double");
-        assertThat(mapper.fieldType().typeName(), equalTo("float"));
+        mapper = defaultMapper.mappers().getMapper("s_double");
+        assertThat(mapper.typeName(), equalTo("float"));
     }
 
     public void testNumericDetectionDefault() throws Exception {
@@ -652,10 +652,10 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get());
 
         defaultMapper = index.mapperService().documentMapper("type");
-        FieldMapper mapper = defaultMapper.mappers().getFieldMapper("s_long");
+        Mapper mapper = defaultMapper.mappers().getMapper("s_long");
         assertThat(mapper, instanceOf(TextFieldMapper.class));
 
-        mapper = defaultMapper.mappers().getFieldMapper("s_double");
+        mapper = defaultMapper.mappers().getMapper("s_double");
         assertThat(mapper, instanceOf(TextFieldMapper.class));
     }
 
@@ -703,9 +703,9 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
         defaultMapper = index.mapperService().documentMapper("type");
 
-        DateFieldMapper dateMapper1 = (DateFieldMapper) defaultMapper.mappers().getFieldMapper("date1");
-        DateFieldMapper dateMapper2 = (DateFieldMapper) defaultMapper.mappers().getFieldMapper("date2");
-        DateFieldMapper dateMapper3 = (DateFieldMapper) defaultMapper.mappers().getFieldMapper("date3");
+        DateFieldMapper dateMapper1 = (DateFieldMapper) defaultMapper.mappers().getMapper("date1");
+        DateFieldMapper dateMapper2 = (DateFieldMapper) defaultMapper.mappers().getMapper("date2");
+        DateFieldMapper dateMapper3 = (DateFieldMapper) defaultMapper.mappers().getMapper("date3");
         // inherited from dynamic date format
         assertEquals("yyyy-MM-dd", dateMapper1.fieldType().dateTimeFormatter().format());
         // inherited from dynamic date format since the mapping in the template did not specify a format

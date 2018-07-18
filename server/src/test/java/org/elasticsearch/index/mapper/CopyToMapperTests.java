@@ -72,7 +72,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         IndexService index = createIndex("test");
         client().admin().indices().preparePutMapping("test").setType("type1").setSource(mapping, XContentType.JSON).get();
         DocumentMapper docMapper = index.mapperService().documentMapper("type1");
-        FieldMapper fieldMapper = docMapper.mappers().getFieldMapper("copy_test");
+        Mapper fieldMapper = docMapper.mappers().getMapper("copy_test");
 
         // Check json serialization
         TextFieldMapper stringFieldMapper = (TextFieldMapper) fieldMapper;
@@ -122,8 +122,8 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
         docMapper = index.mapperService().documentMapper("type1");
-        fieldMapper = docMapper.mappers().getFieldMapper("new_field");
-        assertThat(fieldMapper.fieldType().typeName(), equalTo("long"));
+        fieldMapper = docMapper.mappers().getMapper("new_field");
+        assertThat(fieldMapper.typeName(), equalTo("long"));
     }
 
     public void testCopyToFieldsInnerObjectParsing() throws Exception {
@@ -308,13 +308,15 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
 
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper docMapperBefore = mapperService.merge("type1", new CompressedXContent(mappingBefore), MapperService.MergeReason.MAPPING_UPDATE);
+        FieldMapper fieldMapperBefore = (FieldMapper) docMapperBefore.mappers().getMapper("copy_test");
 
-        assertEquals(Arrays.asList("foo", "bar"), docMapperBefore.mappers().getFieldMapper("copy_test").copyTo().copyToFields());
+        assertEquals(Arrays.asList("foo", "bar"), fieldMapperBefore.copyTo().copyToFields());
 
         DocumentMapper docMapperAfter = mapperService.merge("type1", new CompressedXContent(mappingAfter), MapperService.MergeReason.MAPPING_UPDATE);
+        FieldMapper fieldMapperAfter = (FieldMapper) docMapperAfter.mappers().getMapper("copy_test");
 
-        assertEquals(Arrays.asList("baz", "bar"), docMapperAfter.mappers().getFieldMapper("copy_test").copyTo().copyToFields());
-        assertEquals(Arrays.asList("foo", "bar"), docMapperBefore.mappers().getFieldMapper("copy_test").copyTo().copyToFields());
+        assertEquals(Arrays.asList("baz", "bar"), fieldMapperAfter.copyTo().copyToFields());
+        assertEquals(Arrays.asList("foo", "bar"), fieldMapperBefore.copyTo().copyToFields());
     }
 
     public void testCopyToNestedField() throws Exception {

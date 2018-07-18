@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
@@ -460,7 +459,7 @@ public class MlJobIT extends ESRestTestCase {
         // appear immediately so wait here.
         assertBusy(() -> {
             try {
-                Response aliasesResponse = client().performRequest(new Request("get", "_cat/aliases"));
+                Response aliasesResponse = client().performRequest("get", "_cat/aliases");
                 assertEquals(200, aliasesResponse.getStatusLine().getStatusCode());
                 String responseAsString = responseEntityToString(aliasesResponse);
                 assertThat(responseAsString, containsString(readAliasName));

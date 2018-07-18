@@ -80,7 +80,7 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
         RankEvalResponse response = execute(rankEvalRequest, highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
         // the expected Prec@ for the first query is 5/7 and the expected Prec@ for the second is 1/7, divided by 2 to get the average
         double expectedPrecision = (1.0 / 7.0 + 5.0 / 7.0) / 2.0;
-        assertEquals(expectedPrecision, response.getEvaluationResult(), Double.MIN_VALUE);
+        assertEquals(expectedPrecision, response.getMetricScore(), Double.MIN_VALUE);
         Map<String, EvalQueryQuality> partialResults = response.getPartialResults();
         assertEquals(2, partialResults.size());
         EvalQueryQuality amsterdamQueryQuality = partialResults.get("amsterdam_query");

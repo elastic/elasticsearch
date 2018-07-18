@@ -1822,4 +1822,40 @@ public class SearchQueryIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
         assertHitCount(searchResponse, 1);
     }
+
+    public void testRangeQueryTypeField_31476() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("foo", "field", "type=keyword"));
+
+        client().prepareIndex("test", "foo", "1").setSource("field", "value").get();
+        refresh();
+
+        RangeQueryBuilder range = new RangeQueryBuilder("_type").from("ape").to("zebra");
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 1);
+
+        range = new RangeQueryBuilder("_type").from("monkey").to("zebra");
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("ape").to("donkey");
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(false);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(true);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 1);
+
+        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(false);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(true);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 1);
+    }
+
 }

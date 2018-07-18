@@ -584,7 +584,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::search-scroll2
             SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId); // <1>
             scrollRequest.scroll(TimeValue.timeValueSeconds(30));
-            SearchResponse searchScrollResponse = client.searchScroll(scrollRequest, RequestOptions.DEFAULT);
+            SearchResponse searchScrollResponse = client.scroll(scrollRequest, RequestOptions.DEFAULT);
             scrollId = searchScrollResponse.getScrollId();  // <2>
             hits = searchScrollResponse.getHits(); // <3>
             assertEquals(3, hits.getTotalHits());
@@ -613,7 +613,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::scroll-request-arguments
 
             // tag::search-scroll-execute-sync
-            SearchResponse searchResponse = client.searchScroll(scrollRequest, RequestOptions.DEFAULT);
+            SearchResponse searchResponse = client.scroll(scrollRequest, RequestOptions.DEFAULT);
             // end::search-scroll-execute-sync
 
             assertEquals(0, searchResponse.getFailedShards());
@@ -639,7 +639,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             scrollListener = new LatchedActionListener<>(scrollListener, latch);
 
             // tag::search-scroll-execute-async
-            client.searchScrollAsync(scrollRequest, RequestOptions.DEFAULT, scrollListener); // <1>
+            client.scrollAsync(scrollRequest, RequestOptions.DEFAULT, scrollListener); // <1>
             // end::search-scroll-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -711,7 +711,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             while (searchHits != null && searchHits.length > 0) { // <2>
                 SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId); // <3>
                 scrollRequest.scroll(scroll);
-                searchResponse = client.searchScroll(scrollRequest, RequestOptions.DEFAULT);
+                searchResponse = client.scroll(scrollRequest, RequestOptions.DEFAULT);
                 scrollId = searchResponse.getScrollId();
                 searchHits = searchResponse.getHits().getHits();
                 // <4>
@@ -864,7 +864,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::multi-search-template-request-inline
 
         // tag::multi-search-template-request-sync
-        MultiSearchTemplateResponse multiResponse = client.multiSearchTemplate(multiRequest, RequestOptions.DEFAULT);
+        MultiSearchTemplateResponse multiResponse = client.msearchTemplate(multiRequest, RequestOptions.DEFAULT);
         // end::multi-search-template-request-sync
 
         // tag::multi-search-template-response
@@ -919,7 +919,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
 
         // tag::multi-search-template-execute
-        MultiSearchTemplateResponse multiResponse = client.multiSearchTemplate(multiRequest, RequestOptions.DEFAULT);
+        MultiSearchTemplateResponse multiResponse = client.msearchTemplate(multiRequest, RequestOptions.DEFAULT);
         // end::multi-search-template-execute
 
         assertNotNull(multiResponse);
@@ -947,7 +947,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::multi-search-template-execute-async
-        client.multiSearchTemplateAsync(multiRequest, RequestOptions.DEFAULT, listener);
+        client.msearchTemplateAsync(multiRequest, RequestOptions.DEFAULT, listener);
         // end::multi-search-template-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1204,7 +1204,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(secondSearchRequest);
             // end::multi-search-request-basic
             // tag::multi-search-execute
-            MultiSearchResponse response = client.multiSearch(request, RequestOptions.DEFAULT);
+            MultiSearchResponse response = client.msearch(request, RequestOptions.DEFAULT);
             // end::multi-search-execute
             // tag::multi-search-response
             MultiSearchResponse.Item firstResponse = response.getResponses()[0];   // <1>
@@ -1236,7 +1236,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::multi-search-execute-async
-            client.multiSearchAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.msearchAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::multi-search-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1247,7 +1247,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new SearchRequest("posts")  // <1>
                     .types("doc"));                 // <2>
             // end::multi-search-request-index
-            MultiSearchResponse response = client.multiSearch(request, RequestOptions.DEFAULT);
+            MultiSearchResponse response = client.msearch(request, RequestOptions.DEFAULT);
             MultiSearchResponse.Item firstResponse = response.getResponses()[0];
             assertNull(firstResponse.getFailure());
             SearchResponse searchResponse = firstResponse.getResponse();

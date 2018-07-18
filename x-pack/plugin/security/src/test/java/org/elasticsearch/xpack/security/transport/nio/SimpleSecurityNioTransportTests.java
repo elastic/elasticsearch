@@ -55,15 +55,17 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTestCase {
 
     private SSLService createSSLService() {
-        Path testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+        Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+        Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.enabled", true)
-                .put("xpack.ssl.keystore.path", testnodeStore)
-                .setSecureSettings(secureSettings)
-                .put("path.home", createTempDir())
-                .build();
+            .put("xpack.security.transport.ssl.enabled", true)
+            .put("xpack.ssl.key", testnodeKey)
+            .put("xpack.ssl.certificate", testnodeCert)
+            .put("path.home", createTempDir())
+            .setSecureSettings(secureSettings)
+            .build();
         try {
             return new SSLService(settings, TestEnvironment.newEnvironment(settings));
         } catch (Exception e) {

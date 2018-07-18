@@ -318,7 +318,7 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::simulate-pipeline-request-verbose
 
             // tag::simulate-pipeline-execute
-            SimulatePipelineResponse response = client.ingest().simulatePipeline(request, RequestOptions.DEFAULT); // <1>
+            SimulatePipelineResponse response = client.ingest().simulate(request, RequestOptions.DEFAULT); // <1>
             // end::simulate-pipeline-execute
 
             // tag::simulate-pipeline-response
@@ -382,7 +382,7 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::simulate-pipeline-execute-async
-            client.ingest().simulatePipelineAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.ingest().simulateAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::simulate-pipeline-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

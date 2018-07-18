@@ -44,6 +44,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Collections;
+import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
@@ -154,18 +155,17 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertNotNull(indexLifecycleService.getScheduler());
         assertEquals(1, indexLifecycleService.getScheduler().jobCount());
         assertNotNull(indexLifecycleService.getScheduledJob());
-        assertSame(policyStepsRegistry, indexLifecycleService.getPolicyRegistry());
         assertThat(policyStepsRegistry.getLifecyclePolicyMap().keySet(), equalTo(lifecycleMetadata.getPolicyMetadatas().keySet()));
 
         event = new ClusterChangedEvent("_source", newState, previousState);
         indexLifecycleService.applyClusterState(event);
-        assertSame(policyStepsRegistry, indexLifecycleService.getPolicyRegistry());
         assertThat(policyStepsRegistry.getLifecyclePolicyMap().keySet(), equalTo(newLifecycleMetadata.getPolicyMetadatas().keySet()));
     }
 
     public void testElectUnElectMaster() {
         int numberOfPolicies = randomIntBetween(1, 5);
         IndexLifecycleMetadata lifecycleMetadata = IndexLifecycleMetadataTests.createTestInstance(numberOfPolicies, OperationMode.RUNNING);
+        Map<String, LifecyclePolicyMetadata> expectedPolicyMap = lifecycleMetadata.getPolicyMetadatas();
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT)
                 .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(3)).build())
@@ -180,7 +180,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("_source", state, state);
 
-        PolicyStepsRegistry policyStepsRegistry = indexLifecycleService.getPolicyRegistry();
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.clusterChanged(event);
         verify(clusterService, times(1)).addListener(any());
@@ -188,8 +187,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(clusterService);
         assertNull(indexLifecycleService.getScheduler());
         assertNull(indexLifecycleService.getScheduledJob());
-        assertNotSame(policyStepsRegistry, indexLifecycleService.getPolicyRegistry());
-        policyStepsRegistry = indexLifecycleService.getPolicyRegistry();
 
         Mockito.reset(clusterService);
         state = ClusterState.builder(ClusterName.DEFAULT)
@@ -206,7 +203,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertNotNull(indexLifecycleService.getScheduler());
         assertEquals(1, indexLifecycleService.getScheduler().jobCount());
         assertNotNull(indexLifecycleService.getScheduledJob());
-        assertThat(policyStepsRegistry.getLifecyclePolicyMap().size(), equalTo(numberOfPolicies));
+        assertThat(indexLifecycleService.getPolicyRegistry().getLifecyclePolicyMap(), equalTo(expectedPolicyMap));
 
         Mockito.reset(clusterService);
         state = ClusterState.builder(ClusterName.DEFAULT)
@@ -222,9 +219,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertNotNull(indexLifecycleService.getScheduler());
         assertEquals(0, indexLifecycleService.getScheduler().jobCount());
         assertNull(indexLifecycleService.getScheduledJob());
-        assertNotSame(policyStepsRegistry, indexLifecycleService.getPolicyRegistry());
-        policyStepsRegistry = indexLifecycleService.getPolicyRegistry();
-        assertThat(policyStepsRegistry.getLifecyclePolicyMap().size(), equalTo(0));
+        assertThat(indexLifecycleService.getPolicyRegistry().getLifecyclePolicyMap(), equalTo(expectedPolicyMap));
 
         Mockito.reset(clusterService);
         state = ClusterState.builder(ClusterName.DEFAULT)
@@ -240,7 +235,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertNotNull(indexLifecycleService.getScheduler());
         assertEquals(1, indexLifecycleService.getScheduler().jobCount());
         assertNotNull(indexLifecycleService.getScheduledJob());
-        assertThat(policyStepsRegistry.getLifecyclePolicyMap().size(), equalTo(numberOfPolicies));
+        assertThat(indexLifecycleService.getPolicyRegistry().getLifecyclePolicyMap(), equalTo(expectedPolicyMap));
     }
 
     public void testSchedulerInitializationAndUpdate() {

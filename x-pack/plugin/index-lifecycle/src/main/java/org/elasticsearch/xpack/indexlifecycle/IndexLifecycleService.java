@@ -44,12 +44,12 @@ public class IndexLifecycleService extends AbstractComponent
 
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final Clock clock;
-    private PolicyStepsRegistry policyRegistry;
+    private final PolicyStepsRegistry policyRegistry;
+    private final IndexLifecycleRunner lifecycleRunner;
     private Client client;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
-    private IndexLifecycleRunner lifecycleRunner;
 
     public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock, LongSupplier nowSupplier) {
         super(settings);
@@ -113,8 +113,6 @@ public class IndexLifecycleService extends AbstractComponent
             triggerPolicies(event.state(), true);
         } else {
             cancelJob();
-            policyRegistry = new PolicyStepsRegistry();
-            lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, nowSupplier);
         }
     }
 

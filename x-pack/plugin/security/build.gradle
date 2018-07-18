@@ -12,7 +12,7 @@ esplugin {
 archivesBaseName = 'x-pack-security'
 
 dependencies {
-    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
+    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
     compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
     compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
 
@@ -52,7 +52,7 @@ dependencies {
     compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
     compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
     compile "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
-    compile 'com.google.guava:guava:19.0' 
+    compile 'com.google.guava:guava:19.0'
 
     testCompile 'org.elasticsearch:securemock:1.2'
     testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"

@@ -72,6 +72,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
     @BeforeClass
     public static void setupCertificates() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, custom TrustManager implementations cannot be used.", inFipsJvm());
         configPath = createTempDir();
         Path caCertPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
                 ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt").toURI());

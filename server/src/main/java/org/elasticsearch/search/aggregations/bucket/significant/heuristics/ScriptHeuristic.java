@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.script.BucketAggregationScript;
+import org.elasticsearch.script.BucketAggregateToDoubleScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.internal.SearchContext;
@@ -50,10 +50,10 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         private final LongAccessor supersetSizeHolder;
         private final LongAccessor subsetDfHolder;
         private final LongAccessor supersetDfHolder;
-        private final BucketAggregationScript executableScript;
+        private final BucketAggregateToDoubleScript executableScript;
         private final Map<String, Object> params = new HashMap<>();
 
-        ExecutableScriptHeuristic(Script script, BucketAggregationScript executableScript) {
+        ExecutableScriptHeuristic(Script script, BucketAggregateToDoubleScript executableScript) {
             super(script);
             subsetSizeHolder = new LongAccessor();
             supersetSizeHolder = new LongAccessor();
@@ -95,14 +95,14 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext context) {
-        BucketAggregationScript.Factory factory = context.scriptService().compile(script, BucketAggregationScript.CONTEXT);
+        BucketAggregateToDoubleScript.Factory factory = context.scriptService().compile(script, BucketAggregateToDoubleScript.CONTEXT);
         return new ExecutableScriptHeuristic(script, factory.newInstance());
     }
 
     @Override
     public SignificanceHeuristic rewrite(SearchContext context) {
         QueryShardContext shardContext = context.getQueryShardContext();
-        BucketAggregationScript.Factory compiledScript = shardContext.getScriptService().compile(script, BucketAggregationScript.CONTEXT);
+        BucketAggregateToDoubleScript.Factory compiledScript = shardContext.getScriptService().compile(script, BucketAggregateToDoubleScript.CONTEXT);
         return new ExecutableScriptHeuristic(script, compiledScript.newInstance());
     }
 

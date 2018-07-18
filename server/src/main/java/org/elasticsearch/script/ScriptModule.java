@@ -49,7 +49,7 @@ public class ScriptModule {
             SearchScript.SCRIPT_SORT_CONTEXT,
             SearchScript.TERMS_SET_QUERY_CONTEXT,
             ExecutableScript.CONTEXT,
-            BucketAggregationScript.CONTEXT,
+            BucketAggregateToDoubleScript.CONTEXT,
             ExecutableScript.UPDATE_CONTEXT,
             IngestScript.CONTEXT,
             FilterScript.CONTEXT,

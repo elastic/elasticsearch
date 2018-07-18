@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline.bucketselector;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.BucketAggregationScript;
+import org.elasticsearch.script.BucketAggregateToDoubleScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -82,8 +82,9 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
-        BucketAggregationScript.Factory factory = reduceContext.scriptService().compile(script, BucketAggregationScript.CONTEXT);
-        BucketAggregationScript executableScript = factory.newInstance();
+        BucketAggregateToDoubleScript.Factory factory =
+            reduceContext.scriptService().compile(script, BucketAggregateToDoubleScript.CONTEXT);
+        BucketAggregateToDoubleScript executableScript = factory.newInstance();
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();

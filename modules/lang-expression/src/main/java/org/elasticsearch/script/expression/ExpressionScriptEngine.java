@@ -38,7 +38,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.BucketAggregationScript;
+import org.elasticsearch.script.BucketAggregateToDoubleScript;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.FilterScript;
@@ -114,7 +114,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
         } else if (context.instanceClazz.equals(ExecutableScript.class)) {
             ExecutableScript.Factory factory = (p) -> new ExpressionExecutableScript(expr, p);
             return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(BucketAggregationScript.class)) {
+        } else if (context.instanceClazz.equals(BucketAggregateToDoubleScript.class)) {
             return context.factoryClazz.cast(newBucketAggregationScriptFactory(expr));
         } else if (context.instanceClazz.equals(FilterScript.class)) {
             FilterScript.Factory factory = (p, lookup) -> newFilterScript(expr, lookup, p);
@@ -126,7 +126,7 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
         throw new IllegalArgumentException("expression engine does not know how to handle script context [" + context.name + "]");
     }
 
-    private static BucketAggregationScript.Factory newBucketAggregationScriptFactory(Expression expr) {
+    private static BucketAggregateToDoubleScript.Factory newBucketAggregationScriptFactory(Expression expr) {
         return () -> {
             ReplaceableConstDoubleValues[] functionValuesArray =
                 new ReplaceableConstDoubleValues[expr.variables.length];
@@ -135,9 +135,9 @@ public class ExpressionScriptEngine extends AbstractComponent implements ScriptE
                 functionValuesArray[i] = new ReplaceableConstDoubleValues();
                 functionValuesMap.put(expr.variables[i], functionValuesArray[i]);
             }
-            return new BucketAggregationScript() {
+            return new BucketAggregateToDoubleScript() {
                 @Override
-                public Object execute(Map<String, Object> params) {
+                public double execute(Map<String, Object> params) {
                     params.forEach((name, value) -> {
                         ReplaceableConstDoubleValues placeholder = functionValuesMap.get(name);
                         if (placeholder == null) {

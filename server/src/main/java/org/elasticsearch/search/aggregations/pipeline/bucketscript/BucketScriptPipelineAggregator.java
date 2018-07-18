@@ -21,10 +21,9 @@ package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.BucketAggregationScript;
+import org.elasticsearch.script.BucketAggregateToDoubleScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -89,8 +88,9 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
-        BucketAggregationScript.Factory factory = reduceContext.scriptService().compile(script, BucketAggregationScript.CONTEXT);
-        BucketAggregationScript executableScript = factory.newInstance();
+        BucketAggregateToDoubleScript.Factory factory =
+            reduceContext.scriptService().compile(script, BucketAggregateToDoubleScript.CONTEXT);
+        BucketAggregateToDoubleScript executableScript = factory.newInstance();
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
@@ -111,23 +111,13 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             if (skipBucket) {
                 newBuckets.add(bucket);
             } else {
-                Object returned = executableScript.execute(vars);
-                // no need to check for self references since only numbers are valid
-                if (returned == null) {
-                    newBuckets.add(bucket);
-                } else {
-                    if ((returned instanceof Number) == false) {
-                        throw new AggregationExecutionException("series_arithmetic script for reducer [" + name()
-                                + "] must return a Number");
-                    }
-                    final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(
-                            (p) -> (InternalAggregation) p).collect(Collectors.toList());
-                    aggs.add(new InternalSimpleValue(name(), ((Number) returned).doubleValue(), formatter,
-                            new ArrayList<>(), metaData()));
-                    InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
-                            bucket);
-                    newBuckets.add(newBucket);
-                }
+                double returned = executableScript.execute(vars);
+                final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(
+                        (p) -> (InternalAggregation) p).collect(Collectors.toList());
+                aggs.add(new InternalSimpleValue(name(), returned, formatter, new ArrayList<>(), metaData()));
+                InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
+                        bucket);
+                newBuckets.add(newBucket);
             }
         }
         return originalAgg.create(newBuckets);

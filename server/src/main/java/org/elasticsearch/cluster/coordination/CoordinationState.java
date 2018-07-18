@@ -24,12 +24,15 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * The safety core of the consensus algorithm
+ * The core class of the cluster state coordination algorithm, directly implementing the
+ * <a href="https://github.com/elastic/elasticsearch-formal-models/blob/master/ZenWithTerms/tla/ZenWithTerms.tla">formal model</a>
  */
 public class CoordinationState extends AbstractComponent {
 
@@ -39,12 +42,12 @@ public class CoordinationState extends AbstractComponent {
     private final PersistedState persistedState;
 
     // transient state
-    private NodeCollection joinVotes;
+    private VoteCollection joinVotes;
     private boolean startedJoinSinceLastReboot;
     private boolean electionWon;
     private long lastPublishedVersion;
     private VotingConfiguration lastPublishedConfiguration;
-    private NodeCollection publishVotes;
+    private VoteCollection publishVotes;
 
     public CoordinationState(Settings settings, DiscoveryNode localNode, PersistedState persistedState) {
         super(settings);
@@ -55,12 +58,12 @@ public class CoordinationState extends AbstractComponent {
         this.persistedState = persistedState;
 
         // transient state
-        this.electionWon = false;
-        this.joinVotes = new NodeCollection();
+        this.joinVotes = new VoteCollection();
         this.startedJoinSinceLastReboot = false;
-        this.publishVotes = new NodeCollection();
+        this.electionWon = false;
         this.lastPublishedVersion = 0L;
-        this.lastPublishedConfiguration = persistedState.getLastAcceptedConfiguration();
+        this.lastPublishedConfiguration = persistedState.getLastAcceptedState().getLastAcceptedConfiguration();
+        this.publishVotes = new VoteCollection();
     }
 
     public long getCurrentTerm() {
@@ -71,73 +74,72 @@ public class CoordinationState extends AbstractComponent {
         return persistedState.getLastAcceptedState();
     }
 
-    public boolean isElectionQuorum(NodeCollection votes) {
-        return votes.isQuorum(getLastCommittedConfiguration()) && votes.isQuorum(getLastAcceptedConfiguration());
-    }
-
-    public boolean isPublishQuorum(NodeCollection votes) {
-        return votes.isQuorum(getLastCommittedConfiguration()) && votes.isQuorum(lastPublishedConfiguration);
-    }
-
-    public VotingConfiguration getLastCommittedConfiguration() {
-        return persistedState.getLastCommittedConfiguration();
-    }
-
-    public VotingConfiguration getLastAcceptedConfiguration() {
-        return persistedState.getLastAcceptedConfiguration();
+    public long getLastAcceptedTerm() {
+        return getLastAcceptedState().term();
     }
 
     public long getLastAcceptedVersion() {
-        return persistedState.getLastAcceptedVersion();
+        return getLastAcceptedState().version();
     }
 
-    public long getLastAcceptedTerm() {
-        return persistedState.getLastAcceptedTerm();
+    public VotingConfiguration getLastCommittedConfiguration() {
+        return getLastAcceptedState().getLastCommittedConfiguration();
     }
 
-    public boolean electionWon() {
-        return electionWon;
+    public VotingConfiguration getLastAcceptedConfiguration() {
+        return getLastAcceptedState().getLastAcceptedConfiguration();
     }
 
     public long getLastPublishedVersion() {
         return lastPublishedVersion;
     }
 
-    public boolean hasElectionQuorum(VotingConfiguration votingConfiguration) {
-        return joinVotes.isQuorum(votingConfiguration);
+    public boolean electionWon() {
+        return electionWon;
     }
 
-    public boolean containsJoinVote(DiscoveryNode node) {
-        return joinVotes.contains(node);
+    public boolean isElectionQuorum(VoteCollection votes) {
+        return votes.isQuorum(getLastCommittedConfiguration()) && votes.isQuorum(getLastAcceptedConfiguration());
+    }
+
+    public boolean isPublishQuorum(VoteCollection votes) {
+        return votes.isQuorum(getLastCommittedConfiguration()) && votes.isQuorum(lastPublishedConfiguration);
+    }
+
+    public boolean containsJoinVoteFor(DiscoveryNode node) {
+        return joinVotes.containsVoteFor(node);
+    }
+
+    public boolean joinVotesHaveQuorumFor(VotingConfiguration votingConfiguration) {
+        return joinVotes.isQuorum(votingConfiguration);
     }
 
     /**
      * Used to bootstrap a cluster by injecting the initial state and configuration.
      *
-     * @param initialState The initial state to use.
+     * @param initialState The initial state to use. Must have term 0, version 1, and non-empty configurations.
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
     public void setInitialState(ClusterState initialState) {
-
-        final long lastAcceptedVersion = persistedState.getLastAcceptedVersion();
+        final long lastAcceptedVersion = getLastAcceptedVersion();
         if (lastAcceptedVersion != 0) {
             logger.debug("setInitialState: rejecting since last-accepted version {} > 0", lastAcceptedVersion);
             throw new CoordinationStateRejectedException("initial state already set: last-accepted version now " + lastAcceptedVersion);
         }
 
-        assert persistedState.getLastAcceptedTerm() == 0;
-        assert persistedState.getLastAcceptedConfiguration().isEmpty();
-        assert persistedState.getLastCommittedConfiguration().isEmpty();
-        assert initialState.getLastAcceptedConfiguration().isEmpty() == false;
-        assert initialState.getLastCommittedConfiguration().isEmpty() == false;
-        assert initialState.term() == 0;
-        assert initialState.version() == 1;
-
+        assert getLastAcceptedTerm() == 0;
+        assert getLastAcceptedConfiguration().isEmpty();
+        assert getLastCommittedConfiguration().isEmpty();
         assert lastPublishedVersion == 0;
         assert lastPublishedConfiguration.isEmpty();
         assert electionWon == false;
-        assert joinVotes.nodes.isEmpty();
-        assert publishVotes.nodes.isEmpty();
+        assert joinVotes.isEmpty();
+        assert publishVotes.isEmpty();
+
+        assert initialState.term() == 0;
+        assert initialState.version() == 1;
+        assert initialState.getLastAcceptedConfiguration().isEmpty() == false;
+        assert initialState.getLastCommittedConfiguration().isEmpty() == false;
 
         persistedState.setLastAcceptedState(initialState);
     }
@@ -149,42 +151,37 @@ public class CoordinationState extends AbstractComponent {
      * @return A Join that should be sent to the target node of the join.
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
-    public Messages.Join handleStartJoin(Messages.StartJoinRequest startJoinRequest) {
+    public Join handleStartJoin(StartJoinRequest startJoinRequest) {
         if (startJoinRequest.getTerm() <= getCurrentTerm()) {
             logger.debug("handleStartJoin: ignored as term provided [{}] not greater than current term [{}]",
                 startJoinRequest.getTerm(), getCurrentTerm());
             throw new CoordinationStateRejectedException("incoming term " + startJoinRequest.getTerm() +
-                " not greater than than current term " + getCurrentTerm());
+                " not greater than current term " + getCurrentTerm());
         }
 
         logger.debug("handleStartJoin: updating term from [{}] to [{}]", getCurrentTerm(), startJoinRequest.getTerm());
 
         persistedState.setCurrentTerm(startJoinRequest.getTerm());
-        assert persistedState.getCurrentTerm() == startJoinRequest.getTerm();
-        joinVotes = new NodeCollection();
-        electionWon = false;
+        assert getCurrentTerm() == startJoinRequest.getTerm();
+        lastPublishedVersion = 0;
+        lastPublishedConfiguration = getLastAcceptedConfiguration();
         startedJoinSinceLastReboot = true;
-        lastPublishedVersion = 0L;
-        lastPublishedConfiguration = persistedState.getLastAcceptedConfiguration();
-        publishVotes = new NodeCollection();
+        electionWon = false;
+        joinVotes = new VoteCollection();
+        publishVotes = new VoteCollection();
 
-        return new Messages.Join(localNode, startJoinRequest.getSourceNode(), getLastAcceptedVersion(), getCurrentTerm(), getLastAcceptedTerm());
+        return new Join(localNode, startJoinRequest.getSourceNode(), getCurrentTerm(), getLastAcceptedTerm(), getLastAcceptedVersion());
     }
 
     /**
-     * May be called on receipt of a Join from the given sourceNode.
+     * May be called on receipt of a Join.
      *
      * @param join The Join received.
-     * @return true iff this join was not already added
+     * @return true iff this instance does not already have a join vote from the given source node for this term
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
-    public boolean handleJoin(Messages.Join join) {
+    public boolean handleJoin(Join join) {
         assert join.getTargetNode().equals(localNode) : "handling join " + join + " for the wrong node " + localNode;
-
-        if (startedJoinSinceLastReboot == false) {
-            logger.debug("handleJoin: ignored join as term was not incremented yet after reboot");
-            throw new CoordinationStateRejectedException("ignored join as term was not incremented yet after reboot");
-        }
 
         if (join.getTerm() != getCurrentTerm()) {
             logger.debug("handleJoin: ignored join due to term mismatch (expected: [{}], actual: [{}])",
@@ -193,31 +190,36 @@ public class CoordinationState extends AbstractComponent {
                 "incoming term " + join.getTerm() + " does not match current term " + getCurrentTerm());
         }
 
+        if (startedJoinSinceLastReboot == false) {
+            logger.debug("handleJoin: ignored join as term was not incremented yet after reboot");
+            throw new CoordinationStateRejectedException("ignored join as term has not been incremented yet after reboot");
+        }
+
         final long lastAcceptedTerm = getLastAcceptedTerm();
         if (join.getLastAcceptedTerm() > lastAcceptedTerm) {
-            logger.debug("handleJoin: ignored join as joiner has better last accepted term (expected: <=[{}], actual: [{}])",
+            logger.debug("handleJoin: ignored join as joiner has a better last accepted term (expected: <=[{}], actual: [{}])",
                 lastAcceptedTerm, join.getLastAcceptedTerm());
             throw new CoordinationStateRejectedException("incoming last accepted term " + join.getLastAcceptedTerm() +
                 " of join higher than current last accepted term " + lastAcceptedTerm);
         }
 
         if (join.getLastAcceptedTerm() == lastAcceptedTerm && join.getLastAcceptedVersion() > getLastAcceptedVersion()) {
-            logger.debug("handleJoin: ignored join due to version mismatch (expected: <=[{}], actual: [{}])",
+            logger.debug("handleJoin: ignored join as joiner has a better last accepted version (expected: <=[{}], actual: [{}])",
                 getLastAcceptedVersion(), join.getLastAcceptedVersion());
-            throw new CoordinationStateRejectedException(
-                "incoming version " + join.getLastAcceptedVersion() + " of join higher than current version " + getLastAcceptedVersion());
+            throw new CoordinationStateRejectedException("incoming last accepted version " + join.getLastAcceptedVersion() +
+                " of join higher than current last accepted version " + getLastAcceptedVersion());
         }
 
         if (getLastAcceptedVersion() == 0) {
             // We do not check for an election won on setting the initial configuration, so it would be possible to end up in a state where
             // we have enough join votes to have won the election immediately on setting the initial configuration. It'd be quite
-            // complicated to restore all the appropriate invariants when setting the initial configuration (it's not just `electionWon`)
-            // so instead we just ignore join votes received prior to receiving the initial configuration.
-            logger.debug("handleJoin: ignoring join because initial configuration not set");
+            // complicated to restore all the appropriate invariants when setting the initial configuration (it's not just electionWon)
+            // so instead we just reject join votes received prior to receiving the initial configuration.
+            logger.debug("handleJoin: ignored join because initial configuration not set");
             throw new CoordinationStateRejectedException("initial configuration not set");
         }
 
-        boolean added = joinVotes.add(join.getSourceNode());
+        boolean added = joinVotes.addVote(join.getSourceNode());
         boolean prevElectionWon = electionWon;
         electionWon = isElectionQuorum(joinVotes);
         logger.debug("handleJoin: added join {} from [{}] for election, electionWon={} lastAcceptedTerm={} lastAcceptedVersion={}", join,
@@ -230,12 +232,13 @@ public class CoordinationState extends AbstractComponent {
     }
 
     /**
-     * May be called in order to check if the given cluster state can be published
+     * May be called in order to prepare publication of the given cluster state
      *
-     * @param clusterState The cluster state which to publish.
+     * @param clusterState The cluster state to publish.
+     * @return A PublishRequest to publish the given cluster state
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
-    public Messages.PublishRequest handleClientValue(ClusterState clusterState) {
+    public PublishRequest handleClientValue(ClusterState clusterState) {
         if (electionWon == false) {
             logger.debug("handleClientValue: ignored request as election not won");
             throw new CoordinationStateRejectedException("election not won");
@@ -246,7 +249,7 @@ public class CoordinationState extends AbstractComponent {
         }
         if (clusterState.term() != getCurrentTerm()) {
             logger.debug("handleClientValue: ignored request due to term mismatch " +
-                    "(expected: [term {} version {}], actual: [term {} version {}])",
+                    "(expected: [term {} version >{}], actual: [term {} version {}])",
                 getCurrentTerm(), lastPublishedVersion, clusterState.term(), clusterState.version());
             throw new CoordinationStateRejectedException("incoming term " + clusterState.term() + " does not match current term " +
                 getCurrentTerm());
@@ -259,26 +262,26 @@ public class CoordinationState extends AbstractComponent {
                 " lower or equal to last published version " + lastPublishedVersion);
         }
 
-        assert getLastCommittedConfiguration().equals(clusterState.getLastCommittedConfiguration()) :
-            "last committed configuration should not change";
-
         if (clusterState.getLastAcceptedConfiguration().equals(getLastAcceptedConfiguration()) == false
             && getLastCommittedConfiguration().equals(getLastAcceptedConfiguration()) == false) {
             logger.debug("handleClientValue: only allow reconfiguration while not already reconfiguring");
             throw new CoordinationStateRejectedException("only allow reconfiguration while not already reconfiguring");
         }
-        if (hasElectionQuorum(clusterState.getLastAcceptedConfiguration()) == false) {
-            logger.debug("handleClientValue: only allow reconfiguration if join quorum available for new config");
-            throw new CoordinationStateRejectedException("only allow reconfiguration if join quorum available for new config");
+        if (joinVotesHaveQuorumFor(clusterState.getLastAcceptedConfiguration()) == false) {
+            logger.debug("handleClientValue: only allow reconfiguration if joinVotes have quorum for new config");
+            throw new CoordinationStateRejectedException("only allow reconfiguration if joinVotes have quorum for new config");
         }
+
+        assert clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration()) :
+            "last committed configuration should not change";
 
         lastPublishedVersion = clusterState.version();
         lastPublishedConfiguration = clusterState.getLastAcceptedConfiguration();
-        publishVotes = new NodeCollection();
+        publishVotes = new VoteCollection();
 
         logger.trace("handleClientValue: processing request for version [{}] and term [{}]", lastPublishedVersion, getCurrentTerm());
 
-        return new Messages.PublishRequest(clusterState);
+        return new PublishRequest(clusterState);
     }
 
     /**
@@ -288,7 +291,7 @@ public class CoordinationState extends AbstractComponent {
      * @return A PublishResponse which can be sent back to the sender of the PublishRequest.
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
-    public Messages.PublishResponse handlePublishRequest(Messages.PublishRequest publishRequest) {
+    public PublishResponse handlePublishRequest(PublishRequest publishRequest) {
         final ClusterState clusterState = publishRequest.getAcceptedState();
         if (clusterState.term() != getCurrentTerm()) {
             logger.debug("handlePublishRequest: ignored publish request due to term mismatch (expected: [{}], actual: [{}])",
@@ -299,16 +302,16 @@ public class CoordinationState extends AbstractComponent {
         if (clusterState.term() == getLastAcceptedTerm() && clusterState.version() <= getLastAcceptedVersion()) {
             logger.debug("handlePublishRequest: ignored publish request due to version mismatch (expected: >[{}], actual: [{}])",
                 getLastAcceptedVersion(), clusterState.version());
-            throw new CoordinationStateRejectedException("incoming version " + clusterState.version() + " older than current version " +
-                getLastAcceptedVersion());
+            throw new CoordinationStateRejectedException("incoming version " + clusterState.version() +
+                " lower or equal to current version " + getLastAcceptedVersion());
         }
 
         logger.trace("handlePublishRequest: accepting publish request for version [{}] and term [{}]",
             clusterState.version(), clusterState.term());
         persistedState.setLastAcceptedState(clusterState);
-        assert persistedState.getLastAcceptedState() == clusterState;
+        assert getLastAcceptedState() == clusterState;
 
-        return new Messages.PublishResponse(clusterState.version(), clusterState.term());
+        return new PublishResponse(clusterState.term(), clusterState.version());
     }
 
     /**
@@ -320,7 +323,7 @@ public class CoordinationState extends AbstractComponent {
      * has been accepted at a quorum of peers and is therefore committed.
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
-    public Optional<Messages.ApplyCommit> handlePublishResponse(DiscoveryNode sourceNode, Messages.PublishResponse publishResponse) {
+    public Optional<ApplyCommit> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse) {
         if (electionWon == false) {
             logger.debug("handlePublishResponse: ignored response as election not won");
             throw new CoordinationStateRejectedException("election not won");
@@ -340,23 +343,23 @@ public class CoordinationState extends AbstractComponent {
 
         logger.trace("handlePublishResponse: accepted publish response for version [{}] and term [{}] from [{}]",
             publishResponse.getVersion(), publishResponse.getTerm(), sourceNode);
-        publishVotes.add(sourceNode);
+        publishVotes.addVote(sourceNode);
         if (isPublishQuorum(publishVotes)) {
             logger.trace("handlePublishResponse: value committed for version [{}] and term [{}]",
                 publishResponse.getVersion(), publishResponse.getTerm());
-            return Optional.of(new Messages.ApplyCommit(localNode, publishResponse.getTerm(), publishResponse.getVersion()));
+            return Optional.of(new ApplyCommit(localNode, publishResponse.getTerm(), publishResponse.getVersion()));
         }
 
         return Optional.empty();
     }
 
     /**
-     * May be called on receipt of an ApplyCommit. Updates the committed state accordingly.
+     * May be called on receipt of an ApplyCommit. Updates the committed configuration accordingly.
      *
      * @param applyCommit The ApplyCommit received.
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
-    public void handleCommit(Messages.ApplyCommit applyCommit) {
+    public void handleCommit(ApplyCommit applyCommit) {
         if (applyCommit.getTerm() != getCurrentTerm()) {
             logger.debug("handleCommit: ignored commit request due to term mismatch " +
                     "(expected: [term {} version {}], actual: [term {} version {}])",
@@ -385,97 +388,61 @@ public class CoordinationState extends AbstractComponent {
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
     }
 
+    /**
+     * Pluggable persistence layer for {@link CoordinationState}.
+     *
+     */
     public interface PersistedState {
 
-        void setCurrentTerm(long currentTerm);
-
-        void setLastAcceptedState(ClusterState clusterState);
-
-        void markLastAcceptedConfigAsCommitted();
-
+        /**
+         * Returns the current term
+         */
         long getCurrentTerm();
 
+        /**
+         * Returns the last accepted cluster state
+         */
         ClusterState getLastAcceptedState();
 
-        default long getLastAcceptedVersion() {
-            return getLastAcceptedState().version();
-        }
+        /**
+         * Sets a new current term.
+         * After a successful call to this method, {@link #getCurrentTerm()} should return the last term that was set.
+         * The value returned by {@link #getLastAcceptedState()} should not be influenced by calls to this method.
+         */
+        void setCurrentTerm(long currentTerm);
 
-        default long getLastAcceptedTerm() {
-            return getLastAcceptedState().term();
-        }
+        /**
+         * Sets a new last accepted cluster state.
+         * After a successful call to this method, {@link #getLastAcceptedState()} should return the last cluster state that was set.
+         * The value returned by {@link #getCurrentTerm()} should not be influenced by calls to this method.
+         */
+        void setLastAcceptedState(ClusterState clusterState);
 
-        default VotingConfiguration getLastAcceptedConfiguration() {
-            return getLastAcceptedState().getLastAcceptedConfiguration();
-        }
-
-        default VotingConfiguration getLastCommittedConfiguration() {
-            return getLastAcceptedState().getLastCommittedConfiguration();
-        }
-    }
-
-    public static class InMemoryPersistedState implements PersistedState {
-
-        private long currentTerm;
-        private ClusterState acceptedState;
-
-        public InMemoryPersistedState(long term, ClusterState acceptedState) {
-            this.currentTerm = term;
-            this.acceptedState = acceptedState;
-
-            assert currentTerm >= 0;
-            assert getLastAcceptedTerm() <= currentTerm :
-                "last accepted term " + getLastAcceptedTerm() + " cannot be above current term " + currentTerm;
-        }
-
-        // copy constructor
-        public InMemoryPersistedState(PersistedState persistedState) {
-            this.currentTerm = persistedState.getCurrentTerm();
-            this.acceptedState = persistedState.getLastAcceptedState();
-        }
-
-        @Override
-        public void setCurrentTerm(long currentTerm) {
-            assert this.currentTerm <= currentTerm;
-            this.currentTerm = currentTerm;
-        }
-
-        @Override
-        public void setLastAcceptedState(ClusterState clusterState) {
-            this.acceptedState = clusterState;
-        }
-
-        @Override
-        public void markLastAcceptedConfigAsCommitted() {
-            this.acceptedState = ClusterState.builder(acceptedState)
-                .lastCommittedConfiguration(acceptedState.getLastAcceptedConfiguration())
-                .build();
-        }
-
-        @Override
-        public long getCurrentTerm() {
-            return currentTerm;
-        }
-
-        @Override
-        public ClusterState getLastAcceptedState() {
-            return acceptedState;
+        /**
+         * Marks the last accepted cluster state as committed.
+         * After a successful call to this method, {@link #getLastAcceptedState()} should return the last cluster state that was set,
+         * with the last committed configuration now corresponding to the last accepted configuration.
+         */
+        default void markLastAcceptedConfigAsCommitted() {
+            final ClusterState lastAcceptedState = getLastAcceptedState();
+            setLastAcceptedState(ClusterState.builder(lastAcceptedState)
+                .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
+                .build());
         }
     }
 
     /**
-     * A collection of nodes, used to calculate quorums.
+     * A collection of votes, used to calculate quorums.
      */
-    public static class NodeCollection {
+    public static class VoteCollection {
 
         private final Map<String, DiscoveryNode> nodes;
 
-        public boolean add(DiscoveryNode sourceNode) {
-            // TODO is getId() unique enough or is it user-provided? If the latter, there's a risk of duplicates or of losing votes.
+        public boolean addVote(DiscoveryNode sourceNode) {
             return nodes.put(sourceNode.getId(), sourceNode) == null;
         }
 
-        public NodeCollection() {
+        public VoteCollection() {
             nodes = new HashMap<>();
         }
 
@@ -483,13 +450,21 @@ public class CoordinationState extends AbstractComponent {
             return configuration.hasQuorum(nodes.keySet());
         }
 
-        public boolean contains(DiscoveryNode node) {
+        public boolean containsVoteFor(DiscoveryNode node) {
             return nodes.containsKey(node.getId());
+        }
+
+        public boolean isEmpty() {
+            return nodes.isEmpty();
+        }
+
+        public Collection<DiscoveryNode> nodes() {
+            return Collections.unmodifiableCollection(nodes.values());
         }
 
         @Override
         public String toString() {
-            return "NodeCollection{" + String.join(",", nodes.keySet()) + "}";
+            return "VoteCollection{" + String.join(",", nodes.keySet()) + "}";
         }
 
         @Override
@@ -497,7 +472,7 @@ public class CoordinationState extends AbstractComponent {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
 
-            NodeCollection that = (NodeCollection) o;
+            VoteCollection that = (VoteCollection) o;
 
             return nodes.equals(that.nodes);
         }
@@ -506,6 +481,5 @@ public class CoordinationState extends AbstractComponent {
         public int hashCode() {
             return nodes.hashCode();
         }
-
     }
 }

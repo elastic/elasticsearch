@@ -181,7 +181,6 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("qu1ck", tokens.get(1).getTerm());
         assertEquals("brown", tokens.get(2).getTerm());
         assertEquals("foxbar", tokens.get(3).getTerm());
-
     }
 
     public void testFillsAttributes() throws IOException {

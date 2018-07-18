@@ -1121,7 +1121,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::multi-get-request-top-level-extras
 
             // tag::multi-get-execute
-            MultiGetResponse response = client.multiGet(request, RequestOptions.DEFAULT);
+            MultiGetResponse response = client.mget(request, RequestOptions.DEFAULT);
             // end::multi-get-execute
 
             // tag::multi-get-response
@@ -1174,7 +1174,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::multi-get-execute-async
-            client.multiGetAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.mgetAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::multi-get-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1185,7 +1185,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new MultiGetRequest.Item("index", "type", "example_id")
                 .fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE));  // <1>
             // end::multi-get-request-no-source
-            MultiGetItemResponse item = unwrapAndAssertExample(client.multiGet(request, RequestOptions.DEFAULT));
+            MultiGetItemResponse item = unwrapAndAssertExample(client.mget(request, RequestOptions.DEFAULT));
             assertNull(item.getResponse().getSource());
         }
         {
@@ -1198,7 +1198,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new MultiGetRequest.Item("index", "type", "example_id")
                 .fetchSourceContext(fetchSourceContext));  // <1>
             // end::multi-get-request-source-include
-            MultiGetItemResponse item = unwrapAndAssertExample(client.multiGet(request, RequestOptions.DEFAULT));
+            MultiGetItemResponse item = unwrapAndAssertExample(client.mget(request, RequestOptions.DEFAULT));
             assertThat(item.getResponse().getSource(), hasEntry("foo", "val1"));
             assertThat(item.getResponse().getSource(), hasEntry("bar", "val2"));
             assertThat(item.getResponse().getSource(), not(hasKey("baz")));
@@ -1213,7 +1213,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new MultiGetRequest.Item("index", "type", "example_id")
                 .fetchSourceContext(fetchSourceContext));  // <1>
             // end::multi-get-request-source-exclude
-            MultiGetItemResponse item = unwrapAndAssertExample(client.multiGet(request, RequestOptions.DEFAULT));
+            MultiGetItemResponse item = unwrapAndAssertExample(client.mget(request, RequestOptions.DEFAULT));
             assertThat(item.getResponse().getSource(), not(hasKey("foo")));
             assertThat(item.getResponse().getSource(), not(hasKey("bar")));
             assertThat(item.getResponse().getSource(), hasEntry("baz", "val3"));
@@ -1223,7 +1223,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::multi-get-request-stored
             request.add(new MultiGetRequest.Item("index", "type", "example_id")
                 .storedFields("foo"));  // <1>
-            MultiGetResponse response = client.multiGet(request, RequestOptions.DEFAULT);
+            MultiGetResponse response = client.mget(request, RequestOptions.DEFAULT);
             MultiGetItemResponse item = response.getResponses()[0];
             String value = item.getResponse().getField("foo").getValue(); // <2>
             // end::multi-get-request-stored
@@ -1235,7 +1235,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             MultiGetRequest request = new MultiGetRequest();
             request.add(new MultiGetRequest.Item("index", "type", "example_id")
                 .version(1000L));
-            MultiGetResponse response = client.multiGet(request, RequestOptions.DEFAULT);
+            MultiGetResponse response = client.mget(request, RequestOptions.DEFAULT);
             MultiGetItemResponse item = response.getResponses()[0];
             assertNull(item.getResponse());                          // <1>
             Exception e = item.getFailure().getFailure();            // <2>

@@ -72,7 +72,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -1545,17 +1544,17 @@ public class IndexShardTests extends IndexShardTestCase {
          * - If flush and then recover from the existing store, delete #1 will be removed while index #0 is still retained and replayed.
          */
         final IndexShard shard = newStartedShard(false);
-        shard.applyDeleteOperationOnReplica(1, 2, "_doc", "id", VersionType.EXTERNAL);
+        shard.applyDeleteOperationOnReplica(1, 2, "_doc", "id");
         shard.getEngine().rollTranslogGeneration(); // isolate the delete in it's own generation
-        shard.applyIndexOperationOnReplica(0, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+        shard.applyIndexOperationOnReplica(0, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(shard.shardId().getIndexName(), "_doc", "id", new BytesArray("{}"), XContentType.JSON));
-        shard.applyIndexOperationOnReplica(3, 3, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+        shard.applyIndexOperationOnReplica(3, 3, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(shard.shardId().getIndexName(), "_doc", "id-3", new BytesArray("{}"), XContentType.JSON));
         // Flushing a new commit with local checkpoint=1 allows to skip the translog gen #1 in recovery.
         shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
-        shard.applyIndexOperationOnReplica(2, 3, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+        shard.applyIndexOperationOnReplica(2, 3, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(shard.shardId().getIndexName(), "_doc", "id-2", new BytesArray("{}"), XContentType.JSON));
-        shard.applyIndexOperationOnReplica(5, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+        shard.applyIndexOperationOnReplica(5, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(shard.shardId().getIndexName(), "_doc", "id-5", new BytesArray("{}"), XContentType.JSON));
 
         final int translogOps;
@@ -1646,8 +1645,7 @@ public class IndexShardTests extends IndexShardTestCase {
         updateMappings(otherShard, shard.indexSettings().getIndexMetaData());
         SourceToParse sourceToParse = SourceToParse.source(shard.shardId().getIndexName(), "_doc", "1",
             new BytesArray("{}"), XContentType.JSON);
-        otherShard.applyIndexOperationOnReplica(1, 1,
-            VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+        otherShard.applyIndexOperationOnReplica(1, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
 
         final ShardRouting primaryShardRouting = shard.routingEntry();
         IndexShard newShard = reinitShard(otherShard, ShardRoutingHelper.initWithSameId(primaryShardRouting,
@@ -1763,18 +1761,18 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = newStartedShard(false);
         final String indexName = shard.shardId().getIndexName();
         // Index #0, index #1
-        shard.applyIndexOperationOnReplica(0, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+        shard.applyIndexOperationOnReplica(0, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(indexName, "_doc", "doc-0", new BytesArray("{}"), XContentType.JSON));
         flushShard(shard);
         shard.updateGlobalCheckpointOnReplica(0, "test"); // stick the global checkpoint here.
-        shard.applyIndexOperationOnReplica(1, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+        shard.applyIndexOperationOnReplica(1, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(indexName, "_doc", "doc-1", new BytesArray("{}"), XContentType.JSON));
         flushShard(shard);
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1"));
         // Simulate resync (without rollback): Noop #1, index #2
         acquireReplicaOperationPermitBlockingly(shard, shard.primaryTerm + 1);
         shard.markSeqNoAsNoop(1, "test");
-        shard.applyIndexOperationOnReplica(2, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+        shard.applyIndexOperationOnReplica(2, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
             SourceToParse.source(indexName, "_doc", "doc-2", new BytesArray("{}"), XContentType.JSON));
         flushShard(shard);
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1", "doc-2"));
@@ -2104,11 +2102,11 @@ public class IndexShardTests extends IndexShardTestCase {
         int numCorruptEntries = 0;
         for (int i = 0; i < numTotalEntries; i++) {
             if (randomBoolean()) {
-                operations.add(new Translog.Index("_doc", "1", 0, primary.getPrimaryTerm(), 1, VersionType.INTERNAL,
+                operations.add(new Translog.Index("_doc", "1", 0, primary.getPrimaryTerm(), 1,
                     "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")), null, -1));
             } else {
                 // corrupt entry
-                operations.add(new Translog.Index("_doc", "2", 1,  primary.getPrimaryTerm(), 1, VersionType.INTERNAL,
+                operations.add(new Translog.Index("_doc", "2", 1,  primary.getPrimaryTerm(), 1,
                     "{\"foo\" : \"bar}".getBytes(Charset.forName("UTF-8")), null, -1));
                 numCorruptEntries++;
             }
@@ -2603,8 +2601,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 final String id = Integer.toString(i);
                 SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "_doc", id,
                         new BytesArray("{}"), XContentType.JSON);
-                indexShard.applyIndexOperationOnReplica(i,
-                    1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+                indexShard.applyIndexOperationOnReplica(i, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
                 if (!gap && i == localCheckpoint + 1) {
                     localCheckpoint++;
                 }

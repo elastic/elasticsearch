@@ -23,6 +23,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +54,9 @@ public class AutoDateHistogramAggregationBuilder
         extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, AutoDateHistogramAggregationBuilder> {
 
     public static final String NAME = "auto_date_histogram";
+
+    private static final DeprecationLogger DEPRECATION_LOGGER
+        = new DeprecationLogger(Loggers.getLogger(AutoDateHistogramAggregationBuilder.class));
 
     public static final ParseField NUM_BUCKETS_FIELD = new ParseField("buckets");
 
@@ -137,7 +142,13 @@ public class AutoDateHistogramAggregationBuilder
                 throw new IllegalArgumentException(NUM_BUCKETS_FIELD.getPreferredName() +
                     " must be less than " + bucketCeiling);
             }
+        } else if ( numBuckets > (MultiBucketConsumerService.SOFT_LIMIT_MAX_BUCKETS / maxRoundingInterval)) {
+            DEPRECATION_LOGGER.deprecated("This request will fail in 7.x, because number of buckets, " +
+                numBuckets+", is greater than default max buckets ("+MultiBucketConsumerService.SOFT_LIMIT_MAX_BUCKETS+
+                ") divided by the max rounding interval ("+maxRoundingInterval+")."
+            );
         }
+
 
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent, subFactoriesBuilder, metaData);
     }

@@ -52,9 +52,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
-import static org.hamcrest.Matchers.containsString;
-
 public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
 
     private static final String DATE_FIELD = "date";

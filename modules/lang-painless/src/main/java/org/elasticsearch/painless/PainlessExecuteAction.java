@@ -322,7 +322,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             script = new Script(in);
-            if (in.getVersion().onOrBefore(Version.V_6_4_0)) {
+            if (in.getVersion().before(Version.V_6_4_0)) {
                 byte scriptContextId = in.readByte();
                 assert scriptContextId == 0;
             } else {
@@ -335,7 +335,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             script.writeTo(out);
-            if (out.getVersion().onOrBefore(Version.V_6_4_0)) {
+            if (out.getVersion().before(Version.V_6_4_0)) {
                 out.writeByte((byte) 0);
             } else {
                 out.writeString(context.name);

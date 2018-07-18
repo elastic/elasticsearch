@@ -79,7 +79,8 @@ public class TransportSetPolicyForIndexAction extends TransportMasterNodeAction<
                             throw new ResourceNotFoundException("Policy does not exist [{}]", newPolicyName);
                         }
 
-                        return IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, currentState, newPolicy, failedIndexes);
+                        return IndexLifecycleRunner.setPolicyForIndexes(newPolicyName, indices, currentState, newPolicy, failedIndexes,
+                                () -> System.currentTimeMillis());
                     }
 
                     @Override

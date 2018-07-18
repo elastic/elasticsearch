@@ -6,14 +6,13 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
+import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -389,9 +388,9 @@ public class AutodetectResultsParserTests extends ESTestCase {
         String json = "[{\"unknown\":{\"id\": 18}}]";
         InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
         AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+        XContentParseException e = expectThrows(XContentParseException.class,
                 () -> parser.parseResults(inputStream).forEachRemaining(a -> {}));
-        assertEquals("[autodetect_result] unknown field [unknown], parser not found", e.getMessage());
+        assertEquals("[1:3] [autodetect_result] unknown field [unknown], parser not found", e.getMessage());
     }
 
     public void testParse_GivenArrayContainsAnotherArray() throws ElasticsearchParseException, IOException {

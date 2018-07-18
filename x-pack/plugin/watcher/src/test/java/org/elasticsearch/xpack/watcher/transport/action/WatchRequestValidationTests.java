@@ -86,6 +86,12 @@ public class WatchRequestValidationTests extends ESTestCase {
         assertThat(e.validationErrors(), hasItem("watch source is missing"));
     }
 
+    public void testPutWatchContentNull() {
+        ActionRequestValidationException e = new PutWatchRequest("foo", BytesArray.EMPTY, null).validate();
+        assertThat(e, is(notNullValue()));
+        assertThat(e.validationErrors(), hasItem("request body is missing"));
+    }
+
     public void testGetWatchInvalidWatchId() {
         ActionRequestValidationException e = new GetWatchRequest("id with whitespaces").validate();
         assertThat(e, is(notNullValue()));

@@ -23,7 +23,9 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -33,7 +35,6 @@ import org.elasticsearch.index.mapper.Uid;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -69,6 +70,12 @@ public class FieldsVisitor extends StoredFieldVisitor {
         if (requiredFields.remove(fieldInfo.name)) {
             return Status.YES;
         }
+        // Always load _ignored to be explicit about ignored fields
+        // This works because _ignored is added as the first metadata mapper,
+        // so its stored fields always appear first in the list.
+        if (IgnoredFieldMapper.NAME.equals(fieldInfo.name)) {
+            return Status.YES;
+        }
         // All these fields are single-valued so we can stop when the set is
         // empty
         return requiredFields.isEmpty()
@@ -77,10 +84,9 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public void postProcess(MapperService mapperService) {
-        final Collection<String> types = mapperService.types();
-        assert types.size() <= 1 : types;
-        if (types.isEmpty() == false) {
-            type = types.iterator().next();
+        final DocumentMapper mapper = mapperService.documentMapper();
+        if (mapper != null) {
+            type = mapper.type();
         }
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             MappedFieldType fieldType = mapperService.fullName(entry.getKey());

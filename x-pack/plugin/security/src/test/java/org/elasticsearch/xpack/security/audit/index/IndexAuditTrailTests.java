@@ -10,6 +10,8 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -17,6 +19,8 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,6 +33,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
@@ -43,7 +49,7 @@ import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
+import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -52,6 +58,7 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.Message;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.joda.time.DateTime;
@@ -71,6 +78,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import static java.util.Collections.emptyMap;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
@@ -85,6 +93,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -179,7 +188,9 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                         // Disable native ML autodetect_process as the c++ controller won't be available
 //                        .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
                         .put(XPackSettings.SECURITY_ENABLED.getKey(), useSecurity);
-                if (useSecurity == false && builder.get(NetworkModule.TRANSPORT_TYPE_KEY) == null) {
+                String transport = builder.get(NetworkModule.TRANSPORT_TYPE_KEY);
+                if (useSecurity == false && (transport == null || SecurityField.NAME4.equals(transport)
+                    || SecurityField.NIO.equals(transport))) {
                     builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
                 }
                 return builder.build();
@@ -214,7 +225,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             mockPlugins.add(getTestTransportPlugin());
         }
         remoteCluster = new InternalTestCluster(randomLong(), createTempDir(), false, true, numNodes, numNodes, cluster2Name,
-                cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, mockPlugins,
+                cluster2SettingsSource, 0, SECOND_CLUSTER_NODE_PREFIX, mockPlugins,
                 useSecurity ? getClientWrapper() : Function.identity());
         remoteCluster.beforeTest(random(), 0.5);
 
@@ -254,7 +265,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
     @Override
     protected Set<String> excludeTemplates() {
-        return Sets.newHashSet(SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME, IndexAuditTrail.INDEX_TEMPLATE_NAME);
+        return Sets.newHashSet(SecurityIndexManager.SECURITY_TEMPLATE_NAME, IndexAuditTrail.INDEX_TEMPLATE_NAME);
     }
 
     @Override
@@ -358,6 +369,21 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             }
         };
         auditor.start();
+    }
+
+    public void testIndexTemplateUpgrader() throws Exception {
+        final MetaDataUpgrader metaDataUpgrader = internalCluster().getInstance(MetaDataUpgrader.class);
+        final Map<String, IndexTemplateMetaData> updatedTemplates = metaDataUpgrader.indexTemplateMetaDataUpgraders.apply(emptyMap());
+        final IndexTemplateMetaData indexAuditTrailTemplate = updatedTemplates.get(IndexAuditTrail.INDEX_TEMPLATE_NAME);
+        assertThat(indexAuditTrailTemplate, notNullValue());
+        // test custom index settings override template
+        assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexAuditTrailTemplate.settings()), is(numReplicas));
+        assertThat(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexAuditTrailTemplate.settings()), is(numShards));
+        // test upgrade template and installed template are equal
+        final GetIndexTemplatesRequest request = new GetIndexTemplatesRequest(IndexAuditTrail.INDEX_TEMPLATE_NAME);
+        final GetIndexTemplatesResponse response = client().admin().indices().getTemplates(request).get();
+        assertThat(response.getIndexTemplates(), hasSize(1));
+        assertThat(indexAuditTrailTemplate, is(response.getIndexTemplates().get(0)));
     }
 
     public void testProcessorsSetting() {
@@ -892,7 +918,9 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
     private RestRequest mockRestRequest() {
         RestRequest request = mock(RestRequest.class);
-        when(request.getRemoteAddress()).thenReturn(new InetSocketAddress(InetAddress.getLoopbackAddress(), 9200));
+        HttpChannel httpChannel = mock(HttpChannel.class);
+        when(request.getHttpChannel()).thenReturn(httpChannel);
+        when(httpChannel.getRemoteAddress()).thenReturn(new InetSocketAddress(InetAddress.getLoopbackAddress(), 9200));
         when(request.uri()).thenReturn("_uri");
         return request;
     }

@@ -511,7 +511,7 @@ public class HttpRequest implements ToXContentObject {
      * @param params         The ToXContentParams from the parent write
      * @param excludeField   The field to exclude
      * @return               A bytearrayinputstream that contains the serialized request
-     * @throws IOException
+     * @throws IOException   if an IOException is triggered in the underlying toXContent method
      */
     public static InputStream filterToXContent(HttpRequest request, XContent xContent, ToXContent.Params params,
                                                String excludeField) throws IOException {

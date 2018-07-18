@@ -23,9 +23,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -47,16 +47,16 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
 
     private final PipelineStore pipelineStore;
     private final ClusterService clusterService;
-    private final TransportNodesInfoAction nodesInfoAction;
+    private final NodeClient client;
 
     @Inject
     public PutPipelineTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                       TransportService transportService, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService,
-                                      TransportNodesInfoAction nodesInfoAction) {
+                                      NodeClient client) {
         super(settings, PutPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new);
         this.clusterService = clusterService;
-        this.nodesInfoAction = nodesInfoAction;
+        this.client = client;
         this.pipelineStore = nodeService.getIngestService().getPipelineStore();
     }
 
@@ -75,7 +75,7 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.clear();
         nodesInfoRequest.ingest(true);
-        nodesInfoAction.execute(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
+        client.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
             @Override
             public void onResponse(NodesInfoResponse nodeInfos) {
                 try {

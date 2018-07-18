@@ -427,7 +427,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     public void testStopwordsOnlyPhraseSuggest() throws IOException {
         assertAcked(prepareCreate("test").addMapping("typ1", "body", "type=text,analyzer=stopwd").setSettings(
                 Settings.builder()
-                        .put("index.analysis.analyzer.stopwd.tokenizer", "whitespace")
+                        .put("index.analysis.analyzer.stopwd.tokenizer", "standard")
                         .putList("index.analysis.analyzer.stopwd.filter", "stop")
         ));
         ensureGreen();
@@ -977,6 +977,35 @@ public class SuggestSearchIT extends ESIntegTestCase {
         long total = System.currentTimeMillis() - start;
         assertSuggestion(searchSuggest, 0, 0, "title", "united states house of representatives elections in washington 2006");
         // assertThat(total, lessThan(1000L)); // Takes many seconds without fix - just for debugging
+    }
+
+    public void testSuggestWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("text")
+                            .field("type", "keyword")
+                        .endObject()
+                        .startObject("alias")
+                            .field("type", "alias")
+                            .field("path", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("test", "type").setSource("text", "apple"));
+        builders.add(client().prepareIndex("test", "type").setSource("text", "mango"));
+        builders.add(client().prepareIndex("test", "type").setSource("text", "papaya"));
+        indexRandom(true, false, builders);
+
+        TermSuggestionBuilder termSuggest = termSuggestion("alias").text("appple");
+
+        Suggest searchSuggest = searchSuggest("suggestion", termSuggest);
+        assertSuggestion(searchSuggest, 0, "suggestion", "apple");
     }
 
     @Override

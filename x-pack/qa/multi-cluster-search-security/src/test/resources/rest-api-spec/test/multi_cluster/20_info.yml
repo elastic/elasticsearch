@@ -41,8 +41,6 @@ teardown:
   - match: { my_remote_cluster.num_nodes_connected: 1}
   - match: { my_remote_cluster.max_connections_per_cluster: 1}
   - match: { my_remote_cluster.initial_connect_timeout: "30s" }
-  - is_true: my_remote_cluster.http_addresses.0
-
 
 ---
 "Add transient remote cluster based on the preset cluster and check remote info":
@@ -70,9 +68,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       cluster.remote_info: {}
-  - set: { my_remote_cluster.http_addresses.0: remote_http }
-  - match: { test_remote_cluster.http_addresses.0: $remote_http }
-
   - match: { test_remote_cluster.connected: true }
   - match: { my_remote_cluster.connected: true }
 
@@ -87,4 +82,3 @@ teardown:
 
   - match: { my_remote_cluster.initial_connect_timeout: "30s" }
   - match: { test_remote_cluster.initial_connect_timeout: "30s" }
-

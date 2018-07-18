@@ -20,8 +20,6 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;

@@ -144,7 +144,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
 
     @Override
     public void postIndex(ShardId shardId, Engine.Index indexOperation, Engine.IndexResult result) {
-        if (result.hasFailure() == false) {
+        if (result.getResultType() == Engine.Result.Type.SUCCESS) {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
             if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {

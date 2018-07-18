@@ -209,12 +209,11 @@ public class TestUtils {
             this.maxNodes = maxNodes;
         }
     }
-
-    public static Path getTestPriKeyPath() throws Exception {
+    private static Path getTestPriKeyPath() throws Exception {
         return getResourcePath("/private.key");
     }
 
-    public static Path getTestPubKeyPath() throws Exception {
+    private static Path getTestPubKeyPath() throws Exception {
         return getResourcePath("/public.key");
     }
 
@@ -244,6 +243,19 @@ public class TestUtils {
         return generateSignedLicense(type, randomIntBetween(License.VERSION_START, License.VERSION_CURRENT), issueDate, expiryDuration);
     }
 
+    public static License generateSignedLicenseOldSignature() {
+        long issueDate = System.currentTimeMillis();
+        License.Builder specBuilder = License.builder()
+                .uid(UUID.randomUUID().toString())
+                .version(License.VERSION_START_DATE)
+                .issuedTo("customer")
+                .maxNodes(5)
+                .type("trial")
+                .issueDate(issueDate)
+                .expiryDate(issueDate + TimeValue.timeValueHours(24).getMillis());
+        return SelfGeneratedLicense.create(specBuilder, License.VERSION_START_DATE);
+    }
+
     /**
      * This method which chooses the license type randomly if the type is null. However, it will not randomly
      * choose trial or basic types as those types can only be self-generated.
@@ -269,7 +281,7 @@ public class TestUtils {
             builder.subscriptionType((type != null) ? type : randomFrom("dev", "gold", "platinum", "silver"));
             builder.feature(randomAlphaOfLength(10));
         }
-        LicenseSigner signer = new LicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
+        final LicenseSigner signer = new LicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
         return signer.sign(builder.build());
     }
 

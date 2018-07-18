@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ssl.CertificateGenerateTool.CertificateInfor
 import org.elasticsearch.xpack.core.ssl.CertificateGenerateTool.Name;
 import org.hamcrest.Matchers;
 import org.junit.After;
+import org.junit.BeforeClass;
 
 import javax.security.auth.x500.X500Principal;
 
@@ -57,11 +58,9 @@ import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAKey;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -87,6 +86,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CertificateGenerateToolTests extends ESTestCase {
 
     private FileSystem jimfs;
+    private static final String CN_OID = "2.5.4.3";
 
     private Path initTempDir() throws Exception {
         Configuration conf = Configuration.unix().toBuilder().setAttributeViews("posix").build();
@@ -95,6 +95,11 @@ public class CertificateGenerateToolTests extends ESTestCase {
         IOUtils.rm(tempDir);
         Files.createDirectories(tempDir);
         return tempDir;
+    }
+
+    @BeforeClass
+    public static void checkFipsJvm() {
+        assumeFalse("Can't run in a FIPS JVM, depends on Non FIPS BouncyCastle", inFipsJvm());
     }
 
     @After
@@ -264,8 +269,8 @@ public class CertificateGenerateToolTests extends ESTestCase {
 
         final int keysize = randomFrom(1024, 2048);
         final int days = randomIntBetween(1, 1024);
-        KeyPair keyPair = CertUtils.generateKeyPair(keysize);
-        X509Certificate caCert = CertUtils.generateCACertificate(new X500Principal("CN=test ca"), keyPair, days);
+        KeyPair keyPair = CertGenUtils.generateKeyPair(keysize);
+        X509Certificate caCert = CertGenUtils.generateCACertificate(new X500Principal("CN=test ca"), keyPair, days);
 
         final boolean generatedCa = randomBoolean();
         final char[] keyPassword = randomBoolean() ? SecuritySettingsSourceField.TEST_PASSWORD.toCharArray() : null;
@@ -288,8 +293,8 @@ public class CertificateGenerateToolTests extends ESTestCase {
             assertTrue(Files.exists(zipRoot.resolve("ca").resolve("ca.crt")));
             assertTrue(Files.exists(zipRoot.resolve("ca").resolve("ca.key")));
             // check the CA cert
-            try (Reader reader = Files.newBufferedReader(zipRoot.resolve("ca").resolve("ca.crt"))) {
-                X509Certificate parsedCaCert = readX509Certificate(reader);
+            try (InputStream input = Files.newInputStream(zipRoot.resolve("ca").resolve("ca.crt"))) {
+                X509Certificate parsedCaCert = readX509Certificate(input);
                 assertThat(parsedCaCert.getSubjectX500Principal().getName(), containsString("test ca"));
                 assertEquals(caCert, parsedCaCert);
                 long daysBetween = ChronoUnit.DAYS.between(caCert.getNotBefore().toInstant(), caCert.getNotAfter().toInstant());
@@ -308,11 +313,9 @@ public class CertificateGenerateToolTests extends ESTestCase {
                 }
             }
 
-            try (Reader reader = Files.newBufferedReader(zipRoot.resolve("ca").resolve("ca.key"))) {
-                PrivateKey privateKey = CertUtils.readPrivateKey(reader, () -> keyPassword != null ?
+            PrivateKey privateKey = PemUtils.readPrivateKey(zipRoot.resolve("ca").resolve("ca.key"), () -> keyPassword != null ?
                         SecuritySettingsSourceField.TEST_PASSWORD.toCharArray() : null);
-                assertEquals(caInfo.privateKey, privateKey);
-            }
+            assertEquals(caInfo.privateKey, privateKey);
         } else {
             assertFalse(Files.exists(zipRoot.resolve("ca")));
         }
@@ -324,8 +327,8 @@ public class CertificateGenerateToolTests extends ESTestCase {
             assertTrue(Files.exists(cert));
             assertTrue(Files.exists(zipRoot.resolve(filename + "/" + filename + ".key")));
             final Path p12 = zipRoot.resolve(filename + "/" + filename + ".p12");
-            try (Reader reader = Files.newBufferedReader(cert)) {
-                X509Certificate certificate = readX509Certificate(reader);
+            try (InputStream input = Files.newInputStream(cert)) {
+                X509Certificate certificate = readX509Certificate(input);
                 assertEquals(certInfo.name.x500Principal.toString(), certificate.getSubjectX500Principal().getName());
                 final int sanCount = certInfo.ipAddresses.size() + certInfo.dnsNames.size() + certInfo.commonNames.size();
                 if (sanCount == 0) {
@@ -459,9 +462,8 @@ public class CertificateGenerateToolTests extends ESTestCase {
         }
     }
 
-    private X509Certificate readX509Certificate(Reader reader) throws Exception {
-        List<Certificate> list = new ArrayList<>(1);
-        CertUtils.readCertificates(reader, list, CertificateFactory.getInstance("X.509"));
+    private X509Certificate readX509Certificate(InputStream input) throws Exception {
+        List<Certificate> list = CertParsingUtils.readCertificates(input);
         assertEquals(1, list.size());
         assertThat(list.get(0), instanceOf(X509Certificate.class));
         return (X509Certificate) list.get(0);
@@ -484,7 +486,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
                 ASN1Sequence seq = ASN1Sequence.getInstance(generalName.getName());
                 assertThat(seq.size(), equalTo(2));
                 assertThat(seq.getObjectAt(0), instanceOf(ASN1ObjectIdentifier.class));
-                assertThat(seq.getObjectAt(0).toString(), equalTo(CertUtils.CN_OID));
+                assertThat(seq.getObjectAt(0).toString(), equalTo(CN_OID));
                 assertThat(seq.getObjectAt(1), instanceOf(DERTaggedObject.class));
                 DERTaggedObject taggedName = (DERTaggedObject) seq.getObjectAt(1);
                 assertThat(taggedName.getTagNo(), equalTo(0));

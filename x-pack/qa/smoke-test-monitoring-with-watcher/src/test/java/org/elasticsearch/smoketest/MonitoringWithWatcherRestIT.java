@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.
 import static org.hamcrest.Matchers.is;
 
 @TestLogging("org.elasticsearch.client:TRACE,tracer:TRACE")
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2920")
+@AwaitsFix(bugUrl = "flaky tests")
 public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
     @After

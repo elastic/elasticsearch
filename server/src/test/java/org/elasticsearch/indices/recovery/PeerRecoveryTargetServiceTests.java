@@ -43,7 +43,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         try {
             // Empty store
             {
-                recoveryEmptyReplica(replica);
+                recoveryEmptyReplica(replica, true);
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
                 assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(0L));
                 recoveryTarget.decRef();
@@ -52,7 +52,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             final long initDocs = scaledRandomIntBetween(1, 10);
             {
                 for (int i = 0; i < initDocs; i++) {
-                    indexDoc(replica, "doc", Integer.toString(i));
+                    indexDoc(replica, "_doc", Integer.toString(i));
                     if (randomBoolean()) {
                         flushShard(replica);
                     }
@@ -68,7 +68,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             final int moreDocs = randomIntBetween(1, 10);
             {
                 for (int i = 0; i < moreDocs; i++) {
-                    indexDoc(replica, "doc", Long.toString(i));
+                    indexDoc(replica, "_doc", Long.toString(i));
                     if (randomBoolean()) {
                         flushShard(replica);
                     }

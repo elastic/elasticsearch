@@ -114,7 +114,7 @@ subprojects {
     approvedLicenses << 'Apache'
   }
 
-  String outputDir = "generated-resources/${project.name}"
+  String outputDir = "${buildDir}/generated-resources/${project.name}"
 
   // This is a top level task which we will add dependencies to below.
   // It is a single task that can be used to backcompat tests against all versions.
@@ -123,7 +123,7 @@ subprojects {
     group = 'verification'
   }
 
-  String output = "generated-resources/${project.name}"
+  String output = "${buildDir}/generated-resources/${project.name}"
   task copyTestNodeKeystore(type: Copy) {
     from project(xpackModule('core'))
             .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
@@ -141,7 +141,7 @@ subprojects {
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
       dependsOn copyTestNodeKeystore
       if (version.before('6.3.0')) {
-        plugin xpackProject('plugin').path
+        mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${version}"
       }
       bwcVersion = version
       numBwcNodes = 2
@@ -184,6 +184,7 @@ subprojects {
       systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
       systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
       exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
+      exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
     }
 
     Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
@@ -222,6 +223,7 @@ subprojects {
       systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
       systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
       exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
+      exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
     }
 
     Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {

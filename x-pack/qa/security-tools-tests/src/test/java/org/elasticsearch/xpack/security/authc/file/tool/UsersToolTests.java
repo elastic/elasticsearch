@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -55,6 +54,8 @@ public class UsersToolTests extends CommandTestCase {
     // settings used to create an Environment for tools
     Settings settings;
 
+    Hasher hasher;
+
     @BeforeClass
     public static void setupJimfs() throws IOException {
         String view = randomFrom("basic", "posix");
@@ -69,11 +70,12 @@ public class UsersToolTests extends CommandTestCase {
         IOUtils.rm(homeDir);
         confDir = homeDir.resolve("config");
         Files.createDirectories(confDir);
+        hasher = Hasher.resolve(randomFrom("bcrypt", "pbkdf2"));
         String defaultPassword = SecuritySettingsSourceField.TEST_PASSWORD;
         Files.write(confDir.resolve("users"), Arrays.asList(
-            "existing_user:" + new String(Hasher.BCRYPT.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)),
-            "existing_user2:" + new String(Hasher.BCRYPT.hash(new SecureString((defaultPassword + "2").toCharArray()))),
-            "existing_user3:" + new String(Hasher.BCRYPT.hash(new SecureString((defaultPassword + "3").toCharArray())))
+            "existing_user:" + new String(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)),
+            "existing_user2:" + new String(hasher.hash(new SecureString((defaultPassword + "2").toCharArray()))),
+            "existing_user3:" + new String(hasher.hash(new SecureString((defaultPassword + "3").toCharArray())))
         ), StandardCharsets.UTF_8);
         Files.write(confDir.resolve("users_roles"), Arrays.asList(
             "test_admin:existing_user,existing_user2",
@@ -171,9 +173,10 @@ public class UsersToolTests extends CommandTestCase {
                 continue;
             }
             String gotHash = usernameHash[1];
-            SecureString expectedHash = new SecureString(password);
-            assertTrue("Expected hash " + expectedHash + " for password " + password + " but got " + gotHash,
-                       Hasher.BCRYPT.verify(expectedHash, gotHash.toCharArray()));
+            SecureString expectedHash = new SecureString(password.toCharArray());
+            // CommandTestCase#execute runs passwd with default settings, so bcrypt with cost of 10
+            Hasher bcryptHasher = Hasher.resolve("bcrypt");
+            assertTrue("Could not validate password for user", bcryptHasher.verify(expectedHash, gotHash.toCharArray()));
             return;
         }
         fail("Could not find username " + username + " in users file:\n" + lines.toString());
@@ -499,7 +502,7 @@ public class UsersToolTests extends CommandTestCase {
             execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("Configuration file [users] is missing"));
+        assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users] is missing"));
     }
 
     public void testUserListNoConfig() throws Exception {
@@ -511,7 +514,7 @@ public class UsersToolTests extends CommandTestCase {
             execute("list", pathHomeParameter, fileTypeParameter);
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("Configuration file [users] is missing"));
+        assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users] is missing"));
     }
 
     public void testUserDelNoConfig() throws Exception {
@@ -523,7 +526,7 @@ public class UsersToolTests extends CommandTestCase {
             execute("userdel", pathHomeParameter, fileTypeParameter, "username");
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("Configuration file [users] is missing"));
+        assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users] is missing"));
     }
 
     public void testListUserRolesNoConfig() throws Exception {
@@ -535,6 +538,6 @@ public class UsersToolTests extends CommandTestCase {
             execute("roles", pathHomeParameter, fileTypeParameter, "username");
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("Configuration file [users_roles] is missing"));
+        assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users_roles] is missing"));
     }
 }

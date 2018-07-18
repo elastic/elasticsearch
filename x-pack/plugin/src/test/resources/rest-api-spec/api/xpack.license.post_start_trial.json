@@ -11,6 +11,10 @@
         "type": {
           "type" : "string",
           "description" : "The type of trial license to generate (default: \"trial\")"
+        },
+        "acknowledge": {
+          "type" : "boolean",
+          "description" : "whether the user has acknowledged acknowledge messages (default: false)"
         }
       }
     },

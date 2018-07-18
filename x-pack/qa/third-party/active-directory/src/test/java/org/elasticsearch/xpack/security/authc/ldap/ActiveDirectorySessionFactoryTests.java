@@ -31,7 +31,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -281,10 +280,9 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
                 .build();
         if (useGlobalSSL == false) {
             settings = Settings.builder()
-                    .put(settings)
-                    .put("ssl.truststore.path", getDataPath("../ldap/support/ADtrust.jks"))
-                    .put("ssl.truststore.password", "changeit")
-                    .build();
+                .put(settings)
+                .putList("ssl.certificate_authorities", certificatePaths)
+                .build();
         }
         RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(globalSettings));
@@ -304,7 +302,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3369")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29840")
     public void testHandlingLdapReferralErrors() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
@@ -318,10 +316,9 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
                 ignoreReferralErrors);
         if (useGlobalSSL == false) {
             settings = Settings.builder()
-                    .put(settings)
-                    .put("ssl.truststore.path", getDataPath("../ldap/support/ADtrust.jks"))
-                    .put("ssl.truststore.password", "changeit")
-                    .build();
+                .put(settings)
+                .putList("ssl.certificate_authorities", certificatePaths)
+                .build();
         }
         RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(globalSettings));
@@ -347,10 +344,9 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         Settings settings = LdapTestCase.buildLdapSettings(new String[] { AD_LDAP_URL }, userTemplate, false);
         if (useGlobalSSL == false) {
             settings = Settings.builder()
-                    .put(settings)
-                    .put("ssl.truststore.path", getDataPath("../ldap/support/ADtrust.jks"))
-                    .put("ssl.truststore.password", "changeit")
-                    .build();
+                .put(settings)
+                .putList("ssl.certificate_authorities", certificatePaths)
+                .build();
         }
         RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(globalSettings));
@@ -409,8 +405,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         }
 
         if (useGlobalSSL == false) {
-            builder.put("ssl.truststore.path", getDataPath("../ldap/support/ADtrust.jks"))
-                    .put("ssl.truststore.password", "changeit");
+            builder.putList("ssl.certificate_authorities", certificatePaths);
         }
 
         if (useBindUser) {

@@ -493,6 +493,11 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         }
 
         @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
+        }
+
+        @Override
         public EnumSet<MetaData.XContentContext> context() {
             return EnumSet.of(MetaData.XContentContext.GATEWAY);
         }
@@ -508,6 +513,11 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
         }
 
         @Override

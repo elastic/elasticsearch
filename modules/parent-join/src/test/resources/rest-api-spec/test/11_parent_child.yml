@@ -13,10 +13,6 @@ setup:
 
 ---
 "Parent/child inner hits":
-    - skip:
-        version: " - 5.5.99"
-        reason:  parent-join was added in 5.6.
-
     - do:
         index:
           index: test

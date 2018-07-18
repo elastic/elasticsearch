@@ -36,7 +36,11 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
+import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
+import org.elasticsearch.client.Node;
+import org.elasticsearch.client.NodeSelector;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
@@ -49,8 +53,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyStore;
-import java.util.Collections;
-import java.util.Map;
+import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -72,6 +75,18 @@ import java.util.concurrent.CountDownLatch;
  */
 @SuppressWarnings("unused")
 public class RestClientDocumentation {
+    private static final String TOKEN = "DUMMY";
+
+    // tag::rest-client-options-singleton
+    private static final RequestOptions COMMON_OPTIONS;
+    static {
+        RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+        builder.addHeader("Authorization", "Bearer " + TOKEN); // <1>
+        builder.setHttpAsyncResponseConsumerFactory(           // <2>
+            new HeapBufferedResponseConsumerFactory(30 * 1024 * 1024 * 1024));
+        COMMON_OPTIONS = builder.build();
+    }
+    // end::rest-client-options-singleton
 
     @SuppressWarnings("unused")
     public void testUsage() throws IOException, InterruptedException {
@@ -100,11 +115,50 @@ public class RestClientDocumentation {
             //end::rest-client-init-max-retry-timeout
         }
         {
+            //tag::rest-client-init-node-selector
+            RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200, "http"));
+            builder.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS); // <1>
+            //end::rest-client-init-node-selector
+        }
+        {
+            //tag::rest-client-init-allocation-aware-selector
+            RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200, "http"));
+            builder.setNodeSelector(new NodeSelector() { // <1>
+                @Override
+                public void select(Iterable<Node> nodes) {
+                    /*
+                     * Prefer any node that belongs to rack_one. If none is around
+                     * we will go to another rack till it's time to try and revive
+                     * some of the nodes that belong to rack_one.
+                     */
+                    boolean foundOne = false;
+                    for (Node node : nodes) {
+                        String rackId = node.getAttributes().get("rack_id").get(0);
+                        if ("rack_one".equals(rackId)) {
+                            foundOne = true;
+                            break;
+                        }
+                    }
+                    if (foundOne) {
+                        Iterator<Node> nodesIt = nodes.iterator();
+                        while (nodesIt.hasNext()) {
+                            Node node = nodesIt.next();
+                            String rackId = node.getAttributes().get("rack_id").get(0);
+                            if ("rack_one".equals(rackId) == false) {
+                                nodesIt.remove();
+                            }
+                        }
+                    }
+                }
+            });
+            //end::rest-client-init-allocation-aware-selector
+        }
+        {
             //tag::rest-client-init-failure-listener
             RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200, "http"));
             builder.setFailureListener(new RestClient.FailureListener() {
                 @Override
-                public void onFailure(HttpHost host) {
+                public void onFailure(Node node) {
                     // <1>
                 }
             });
@@ -134,107 +188,65 @@ public class RestClientDocumentation {
         }
 
         {
-            //tag::rest-client-verb-endpoint
-            Response response = restClient.performRequest("GET", "/"); // <1>
-            //end::rest-client-verb-endpoint
+            //tag::rest-client-sync
+            Request request = new Request(
+                "GET",  // <1>
+                "/");   // <2>
+            Response response = restClient.performRequest(request);
+            //end::rest-client-sync
         }
         {
-            //tag::rest-client-headers
-            Response response = restClient.performRequest("GET", "/", new BasicHeader("header", "value"));
-            //end::rest-client-headers
-        }
-        {
-            //tag::rest-client-verb-endpoint-params
-            Map<String, String> params = Collections.singletonMap("pretty", "true");
-            Response response = restClient.performRequest("GET", "/", params); // <1>
-            //end::rest-client-verb-endpoint-params
-        }
-        {
-            //tag::rest-client-verb-endpoint-params-body
-            Map<String, String> params = Collections.emptyMap();
-            String jsonString = "{" +
-                        "\"user\":\"kimchy\"," +
-                        "\"postDate\":\"2013-01-30\"," +
-                        "\"message\":\"trying out Elasticsearch\"" +
-                    "}";
-            HttpEntity entity = new NStringEntity(jsonString, ContentType.APPLICATION_JSON);
-            Response response = restClient.performRequest("PUT", "/posts/doc/1", params, entity); // <1>
-            //end::rest-client-verb-endpoint-params-body
-        }
-        {
-            //tag::rest-client-response-consumer
-            Map<String, String> params = Collections.emptyMap();
-            HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory consumerFactory =
-                    new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(30 * 1024 * 1024);
-            Response response = restClient.performRequest("GET", "/posts/_search", params, null, consumerFactory); // <1>
-            //end::rest-client-response-consumer
-        }
-        {
-            //tag::rest-client-verb-endpoint-async
-            ResponseListener responseListener = new ResponseListener() {
+            //tag::rest-client-async
+            Request request = new Request(
+                "GET",  // <1>
+                "/");   // <2>
+            restClient.performRequestAsync(request, new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
-                    // <1>
+                    // <3>
                 }
 
                 @Override
                 public void onFailure(Exception exception) {
-                    // <2>
+                    // <4>
                 }
-            };
-            restClient.performRequestAsync("GET", "/", responseListener); // <3>
-            //end::rest-client-verb-endpoint-async
-
-            //tag::rest-client-headers-async
-            Header[] headers = {
-                    new BasicHeader("header1", "value1"),
-                    new BasicHeader("header2", "value2")
-            };
-            restClient.performRequestAsync("GET", "/", responseListener, headers);
-            //end::rest-client-headers-async
-
-            //tag::rest-client-verb-endpoint-params-async
-            Map<String, String> params = Collections.singletonMap("pretty", "true");
-            restClient.performRequestAsync("GET", "/", params, responseListener); // <1>
-            //end::rest-client-verb-endpoint-params-async
-
-            //tag::rest-client-verb-endpoint-params-body-async
-            String jsonString = "{" +
-                    "\"user\":\"kimchy\"," +
-                    "\"postDate\":\"2013-01-30\"," +
-                    "\"message\":\"trying out Elasticsearch\"" +
-                    "}";
-            HttpEntity entity = new NStringEntity(jsonString, ContentType.APPLICATION_JSON);
-            restClient.performRequestAsync("PUT", "/posts/doc/1", params, entity, responseListener); // <1>
-            //end::rest-client-verb-endpoint-params-body-async
-
-            //tag::rest-client-response-consumer-async
-            HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory consumerFactory =
-                    new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(30 * 1024 * 1024);
-            restClient.performRequestAsync("GET", "/posts/_search", params, null, consumerFactory, responseListener); // <1>
-            //end::rest-client-response-consumer-async
+            });
+            //end::rest-client-async
         }
         {
-            //tag::rest-client-response2
-            Response response = restClient.performRequest("GET", "/");
-            RequestLine requestLine = response.getRequestLine(); // <1>
-            HttpHost host = response.getHost(); // <2>
-            int statusCode = response.getStatusLine().getStatusCode(); // <3>
-            Header[] headers = response.getHeaders(); // <4>
-            String responseBody = EntityUtils.toString(response.getEntity()); // <5>
-            //end::rest-client-response2
+            Request request = new Request("GET", "/");
+            //tag::rest-client-parameters
+            request.addParameter("pretty", "true");
+            //end::rest-client-parameters
+            //tag::rest-client-body
+            request.setEntity(new NStringEntity(
+                    "{\"json\":\"text\"}",
+                    ContentType.APPLICATION_JSON));
+            //end::rest-client-body
+            //tag::rest-client-body-shorter
+            request.setJsonEntity("{\"json\":\"text\"}");
+            //end::rest-client-body-shorter
+            //tag::rest-client-options-set-singleton
+            request.setOptions(COMMON_OPTIONS);
+            //end::rest-client-options-set-singleton
+            {
+                //tag::rest-client-options-customize-header
+                RequestOptions.Builder options = COMMON_OPTIONS.toBuilder();
+                options.addHeader("cats", "knock things off of other things");
+                request.setOptions(options);
+                //end::rest-client-options-customize-header
+            }
         }
         {
             HttpEntity[] documents = new HttpEntity[10];
             //tag::rest-client-async-example
             final CountDownLatch latch = new CountDownLatch(documents.length);
             for (int i = 0; i < documents.length; i++) {
+                Request request = new Request("PUT", "/posts/doc/" + i);
+                //let's assume that the documents are stored in an HttpEntity array
+                request.setEntity(documents[i]);
                 restClient.performRequestAsync(
-                        "PUT",
-                        "/posts/doc/" + i,
-                        Collections.<String, String>emptyMap(),
-                        //let's assume that the documents are stored in an HttpEntity array
-                        documents[i],
+                        request,
                         new ResponseListener() {
                             @Override
                             public void onSuccess(Response response) {
@@ -253,7 +265,16 @@ public class RestClientDocumentation {
             latch.await();
             //end::rest-client-async-example
         }
-
+        {
+            //tag::rest-client-response2
+            Response response = restClient.performRequest(new Request("GET", "/"));
+            RequestLine requestLine = response.getRequestLine(); // <1>
+            HttpHost host = response.getHost(); // <2>
+            int statusCode = response.getStatusLine().getStatusCode(); // <3>
+            Header[] headers = response.getHeaders(); // <4>
+            String responseBody = EntityUtils.toString(response.getEntity()); // <5>
+            //end::rest-client-response2
+        }
     }
 
     @SuppressWarnings("unused")

@@ -581,11 +581,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         final List<ParsedDocument> docs = new ArrayList<>();
         final DocumentMapper docMapper;
         final MapperService mapperService = context.getMapperService();
-        Collection<String> types = mapperService.types();
-        if (types.size() != 1) {
-            throw new IllegalStateException("Only a single type should exist, but [" + types.size() + " types exists");
-        }
-        String type = types.iterator().next();
+        String type = mapperService.documentMapper().type();
         if (documentType != null) {
             DEPRECATION_LOGGER.deprecated("[document_type] parameter has been deprecated because types have been deprecated");
             if (documentType.equals(type) == false) {
@@ -622,13 +618,13 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             docSearcher.setQueryCache(null);
         }
 
-        PercolatorFieldMapper percolatorFieldMapper = (PercolatorFieldMapper) docMapper.mappers().getMapper(field);
-        boolean mapUnmappedFieldsAsString = percolatorFieldMapper.isMapUnmappedFieldAsText();
-        QueryShardContext percolateShardContext = wrap(context);
-
-        String name = this.name != null ? this.name : field;
         PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
-        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext, mapUnmappedFieldsAsString);
+        String name = this.name != null ? this.name : pft.name();
+        QueryShardContext percolateShardContext = wrap(context);
+        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField,
+            percolateShardContext,
+            pft.mapUnmappedFieldsAsText);
+
         return pft.percolateQuery(name, queryStore, documents, docSearcher, context.indexVersionCreated());
     }
 

@@ -52,7 +52,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
 
     /**
      * Should the cluster state result include the {@link org.elasticsearch.cluster.metadata.MetaData}. Defaults
-     * to <tt>true</tt>.
+     * to {@code true}.
      */
     public ClusterStateRequestBuilder setMetaData(boolean filter) {
         request.metaData(filter);
@@ -61,7 +61,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
 
     /**
      * Should the cluster state result include the {@link org.elasticsearch.cluster.node.DiscoveryNodes}. Defaults
-     * to <tt>true</tt>.
+     * to {@code true}.
      */
     public ClusterStateRequestBuilder setNodes(boolean filter) {
         request.nodes(filter);
@@ -70,7 +70,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
 
     /**
      * Should the cluster state result include the {@link org.elasticsearch.cluster.ClusterState.Custom}. Defaults
-     * to <tt>true</tt>.
+     * to {@code true}.
      */
     public ClusterStateRequestBuilder setCustoms(boolean filter) {
         request.customs(filter);
@@ -79,7 +79,7 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
 
     /**
      * Should the cluster state result include the {@link org.elasticsearch.cluster.routing.RoutingTable}. Defaults
-     * to <tt>true</tt>.
+     * to {@code true}.
      */
     public ClusterStateRequestBuilder setRoutingTable(boolean filter) {
         request.routingTable(filter);

@@ -5,7 +5,7 @@
 <titleabbrev>Stop {dfeeds-cap}</titleabbrev>
 ++++
 
-This API enables you to stop one or more {dfeeds}.
+Stops one or more {dfeeds}.
 
 A {dfeed} that is stopped ceases to retrieve data from {es}.
 A {dfeed} can be started and stopped multiple times throughout its lifecycle.

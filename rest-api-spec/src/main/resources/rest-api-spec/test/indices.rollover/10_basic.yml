@@ -76,10 +76,6 @@
 
 ---
 "Rollover no condition matched":
-  - skip:
-        version: " - 5.0.0"
-        reason:  bug fixed in 5.0.1
-
   # create index with alias
   - do:
       indices.create:
@@ -107,10 +103,6 @@
 
 ---
 "Rollover with dry-run but target index exists":
-
-  - skip:
-        version: " - 5.0.0"
-        reason:  bug fixed in 5.0.1 - dry run was returning just fine even if the index exists
 
   # create index with alias
   - do:

@@ -10,12 +10,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.BinaryArithmeticProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.UnaryArithmeticProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.BucketExtractorProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ChainingProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.HitExtractorProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,10 +42,13 @@ public final class Processors {
         // arithmetic
         entries.add(new Entry(Processor.class, BinaryArithmeticProcessor.NAME, BinaryArithmeticProcessor::new));
         entries.add(new Entry(Processor.class, UnaryArithmeticProcessor.NAME, UnaryArithmeticProcessor::new));
+        entries.add(new Entry(Processor.class, BinaryMathProcessor.NAME, BinaryMathProcessor::new));
         // datetime
         entries.add(new Entry(Processor.class, DateTimeProcessor.NAME, DateTimeProcessor::new));
         // math
         entries.add(new Entry(Processor.class, MathProcessor.NAME, MathProcessor::new));
+        // string
+        entries.add(new Entry(Processor.class, StringProcessor.NAME, StringProcessor::new));
         return entries;
     }
 }

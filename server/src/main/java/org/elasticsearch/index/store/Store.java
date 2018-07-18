@@ -50,7 +50,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -67,7 +66,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
@@ -91,7 +89,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
-import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -146,7 +143,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
     private final ShardLock shardLock;
     private final OnClose onClose;
-    private final SingleObjectCache<StoreStats> statsCache;
 
     private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
         @Override
@@ -164,12 +160,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                  OnClose onClose) throws IOException {
         super(shardId, indexSettings);
         final Settings settings = indexSettings.getSettings();
-        this.directory = new StoreDirectory(directoryService.newDirectory(), Loggers.getLogger("index.store.deletes", settings, shardId));
+        Directory dir = directoryService.newDirectory();
+        final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
+        logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
+        ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(dir, refreshInterval);
+        this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", settings, shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
-        final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
-        this.statsCache = new StoreStatsCache(refreshInterval, directory);
-        logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
 
         assert onClose != null;
         assert shardLock != null;
@@ -377,7 +374,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public StoreStats stats() throws IOException {
         ensureOpen();
-        return statsCache.getOrRefresh();
+        return new StoreStats(directory.estimateSize());
     }
 
     /**
@@ -399,8 +396,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Tries to increment the refCount of this Store instance. This method will return <tt>true</tt> iff the refCount was
-     * incremented successfully otherwise <tt>false</tt>. RefCounts are used to determine when a
+     * Tries to increment the refCount of this Store instance. This method will return {@code true} iff the refCount was
+     * incremented successfully otherwise {@code false}. RefCounts are used to determine when a
      * Store can be closed safely, i.e. as soon as there are no more references. Be sure to always call a
      * corresponding {@link #decRef}, in a finally clause; otherwise the store may never be closed.  Note that
      * {@link #close} simply calls decRef(), which means that the Store will not really be closed until {@link
@@ -731,13 +728,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         private final Logger deletesLogger;
 
-        StoreDirectory(Directory delegateDirectory, Logger deletesLogger) throws IOException {
+        StoreDirectory(ByteSizeCachingDirectory delegateDirectory, Logger deletesLogger) {
             super(delegateDirectory);
             this.deletesLogger = deletesLogger;
         }
 
+        /** Estimate the cumulative size of all files in this directory in bytes. */
+        long estimateSize() throws IOException {
+            return ((ByteSizeCachingDirectory) getDelegate()).estimateSizeInBytes();
+        }
+
         @Override
-        public void close() throws IOException {
+        public void close() {
             assert false : "Nobody should close this directory except of the Store itself";
         }
 
@@ -767,7 +769,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * For backwards compatibility the snapshot might include legacy checksums that
      * are derived from a dedicated checksum file written by older elasticsearch version pre 1.3
      * <p>
-     * Note: This class will ignore the <tt>segments.gen</tt> file since it's optional and might
+     * Note: This class will ignore the {@code segments.gen} file since it's optional and might
      * change concurrently for safety reasons.
      *
      * @see StoreFileMetaData
@@ -977,22 +979,22 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * <ul>
          * <li>all files in this segment have the same checksum</li>
          * <li>all files in this segment have the same length</li>
-         * <li>the segments <tt>.si</tt> files hashes are byte-identical Note: This is a using a perfect hash function, The metadata transfers the <tt>.si</tt> file content as it's hash</li>
+         * <li>the segments {@code .si} files hashes are byte-identical Note: This is a using a perfect hash function, The metadata transfers the {@code .si} file content as it's hash</li>
          * </ul>
          * <p>
-         * The <tt>.si</tt> file contains a lot of diagnostics including a timestamp etc. in the future there might be
+         * The {@code .si} file contains a lot of diagnostics including a timestamp etc. in the future there might be
          * unique segment identifiers in there hardening this method further.
          * <p>
-         * The per-commit files handles very similar. A commit is composed of the <tt>segments_N</tt> files as well as generational files like
-         * deletes (<tt>_x_y.del</tt>) or field-info (<tt>_x_y.fnm</tt>) files. On a per-commit level files for a commit are treated
+         * The per-commit files handles very similar. A commit is composed of the {@code segments_N} files as well as generational files like
+         * deletes ({@code _x_y.del}) or field-info ({@code _x_y.fnm}) files. On a per-commit level files for a commit are treated
          * as identical iff:
          * <ul>
          * <li>all files belonging to this commit have the same checksum</li>
          * <li>all files belonging to this commit have the same length</li>
-         * <li>the segments file <tt>segments_N</tt> files hashes are byte-identical Note: This is a using a perfect hash function, The metadata transfers the <tt>segments_N</tt> file content as it's hash</li>
+         * <li>the segments file {@code segments_N} files hashes are byte-identical Note: This is a using a perfect hash function, The metadata transfers the {@code segments_N} file content as it's hash</li>
          * </ul>
          * <p>
-         * NOTE: this diff will not contain the <tt>segments.gen</tt> file. This file is omitted on recovery.
+         * NOTE: this diff will not contain the {@code segments.gen} file. This file is omitted on recovery.
          */
         public RecoveryDiff recoveryDiff(MetadataSnapshot recoveryTargetSnapshot) {
             final List<StoreFileMetaData> identical = new ArrayList<>();
@@ -1390,8 +1392,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Marks this store as corrupted. This method writes a <tt>corrupted_${uuid}</tt> file containing the given exception
-     * message. If a store contains a <tt>corrupted_${uuid}</tt> file {@link #isMarkedCorrupted()} will return <code>true</code>.
+     * Marks this store as corrupted. This method writes a {@code corrupted_${uuid}} file containing the given exception
+     * message. If a store contains a {@code corrupted_${uuid}} file {@link #isMarkedCorrupted()} will return <code>true</code>.
      */
     public void markStoreCorrupted(IOException exception) throws IOException {
         ensureOpen();
@@ -1426,38 +1428,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             public void accept(ShardLock Lock) {
             }
         };
-    }
-
-    private static class StoreStatsCache extends SingleObjectCache<StoreStats> {
-        private final Directory directory;
-
-        StoreStatsCache(TimeValue refreshInterval, Directory directory) throws IOException {
-            super(refreshInterval, new StoreStats(estimateSize(directory)));
-            this.directory = directory;
-        }
-
-        @Override
-        protected StoreStats refresh() {
-            try {
-                return new StoreStats(estimateSize(directory));
-            } catch (IOException ex) {
-                throw new ElasticsearchException("failed to refresh store stats", ex);
-            }
-        }
-
-        private static long estimateSize(Directory directory) throws IOException {
-            long estimatedSize = 0;
-            String[] files = directory.listAll();
-            for (String file : files) {
-                try {
-                    estimatedSize += directory.fileLength(file);
-                } catch (NoSuchFileException | FileNotFoundException | AccessDeniedException e) {
-                    // ignore, the file is not there no more; on Windows, if one thread concurrently deletes a file while
-                    // calling Files.size, you can also sometimes hit AccessDeniedException
-                }
-            }
-            return estimatedSize;
-        }
     }
 
     /**

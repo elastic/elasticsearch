@@ -40,13 +40,10 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
@@ -236,6 +233,41 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 MergeReason.MAPPING_UPDATE));
         assertThat(invalidNestedException.getMessage(),
             containsString("cannot have nested fields when index sort is activated"));
+    }
+
+     public void testFieldAliasWithMismatchedNestedScope() throws Throwable {
+        IndexService indexService = createIndex("test");
+        MapperService mapperService = indexService.mapperService();
+
+        CompressedXContent mapping = new CompressedXContent(BytesReference.bytes(
+            XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("nested")
+                        .field("type", "nested")
+                        .startObject("properties")
+                            .startObject("field")
+                                .field("type", "text")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()));
+
+        mapperService.merge("type", mapping, MergeReason.MAPPING_UPDATE);
+
+        CompressedXContent mappingUpdate = new CompressedXContent(BytesReference.bytes(
+            XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("alias")
+                        .field("type", "alias")
+                        .field("path", "nested.field")
+                    .endObject()
+                .endObject()
+            .endObject()));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> mapperService.merge("type", mappingUpdate, MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(), containsString("Invalid [path] value [nested.field] for field alias [alias]"));
     }
 
     public void testForbidMultipleTypes() throws IOException {

@@ -208,6 +208,9 @@ The following projects appear to be abandoned:
 
 * https://github.com/ropensci/elasticdsl[elasticdsl]:
   A high-level R DSL for Elasticsearch, wrapping the elastic R client.
+  
+* https://github.com/UptakeOpenSource/uptasticsearch[uptasticsearch]:
+  An R client tailored to data science workflows.
 
 The following projects appear to be abandoned:
 

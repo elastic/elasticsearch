@@ -697,6 +697,13 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
                 protected void mergeInto(Option otherOption) {
                     score = Math.max(score, otherOption.score);
+                    if (otherOption.collateMatch != null) {
+                        if (collateMatch == null) {
+                            collateMatch = otherOption.collateMatch;
+                        } else {
+                            collateMatch |= otherOption.collateMatch;
+                        }
+                    }
                 }
 
                 @Override

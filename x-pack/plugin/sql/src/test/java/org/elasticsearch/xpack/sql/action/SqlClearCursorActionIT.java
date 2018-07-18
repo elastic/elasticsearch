@@ -8,10 +8,6 @@ package org.elasticsearch.xpack.sql.action;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction;
-import org.elasticsearch.xpack.sql.plugin.SqlClearCursorResponse;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
-import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -37,7 +33,7 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
 
         int fetchSize = randomIntBetween(5, 20);
         logger.info("Fetching {} records at a time", fetchSize);
-        SqlQueryResponse sqlQueryResponse = client().prepareExecute(SqlQueryAction.INSTANCE)
+        SqlQueryResponse sqlQueryResponse = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
                 .query("SELECT * FROM test").fetchSize(fetchSize).get();
         assertEquals(fetchSize, sqlQueryResponse.size());
 
@@ -45,7 +41,7 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
         assertThat(sqlQueryResponse.cursor(), notNullValue());
         assertThat(sqlQueryResponse.cursor(), not(equalTo(Cursor.EMPTY)));
 
-        SqlClearCursorResponse cleanCursorResponse = client().prepareExecute(SqlClearCursorAction.INSTANCE)
+        SqlClearCursorResponse cleanCursorResponse = new SqlClearCursorRequestBuilder(client(), SqlClearCursorAction.INSTANCE)
                 .cursor(sqlQueryResponse.cursor()).get();
         assertTrue(cleanCursorResponse.isSucceeded());
 
@@ -67,7 +63,7 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
 
         int fetchSize = randomIntBetween(5, 20);
         logger.info("Fetching {} records at a time", fetchSize);
-        SqlQueryResponse sqlQueryResponse = client().prepareExecute(SqlQueryAction.INSTANCE)
+        SqlQueryResponse sqlQueryResponse = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
                 .query("SELECT * FROM test").fetchSize(fetchSize).get();
         assertEquals(fetchSize, sqlQueryResponse.size());
 
@@ -77,12 +73,12 @@ public class SqlClearCursorActionIT extends AbstractSqlIntegTestCase {
 
         long fetched = sqlQueryResponse.size();
         do {
-            sqlQueryResponse = client().prepareExecute(SqlQueryAction.INSTANCE).cursor(sqlQueryResponse.cursor()).get();
+            sqlQueryResponse = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).cursor(sqlQueryResponse.cursor()).get();
             fetched += sqlQueryResponse.size();
         } while (sqlQueryResponse.cursor().equals("") == false);
         assertEquals(indexSize, fetched);
 
-        SqlClearCursorResponse cleanCursorResponse = client().prepareExecute(SqlClearCursorAction.INSTANCE)
+        SqlClearCursorResponse cleanCursorResponse = new SqlClearCursorRequestBuilder(client(), SqlClearCursorAction.INSTANCE)
                 .cursor(sqlQueryResponse.cursor()).get();
         assertFalse(cleanCursorResponse.isSucceeded());
 

@@ -41,6 +41,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -78,6 +79,7 @@ import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ElasticsearchExceptionTests extends ESTestCase {
@@ -124,13 +126,13 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             } else {
                 rootCauses = ElasticsearchException.guessRootCauses(randomBoolean() ? new RemoteTransportException("remoteboom", ex) : ex);
             }
-            assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "parsing_exception");
-            assertEquals(rootCauses[0].getMessage(), "foobar");
+            assertEquals("parsing_exception", ElasticsearchException.getExceptionName(rootCauses[0]));
+            assertEquals("foobar", rootCauses[0].getMessage());
 
             ElasticsearchException oneLevel = new ElasticsearchException("foo", new RuntimeException("foobar"));
             rootCauses = oneLevel.guessRootCauses();
-            assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "exception");
-            assertEquals(rootCauses[0].getMessage(), "foo");
+            assertEquals("exception", ElasticsearchException.getExceptionName(rootCauses[0]));
+            assertEquals("foo", rootCauses[0].getMessage());
         }
         {
             ShardSearchFailure failure = new ShardSearchFailure(
@@ -146,20 +148,40 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             assertEquals(rootCauses.length, 2);
             assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "parsing_exception");
             assertEquals(rootCauses[0].getMessage(), "foobar");
-            assertEquals(((ParsingException) rootCauses[0]).getLineNumber(), 1);
-            assertEquals(((ParsingException) rootCauses[0]).getColumnNumber(), 2);
-            assertEquals(ElasticsearchException.getExceptionName(rootCauses[1]), "query_shard_exception");
-            assertEquals((rootCauses[1]).getIndex().getName(), "foo1");
-            assertEquals(rootCauses[1].getMessage(), "foobar");
+            assertEquals(1, ((ParsingException) rootCauses[0]).getLineNumber());
+            assertEquals(2, ((ParsingException) rootCauses[0]).getColumnNumber());
+            assertEquals("query_shard_exception", ElasticsearchException.getExceptionName(rootCauses[1]));
+            assertEquals("foo1", rootCauses[1].getIndex().getName());
+            assertEquals("foobar", rootCauses[1].getMessage());
         }
 
         {
             final ElasticsearchException[] foobars = ElasticsearchException.guessRootCauses(new IllegalArgumentException("foobar"));
             assertEquals(foobars.length, 1);
-            assertTrue(foobars[0] instanceof ElasticsearchException);
-            assertEquals(foobars[0].getMessage(), "foobar");
-            assertEquals(foobars[0].getCause().getClass(), IllegalArgumentException.class);
-            assertEquals(foobars[0].getExceptionName(), "illegal_argument_exception");
+            assertThat(foobars[0], instanceOf(ElasticsearchException.class));
+            assertEquals("foobar", foobars[0].getMessage());
+            assertEquals(IllegalArgumentException.class, foobars[0].getCause().getClass());
+            assertEquals("illegal_argument_exception", foobars[0].getExceptionName());
+        }
+
+        {
+            XContentParseException inner = new XContentParseException(null, "inner");
+            XContentParseException outer = new XContentParseException(null, "outer", inner);
+            final ElasticsearchException[] causes = ElasticsearchException.guessRootCauses(outer);
+            assertEquals(causes.length, 1);
+            assertThat(causes[0], instanceOf(ElasticsearchException.class));
+            assertEquals("inner", causes[0].getMessage());
+            assertEquals("x_content_parse_exception", causes[0].getExceptionName());
+        }
+
+        {
+            ElasticsearchException inner = new ElasticsearchException("inner");
+            XContentParseException outer = new XContentParseException(null, "outer", inner);
+            final ElasticsearchException[] causes = ElasticsearchException.guessRootCauses(outer);
+            assertEquals(causes.length, 1);
+            assertThat(causes[0], instanceOf(ElasticsearchException.class));
+            assertEquals("inner", causes[0].getMessage());
+            assertEquals("exception", causes[0].getExceptionName());
         }
     }
 

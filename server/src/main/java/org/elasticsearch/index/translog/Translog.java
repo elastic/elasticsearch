@@ -78,15 +78,15 @@ import java.util.stream.Stream;
  * different engine.
  * <p>
  * Each Translog has only one translog file open for writes at any time referenced by a translog generation ID. This ID is written to a
- * <tt>translog.ckp</tt> file that is designed to fit in a single disk block such that a write of the file is atomic. The checkpoint file
+ * {@code translog.ckp} file that is designed to fit in a single disk block such that a write of the file is atomic. The checkpoint file
  * is written on each fsync operation of the translog and records the number of operations written, the current translog's file generation,
  * its fsynced offset in bytes, and other important statistics.
  * </p>
  * <p>
  * When the current translog file reaches a certain size ({@link IndexSettings#INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING}, or when
  * a clear separation between old and new operations (upon change in primary term), the current file is reopened for read only and a new
- * write only file is created. Any non-current, read only translog file always has a <tt>translog-${gen}.ckp</tt> associated with it
- * which is an fsynced copy of its last <tt>translog.ckp</tt> such that in disaster recovery last fsynced offsets, number of
+ * write only file is created. Any non-current, read only translog file always has a {@code translog-${gen}.ckp} associated with it
+ * which is an fsynced copy of its last {@code translog.ckp} such that in disaster recovery last fsynced offsets, number of
  * operation etc. are still preserved.
  * </p>
  */
@@ -696,6 +696,41 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return TRANSLOG_FILE_PREFIX + generation + CHECKPOINT_SUFFIX;
     }
 
+    /**
+     * Trims translog for terms of files below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>.
+     * Effectively it moves max visible seq# {@link Checkpoint#trimmedAboveSeqNo} therefore {@link TranslogSnapshot} skips those operations.
+     */
+    public void trimOperations(long belowTerm, long aboveSeqNo) throws IOException {
+        assert aboveSeqNo >= SequenceNumbers.NO_OPS_PERFORMED : "aboveSeqNo has to a valid sequence number";
+
+        try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
+            if (current.getPrimaryTerm() < belowTerm) {
+                throw new IllegalArgumentException("Trimming the translog can only be done for terms lower than the current one. " +
+                    "Trim requested for term [ " + belowTerm + " ] , current is [ " + current.getPrimaryTerm() + " ]");
+            }
+            // we assume that the current translog generation doesn't have trimmable ops. Verify that.
+            assert current.assertNoSeqAbove(belowTerm, aboveSeqNo);
+            // update all existed ones (if it is necessary) as checkpoint and reader are immutable
+            final List<TranslogReader> newReaders = new ArrayList<>(readers.size());
+            try {
+                for (TranslogReader reader : readers) {
+                    final TranslogReader newReader =
+                        reader.getPrimaryTerm() < belowTerm
+                            ? reader.closeIntoTrimmedReader(aboveSeqNo, getChannelFactory())
+                            : reader;
+                    newReaders.add(newReader);
+                }
+            } catch (IOException e) {
+                IOUtils.closeWhileHandlingException(newReaders);
+                close();
+                throw e;
+            }
+
+            this.readers.clear();
+            this.readers.addAll(newReaders);
+        }
+    }
 
     /**
      * Ensures that the given location has be synced / written to the underlying storage.
@@ -846,6 +881,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         int totalOperations();
 
         /**
+         * The number of operations have been skipped (overridden or trimmed) in the snapshot so far.
+         */
+        default int skippedOperations() {
+            return 0;
+        }
+
+        /**
          * The number of operations have been overridden (eg. superseded) in the snapshot so far.
          * If two operations have the same sequence number, the operation with a lower term will be overridden by the operation
          * with a higher term. Unlike {@link #totalOperations()}, this value is updated each time after {@link #next()}) is called.
@@ -969,7 +1011,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         public static final int FORMAT_6_0 = 8; // since 6.0.0
         public static final int FORMAT_NO_PARENT = FORMAT_6_0 + 1; // since 7.0
-        public static final int SERIALIZATION_FORMAT = FORMAT_NO_PARENT;
+        public static final int FORMAT_NO_VERSION_TYPE = FORMAT_NO_PARENT + 1;
+        public static final int SERIALIZATION_FORMAT = FORMAT_NO_VERSION_TYPE;
 
         private final String id;
         private final long autoGeneratedIdTimestamp;
@@ -977,7 +1020,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         private final long seqNo;
         private final long primaryTerm;
         private final long version;
-        private final VersionType versionType;
         private final BytesReference source;
         private final String routing;
 
@@ -992,8 +1034,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 in.readOptionalString(); // _parent
             }
             this.version = in.readLong();
-            this.versionType = VersionType.fromValue(in.readByte());
-            assert versionType.validateVersionForWrites(this.version) : "invalid version for writes: " + this.version;
+            if (format < FORMAT_NO_VERSION_TYPE) {
+                in.readByte(); // _version_type
+            }
             this.autoGeneratedIdTimestamp = in.readLong();
             seqNo = in.readLong();
             primaryTerm = in.readLong();
@@ -1007,15 +1050,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.seqNo = indexResult.getSeqNo();
             this.primaryTerm = index.primaryTerm();
             this.version = indexResult.getVersion();
-            this.versionType = index.versionType();
             this.autoGeneratedIdTimestamp = index.getAutoGeneratedIdTimestamp();
         }
 
         public Index(String type, String id, long seqNo, long primaryTerm, byte[] source) {
-            this(type, id, seqNo, primaryTerm, Versions.MATCH_ANY, VersionType.INTERNAL, source, null, -1);
+            this(type, id, seqNo, primaryTerm, Versions.MATCH_ANY, source, null, -1);
         }
 
-        public Index(String type, String id, long seqNo, long primaryTerm, long version, VersionType versionType,
+        public Index(String type, String id, long seqNo, long primaryTerm, long version,
                      byte[] source, String routing, long autoGeneratedIdTimestamp) {
             this.type = type;
             this.id = id;
@@ -1023,7 +1065,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.seqNo = seqNo;
             this.primaryTerm = primaryTerm;
             this.version = version;
-            this.versionType = versionType;
             this.routing = routing;
             this.autoGeneratedIdTimestamp = autoGeneratedIdTimestamp;
         }
@@ -1068,24 +1109,22 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return this.version;
         }
 
-        public VersionType versionType() {
-            return versionType;
-        }
-
         @Override
         public Source getSource() {
             return new Source(source, routing);
         }
 
         private void write(final StreamOutput out) throws IOException {
-            out.writeVInt(SERIALIZATION_FORMAT);
+            final int format = out.getVersion().onOrAfter(Version.V_7_0_0_alpha1) ? SERIALIZATION_FORMAT : FORMAT_6_0;
+            out.writeVInt(format);
             out.writeString(id);
             out.writeString(type);
             out.writeBytesReference(source);
             out.writeOptionalString(routing);
             out.writeLong(version);
-
-            out.writeByte(versionType.getValue());
+            if (format < FORMAT_NO_VERSION_TYPE) {
+                out.writeByte(VersionType.EXTERNAL.getValue());
+            }
             out.writeLong(autoGeneratedIdTimestamp);
             out.writeLong(seqNo);
             out.writeLong(primaryTerm);
@@ -1107,7 +1146,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 primaryTerm != index.primaryTerm ||
                 id.equals(index.id) == false ||
                 type.equals(index.type) == false ||
-                versionType != index.versionType ||
                 autoGeneratedIdTimestamp != index.autoGeneratedIdTimestamp ||
                 source.equals(index.source) == false) {
                 return false;
@@ -1126,7 +1164,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             result = 31 * result + Long.hashCode(seqNo);
             result = 31 * result + Long.hashCode(primaryTerm);
             result = 31 * result + Long.hashCode(version);
-            result = 31 * result + versionType.hashCode();
             result = 31 * result + source.hashCode();
             result = 31 * result + (routing != null ? routing.hashCode() : 0);
             result = 31 * result + Long.hashCode(autoGeneratedIdTimestamp);
@@ -1152,14 +1189,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public static class Delete implements Operation {
 
         private static final int FORMAT_6_0 = 4; // 6.0 - *
-        public static final int SERIALIZATION_FORMAT = FORMAT_6_0;
+        public static final int FORMAT_NO_PARENT = FORMAT_6_0 + 1; // since 7.0
+        public static final int FORMAT_NO_VERSION_TYPE = FORMAT_NO_PARENT + 1;
+        public static final int SERIALIZATION_FORMAT = FORMAT_NO_VERSION_TYPE;
 
         private final String type, id;
         private final Term uid;
         private final long seqNo;
         private final long primaryTerm;
         private final long version;
-        private final VersionType versionType;
 
         private Delete(final StreamInput in) throws IOException {
             final int format = in.readVInt();// SERIALIZATION_FORMAT
@@ -1168,29 +1206,29 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             id = in.readString();
             uid = new Term(in.readString(), in.readBytesRef());
             this.version = in.readLong();
-            this.versionType = VersionType.fromValue(in.readByte());
-            assert versionType.validateVersionForWrites(this.version);
+            if (format < FORMAT_NO_VERSION_TYPE) {
+                in.readByte(); // versionType
+            }
             seqNo = in.readLong();
             primaryTerm = in.readLong();
         }
 
         public Delete(Engine.Delete delete, Engine.DeleteResult deleteResult) {
-            this(delete.type(), delete.id(), delete.uid(), deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getVersion(), delete.versionType());
+            this(delete.type(), delete.id(), delete.uid(), deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getVersion());
         }
 
         /** utility for testing */
         public Delete(String type, String id, long seqNo, long primaryTerm, Term uid) {
-            this(type, id, uid, seqNo, primaryTerm, Versions.MATCH_ANY, VersionType.INTERNAL);
+            this(type, id, uid, seqNo, primaryTerm, Versions.MATCH_ANY);
         }
 
-        public Delete(String type, String id, Term uid, long seqNo, long primaryTerm, long version, VersionType versionType) {
+        public Delete(String type, String id, Term uid, long seqNo, long primaryTerm, long version) {
             this.type = Objects.requireNonNull(type);
             this.id = Objects.requireNonNull(id);
             this.uid = uid;
             this.seqNo = seqNo;
             this.primaryTerm = primaryTerm;
             this.version = version;
-            this.versionType = versionType;
         }
 
         @Override
@@ -1229,23 +1267,22 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return this.version;
         }
 
-        public VersionType versionType() {
-            return this.versionType;
-        }
-
         @Override
         public Source getSource() {
             throw new IllegalStateException("trying to read doc source from delete operation");
         }
 
         private void write(final StreamOutput out) throws IOException {
-            out.writeVInt(SERIALIZATION_FORMAT);
+            final int format = out.getVersion().onOrAfter(Version.V_7_0_0_alpha1) ? SERIALIZATION_FORMAT : FORMAT_6_0;
+            out.writeVInt(format);
             out.writeString(type);
             out.writeString(id);
             out.writeString(uid.field());
             out.writeBytesRef(uid.bytes());
             out.writeLong(version);
-            out.writeByte(versionType.getValue());
+            if (format < FORMAT_NO_VERSION_TYPE) {
+                out.writeByte(VersionType.EXTERNAL.getValue());
+            }
             out.writeLong(seqNo);
             out.writeLong(primaryTerm);
         }
@@ -1264,8 +1301,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return version == delete.version &&
                 seqNo == delete.seqNo &&
                 primaryTerm == delete.primaryTerm &&
-                uid.equals(delete.uid) &&
-                versionType == delete.versionType;
+                uid.equals(delete.uid);
         }
 
         @Override
@@ -1274,7 +1310,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             result = 31 * result + Long.hashCode(seqNo);
             result = 31 * result + Long.hashCode(primaryTerm);
             result = 31 * result + Long.hashCode(version);
-            result = 31 * result + versionType.hashCode();
             return result;
         }
 

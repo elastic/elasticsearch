@@ -55,7 +55,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A query builder for <tt>has_child</tt> query.
+ * A query builder for {@code has_child} query.
  */
 public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuilder> {
     public static final String NAME = "has_child";

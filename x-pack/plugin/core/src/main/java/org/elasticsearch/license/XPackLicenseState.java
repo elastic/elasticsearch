@@ -52,6 +52,9 @@ public class XPackLicenseState {
         messages.put(XPackField.LOGSTASH, new String[] {
             "Logstash will continue to poll centrally-managed pipelines"
         });
+        messages.put(XPackField.BEATS, new String[] {
+            "Beats will continue to poll centrally-managed configuration"
+        });
         messages.put(XPackField.DEPRECATION, new String[] {
             "Deprecation APIs are disabled"
         });
@@ -81,6 +84,7 @@ public class XPackLicenseState {
         messages.put(XPackField.GRAPH, XPackLicenseState::graphAcknowledgementMessages);
         messages.put(XPackField.MACHINE_LEARNING, XPackLicenseState::machineLearningAcknowledgementMessages);
         messages.put(XPackField.LOGSTASH, XPackLicenseState::logstashAcknowledgementMessages);
+        messages.put(XPackField.BEATS, XPackLicenseState::beatsAcknowledgementMessages);
         messages.put(XPackField.SQL, XPackLicenseState::sqlAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
@@ -205,12 +209,19 @@ public class XPackLicenseState {
     private static String[] logstashAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
         switch (newMode) {
             case BASIC:
-                switch (currentMode) {
-                    case TRIAL:
-                    case STANDARD:
-                    case GOLD:
-                    case PLATINUM:
-                        return new String[] { "Logstash will no longer poll for centrally-managed pipelines" };
+                if (isBasic(currentMode) == false) {
+                    return new String[] { "Logstash will no longer poll for centrally-managed pipelines" };
+                }
+                break;
+        }
+        return Strings.EMPTY_ARRAY;
+    }
+
+    private static String[] beatsAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
+        switch (newMode) {
+            case BASIC:
+                if (isBasic(currentMode) == false) {
+                    return new String[] { "Beats will no longer be able to use centrally-managed configuration" };
                 }
                 break;
         }
@@ -230,6 +241,10 @@ public class XPackLicenseState {
                 break;
         }
         return Strings.EMPTY_ARRAY;
+    }
+
+    private static boolean isBasic(OperationMode mode) {
+        return mode == OperationMode.BASIC;
     }
 
     /** A wrapper for the license mode and state, to allow atomically swapping. */
@@ -254,7 +269,11 @@ public class XPackLicenseState {
 
     public XPackLicenseState(Settings settings) {
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        this.isSecurityExplicitlyEnabled = settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) && isSecurityEnabled;
+        // 6.0+ requires TLS for production licenses, so if TLS is enabled and security is enabled
+        // we can interpret this as an explicit enabling of security if the security enabled
+        // setting is not explicitly set
+        this.isSecurityExplicitlyEnabled = isSecurityEnabled &&
+            (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) || XPackSettings.TRANSPORT_SSL_ENABLED.get(settings));
     }
 
     /** Updates the current state of the license, which will change what features are available. */
@@ -496,20 +515,17 @@ public class XPackLicenseState {
      */
     public boolean isLogstashAllowed() {
         Status localStatus = status;
+        return localStatus.active && (isBasic(localStatus.mode) == false);
+    }
 
-        if (localStatus.active == false) {
-            return false;
-        }
+    /**
+     * Beats is allowed as long as there is an active license of type TRIAL, STANDARD, GOLD or PLATINUM
+     * @return {@code true} as long as there is a valid license
+     */
+    public boolean isBeatsAllowed() {
+        Status localStatus = status;
+        return localStatus.active && (isBasic(localStatus.mode) == false);
 
-        switch (localStatus.mode) {
-            case TRIAL:
-            case GOLD:
-            case PLATINUM:
-            case STANDARD:
-                return true;
-            default:
-                return false;
-        }
     }
 
     /**

@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -188,6 +189,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
     @Override
     public void testToXContent() throws IOException {
+        final String clusterUuid = "_cluster";
         final ClusterName clusterName = new ClusterName("_cluster_name");
         final TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9300);
         final DiscoveryNode discoveryNode = new DiscoveryNode("_node_name",
@@ -201,6 +203,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                 Version.V_6_0_0_beta1);
 
         final ClusterState clusterState = ClusterState.builder(clusterName)
+                                                        .metaData(MetaData.builder().clusterUUID(clusterUuid).build())
                                                         .stateUUID("_state_uuid")
                                                         .version(12L)
                                                         .nodes(DiscoveryNodes.builder()
@@ -500,6 +503,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   + "\"cluster_state\":{"
                     + "\"nodes_hash\":1314980060,"
                     + "\"status\":\"green\","
+                    + "\"cluster_uuid\":\"_cluster\","
                     + "\"version\":12,"
                     + "\"state_uuid\":\"_state_uuid\","
                     + "\"master_node\":\"_node\","

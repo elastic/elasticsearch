@@ -7,7 +7,6 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.rest.action.RestBuilderListener;
 
 public class LicensingClient {
 
@@ -41,11 +40,11 @@ public class LicensingClient {
         client.execute(DeleteLicenseAction.INSTANCE, request, listener);
     }
 
-    public PostStartTrialRequestBuilder preparePostUpgradeToTrial() {
+    public PostStartTrialRequestBuilder preparePostStartTrial() {
         return new PostStartTrialRequestBuilder(client, PostStartTrialAction.INSTANCE);
     }
 
-    public GetTrialStatusRequestBuilder prepareGetUpgradeToTrial() {
+    public GetTrialStatusRequestBuilder prepareGetStartTrial() {
         return new GetTrialStatusRequestBuilder(client, GetTrialStatusAction.INSTANCE);
     }
 

@@ -11,6 +11,7 @@ import joptsimple.OptionSpec;
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.PEMEncryptor;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.bouncycastle.openssl.jcajce.JcePEMEncryptorBuilder;
@@ -82,6 +83,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
     private static final Pattern ALLOWED_FILENAME_CHAR_PATTERN =
             Pattern.compile("[a-zA-Z0-9!@#$%^&{}\\[\\]()_+\\-=,.~'` ]{1," + MAX_FILENAME_LENGTH + "}");
     private static final int DEFAULT_KEY_SIZE = 2048;
+    private static final BouncyCastleProvider BC_PROV = new BouncyCastleProvider();
 
     /**
      * Wraps the certgen object parser.
@@ -316,10 +318,10 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
     static void generateAndWriteCsrs(Path outputFile, Collection<CertificateInformation> certInfo, int keysize) throws Exception {
         fullyWriteFile(outputFile, (outputStream, pemWriter) -> {
             for (CertificateInformation certificateInformation : certInfo) {
-                KeyPair keyPair = CertUtils.generateKeyPair(keysize);
+                KeyPair keyPair = CertGenUtils.generateKeyPair(keysize);
                 GeneralNames sanList = getSubjectAlternativeNamesValue(certificateInformation.ipAddresses, certificateInformation.dnsNames,
                         certificateInformation.commonNames);
-                PKCS10CertificationRequest csr = CertUtils.generateCSR(keyPair, certificateInformation.name.x500Principal, sanList);
+                PKCS10CertificationRequest csr = CertGenUtils.generateCSR(keyPair, certificateInformation.name.x500Principal, sanList);
 
                 final String dirName = certificateInformation.name.filename + "/";
                 ZipEntry zipEntry = new ZipEntry(dirName);
@@ -361,7 +363,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
         if (caCertPath != null) {
             assert caKeyPath != null;
             final String resolvedCaCertPath = resolvePath(caCertPath).toAbsolutePath().toString();
-            Certificate[] certificates = CertUtils.readCertificates(Collections.singletonList(resolvedCaCertPath), env);
+            Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(resolvedCaCertPath), env);
             if (certificates.length != 1) {
                 throw new IllegalArgumentException("expected a single certificate in file [" + caCertPath + "] but found [" +
                         certificates.length + "]");
@@ -373,8 +375,8 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
 
         // generate the CA keys and cert
         X500Principal x500Principal = new X500Principal(dn);
-        KeyPair keyPair = CertUtils.generateKeyPair(keysize);
-        Certificate caCert = CertUtils.generateCACertificate(x500Principal, keyPair, days);
+        KeyPair keyPair = CertGenUtils.generateKeyPair(keysize);
+        Certificate caCert = CertGenUtils.generateCACertificate(x500Principal, keyPair, days);
         final char[] password;
         if (prompt) {
             password = terminal.readSecret("Enter password for CA private key: ");
@@ -399,8 +401,8 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
             writeCAInfoIfGenerated(outputStream, pemWriter, caInfo);
 
             for (CertificateInformation certificateInformation : certificateInformations) {
-                KeyPair keyPair = CertUtils.generateKeyPair(keysize);
-                Certificate certificate = CertUtils.generateSignedCertificate(certificateInformation.name.x500Principal,
+                KeyPair keyPair = CertGenUtils.generateKeyPair(keysize);
+                Certificate certificate = CertGenUtils.generateSignedCertificate(certificateInformation.name.x500Principal,
                         getSubjectAlternativeNamesValue(certificateInformation.ipAddresses, certificateInformation.dnsNames,
                                 certificateInformation.commonNames),
                         keyPair, caInfo.caCert, caInfo.privateKey, days);
@@ -483,7 +485,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
             outputStream.putNextEntry(new ZipEntry(caDirName + "ca.key"));
             if (info.password != null && info.password.length > 0) {
                 try {
-                    PEMEncryptor encryptor = new JcePEMEncryptorBuilder("DES-EDE3-CBC").setProvider(CertUtils.BC_PROV).build(info.password);
+                    PEMEncryptor encryptor = new JcePEMEncryptorBuilder("DES-EDE3-CBC").setProvider(BC_PROV).build(info.password);
                     pemWriter.writeObject(info.privateKey, encryptor);
                 } finally {
                     // we can safely nuke the password chars now
@@ -584,8 +586,8 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
     private static PrivateKey readPrivateKey(String path, char[] password, Terminal terminal, boolean prompt)
                                             throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
-        try (Reader reader = Files.newBufferedReader(resolvePath(path), StandardCharsets.UTF_8)) {
-            return CertUtils.readPrivateKey(reader, () -> {
+        try {
+            return PemUtils.readPrivateKey(resolvePath(path), () -> {
                 if (password != null || prompt == false) {
                     return password;
                 }
@@ -611,7 +613,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
         }
 
         for (String cn : commonNames) {
-            generalNameList.add(CertUtils.createCommonName(cn));
+            generalNameList.add(CertGenUtils.createCommonName(cn));
         }
 
         if (generalNameList.isEmpty()) {

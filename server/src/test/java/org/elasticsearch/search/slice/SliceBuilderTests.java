@@ -306,11 +306,12 @@ public class SliceBuilderTests extends ESTestCase {
         builder.startObject();
         sliceBuilder.innerToXContent(builder);
         builder.endObject();
-        XContentParser parser = createParser(shuffleXContent(builder));
-        SliceBuilder secondSliceBuilder = SliceBuilder.fromXContent(parser);
-        assertNotSame(sliceBuilder, secondSliceBuilder);
-        assertEquals(sliceBuilder, secondSliceBuilder);
-        assertEquals(sliceBuilder.hashCode(), secondSliceBuilder.hashCode());
+        try (XContentParser parser = createParser(shuffleXContent(builder))) {
+            SliceBuilder secondSliceBuilder = SliceBuilder.fromXContent(parser);
+            assertNotSame(sliceBuilder, secondSliceBuilder);
+            assertEquals(sliceBuilder, secondSliceBuilder);
+            assertEquals(sliceBuilder.hashCode(), secondSliceBuilder.hashCode());
+        }
     }
 
     public void testInvalidArguments() throws Exception {
@@ -423,6 +424,7 @@ public class SliceBuilderTests extends ESTestCase {
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
                     SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
+                    context = createShardContext(Version.CURRENT, reader, "_id", DocValuesType.SORTED, numShards, j);
                     Query q = slice.toFilter(null, createRequest(j), context, Version.CURRENT);
                     if (i == j) {
                         assertThat(q, instanceOf(MatchAllDocsQuery.class));

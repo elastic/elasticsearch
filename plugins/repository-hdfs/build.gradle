@@ -1,4 +1,4 @@
-/*
+1/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -116,6 +116,11 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     dependsOn project.configurations.hdfsFixture
     executable = new File(project.runtimeJavaHome, 'bin/java')
     env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
+    waitCondition = { fixture, ant ->
+      // the hdfs.MiniHDFS fixture writes the ports file when
+      // it's ready, so we can just wait for the file to exist
+      return fixture.portsFile.exists()
+    }
 
     final List<String> miniHDFSArgs = []
 
@@ -153,7 +158,6 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
 project.afterEvaluate {
   for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
     ClusterConfiguration cluster = project.extensions.getByName("${integTestTaskName}Cluster") as ClusterConfiguration
-    cluster.distribution = 'integ-test-zip'
     cluster.dependsOn(project.bundlePlugin)
 
     Task restIntegTestTask = project.tasks.getByName(integTestTaskName)
@@ -210,6 +214,25 @@ RestIntegTestTask integTestSecureHa = project.tasks.create('integTestSecureHa', 
   description = "Runs rest tests against an elasticsearch cluster with HDFS configured with HA Namenode and secured by MIT Kerberos."
 }
 
+if (rootProject.ext.compilerJavaVersion.isJava11()) {
+  // TODO remove when: https://github.com/elastic/elasticsearch/issues/31498
+  integTestRunner {
+    systemProperty 'tests.rest.blacklist', [
+            'hdfs_repository/30_snapshot/take snapshot',
+            'hdfs_repository/40_restore/Create a snapshot and then restore it',
+            'hdfs_repository/20_repository_verify/HDFS Repository Verify',
+            'hdfs_repository/30_snapshot_get/Get a snapshot',
+            'hdfs_repository/20_repository_create/HDFS Repository Creation',
+            'hdfs_repository/20_repository_delete/HDFS Delete Repository',
+            'hdfs_repository/30_snapshot_readonly/Get a snapshot - readonly',
+    ].join(',')
+  }
+}
+if (rootProject.ext.runtimeJavaVersion.isJava11() || rootProject.ext.compilerJavaVersion.isJava11()) {
+  // TODO remove when: https://github.com/elastic/elasticsearch/issues/31498
+  integTestHa.enabled = false
+}
+
 // Determine HDFS Fixture compatibility for the current build environment.
 boolean fixtureSupported = false
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
@@ -230,6 +253,11 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   fixtureSupported = true
 }
 
+boolean legalPath = rootProject.rootDir.toString().contains(" ") == false
+if (legalPath == false) {
+  fixtureSupported = false
+}
+
 // Always ignore HA integration tests in the normal integration test runner, they are included below as
 // part of their own HA-specific integration test tasks.
 integTestRunner.exclude('**/Ha*TestSuiteIT.class')
@@ -248,7 +276,12 @@ if (fixtureSupported) {
   // Only include the HA integration tests for the HA test task
   integTestHaRunner.patternSet.setIncludes(['**/Ha*TestSuiteIT.class'])
 } else {
-  logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
+  if (legalPath) {
+    logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
+  } else {
+    logger.warn("hdfsFixture unsupported since there are spaces in the path: '" + rootProject.rootDir.toString() + "'")
+  }
+
   // The normal integration test runner will just test that the plugin loads
   integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
   // HA fixture is unsupported. Don't run them.

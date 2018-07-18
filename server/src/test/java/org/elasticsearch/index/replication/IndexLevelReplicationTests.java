@@ -251,7 +251,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             // test only primary
             shards.startPrimary();
             BulkItemResponse response = shards.index(
-                    new IndexRequest(index.getName(), "testDocumentFailureReplication", "1")
+                    new IndexRequest(index.getName(), "type", "1")
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
@@ -265,7 +265,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             }
             shards.startReplicas(nReplica);
             response = shards.index(
-                    new IndexRequest(index.getName(), "testDocumentFailureReplication", "1")
+                    new IndexRequest(index.getName(), "type", "1")
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
@@ -281,7 +281,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
             BulkItemResponse response = shards.index(
-                    new IndexRequest(index.getName(), "testRequestFailureException", "1")
+                    new IndexRequest(index.getName(), "type", "1")
                             .source("{}", XContentType.JSON)
                             .version(2)
             );
@@ -300,7 +300,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             }
             shards.startReplicas(nReplica);
             response = shards.index(
-                    new IndexRequest(index.getName(), "testRequestFailureException", "1")
+                    new IndexRequest(index.getName(), "type", "1")
                             .source("{}", XContentType.JSON)
                             .version(2)
             );
@@ -340,9 +340,10 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 op1 = snapshot.next();
                 assertThat(op1, notNullValue());
                 assertThat(snapshot.next(), nullValue());
-                assertThat(snapshot.overriddenOperations(), equalTo(0));
+                assertThat(snapshot.skippedOperations(), equalTo(0));
             }
-            // Make sure that replica2 receives translog ops (eg. op2) from replica1 and overwrites its stale operation (op1).
+            // Make sure that replica2 receives translog ops (eg. op2) from replica1
+            // and does not overwrite its stale operation (op1) as it is trimmed.
             logger.info("--> Promote replica1 as the primary");
             shards.promoteReplicaToPrimary(replica1).get(); // wait until resync completed.
             shards.index(new IndexRequest(index.getName(), "type", "d2").source("{}", XContentType.JSON));
@@ -353,7 +354,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 assertThat(op2.seqNo(), equalTo(op1.seqNo()));
                 assertThat(op2.primaryTerm(), greaterThan(op1.primaryTerm()));
                 assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
-                assertThat(snapshot.overriddenOperations(), equalTo(1));
+                assertThat(snapshot.overriddenOperations(), equalTo(0));
+                assertThat(snapshot.skippedOperations(), equalTo(1));
             }
 
             // Make sure that peer-recovery transfers all but non-overridden operations.
@@ -361,12 +363,12 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             logger.info("--> Promote replica2 as the primary");
             shards.promoteReplicaToPrimary(replica2);
             logger.info("--> Recover replica3 from replica2");
-            recoverReplica(replica3, replica2);
+            recoverReplica(replica3, replica2, true);
             try (Translog.Snapshot snapshot = getTranslog(replica3).newSnapshot()) {
                 assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
                 assertThat(snapshot.next(), equalTo(op2));
                 assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
-                assertThat("Peer-recovery should not send overridden operations", snapshot.overriddenOperations(), equalTo(0));
+                assertThat("Peer-recovery should not send overridden operations", snapshot.skippedOperations(), equalTo(0));
             }
             // TODO: We should assert the content of shards in the ReplicationGroup.
             // Without rollback replicas(current implementation), we don't have the same content across shards:

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.notification.email;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -354,7 +353,7 @@ public class Email implements ToXContentObject {
          * after this is called is incorrect.
          */
         public Email build() {
-            assert id != null : "email id should not be null (should be set to the watch id";
+            assert id != null : "email id should not be null";
             Email email = new Email(id, from, replyTo, priority, sentDate, to, cc, bcc, subject, textBody, htmlBody,
                     unmodifiableMap(attachments));
             attachments = null;

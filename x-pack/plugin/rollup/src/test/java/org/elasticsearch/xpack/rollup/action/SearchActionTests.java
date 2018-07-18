@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
@@ -61,6 +62,7 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -121,17 +123,39 @@ public class SearchActionTests extends ESTestCase {
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = new HashSet<>();
         caps.add(cap);
-        QueryBuilder rewritten = null;
-        try {
-            rewritten = TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1), caps);
-        } catch (Exception e) {
-            fail("Should not have thrown exception when parsing query.");
-        }
+        QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1).timeZone("UTC"), caps);
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
         assertThat(((RangeQueryBuilder)rewritten).fieldName(), equalTo("foo.date_histogram.timestamp"));
     }
 
-    public void testTerms() {
+    public void testRangeNullTimeZone() {
+        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
+        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
+        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
+        job.setGroupConfig(group.build());
+        RollupJobCaps cap = new RollupJobCaps(job.build());
+        Set<RollupJobCaps> caps = new HashSet<>();
+        caps.add(cap);
+        QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1), caps);
+        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
+        assertThat(((RangeQueryBuilder)rewritten).fieldName(), equalTo("foo.date_histogram.timestamp"));
+    }
+
+    public void testRangeWrongTZ() {
+        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
+        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
+        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
+        job.setGroupConfig(group.build());
+        RollupJobCaps cap = new RollupJobCaps(job.build());
+        Set<RollupJobCaps> caps = new HashSet<>();
+        caps.add(cap);
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1).timeZone("EST"), caps));
+        assertThat(e.getMessage(), equalTo("Field [foo] in [range] query was found in rollup indices, but requested timezone is not " +
+            "compatible. Options include: [UTC]"));
+    }
+
+    public void testTermQuery() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
         group.setTerms(ConfigTestHelpers.getTerms().setFields(Collections.singletonList("foo")).build());
@@ -139,14 +163,26 @@ public class SearchActionTests extends ESTestCase {
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = new HashSet<>();
         caps.add(cap);
-        QueryBuilder rewritten = null;
-        try {
-            rewritten = TransportRollupSearchAction.rewriteQuery(new TermQueryBuilder("foo", "bar"), caps);
-        } catch (Exception e) {
-            fail("Should not have thrown exception when parsing query.");
-        }
+        QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new TermQueryBuilder("foo", "bar"), caps);
         assertThat(rewritten, instanceOf(TermQueryBuilder.class));
         assertThat(((TermQueryBuilder)rewritten).fieldName(), equalTo("foo.terms.value"));
+    }
+
+    public void testTermsQuery() {
+        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
+        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
+        group.setTerms(ConfigTestHelpers.getTerms().setFields(Collections.singletonList("foo")).build());
+        job.setGroupConfig(group.build());
+        RollupJobCaps cap = new RollupJobCaps(job.build());
+        Set<RollupJobCaps> caps = new HashSet<>();
+        caps.add(cap);
+        QueryBuilder original = new TermsQueryBuilder("foo", Arrays.asList("bar", "baz"));
+        QueryBuilder rewritten =
+            TransportRollupSearchAction.rewriteQuery(original, caps);
+        assertThat(rewritten, instanceOf(TermsQueryBuilder.class));
+        assertNotSame(rewritten, original);
+        assertThat(((TermsQueryBuilder)rewritten).fieldName(), equalTo("foo.terms.value"));
+        assertThat(((TermsQueryBuilder)rewritten).values(),  equalTo(Arrays.asList("bar", "baz")));
     }
 
     public void testCompounds() {
@@ -160,12 +196,7 @@ public class SearchActionTests extends ESTestCase {
 
         BoolQueryBuilder builder = new BoolQueryBuilder();
         builder.must(getQueryBuilder(2));
-        QueryBuilder rewritten = null;
-        try {
-            rewritten = TransportRollupSearchAction.rewriteQuery(builder, caps);
-        } catch (Exception e) {
-            fail("Should not have thrown exception when parsing query.");
-        }
+        QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(builder, caps);
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         assertThat(((BoolQueryBuilder)rewritten).must().size(), equalTo(1));
     }
@@ -178,12 +209,8 @@ public class SearchActionTests extends ESTestCase {
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = new HashSet<>();
         caps.add(cap);
-        try {
-            QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new MatchAllQueryBuilder(), caps);
-            assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
-        } catch (Exception e) {
-            fail("Should not have thrown exception when parsing query.");
-        }
+        QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new MatchAllQueryBuilder(), caps);
+        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
     }
 
     public void testAmbiguousResolution() {

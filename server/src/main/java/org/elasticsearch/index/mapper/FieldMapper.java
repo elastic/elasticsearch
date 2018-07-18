@@ -147,11 +147,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return builder;
         }
 
-        public T tokenized(boolean tokenized) {
-            this.fieldType.setTokenized(tokenized);
-            return builder;
-        }
-
         public T boost(float boost) {
             this.fieldType.setBoost(boost);
             return builder;
@@ -250,6 +245,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     @Override
     public String name() {
         return fieldType().name();
+    }
+
+    @Override
+    public String typeName() {
+        return fieldType.typeName();
     }
 
     public MappedFieldType fieldType() {
@@ -376,9 +376,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         boolean indexed =  fieldType().indexOptions() != IndexOptions.NONE;
         boolean defaultIndexed = defaultFieldType.indexOptions() != IndexOptions.NONE;
-        if (includeDefaults || indexed != defaultIndexed ||
-            fieldType().tokenized() != defaultFieldType.tokenized()) {
-            builder.field("index", indexTokenizeOption(indexed, fieldType().tokenized()));
+        if (includeDefaults || indexed != defaultIndexed) {
+            builder.field("index", indexed);
         }
         if (includeDefaults || fieldType().stored() != defaultFieldType.stored()) {
             builder.field("store", fieldType().stored());
@@ -472,11 +471,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             }
             return builder.toString();
         }
-    }
-
-    /* Only protected so that string can override it */
-    protected Object indexTokenizeOption(boolean indexed, boolean tokenized) {
-        return indexed;
     }
 
     protected abstract String contentType();

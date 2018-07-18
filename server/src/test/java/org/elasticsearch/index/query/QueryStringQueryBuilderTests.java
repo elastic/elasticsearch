@@ -90,12 +90,16 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(query);
         if (randomBoolean()) {
-            queryStringQueryBuilder.defaultField(randomBoolean() ?
-                STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10));
+            String defaultFieldName = randomFrom(STRING_FIELD_NAME,
+                STRING_ALIAS_FIELD_NAME,
+                randomAlphaOfLengthBetween(1, 10));
+            queryStringQueryBuilder.defaultField(defaultFieldName);
         } else {
             int numFields = randomIntBetween(1, 5);
             for (int i = 0; i < numFields; i++) {
-                String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);
+                String fieldName = randomFrom(STRING_FIELD_NAME,
+                    STRING_ALIAS_FIELD_NAME,
+                    randomAlphaOfLengthBetween(1, 10));
                 if (randomBoolean()) {
                     queryStringQueryBuilder.field(fieldName);
                 } else {
@@ -508,10 +512,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query query = queryStringQuery("test").field("mapped_str*").toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
-        assertThat(dQuery.getDisjuncts().size(), equalTo(2));
+        assertThat(dQuery.getDisjuncts().size(), equalTo(3));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(),
-            equalTo(new Term(STRING_FIELD_NAME_2, "test")));
+            equalTo(new Term(STRING_FIELD_NAME, "test")));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(),
+            equalTo(new Term(STRING_FIELD_NAME_2, "test")));
+        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 2).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME, "test")));
     }
 
@@ -1300,7 +1306,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = new QueryStringQueryBuilder("the quick fox")
             .field(STRING_FIELD_NAME)
-            .analyzer("english")
+            .analyzer("stop")
             .toQuery(createShardContext());
         BooleanQuery expected = new BooleanQuery.Builder()
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), Occur.SHOULD)
@@ -1313,7 +1319,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = new QueryStringQueryBuilder("the* quick fox")
             .field(STRING_FIELD_NAME)
-            .analyzer("english")
+            .analyzer("stop")
             .toQuery(createShardContext());
         BooleanQuery expected = new BooleanQuery.Builder()
             .add(new PrefixQuery(new Term(STRING_FIELD_NAME, "the")), Occur.SHOULD)

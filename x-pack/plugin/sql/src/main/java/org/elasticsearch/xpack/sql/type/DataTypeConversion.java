@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.sql.type.DataType.NULL;
  */
 public abstract class DataTypeConversion {
 
-    private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateTimeNoMillis().withZoneUTC();
+    private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateOptionalTimeParser().withZoneUTC();
 
     /**
      * Returns the type compatible with both left and right types
@@ -154,7 +154,7 @@ public abstract class DataTypeConversion {
             return Conversion.INTEGER_TO_LONG;
         }
         if (from == BOOLEAN) {
-            return Conversion.BOOL_TO_INT; // We emit an int here which is ok because of Java's casting rules
+            return Conversion.BOOL_TO_LONG;
         }
         if (from.isString()) {
             return Conversion.STRING_TO_LONG;
@@ -407,7 +407,9 @@ public abstract class DataTypeConversion {
 
         NUMERIC_TO_BOOLEAN(fromLong(value -> value != 0)),
         STRING_TO_BOOLEAN(fromString(DataTypeConversion::convertToBoolean, "Boolean")),
-        DATE_TO_BOOLEAN(fromDate(value -> value != 0));
+        DATE_TO_BOOLEAN(fromDate(value -> value != 0)),
+
+        BOOL_TO_LONG(fromBool(value -> value ? 1L : 0L));
 
         private final Function<Object, Object> converter;
 

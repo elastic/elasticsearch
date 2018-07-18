@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.bootstrap.BootstrapContext;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -17,11 +15,6 @@ public class TokenSSLBootsrapCheckTests extends ESTestCase {
     public void testTokenSSLBootstrapCheck() {
         Settings settings = Settings.EMPTY;
 
-        assertFalse(new TokenSSLBootstrapCheck().check(new BootstrapContext(settings, null)).isFailure());
-
-        settings = Settings.builder()
-                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
         assertFalse(new TokenSSLBootstrapCheck().check(new BootstrapContext(settings, null)).isFailure());
 
         settings = Settings.builder().put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
@@ -35,13 +28,5 @@ public class TokenSSLBootsrapCheckTests extends ESTestCase {
                 .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), false)
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
         assertTrue(new TokenSSLBootstrapCheck().check(new BootstrapContext(settings, null)).isFailure());
-
-        settings = Settings.builder()
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), false)
-                .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
-                .put(NetworkModule.HTTP_ENABLED.getKey(), false).build();
-        assertFalse(new TokenSSLBootstrapCheck().check(new BootstrapContext(settings, null)).isFailure());
-
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 }

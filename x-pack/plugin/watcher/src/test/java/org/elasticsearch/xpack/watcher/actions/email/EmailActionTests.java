@@ -171,7 +171,7 @@ public class EmailActionTests extends ESTestCase {
         assertThat(result, instanceOf(EmailAction.Result.Success.class));
         assertThat(((EmailAction.Result.Success) result).account(), equalTo(account));
         Email actualEmail = ((EmailAction.Result.Success) result).email();
-        assertThat(actualEmail.id(), is(wid.value()));
+        assertThat(actualEmail.id(), is("_id_" + wid.value()));
         assertThat(actualEmail, notNullValue());
         assertThat(actualEmail.subject(), is(subject == null ? null : subject.getTemplate()));
         assertThat(actualEmail.textBody(), is(textBody == null ? null : textBody.getTemplate()));

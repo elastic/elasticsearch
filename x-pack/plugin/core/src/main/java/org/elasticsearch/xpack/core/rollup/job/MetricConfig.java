@@ -12,10 +12,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
@@ -27,13 +26,11 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * The configuration object for the metrics portion of a rollup job config
@@ -67,21 +64,11 @@ public class MetricConfig implements Writeable, ToXContentFragment {
     private static final ParseField AVG = new ParseField("avg");
     private static final ParseField VALUE_COUNT = new ParseField("value_count");
 
-    private static final List<String> MAPPER_TYPES;
-    static {
-        List<String> types = Stream.of(NumberFieldMapper.NumberType.values())
-                .map(NumberFieldMapper.NumberType::typeName)
-                .collect(Collectors.toList());
-        types.add("scaled_float"); // have to add manually since scaled_float is in a module
-        MAPPER_TYPES = types;
-    }
-
-    public static final ConstructingObjectParser<MetricConfig, Void> PARSER = new ConstructingObjectParser<>(
-            NAME, a -> new MetricConfig((String)a[0], (List<String>) a[1]));
+    public static final ObjectParser<MetricConfig.Builder, Void> PARSER = new ObjectParser<>(NAME, MetricConfig.Builder::new);
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), METRICS);
+        PARSER.declareString(MetricConfig.Builder::setField, FIELD);
+        PARSER.declareStringArray(MetricConfig.Builder::setMetrics, METRICS);
     }
 
     MetricConfig(String name, List<String> metrics) {
@@ -155,7 +142,7 @@ public class MetricConfig implements Writeable, ToXContentFragment {
         Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
         if (fieldCaps != null && fieldCaps.isEmpty() == false) {
             fieldCaps.forEach((key, value) -> {
-                if (MAPPER_TYPES.contains(key)) {
+                if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
                     if (value.isAggregatable() == false) {
                         validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
                                 "but is not.");

@@ -58,10 +58,11 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -111,7 +112,7 @@ public abstract class Engine implements Closeable {
     protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     /*
-     * on <tt>lastWriteNanos</tt> we use System.nanoTime() to initialize this since:
+     * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
      *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still consider it active
      *    for the duration of the configured active to inactive period. If we initialize to 0 or Long.MAX_VALUE we either immediately or never mark it
      *    inactive if no writes at all happen to the shard.
@@ -235,6 +236,12 @@ public abstract class Engine implements Closeable {
      */
     public abstract boolean isThrottled();
 
+    /**
+     * Trims translog for terms below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>
+     * @see Translog#trimOperations(long, long)
+     */
+    public abstract void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException;
+
     /** A Lock implementation that always allows the lock to be acquired */
     protected static final class NoOpLock implements Lock {
 
@@ -295,27 +302,45 @@ public abstract class Engine implements Closeable {
      **/
     public abstract static class Result {
         private final Operation.TYPE operationType;
+        private final Result.Type resultType;
         private final long version;
         private final long seqNo;
         private final Exception failure;
         private final SetOnce<Boolean> freeze = new SetOnce<>();
+        private final Mapping requiredMappingUpdate;
         private Translog.Location translogLocation;
         private long took;
 
         protected Result(Operation.TYPE operationType, Exception failure, long version, long seqNo) {
             this.operationType = operationType;
-            this.failure = failure;
+            this.failure = Objects.requireNonNull(failure);
             this.version = version;
             this.seqNo = seqNo;
+            this.requiredMappingUpdate = null;
+            this.resultType = Type.FAILURE;
         }
 
         protected Result(Operation.TYPE operationType, long version, long seqNo) {
-            this(operationType, null, version, seqNo);
+            this.operationType = operationType;
+            this.version = version;
+            this.seqNo = seqNo;
+            this.failure = null;
+            this.requiredMappingUpdate = null;
+            this.resultType = Type.SUCCESS;
         }
 
-        /** whether the operation had failure */
-        public boolean hasFailure() {
-            return failure != null;
+        protected Result(Operation.TYPE operationType, Mapping requiredMappingUpdate) {
+            this.operationType = operationType;
+            this.version = Versions.NOT_FOUND;
+            this.seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            this.failure = null;
+            this.requiredMappingUpdate = requiredMappingUpdate;
+            this.resultType = Type.MAPPING_UPDATE_REQUIRED;
+        }
+
+        /** whether the operation was successful, has failed or was aborted due to a mapping update */
+        public Type getResultType() {
+            return resultType;
         }
 
         /** get the updated document version */
@@ -330,6 +355,14 @@ public abstract class Engine implements Closeable {
          */
         public long getSeqNo() {
             return seqNo;
+        }
+
+        /**
+         * If the operation was aborted due to missing mappings, this method will return the mappings
+         * that are required to complete the operation.
+         */
+        public Mapping getRequiredMappingUpdate() {
+            return requiredMappingUpdate;
         }
 
         /** get the translog location after executing the operation */
@@ -371,6 +404,11 @@ public abstract class Engine implements Closeable {
             freeze.set(true);
         }
 
+        public enum Type {
+            SUCCESS,
+            FAILURE,
+            MAPPING_UPDATE_REQUIRED
+        }
     }
 
     public static class IndexResult extends Result {
@@ -383,15 +421,19 @@ public abstract class Engine implements Closeable {
         }
 
         /**
-         * use in case of index operation failed before getting to internal engine
-         * (e.g while preparing operation or updating mappings)
-         * */
+         * use in case of the index operation failed before getting to internal engine
+         **/
         public IndexResult(Exception failure, long version) {
             this(failure, version, SequenceNumbers.UNASSIGNED_SEQ_NO);
         }
 
         public IndexResult(Exception failure, long version, long seqNo) {
             super(Operation.TYPE.INDEX, failure, version, seqNo);
+            this.created = false;
+        }
+
+        public IndexResult(Mapping requiredMappingUpdate) {
+            super(Operation.TYPE.INDEX, requiredMappingUpdate);
             this.created = false;
         }
 
@@ -410,9 +452,21 @@ public abstract class Engine implements Closeable {
             this.found = found;
         }
 
+        /**
+         * use in case of the delete operation failed before getting to internal engine
+         **/
+        public DeleteResult(Exception failure, long version) {
+            this(failure, version, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
+        }
+
         public DeleteResult(Exception failure, long version, long seqNo, boolean found) {
             super(Operation.TYPE.DELETE, failure, version, seqNo);
             this.found = found;
+        }
+
+        public DeleteResult(Mapping requiredMappingUpdate) {
+            super(Operation.TYPE.DELETE, requiredMappingUpdate);
+            this.found = false;
         }
 
         public boolean isFound() {
@@ -512,17 +566,9 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Returns the translog associated with this engine.
-     * Prefer to keep the translog package-private, so that an engine can control all accesses to the translog.
-     */
-    abstract Translog getTranslog();
-
-    /**
      * Checks if the underlying storage sync is required.
      */
-    public boolean isTranslogSyncNeeded() {
-        return getTranslog().syncNeeded();
-    }
+    public abstract boolean isTranslogSyncNeeded();
 
     /**
      * Ensures that all locations in the given stream have been written to the underlying storage.
@@ -531,35 +577,25 @@ public abstract class Engine implements Closeable {
 
     public abstract void syncTranslog() throws IOException;
 
-    public Closeable acquireTranslogRetentionLock() {
-        return getTranslog().acquireRetentionLock();
-    }
+    public abstract Closeable acquireTranslogRetentionLock();
 
     /**
      * Creates a new translog snapshot from this engine for reading translog operations whose seq# at least the provided seq#.
      * The caller has to close the returned snapshot after finishing the reading.
      */
-    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
-        return getTranslog().newSnapshotFromMinSeqNo(minSeqNo);
-    }
+    public abstract Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException;
 
     /**
      * Returns the estimated number of translog operations in this engine whose seq# at least the provided seq#.
      */
-    public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
-        return getTranslog().estimateTotalOperationsFromMinSeq(minSeqNo);
-    }
+    public abstract int estimateTranslogOperationsFromMinSeq(long minSeqNo);
 
-    public TranslogStats getTranslogStats() {
-        return getTranslog().stats();
-    }
+    public abstract TranslogStats getTranslogStats();
 
     /**
      * Returns the last location that the translog of this engine has written into.
      */
-    public Translog.Location getTranslogLastWriteLocation() {
-        return getTranslog().getLastWriteLocation();
-    }
+    public abstract Translog.Location getTranslogLastWriteLocation();
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {
@@ -581,18 +617,33 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * The sequence number service for this engine.
-     *
-     * @return the sequence number service
+     * @return the local checkpoint for this Engine
      */
-    public abstract LocalCheckpointTracker getLocalCheckpointTracker();
+    public abstract long getLocalCheckpoint();
+
+    /**
+     * Waits for all operations up to the provided sequence number to complete.
+     *
+     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
+     * @throws InterruptedException if the thread was interrupted while blocking on the condition
+     */
+    public abstract void waitForOpsToComplete(long seqNo) throws InterruptedException;
+
+    /**
+     * Reset the local checkpoint in the tracker to the given local checkpoint
+     * @param localCheckpoint the new checkpoint to be set
+     */
+    public abstract void resetLocalCheckpoint(long localCheckpoint);
+
+    /**
+     * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
+     */
+    public abstract SeqNoStats getSeqNoStats(long globalCheckpoint);
 
     /**
      * Returns the latest global checkpoint value that has been persisted in the underlying storage (i.e. translog's checkpoint)
      */
-    public long getLastSyncedGlobalCheckpoint() {
-        return getTranslog().getLastSyncedGlobalCheckpoint();
-    }
+    public abstract long getLastSyncedGlobalCheckpoint();
 
     /**
      * Global stats on segments.
@@ -856,7 +907,7 @@ public abstract class Engine implements Closeable {
      * checks and removes translog files that no longer need to be retained. See
      * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
      */
-    public abstract void trimTranslog() throws EngineException;
+    public abstract void trimUnreferencedTranslogFiles() throws EngineException;
 
     /**
      * Tests whether or not the translog generation should be rolled to a new generation.
@@ -864,9 +915,7 @@ public abstract class Engine implements Closeable {
      *
      * @return {@code true} if the current generation should be rolled to a new generation
      */
-    public boolean shouldRollTranslogGeneration() {
-        return getTranslog().shouldRollGeneration();
-    }
+    public abstract boolean shouldRollTranslogGeneration();
 
     /**
      * Rolls the translog generation and cleans unneeded.
@@ -1119,6 +1168,7 @@ public abstract class Engine implements Closeable {
         public Index(Term uid, ParsedDocument doc, long seqNo, long primaryTerm, long version, VersionType versionType, Origin origin,
                      long startTime, long autoGeneratedIdTimestamp, boolean isRetry) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
+            assert (origin == Origin.PRIMARY) == (versionType != null) : "invalid version_type=" + versionType + " for origin=" + origin;
             this.doc = doc;
             this.isRetry = isRetry;
             this.autoGeneratedIdTimestamp = autoGeneratedIdTimestamp;
@@ -1196,6 +1246,7 @@ public abstract class Engine implements Closeable {
         public Delete(String type, String id, Term uid, long seqNo, long primaryTerm, long version, VersionType versionType,
                       Origin origin, long startTime) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
+            assert (origin == Origin.PRIMARY) == (versionType != null) : "invalid version_type=" + versionType + " for origin=" + origin;
             this.type = Objects.requireNonNull(type);
             this.id = Objects.requireNonNull(id);
         }
@@ -1376,10 +1427,6 @@ public abstract class Engine implements Closeable {
 
         @Override
         public void close() {
-            release();
-        }
-
-        public void release() {
             Releasables.close(searcher);
         }
     }

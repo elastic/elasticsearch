@@ -46,10 +46,8 @@ public class FileUserPasswdStore {
     private final Logger logger;
 
     private final Path file;
-    private final Hasher hasher = Hasher.BCRYPT;
     private final Settings settings;
     private final CopyOnWriteArrayList<Runnable> listeners;
-
     private volatile Map<String, char[]> users;
 
     public FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService) {
@@ -80,18 +78,18 @@ public class FileUserPasswdStore {
     }
 
     public AuthenticationResult verifyPassword(String username, SecureString password, java.util.function.Supplier<User> user) {
-        char[] hash = users.get(username);
+        final char[] hash = users.get(username);
         if (hash == null) {
             return AuthenticationResult.notHandled();
         }
-        if (hasher.verify(password, hash) == false) {
+        if (Hasher.verifyHash(password, hash) == false) {
             return AuthenticationResult.unsuccessful("Password authentication failed for " + username, null);
         }
         return AuthenticationResult.success(user.get());
     }
 
     public boolean userExists(String username) {
-        return users != null && users.containsKey(username);
+        return users.containsKey(username);
     }
 
     public static Path resolveFile(Environment env) {
@@ -149,7 +147,7 @@ public class FileUserPasswdStore {
             // only trim the line because we have a format, our tool generates the formatted text and we shouldn't be lenient
             // and allow spaces in the format
             line = line.trim();
-            int i = line.indexOf(":");
+            int i = line.indexOf(':');
             if (i <= 0 || i == line.length() - 1) {
                 logger.error("invalid entry in users file [{}], line [{}]. skipping...", path.toAbsolutePath(), lineNr);
                 continue;

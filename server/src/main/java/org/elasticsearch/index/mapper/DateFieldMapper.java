@@ -446,6 +446,7 @@ public class DateFieldMapper extends FieldMapper {
             timestamp = fieldType().parse(dateAsString);
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value()) {
+                context.addIgnoredField(fieldType.name());
                 return;
             } else {
                 throw e;

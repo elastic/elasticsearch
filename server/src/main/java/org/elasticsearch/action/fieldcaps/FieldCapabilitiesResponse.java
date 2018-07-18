@@ -21,20 +21,29 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
-public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentFragment {
+public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentObject {
+    private static final ParseField FIELDS_FIELD = new ParseField("fields");
+
     private Map<String, Map<String, FieldCapabilities>> responseMap;
     private List<FieldCapabilitiesIndexResponse> indexResponses;
 
@@ -114,8 +123,41 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("fields", responseMap);
-        return builder;
+        return builder.startObject()
+            .field(FIELDS_FIELD.getPreferredName(), responseMap)
+            .endObject();
+    }
+
+    public static FieldCapabilitiesResponse fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<FieldCapabilitiesResponse, Void> PARSER =
+        new ConstructingObjectParser<>("field_capabilities_response", true,
+            a -> new FieldCapabilitiesResponse(
+                ((List<Tuple<String, Map<String, FieldCapabilities>>>) a[0]).stream()
+                    .collect(Collectors.toMap(Tuple::v1, Tuple::v2))));
+
+    static {
+        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> {
+            Map<String, FieldCapabilities> typeToCapabilities = parseTypeToCapabilities(p, n);
+            return new Tuple<>(n, typeToCapabilities);
+        }, FIELDS_FIELD);
+    }
+
+    private static Map<String, FieldCapabilities> parseTypeToCapabilities(XContentParser parser, String name) throws IOException {
+        Map<String, FieldCapabilities> typeToCapabilities = new HashMap<>();
+
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            String type = parser.currentName();
+            FieldCapabilities capabilities = FieldCapabilities.fromXContent(name, parser);
+            typeToCapabilities.put(type, capabilities);
+        }
+        return typeToCapabilities;
     }
 
     @Override

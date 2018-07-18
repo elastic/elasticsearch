@@ -1,10 +1,6 @@
 ---
 "Default index":
 
-  - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new feature that has been added in 6.0.0
-
   - do:
       indices.create:
           index:  goodbad
@@ -85,10 +81,6 @@
   
 ---
 "Dedup noise":
-
-  - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new feature that has been added in 6.0.0
 
   - do:
       indices.create:

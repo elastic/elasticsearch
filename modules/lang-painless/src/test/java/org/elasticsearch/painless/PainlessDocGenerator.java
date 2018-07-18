@@ -328,7 +328,7 @@ public class PainlessDocGenerator {
     }
 
     /**
-     * Pick the javadoc root for a {@link Class<?>}.
+     * Pick the javadoc root for a {@link Class}.
      */
     private static String javadocRoot(Class<?> clazz) {
         String classPackage = clazz.getPackage().getName();

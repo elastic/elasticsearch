@@ -9,7 +9,6 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -25,11 +24,8 @@ import static org.hamcrest.Matchers.is;
 public class SecurityPluginTests extends SecurityIntegTestCase {
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("http.enabled", true) //This test requires HTTP
-                .build();
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
     }
 
     public void testThatPluginIsLoaded() throws IOException {

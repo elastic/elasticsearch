@@ -120,7 +120,13 @@ public class Setting<T> implements ToXContentObject {
          * Mark this setting as not copyable during an index resize (shrink or split). This property can only be applied to settings that
          * also have {@link Property#IndexScope}.
          */
-        NotCopyableOnResize
+        NotCopyableOnResize,
+
+        /**
+         * Indicates an index-level setting that is managed internally. Such a setting can only be added to an index on index creation but
+         * can not be updated via the update API.
+         */
+        InternalIndex
     }
 
     private final Key key;
@@ -152,11 +158,15 @@ public class Setting<T> implements ToXContentObject {
             if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.Final)) {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
             }
-            if (propertiesAsSet.contains(Property.NotCopyableOnResize) && propertiesAsSet.contains(Property.IndexScope) == false) {
-                throw new IllegalArgumentException(
-                        "non-index-scoped setting [" + key + "] can not have property [" + Property.NotCopyableOnResize + "]");
-            }
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             this.properties = propertiesAsSet;
+        }
+    }
+
+    private void checkPropertyRequiresIndexScope(final EnumSet<Property> properties, final Property property) {
+        if (properties.contains(property) && properties.contains(Property.IndexScope) == false) {
+            throw new IllegalArgumentException("non-index-scoped setting [" + key + "] can not have property [" + property + "]");
         }
     }
 
@@ -312,7 +322,7 @@ public class Setting<T> implements ToXContentObject {
 
     /**
      * Returns <code>true</code> iff this setting is a group setting. Group settings represent a set of settings rather than a single value.
-     * The key, see {@link #getKey()}, in contrast to non-group settings is a prefix like <tt>cluster.store.</tt> that matches all settings
+     * The key, see {@link #getKey()}, in contrast to non-group settings is a prefix like {@code cluster.store.} that matches all settings
      * with this prefix.
      */
     boolean isGroupSetting() {
@@ -716,8 +726,8 @@ public class Setting<T> implements ToXContentObject {
         }
 
         /**
-         * Returns the namespace for a concrete setting. Ie. an affix setting with prefix: <tt>search.</tt> and suffix: <tt>username</tt>
-         * will return <tt>remote</tt> as a namespace for the setting <tt>search.remote.username</tt>
+         * Returns the namespace for a concrete setting. Ie. an affix setting with prefix: {@code search.} and suffix: {@code username}
+         * will return {@code remote} as a namespace for the setting {@code search.remote.username}
          */
         public String getNamespace(Setting<T> concreteSetting) {
             return key.getNamespace(concreteSetting.getKey());
@@ -1005,6 +1015,18 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<String> simpleString(String key, Validator<String> validator, Property... properties) {
         return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
+    }
+
+    /**
+     * Creates a new Setting instance with a String value
+     *
+     * @param key          the settings key for this setting.
+     * @param defaultValue the default String value.
+     * @param properties   properties for this setting like scope, filtering...
+     * @return the Setting Object
+     */
+    public static Setting<String> simpleString(String key, String defaultValue, Property... properties) {
+        return new Setting<>(key, s -> defaultValue, Function.identity(), properties);
     }
 
     public static int parseInt(String s, int minValue, String key) {

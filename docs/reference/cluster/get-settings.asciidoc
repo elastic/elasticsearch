@@ -1,0 +1,20 @@
+[[cluster-get-settings]]
+== Cluster Get Settings
+
+The cluster get settings API allows to retrieve the cluster wide settings.
+
+[source,js]
+--------------------------------------------------
+GET /_cluster/settings
+--------------------------------------------------
+// CONSOLE
+
+Or
+[source,js]
+--------------------------------------------------
+GET /_cluster/settings?include_defaults=true
+--------------------------------------------------
+// CONSOLE
+
+In the second example above, the parameter `include_defaults` ensures that the settings which were not set explicitly
+are also returned. By default `include_defaults` is set to false.

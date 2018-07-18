@@ -31,12 +31,12 @@ import org.elasticsearch.rest.RestStatus;
 public interface ShardOperationFailedException extends Streamable, ToXContent {
 
     /**
-     * The index the operation failed on. Might return <tt>null</tt> if it can't be derived.
+     * The index the operation failed on. Might return {@code null} if it can't be derived.
      */
     String index();
 
     /**
-     * The index the operation failed on. Might return <tt>-1</tt> if it can't be derived.
+     * The index the operation failed on. Might return {@code -1} if it can't be derived.
      */
     int shardId();
 

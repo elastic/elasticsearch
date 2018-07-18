@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -49,7 +50,7 @@ public class OperationRouting extends AbstractComponent {
             Setting.boolSetting("cluster.routing.use_adaptive_replica_selection", true,
                     Setting.Property.Dynamic, Setting.Property.NodeScope);
 
-    private String[] awarenessAttributes;
+    private List<String> awarenessAttributes;
     private boolean useAdaptiveReplicaSelection;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
@@ -65,7 +66,7 @@ public class OperationRouting extends AbstractComponent {
         this.useAdaptiveReplicaSelection = useAdaptiveReplicaSelection;
     }
 
-    private void setAwarenessAttributes(String[] awarenessAttributes) {
+    private void setAwarenessAttributes(List<String> awarenessAttributes) {
         this.awarenessAttributes = awarenessAttributes;
     }
 
@@ -139,7 +140,7 @@ public class OperationRouting extends AbstractComponent {
                                                         @Nullable ResponseCollectorService collectorService,
                                                         @Nullable Map<String, Long> nodeCounts) {
         if (preference == null || preference.isEmpty()) {
-            if (awarenessAttributes.length == 0) {
+            if (awarenessAttributes.isEmpty()) {
                 if (useAdaptiveReplicaSelection) {
                     return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
                 } else {
@@ -174,7 +175,7 @@ public class OperationRouting extends AbstractComponent {
                 }
                 // no more preference
                 if (index == -1 || index == preference.length() - 1) {
-                    if (awarenessAttributes.length == 0) {
+                    if (awarenessAttributes.isEmpty()) {
                         if (useAdaptiveReplicaSelection) {
                             return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
                         } else {
@@ -218,7 +219,7 @@ public class OperationRouting extends AbstractComponent {
             // shard ID into the hash of the user-supplied preference key.
             routingHash = 31 * routingHash + indexShard.shardId.hashCode();
         }
-        if (awarenessAttributes.length == 0) {
+        if (awarenessAttributes.isEmpty()) {
             return indexShard.activeInitializingShardsIt(routingHash);
         } else {
             return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes, routingHash);

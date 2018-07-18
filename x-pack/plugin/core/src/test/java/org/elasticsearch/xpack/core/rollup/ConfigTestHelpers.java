@@ -27,8 +27,9 @@ public class ConfigTestHelpers {
         builder.setId(jobId);
         builder.setCron(getCronString());
         builder.setTimeout(new TimeValue(ESTestCase.randomIntBetween(1,100)));
-        builder.setIndexPattern(ESTestCase.randomAlphaOfLengthBetween(1,10));
-        builder.setRollupIndex(ESTestCase.randomAlphaOfLengthBetween(1,10));
+        String indexPattern = ESTestCase.randomAlphaOfLengthBetween(1,10);
+        builder.setIndexPattern(indexPattern);
+        builder.setRollupIndex("rollup_" + indexPattern); // to ensure the index pattern != rollup index
         builder.setGroupConfig(ConfigTestHelpers.getGroupConfig().build());
         builder.setPageSize(ESTestCase.randomIntBetween(1,10));
         if (ESTestCase.randomBoolean()) {
@@ -93,7 +94,7 @@ public class ConfigTestHelpers {
         if (ESTestCase.randomBoolean()) {
             dateHistoBuilder.setDelay(new DateHistogramInterval(randomPositiveTimeValue()));
         }
-        dateHistoBuilder.setField(ESTestCase.randomAlphaOfLengthBetween(1, 10 ));
+        dateHistoBuilder.setField(ESTestCase.randomAlphaOfLengthBetween(5, 10));
         return dateHistoBuilder;
     }
 
@@ -111,8 +112,8 @@ public class ConfigTestHelpers {
     }
 
     public static  List<String> getFields() {
-        return IntStream.range(0, ESTestCase.randomIntBetween(1,10))
-                .mapToObj(n -> ESTestCase.randomAlphaOfLengthBetween(1,10))
+        return IntStream.range(0, ESTestCase.randomIntBetween(1, 10))
+                .mapToObj(n -> ESTestCase.randomAlphaOfLengthBetween(5, 10))
                 .collect(Collectors.toList());
     }
 

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.rest.action;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -36,10 +35,13 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
     }
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true);
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
 
         if (anonymousEnabled) {
             builder.put(AnonymousUser.USERNAME_SETTING.getKey(), "anon")

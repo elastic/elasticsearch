@@ -20,7 +20,6 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.English;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -54,6 +52,9 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Random;
@@ -351,7 +352,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                         .put(SETTING_NUMBER_OF_SHARDS,1)
                         .put("index.analysis.filter.syns.type","synonym")
                         .putList("index.analysis.filter.syns.synonyms","quick,fast")
-                        .put("index.analysis.analyzer.syns.tokenizer","whitespace")
+                        .put("index.analysis.analyzer.syns.tokenizer","standard")
                         .put("index.analysis.analyzer.syns.filter","syns")
                         )
                 .addMapping("type1", "field1", "type=text,analyzer=syns", "field2", "type=text,analyzer=syns"));
@@ -482,8 +483,9 @@ public class SearchQueryIT extends ESIntegTestCase {
                 "type", "past", "type=date", "future", "type=date"
         ));
 
-        String aMonthAgo = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).minusMonths(1));
-        String aMonthFromNow = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).plusMonths(1));
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+        String aMonthAgo = DateTimeFormatter.ISO_LOCAL_DATE.format(now.minusMonths(1));
+        String aMonthFromNow = DateTimeFormatter.ISO_LOCAL_DATE.format(now.plusMonths(1));
         client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
         refresh();
 
@@ -1764,56 +1766,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
     }
 
-    // see #5120
-    public void testNGramCopyField() {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
-                .put(indexSettings())
-                .put(IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey(), 9)
-                .put("index.analysis.analyzer.my_ngram_analyzer.type", "custom")
-                .put("index.analysis.analyzer.my_ngram_analyzer.tokenizer", "my_ngram_tokenizer")
-                .put("index.analysis.tokenizer.my_ngram_tokenizer.type", "nGram")
-                .put("index.analysis.tokenizer.my_ngram_tokenizer.min_gram", "1")
-                .put("index.analysis.tokenizer.my_ngram_tokenizer.max_gram", "10")
-                .putList("index.analysis.tokenizer.my_ngram_tokenizer.token_chars", new String[0]));
-        assertAcked(builder.addMapping("test", "origin", "type=text,copy_to=meta", "meta", "type=text,analyzer=my_ngram_analyzer"));
-        // we only have ngrams as the index analyzer so searches will get standard analyzer
-
-
-        client().prepareIndex("test", "test", "1").setSource("origin", "C.A1234.5678")
-                .setRefreshPolicy(IMMEDIATE)
-                .get();
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("meta", "1234"))
-                .get();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("meta", "1234.56"))
-                .get();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(termQuery("meta", "A1234"))
-                .get();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(termQuery("meta", "a1234"))
-                .get();
-        assertHitCount(searchResponse, 0L); // it's upper case
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("meta", "A1234").analyzer("my_ngram_analyzer"))
-                .get(); // force ngram analyzer
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("meta", "a1234").analyzer("my_ngram_analyzer"))
-                .get(); // this one returns a hit since it's default operator is OR
-        assertHitCount(searchResponse, 1L);
-    }
-
     public void testMatchPhrasePrefixQuery() throws ExecutionException, InterruptedException {
         createIndex("test1");
         indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("field", "Johnnie Walker Black Label"),
@@ -1868,6 +1820,41 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         RangeQueryBuilder range = new RangeQueryBuilder("int_range").relation("intersects").from(Integer.MIN_VALUE).to(Integer.MAX_VALUE);
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 1);
+    }
+
+    public void testRangeQueryTypeField_31476() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("foo", "field", "type=keyword"));
+
+        client().prepareIndex("test", "foo", "1").setSource("field", "value").get();
+        refresh();
+
+        RangeQueryBuilder range = new RangeQueryBuilder("_type").from("ape").to("zebra");
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 1);
+
+        range = new RangeQueryBuilder("_type").from("monkey").to("zebra");
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("ape").to("donkey");
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(false);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(true);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 1);
+
+        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(false);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(true);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
         assertHitCount(searchResponse, 1);
     }
 

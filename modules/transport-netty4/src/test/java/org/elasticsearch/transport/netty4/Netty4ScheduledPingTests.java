@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -88,10 +89,10 @@ public class Netty4ScheduledPingTests extends ESTestCase {
         assertThat(nettyA.getPing().getFailedPings(), equalTo(0L));
         assertThat(nettyB.getPing().getFailedPings(), equalTo(0L));
 
-        serviceA.registerRequestHandler("sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
+        serviceA.registerRequestHandler("internal:sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
             new TransportRequestHandler<TransportRequest.Empty>() {
                 @Override
-                public void messageReceived(TransportRequest.Empty request, TransportChannel channel) {
+                public void messageReceived(TransportRequest.Empty request, TransportChannel channel, Task task) {
                     try {
                         channel.sendResponse(TransportResponse.Empty.INSTANCE, TransportResponseOptions.EMPTY);
                     } catch (IOException e) {
@@ -103,7 +104,7 @@ public class Netty4ScheduledPingTests extends ESTestCase {
 
         int rounds = scaledRandomIntBetween(100, 5000);
         for (int i = 0; i < rounds; i++) {
-            serviceB.submitRequest(nodeA, "sayHello",
+            serviceB.submitRequest(nodeA, "internal:sayHello",
                 TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(randomBoolean()).build(),
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override

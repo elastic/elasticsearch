@@ -150,7 +150,6 @@ setup:
 "Deprecated _time order":
 
   - skip:
-      version: " - 5.99.99"
       reason:  _time order deprecated in 6.0, replaced by _key
       features: "warnings"
 

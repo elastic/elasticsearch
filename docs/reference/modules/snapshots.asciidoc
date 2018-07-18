@@ -124,8 +124,8 @@ the shared file system repository it is necessary to mount the same shared files
 master and data nodes. This location (or one of its parent directories) must be registered in the `path.repo`
 setting on all master and data nodes.
 
-Assuming that the shared filesystem is mounted to `/mount/backups/my_backup`, the following setting should be added to
-`elasticsearch.yml` file:
+Assuming that the shared filesystem is mounted to `/mount/backups/my_fs_backup_location`, the following setting should
+be added to `elasticsearch.yml` file:
 
 [source,yaml]
 --------------
@@ -141,7 +141,7 @@ path.repo: ["\\\\MY_SERVER\\Snapshots"]
 --------------
 
 After all nodes are restarted, the following command can be used to register the shared file system repository with
-the name `my_backup`:
+the name `my_fs_backup`:
 
 [source,js]
 -----------------------------------
@@ -289,6 +289,20 @@ By setting `include_global_state` to false it's possible to prevent the cluster 
 the snapshot. By default, the entire snapshot will fail if one or more indices participating in the snapshot don't have
 all primary shards available. This behaviour can be changed by setting `partial` to `true`.
 
+Snapshot names can be automatically derived using <<date-math-index-names,date math expressions>>, similarly as when creating
+new indices. Note that special characters need to be URI encoded.
+
+For example, creating a snapshot with the current day in the name, like `snapshot-2018.05.11`, can be achieved with
+the following command:
+[source,js]
+-----------------------------------
+# PUT /_snapshot/my_backup/<snapshot-{now/d}>
+PUT /_snapshot/my_backup/%3Csnapshot-%7Bnow%2Fd%7D%3E
+-----------------------------------
+// CONSOLE
+// TEST[continued]
+
+
 The index snapshot process is incremental. In the process of making the index snapshot Elasticsearch analyses
 the list of the index files that are already stored in the repository and copies only files that were created or
 changed since the last snapshot. That allows multiple snapshots to be preserved in the repository in a compact form.
@@ -405,7 +419,7 @@ A repository can be unregistered using the following command:
 
 [source,sh]
 -----------------------------------
-DELETE /_snapshot/my_fs_backup
+DELETE /_snapshot/my_backup
 -----------------------------------
 // CONSOLE
 // TEST[continued]
@@ -548,6 +562,54 @@ GET /_snapshot/my_backup/snapshot_1/_status
 -----------------------------------
 // CONSOLE
 // TEST[continued]
+
+The output looks similar to the following:
+
+[source,js]
+--------------------------------------------------
+{
+  "snapshots": [
+    {
+      "snapshot": "snapshot_1",
+      "repository": "my_backup",
+      "uuid": "XuBo4l4ISYiVg0nYUen9zg",
+      "state": "SUCCESS",
+      "include_global_state": true,
+      "shards_stats": {
+        "initializing": 0,
+        "started": 0,
+        "finalizing": 0,
+        "done": 5,
+        "failed": 0,
+        "total": 5
+      },
+      "stats": {
+        "incremental": {
+          "file_count": 8,
+          "size_in_bytes": 4704
+        },
+        "processed": {
+          "file_count": 7,
+          "size_in_bytes": 4254
+        },
+        "total": {
+          "file_count": 8,
+          "size_in_bytes": 4704
+        },
+        "start_time_in_millis": 1526280280355,
+        "time_in_millis": 358
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+The output is composed of different sections. The `stats` sub-object provides details on the number and size of files that were
+snapshotted. As snapshots are incremental, copying only the Lucene segments that are not already in the repository,
+the `stats` object contains a `total` section for all the files that are referenced by the snapshot, as well as an `incremental` section
+for those files that actually needed to be copied over as part of the incremental snapshotting. In case of a snapshot that's still
+in progress, there's also a `processed` section that contains information about the files that are in the process of being copied.
 
 Multiple ids are also supported:
 

@@ -59,6 +59,10 @@ forbiddenApisMain {
                     PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
 }
 
+forbiddenPatterns {
+  exclude '**/*.der'
+}
+
 forbiddenApisTest {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'
@@ -69,7 +73,7 @@ forbiddenApisTest {
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in elasticsearch-core
+// TODO: Not anymore. Now in :libs:core
 jarHell.enabled=false
 
 namingConventions {

@@ -55,8 +55,7 @@ public class PostStartTrialRequest extends MasterNodeRequest<PostStartTrialReque
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO: Change to 6.3 after backport
-        Version version = Version.V_7_0_0_alpha1;
+        Version version = Version.V_6_3_0;
         if (out.getVersion().onOrAfter(version)) {
             super.writeTo(out);
             out.writeString(type);

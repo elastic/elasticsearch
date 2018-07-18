@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -51,7 +53,7 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
      * @param repositories list of repositories
      */
     public RepositoriesMetaData(List<RepositoryMetaData> repositories) {
-        this.repositories = repositories;
+        this.repositories = Collections.unmodifiableList(repositories);
     }
 
     /**
@@ -102,12 +104,17 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
         return TYPE;
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
+    }
+
     public RepositoriesMetaData(StreamInput in) throws IOException {
         RepositoryMetaData[] repository = new RepositoryMetaData[in.readVInt()];
         for (int i = 0; i < repository.length; i++) {
             repository[i] = new RepositoryMetaData(in);
         }
-        this.repositories = Arrays.asList(repository);
+        this.repositories = Collections.unmodifiableList(Arrays.asList(repository));
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws  IOException {

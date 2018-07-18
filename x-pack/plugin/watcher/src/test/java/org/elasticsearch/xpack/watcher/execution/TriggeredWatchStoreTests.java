@@ -85,9 +85,9 @@ import static org.mockito.Mockito.when;
 public class TriggeredWatchStoreTests extends ESTestCase {
 
     private Settings indexSettings = settings(Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+        .build();
 
     private Client client;
     private TriggeredWatch.Parser parser;
@@ -101,10 +101,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         parser = mock(TriggeredWatch.Parser.class);
         triggeredWatchStore = new TriggeredWatchStore(Settings.EMPTY, client, parser);
-        triggeredWatchStore.start();
     }
 
-    public void testFindTriggeredWatchesEmptyCollection() throws Exception {
+    public void testFindTriggeredWatchesEmptyCollection() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("name"));
         Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(Collections.emptyList(), csBuilder.build());
         assertThat(triggeredWatches, hasSize(0));
@@ -112,10 +111,10 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
     public void testValidateNoIndex() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("name"));
-        assertThat(triggeredWatchStore.validate(csBuilder.build()), is(true));
+        assertThat(TriggeredWatchStore.validate(csBuilder.build()), is(true));
     }
 
-    public void testValidateNoActivePrimaryShards() throws Exception {
+    public void testValidateNoActivePrimaryShards() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -124,11 +123,11 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         int numShards = 2 + randomInt(2);
         int numStartedShards = 1;
         Settings settings = settings(Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
         metaDataBuilder.put(IndexMetaData.builder(TriggeredWatchStoreField.INDEX_NAME).settings(settings)
-                .numberOfShards(numShards).numberOfReplicas(1));
+            .numberOfShards(numShards).numberOfReplicas(1));
         final Index index = metaDataBuilder.get(TriggeredWatchStoreField.INDEX_NAME).getIndex();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         for (int i = 0; i < numShards; i++) {
@@ -143,9 +142,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             }
             ShardId shardId = new ShardId(index, 0);
             indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                    .addShard(TestShardRouting.newShardRouting(shardId, currentNodeId, null, true, state,
-                            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")))
-                    .build());
+                .addShard(TestShardRouting.newShardRouting(shardId, currentNodeId, null, true, state,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")))
+                .build());
             indexRoutingTableBuilder.addReplica();
         }
         routingTableBuilder.add(indexRoutingTableBuilder.build());
@@ -154,10 +153,10 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         csBuilder.routingTable(routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
-        assertThat(triggeredWatchStore.validate(cs), is(false));
+        assertThat(TriggeredWatchStore.validate(cs), is(false));
     }
 
-    public void testFindTriggeredWatchesGoodCase() throws Exception {
+    public void testFindTriggeredWatchesGoodCase() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
@@ -167,8 +166,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         ShardId shardId = new ShardId(index, 0);
         indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                .addShard(TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED))
-                .build());
+            .addShard(TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED))
+            .build());
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         csBuilder.metaData(metaDataBuilder);
@@ -206,7 +205,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         hit.sourceRef(source);
         hits = new SearchHits(new SearchHit[]{hit}, 1, 1.0f);
         SearchResponse searchResponse2 = new SearchResponse(
-                new InternalSearchResponse(hits, null, null, null, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
+            new InternalSearchResponse(hits, null, null, null, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
         SearchResponse searchResponse3 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId2", 1, 1, 0, 1, null, null);
 
         doAnswer(invocation -> {
@@ -229,7 +228,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(client.clearScroll(any())).thenReturn(clearScrollResponseFuture);
         clearScrollResponseFuture.onResponse(new ClearScrollResponse(true, 1));
 
-        assertThat(triggeredWatchStore.validate(cs), is(true));
+        assertThat(TriggeredWatchStore.validate(cs), is(true));
         DateTime now = DateTime.now(UTC);
         ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(now, now);
 
@@ -260,85 +259,86 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
     // the elasticsearch migration helper is doing reindex using aliases, so we have to
     // make sure that the watch store supports a single alias pointing to the watch index
-    public void testLoadStoreAsAlias() throws Exception {
+    public void testLoadStoreAsAlias() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         MetaData.Builder metaDataBuilder = MetaData.builder();
         metaDataBuilder.put(IndexMetaData.builder("triggered-watches-alias").settings(indexSettings)
-                .putAlias(new AliasMetaData.Builder(TriggeredWatchStoreField.INDEX_NAME).build()));
+            .putAlias(new AliasMetaData.Builder(TriggeredWatchStoreField.INDEX_NAME).build()));
         final Index index = metaDataBuilder.get("triggered-watches-alias").getIndex();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         ShardId shardId = new ShardId(index, 0);
         indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                .addShard(TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED))
-                .build());
+            .addShard(TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED))
+            .build());
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         csBuilder.metaData(metaDataBuilder);
         csBuilder.routingTable(routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
-        assertThat(triggeredWatchStore.validate(cs), is(true));
+        assertThat(TriggeredWatchStore.validate(cs), is(true));
     }
 
     // the elasticsearch migration helper is doing reindex using aliases, so we have to
     // make sure that the watch store supports only a single index in an alias
-    public void testLoadingFailsWithTwoAliases() throws Exception {
+    public void testLoadingFailsWithTwoAliases() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         MetaData.Builder metaDataBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         metaDataBuilder.put(IndexMetaData.builder("triggered-watches-alias").settings(indexSettings)
-                .putAlias(new AliasMetaData.Builder(TriggeredWatchStoreField.INDEX_NAME).build()));
+            .putAlias(new AliasMetaData.Builder(TriggeredWatchStoreField.INDEX_NAME).build()));
         metaDataBuilder.put(IndexMetaData.builder("whatever").settings(indexSettings)
-                .putAlias(new AliasMetaData.Builder(TriggeredWatchStoreField.INDEX_NAME).build()));
+            .putAlias(new AliasMetaData.Builder(TriggeredWatchStoreField.INDEX_NAME).build()));
 
         final Index index = metaDataBuilder.get("triggered-watches-alias").getIndex();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
-                .addShard(TestShardRouting.newShardRouting("triggered-watches-alias", 0, "_node_id", null, true, ShardRoutingState.STARTED))
-                .build());
+            .addShard(TestShardRouting.newShardRouting("triggered-watches-alias", 0, "_node_id", null, true, ShardRoutingState.STARTED))
+            .build());
         indexRoutingTableBuilder.addReplica();
         final Index otherIndex = metaDataBuilder.get("whatever").getIndex();
         IndexRoutingTable.Builder otherIndexRoutingTableBuilder = IndexRoutingTable.builder(otherIndex);
         otherIndexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
-                .addShard(TestShardRouting.newShardRouting("whatever", 0, "_node_id", null, true, ShardRoutingState.STARTED))
-                .build());
+            .addShard(TestShardRouting.newShardRouting("whatever", 0, "_node_id", null, true, ShardRoutingState.STARTED))
+            .build());
 
         csBuilder.metaData(metaDataBuilder);
         csBuilder.routingTable(routingTableBuilder.build());
         ClusterState cs = csBuilder.build();
 
-        assertThat(triggeredWatchStore.validate(cs), is(false));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> TriggeredWatchStore.validate(cs));
+        assertThat(e.getMessage(), is("Alias [.triggered_watches] points to more than one index"));
     }
 
     // this is a special condition that could lead to an NPE in earlier versions
-    public void testTriggeredWatchesIndexIsClosed() throws Exception {
+    public void testTriggeredWatchesIndexIsClosed() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
 
         MetaData.Builder metaDataBuilder = MetaData.builder();
         metaDataBuilder.put(IndexMetaData.builder(TriggeredWatchStoreField.INDEX_NAME)
-                .settings(indexSettings)
-                .state(IndexMetaData.State.CLOSE));
+            .settings(indexSettings)
+            .state(IndexMetaData.State.CLOSE));
         csBuilder.metaData(metaDataBuilder);
 
-        assertThat(triggeredWatchStore.validate(csBuilder.build()), is(false));
+        assertThat(TriggeredWatchStore.validate(csBuilder.build()), is(false));
     }
 
-    public void testTriggeredWatchesIndexDoesNotExistOnStartup() throws Exception {
+    public void testTriggeredWatchesIndexDoesNotExistOnStartup() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         ClusterState cs = csBuilder.build();
-        assertThat(triggeredWatchStore.validate(cs), is(true));
+        assertThat(TriggeredWatchStore.validate(cs), is(true));
         Watch watch = mock(Watch.class);
         triggeredWatchStore.findTriggeredWatches(Collections.singletonList(watch), cs);
         verifyZeroInteractions(client);
     }
 
-    public void testIndexNotFoundButInMetaData() throws Exception {
+    public void testIndexNotFoundButInMetaData() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDataBuilder = MetaData.builder()
-                .put(IndexMetaData.builder(TriggeredWatchStoreField.INDEX_NAME).settings(indexSettings));
+            .put(IndexMetaData.builder(TriggeredWatchStoreField.INDEX_NAME).settings(indexSettings));
         csBuilder.metaData(metaDataBuilder);
 
         ClusterState cs = csBuilder.build();

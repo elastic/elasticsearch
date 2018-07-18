@@ -19,11 +19,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.junit.After;
 import org.junit.Before;
+
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,34 +68,39 @@ public class SessionFactoryTests extends ESTestCase {
                 .put(SessionFactorySettings.FOLLOW_REFERRALS_SETTING, "false")
                 .build();
 
-        final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        RealmConfig realmConfig = new RealmConfig("conn settings", settings, environment.settings(), environment, new ThreadContext(Settings.EMPTY));
-        LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
-                logger);
+        final String realmName = "conn_settings";
+        final Function<Settings, Settings> globalSettings = realmSettings -> Settings.builder()
+            .put(realmSettings)
+            .normalizePrefix(RealmSettings.PREFIX + realmName + ".")
+            .put("path.home", createTempDir())
+            .build();
+        final Environment environment = TestEnvironment.newEnvironment(globalSettings.apply(settings));
+        final Function<Settings, SSLService> sslService = realmSettings -> new SSLService(globalSettings.apply(realmSettings), environment);
+
+        final ThreadContext threadContext = new ThreadContext(environment.settings());
+        RealmConfig realmConfig = new RealmConfig(realmName, settings, environment.settings(), environment, threadContext);
+        LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, sslService.apply(settings), logger);
         assertThat(options.followReferrals(), is(equalTo(false)));
         assertThat(options.allowConcurrentSocketFactoryUse(), is(equalTo(true)));
         assertThat(options.getConnectTimeoutMillis(), is(equalTo(10)));
         assertThat(options.getResponseTimeoutMillis(), is(equalTo(20L)));
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
-        assertWarnings("the setting [xpack.security.authc.realms.conn settings.hostname_verification] has been deprecated and will be " +
-                "removed in a future version. use [xpack.security.authc.realms.conn settings.ssl.verification_mode] instead");
+        assertWarnings("the setting [xpack.security.authc.realms." + realmName + ".hostname_verification] has been deprecated" +
+            " and will be removed in a future version. use [xpack.security.authc.realms." + realmName + ".ssl.verification_mode] instead");
 
         settings = Settings.builder().put("ssl.verification_mode", VerificationMode.CERTIFICATE).build();
-        realmConfig = new RealmConfig("conn settings", settings, environment.settings(), environment, new ThreadContext(Settings.EMPTY));
-        options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
-                logger);
+        realmConfig = new RealmConfig(realmName, settings, globalSettings.apply(settings), environment, threadContext);
+        options = SessionFactory.connectionOptions(realmConfig, sslService.apply(settings), logger);
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
 
         settings = Settings.builder().put("ssl.verification_mode", VerificationMode.NONE).build();
-        realmConfig = new RealmConfig("conn settings", settings, environment.settings(), environment, new ThreadContext(Settings.EMPTY));
-        options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
-                logger);
+        realmConfig = new RealmConfig(realmName, settings, environment.settings(), environment, threadContext);
+        options = SessionFactory.connectionOptions(realmConfig, sslService.apply(settings), logger);
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
 
         settings = Settings.builder().put("ssl.verification_mode", VerificationMode.FULL).build();
-        realmConfig = new RealmConfig("conn settings", settings, environment.settings(), environment, new ThreadContext(Settings.EMPTY));
-        options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
-                logger);
+        realmConfig = new RealmConfig(realmName, settings, environment.settings(), environment, threadContext);
+        options = SessionFactory.connectionOptions(realmConfig, sslService.apply(settings), logger);
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(HostNameSSLSocketVerifier.class)));
     }
 

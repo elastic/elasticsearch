@@ -1,0 +1,85 @@
+import org.elasticsearch.gradle.LoggedExec
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+    testCompile project(path: xpackModule('core'), configuration: 'runtime')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('ml'), configuration: 'runtime')
+    testCompile project(path: xpackModule('ml'), configuration: 'testArtifacts')
+}
+
+integTestRunner {
+    /*
+     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+     * other if we allow them to set the number of available processors as it's set-once in Netty.
+     */
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+// location of generated keystores and certificates
+File keystoreDir = new File(project.buildDir, 'keystore')
+
+// Generate the node's keystore
+File nodeKeystore = new File(keystoreDir, 'test-node.jks')
+task createNodeKeyStore(type: LoggedExec) {
+    doFirst {
+        if (nodeKeystore.parentFile.exists() == false) {
+            nodeKeystore.parentFile.mkdirs()
+        }
+        if (nodeKeystore.exists()) {
+            delete nodeKeystore
+        }
+    }
+    executable = new File(project.runtimeJavaHome, 'bin/keytool')
+    standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
+    args '-genkey',
+            '-alias', 'test-node',
+            '-keystore', nodeKeystore,
+            '-keyalg', 'RSA',
+            '-keysize', '2048',
+            '-validity', '712',
+            '-dname', 'CN=smoke-test-plugins-ssl',
+            '-keypass', 'keypass',
+            '-storepass', 'keypass'
+}
+
+// Add keystores to test classpath: it expects it there
+sourceSets.test.resources.srcDir(keystoreDir)
+processTestResources.dependsOn(createNodeKeyStore)
+
+integTestCluster {
+    dependsOn createNodeKeyStore
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.ml.enabled', 'true'
+    setting 'logger.org.elasticsearch.xpack.ml.datafeed', 'TRACE'
+    setting 'xpack.monitoring.enabled', 'false'
+    setting 'xpack.security.authc.token.enabled', 'true'
+    setting 'xpack.security.transport.ssl.enabled', 'true'
+    setting 'xpack.security.transport.ssl.keystore.path', nodeKeystore.name
+    setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+    setting 'xpack.security.audit.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'trial'
+
+    keystoreSetting 'bootstrap.password', 'x-pack-test-password'
+    keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'keypass'
+
+    numNodes = 3
+
+    setupCommand 'setupDummyUser',
+            'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+
+    extraConfigFile nodeKeystore.name, nodeKeystore
+
+    waitCondition = { node, ant ->
+        File tmpFile = new File(node.cwd, 'wait.success')
+        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
+                dest: tmpFile.toString(),
+                username: 'x_pack_rest_user',
+                password: 'x-pack-test-password',
+                ignoreerrors: true,
+                retries: 10)
+        return tmpFile.exists()
+    }
+}

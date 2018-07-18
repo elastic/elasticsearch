@@ -17,29 +17,18 @@
  * under the License.
  */
 
-buildscript {
-    repositories {
-        maven {
-            url 'https://plugins.gradle.org/m2/'
-        }
-    }
-    dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.2'
-    }
-}
-
 apply plugin: 'elasticsearch.build'
-// build an uberjar with all benchmarks
-apply plugin: 'com.github.johnrengelman.shadow'
-// have the shadow plugin provide the runShadow task
-apply plugin: 'application'
+
+// order of this section matters, see: https://github.com/johnrengelman/shadow/issues/336
+apply plugin: 'application' // have the shadow plugin provide the runShadow task
+mainClassName = 'org.openjdk.jmh.Main'
+apply plugin: 'com.github.johnrengelman.shadow' // build an uberjar with all benchmarks
 
 // Not published so no need to assemble
 tasks.remove(assemble)
 build.dependsOn.remove('assemble')
 
 archivesBaseName = 'elasticsearch-benchmarks'
-mainClassName = 'org.openjdk.jmh.Main'
 
 test.enabled = false
 
@@ -80,10 +69,6 @@ thirdPartyAudit.excludes = [
         'org.openjdk.jmh.profile.HotspotRuntimeProfiler',
         'org.openjdk.jmh.util.Utils'
 ]
-
-shadowJar {
-    classifier = 'benchmarks'
-}
 
 runShadow {
     executable = new File(project.runtimeJavaHome, 'bin/java')

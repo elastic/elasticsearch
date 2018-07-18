@@ -48,8 +48,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -149,24 +147,19 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     private GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType,
                                FetchSourceContext fetchSourceContext, boolean readFromTranslog) {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
-        final Collection<String> types;
         if (type == null || type.equals("_all")) {
-            types = mapperService.types();
-        } else {
-            types = Collections.singleton(type);
+            DocumentMapper mapper = mapperService.documentMapper();
+            type = mapper == null ? null : mapper.type();
         }
 
         Engine.GetResult get = null;
-        for (String typeX : types) {
-            Term uidTerm = mapperService.createUidTerm(typeX, id);
+        if (type != null) {
+            Term uidTerm = mapperService.createUidTerm(type, id);
             if (uidTerm != null) {
-                get = indexShard.get(new Engine.Get(realtime, readFromTranslog, typeX, id, uidTerm)
+                get = indexShard.get(new Engine.Get(realtime, readFromTranslog, type, id, uidTerm)
                         .version(version).versionType(versionType));
-                if (get.exists()) {
-                    type = typeX;
-                    break;
-                } else {
-                    get.release();
+                if (get.exists() == false) {
+                    get.close();
                 }
             }
         }
@@ -179,7 +172,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             // break between having loaded it from translog (so we only have _source), and having a document to load
             return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, mapperService);
         } finally {
-            get.release();
+            get.close();
         }
     }
 
@@ -209,7 +202,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         if (gFields != null && gFields.length > 0) {
             for (String field : gFields) {
-                FieldMapper fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
+                FieldMapper fieldMapper = docMapper.mappers().getMapper(field);
                 if (fieldMapper == null) {
                     if (docMapper.objectMappers().get(field) != null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.

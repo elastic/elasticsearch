@@ -5,13 +5,11 @@
  */
 package org.elasticsearch.xpack.qa.sql.security;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.qa.sql.jdbc.SqlSpecTestCase;
 
 import java.util.Properties;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30292")
 public class JdbcSqlSpecIT extends SqlSpecTestCase {
     public JdbcSqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, String query) {
         super(fileName, groupName, testName, lineNumber, query);

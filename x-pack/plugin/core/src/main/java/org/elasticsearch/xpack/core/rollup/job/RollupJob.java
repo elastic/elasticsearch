@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
@@ -13,7 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,7 +26,7 @@ import java.util.Objects;
  * It holds the config (RollupJobConfig) and a map of authentication headers.  Only RollupJobConfig
  * is ever serialized to the user, so the headers should never leak
  */
-public class RollupJob extends AbstractDiffable<RollupJob> implements PersistentTaskParams {
+public class RollupJob extends AbstractDiffable<RollupJob> implements XPackPlugin.XPackPersistentTaskParams {
 
     public static final String NAME = "xpack/rollup/job";
 
@@ -109,5 +110,10 @@ public class RollupJob extends AbstractDiffable<RollupJob> implements Persistent
     @Override
     public int hashCode() {
         return Objects.hash(config, headers);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_6_3_0;
     }
 }

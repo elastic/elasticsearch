@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -82,9 +83,9 @@ public class IndicesModuleTests extends ESTestCase {
         }
     });
 
-    private static String[] EXPECTED_METADATA_FIELDS = new String[]{IdFieldMapper.NAME, RoutingFieldMapper.NAME,
-            IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME, VersionFieldMapper.NAME,
-            SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
+    private static String[] EXPECTED_METADATA_FIELDS = new String[]{IgnoredFieldMapper.NAME, IdFieldMapper.NAME,
+            RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME,
+            VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
 
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
@@ -106,7 +107,7 @@ public class IndicesModuleTests extends ESTestCase {
                 greaterThan(noPluginsModule.getMapperRegistry().getMetadataMapperParsers().size()));
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry().getMetadataMapperParsers();
         Iterator<String> iterator = metadataMapperParsers.keySet().iterator();
-        assertEquals(IdFieldMapper.NAME, iterator.next());
+        assertEquals(IgnoredFieldMapper.NAME, iterator.next());
         String last = null;
         while(iterator.hasNext()) {
             last = iterator.next();

@@ -305,7 +305,8 @@ public class ReplicationTrackerTests extends ESTestCase {
         final AllocationId inSyncAllocationId = AllocationId.newInitializing();
         final AllocationId trackingAllocationId = AllocationId.newInitializing();
         final ReplicationTracker tracker = newTracker(inSyncAllocationId);
-        tracker.updateFromMaster(randomNonNegativeLong(), Collections.singleton(inSyncAllocationId.getId()),
+        final long clusterStateVersion = randomNonNegativeLong();
+        tracker.updateFromMaster(clusterStateVersion, Collections.singleton(inSyncAllocationId.getId()),
             routingTable(Collections.singleton(trackingAllocationId), inSyncAllocationId), emptySet());
         tracker.activatePrimaryMode(globalCheckpoint);
         final Thread thread = new Thread(() -> {
@@ -336,13 +337,22 @@ public class ReplicationTrackerTests extends ESTestCase {
             assertBusy(() -> assertTrue(tracker.pendingInSync.contains(trackingAllocationId.getId())));
         }
 
-        tracker.updateLocalCheckpoint(trackingAllocationId.getId(), randomIntBetween(globalCheckpoint, 64));
-        // synchronize with the waiting thread to mark that it is complete
-        barrier.await();
-        assertTrue(complete.get());
-        assertTrue(tracker.getTrackedLocalCheckpointForShard(trackingAllocationId.getId()).inSync);
+        if (randomBoolean()) {
+            // normal path, shard catches up
+            tracker.updateLocalCheckpoint(trackingAllocationId.getId(), randomIntBetween(globalCheckpoint, 64));
+            // synchronize with the waiting thread to mark that it is complete
+            barrier.await();
+            assertTrue(complete.get());
+            assertTrue(tracker.getTrackedLocalCheckpointForShard(trackingAllocationId.getId()).inSync);
+        } else {
+            // master changes its mind and cancels the allocation
+            tracker.updateFromMaster(clusterStateVersion + 1, Collections.singleton(inSyncAllocationId.getId()),
+                routingTable(emptySet(), inSyncAllocationId), emptySet());
+            barrier.await();
+            assertTrue(complete.get());
+            assertNull(tracker.getTrackedLocalCheckpointForShard(trackingAllocationId.getId()));
+        }
         assertFalse(tracker.pendingInSync.contains(trackingAllocationId.getId()));
-
         thread.join();
     }
 

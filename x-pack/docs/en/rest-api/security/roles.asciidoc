@@ -11,6 +11,8 @@ realm.
 
 `GET /_xpack/security/role/<name>` +
 
+`DELETE /_xpack/security/role/<name>` +
+
 `POST /_xpack/security/role/<name>/_clear_cache` +
 
 `POST /_xpack/security/role/<name>` +

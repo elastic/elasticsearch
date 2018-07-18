@@ -19,8 +19,6 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -77,7 +75,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
 
         RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex,
                 (searchRequest, bytes) -> {
-                    SearchTemplateRequest searchTemplateRequest = RestSearchTemplateAction.parse(bytes);
+                    SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
                     if (searchTemplateRequest.getScript() != null) {
                         searchTemplateRequest.setRequest(searchRequest);
                         multiRequest.add(searchTemplateRequest);

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -15,9 +14,10 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription.DataFormat;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+
+import java.time.DateTimeException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,8 +53,12 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         description.setTimeFormat("epoch");
         description.setTimeFormat("epoch_ms");
         description.setTimeFormat("yyyy-MM-dd HH");
-        String goodFormat = "yyyy.MM.dd G 'at' HH:mm:ss z";
-        description.setTimeFormat(goodFormat);
+    }
+
+    @AwaitsFix(bugUrl = "https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8206980")
+    public void testVerify_GivenValidFormat_Java11Bug() {
+        DataDescription.Builder description = new DataDescription.Builder();
+        description.setTimeFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
     }
 
     public void testVerify_GivenInValidFormat() {
@@ -70,6 +74,10 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         e = expectThrows(ElasticsearchException.class, () -> description.setTimeFormat("y-M-dd"));
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, "y-M-dd"), e.getMessage());
         expectThrows(ElasticsearchException.class, () -> description.setTimeFormat("YYY-mm-UU hh:mm:ssY"));
+
+        Throwable cause = e.getCause();
+        assertNotNull(cause);
+        assertThat(cause, instanceOf(DateTimeException.class));
     }
 
     public void testTransform_GivenDelimitedAndEpoch() {
@@ -256,7 +264,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
             } else if (randomBoolean()) {
                 format = DataDescription.EPOCH_MS;
             } else {
-                format = "yyy.MM.dd G 'at' HH:mm:ss z";
+                format = "yyyy-MM-dd HH:mm:ss.SSS";
             }
             dataDescription.setTimeFormat(format);
         }

@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -37,6 +38,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -122,6 +124,7 @@ import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.xpack.watcher.input.transform.TransformInput;
 import org.elasticsearch.xpack.watcher.input.transform.TransformInputFactory;
+import org.elasticsearch.xpack.watcher.notification.NotificationService;
 import org.elasticsearch.xpack.watcher.notification.email.Account;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
 import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
@@ -193,18 +196,16 @@ import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 
-public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
+public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, ReloadablePlugin {
 
+    // This setting is only here for backward compatibility reasons as 6.x indices made use of it. It can be removed in 8.x.
+    @Deprecated
     public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
             new Setting<>("index.xpack.watcher.template.version", "", Function.identity(), Setting.Property.IndexScope);
     public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING =
             Setting.boolSetting("xpack.watcher.encrypt_sensitive_data", false, Setting.Property.NodeScope);
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
             Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
-
-    // list of headers that will be stored when a watch is stored
-    public static final Set<String> HEADER_FILTERS =
-            new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
 
     public static final ScriptContext<SearchScript.Factory> SCRIPT_SEARCH_CONTEXT =
         new ScriptContext<>("xpack", SearchScript.Factory.class);
@@ -216,11 +217,13 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
 
     private static final Logger logger = Loggers.getLogger(Watcher.class);
     private WatcherIndexingListener listener;
+    private HttpClient httpClient;
 
     protected final Settings settings;
     protected final boolean transportClient;
     protected final boolean enabled;
     protected final Environment env;
+    protected List<NotificationService> reloadableServices = new ArrayList<>();
 
     public Watcher(final Settings settings) {
         this.settings = settings;
@@ -266,7 +269,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         // TODO: add more auth types, or remove this indirection
         HttpAuthRegistry httpAuthRegistry = new HttpAuthRegistry(httpAuthFactories);
         HttpRequestTemplate.Parser httpTemplateParser = new HttpRequestTemplate.Parser(httpAuthRegistry);
-        final HttpClient httpClient = new HttpClient(settings, httpAuthRegistry, getSslService());
+        httpClient = new HttpClient(settings, httpAuthRegistry, getSslService());
 
         // notification
         EmailService emailService = new EmailService(settings, cryptoService, clusterService.getClusterSettings());
@@ -274,6 +277,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         JiraService jiraService = new JiraService(settings, httpClient, clusterService.getClusterSettings());
         SlackService slackService = new SlackService(settings, httpClient, clusterService.getClusterSettings());
         PagerDutyService pagerDutyService = new PagerDutyService(settings, httpClient, clusterService.getClusterSettings());
+
+        reloadableServices.add(emailService);
+        reloadableServices.add(hipChatService);
+        reloadableServices.add(jiraService);
+        reloadableServices.add(slackService);
+        reloadableServices.add(pagerDutyService);
 
         TextTemplateEngine templateEngine = new TextTemplateEngine(settings, scriptService);
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
@@ -351,7 +360,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         final WatchParser watchParser = new WatchParser(settings, triggerService, registry, inputRegistry, cryptoService, getClock());
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
-                getClock(), watchParser, clusterService, client);
+                getClock(), watchParser, clusterService, client, threadPool.generic());
 
         final Consumer<Iterable<TriggerEvent>> triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);
@@ -360,7 +369,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
                 watchParser, client);
 
         final WatcherLifeCycleService watcherLifeCycleService =
-                new WatcherLifeCycleService(settings, threadPool, clusterService, watcherService);
+                new WatcherLifeCycleService(settings, clusterService, watcherService);
 
         listener = new WatcherIndexingListener(settings, watchParser, getClock(), triggerService);
         clusterService.addListener(listener);
@@ -607,5 +616,21 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
     @Override
     public List<ScriptContext> getContexts() {
         return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, Watcher.SCRIPT_EXECUTABLE_CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
+    }
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.closeWhileHandlingException(httpClient);
+    }
+
+    /**
+     * Reloads all the reloadable services in watcher.
+     */
+    @Override
+    public void reload(Settings settings) {
+        if (enabled == false || transportClient) {
+            return;
+        }
+        reloadableServices.forEach(s -> s.reload(settings));
     }
 }

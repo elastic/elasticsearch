@@ -29,7 +29,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -77,6 +76,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static final Logger logger = ESLoggerFactory.getLogger(TransportShardBulkAction.class);
 
+    private final ThreadPool threadPool;
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
 
@@ -87,6 +87,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                     IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             indexNameExpressionResolver, BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE);
+        this.threadPool = threadPool;
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
     }
@@ -204,7 +205,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             return primaryResponse;
 
         } else if (operationResult.getResultType() == Engine.Result.Type.FAILURE) {
-            DocWriteRequest docWriteRequest = replicaRequest.request();
+            DocWriteRequest<?> docWriteRequest = replicaRequest.request();
             Exception failure = operationResult.getFailure();
             if (isConflictException(failure)) {
                 logger.trace(() -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
@@ -239,7 +240,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                                     int requestIndex, UpdateHelper updateHelper,
                                                     LongSupplier nowInMillisSupplier,
                                                     final MappingUpdatePerformer mappingUpdater) throws Exception {
-        final DocWriteRequest itemRequest = request.items()[requestIndex].request();
+        final DocWriteRequest<?> itemRequest = request.items()[requestIndex].request();
         final DocWriteRequest.OpType opType = itemRequest.opType();
         final BulkItemResultHolder responseHolder;
         switch (itemRequest.opType()) {
@@ -485,39 +486,31 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
             final Engine.Result operationResult;
-            DocWriteRequest docWriteRequest = item.request();
-            try {
-                switch (replicaItemExecutionMode(item, i)) {
-                    case NORMAL:
-                        final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
-                        operationResult = performOpOnReplica(primaryResponse, docWriteRequest, replica);
-                        assert operationResult != null : "operation result must never be null when primary response has no failure";
-                        location = syncOperationResultOrThrow(operationResult, location);
-                        break;
-                    case NOOP:
-                        break;
-                    case FAILURE:
-                        final BulkItemResponse.Failure failure = item.getPrimaryResponse().getFailure();
-                        assert failure.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "seq no must be assigned";
-                        operationResult = replica.markSeqNoAsNoop(failure.getSeqNo(), failure.getMessage());
-                        assert operationResult != null : "operation result must never be null when primary response has no failure";
-                        location = syncOperationResultOrThrow(operationResult, location);
-                        break;
-                    default:
-                        throw new IllegalStateException("illegal replica item execution mode for: " + docWriteRequest);
-               }
-            } catch (Exception e) {
-                // if its not an ignore replica failure, we need to make sure to bubble up the failure
-                // so we will fail the shard
-                if (!TransportActions.isShardNotAvailableException(e)) {
-                    throw e;
-                }
+            DocWriteRequest<?> docWriteRequest = item.request();
+            switch (replicaItemExecutionMode(item, i)) {
+                case NORMAL:
+                    final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
+                    operationResult = performOpOnReplica(primaryResponse, docWriteRequest, replica);
+                    assert operationResult != null : "operation result must never be null when primary response has no failure";
+                    location = syncOperationResultOrThrow(operationResult, location);
+                    break;
+                case NOOP:
+                    break;
+                case FAILURE:
+                    final BulkItemResponse.Failure failure = item.getPrimaryResponse().getFailure();
+                    assert failure.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "seq no must be assigned";
+                    operationResult = replica.markSeqNoAsNoop(failure.getSeqNo(), failure.getMessage());
+                    assert operationResult != null : "operation result must never be null when primary response has no failure";
+                    location = syncOperationResultOrThrow(operationResult, location);
+                    break;
+                default:
+                    throw new IllegalStateException("illegal replica item execution mode for: " + docWriteRequest);
             }
         }
         return location;
     }
 
-    private static Engine.Result performOpOnReplica(DocWriteResponse primaryResponse, DocWriteRequest docWriteRequest,
+    private static Engine.Result performOpOnReplica(DocWriteResponse primaryResponse, DocWriteRequest<?> docWriteRequest,
                                                     IndexShard replica) throws Exception {
         final Engine.Result result;
         switch (docWriteRequest.opType()) {
@@ -530,19 +523,26 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         indexRequest.type(), indexRequest.id(), indexRequest.source(), indexRequest.getContentType())
                         .routing(indexRequest.routing());
                 result = replica.applyIndexOperationOnReplica(primaryResponse.getSeqNo(), primaryResponse.getVersion(),
-                    indexRequest.versionType().versionTypeForReplicationAndRecovery(), indexRequest.getAutoGeneratedTimestamp(),
-                    indexRequest.isRetry(), sourceToParse);
+                    indexRequest.getAutoGeneratedTimestamp(), indexRequest.isRetry(), sourceToParse);
                 break;
             case DELETE:
                 DeleteRequest deleteRequest = (DeleteRequest) docWriteRequest;
                 result =  replica.applyDeleteOperationOnReplica(primaryResponse.getSeqNo(), primaryResponse.getVersion(),
-                    deleteRequest.type(), deleteRequest.id(), deleteRequest.versionType().versionTypeForReplicationAndRecovery());
+                    deleteRequest.type(), deleteRequest.id());
                 break;
             default:
                 throw new IllegalStateException("Unexpected request operation type on replica: "
                     + docWriteRequest.opType().getLowercase());
         }
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
+            // Even though the primary waits on all nodes to ack the mapping changes to the master
+            // (see MappingUpdatedAction.updateMappingOnMaster) we still need to protect against missing mappings
+            // and wait for them. The reason is concurrent requests. Request r1 which has new field f triggers a
+            // mapping update. Assume that that update is first applied on the primary, and only later on the replica
+            // (it’s happening concurrently). Request r2, which now arrives on the primary and which also has the new
+            // field f might see the updated mapping (on the primary), and will therefore proceed to be replicated
+            // to the replica. When it arrives on the replica, there’s no guarantee that the replica has already
+            // applied the new mapping, so there is no other option than to wait.
             throw new TransportReplicationAction.RetryOnReplicaException(replica.shardId(),
                 "Mappings are not available on the replica yet, triggered update: " + result.getRequiredMappingUpdate());
         }
@@ -604,6 +604,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     class ConcreteMappingUpdatePerformer implements MappingUpdatePerformer {
 
+        @Override
         public void updateMappings(final Mapping update, final ShardId shardId, final String type) {
             assert update != null;
             assert shardId != null;

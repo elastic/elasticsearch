@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.qa.sql.cli;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 
 import java.io.IOException;
 
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -18,13 +16,16 @@ import static org.hamcrest.Matchers.containsString;
  */
 public abstract class FetchSizeTestCase extends CliIntegrationTestCase {
     public void testSelect() throws IOException {
+        Request request = new Request("PUT", "/test/doc/_bulk");
+        request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 20; i++) {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"test_field\":" + i + "}\n");
         }
-        client().performRequest("PUT", "/test/doc/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
+        client().performRequest(request);
+
         assertEquals("[?1l>[?1000l[?2004lfetch size set to [90m4[0m", command("fetch size = 4"));
         assertEquals("[?1l>[?1000l[?2004lfetch separator set to \"[90m -- fetch sep -- [0m\"",
             command("fetch separator = \" -- fetch sep -- \""));

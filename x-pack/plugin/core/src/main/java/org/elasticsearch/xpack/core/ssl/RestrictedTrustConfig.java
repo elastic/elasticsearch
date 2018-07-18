@@ -85,7 +85,7 @@ public final class RestrictedTrustConfig extends TrustConfig {
     }
 
     private Path resolveGroupConfigPath(@Nullable Environment environment) {
-        return CertUtils.resolvePath(groupConfigPath, environment);
+        return CertParsingUtils.resolvePath(groupConfigPath, environment);
     }
 
     private CertificateTrustRestrictions readTrustGroup(Path path) throws IOException {

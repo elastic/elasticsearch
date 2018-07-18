@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.core.rollup;
 
 import org.apache.http.HttpStatus;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -28,23 +26,13 @@ import static org.junit.Assert.assertEquals;
 
 public class RollupRestTestStateCleaner {
 
-    private final Logger logger;
-    private final RestClient adminClient;
-    private final ESRestTestCase testCase;
-
-    public RollupRestTestStateCleaner(Logger logger, RestClient adminClient, ESRestTestCase testCase) {
-        this.logger = logger;
-        this.adminClient = adminClient;
-        this.testCase = testCase;
+    public static void clearRollupMetadata(RestClient adminClient) throws Exception {
+        deleteAllJobs(adminClient);
+        waitForPendingTasks(adminClient);
+        // indices will be deleted by the ESRestTestCase class
     }
 
-    public void clearRollupMetadata() throws Exception {
-        deleteAllJobs();
-        waitForPendingTasks();
-        // indices will be deleted by the ESIntegTestCase class
-    }
-
-    private void waitForPendingTasks() throws Exception {
+    private static void waitForPendingTasks(RestClient adminClient) throws Exception {
         ESTestCase.assertBusy(() -> {
             try {
                 Response response = adminClient.performRequest("GET", "/_cat/tasks",
@@ -74,9 +62,9 @@ public class RollupRestTestStateCleaner {
     }
 
     @SuppressWarnings("unchecked")
-    private void deleteAllJobs() throws Exception {
+    private static void deleteAllJobs(RestClient adminClient) throws Exception {
         Response response = adminClient.performRequest("GET", "/_xpack/rollup/job/_all");
-        Map<String, Object> jobs = testCase.entityAsMap(response);
+        Map<String, Object> jobs = ESRestTestCase.entityAsMap(response);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> jobConfigs =
                 (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
@@ -86,9 +74,7 @@ public class RollupRestTestStateCleaner {
         }
 
         for (Map<String, Object> jobConfig : jobConfigs) {
-            logger.debug(jobConfig);
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
-            logger.debug("Deleting job " + jobId);
             try {
                 response = adminClient.performRequest("DELETE", "/_xpack/rollup/job/" + jobId);
             } catch (Exception e) {
@@ -98,7 +84,8 @@ public class RollupRestTestStateCleaner {
     }
 
     private static String responseEntityToString(Response response) throws Exception {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(),
+            StandardCharsets.UTF_8))) {
             return reader.lines().collect(Collectors.joining("\n"));
         }
     }

@@ -19,6 +19,28 @@
 
 package org.elasticsearch.snapshots.mockstore;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
+import org.apache.lucene.index.CorruptIndexException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.SnapshotId;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
@@ -29,30 +51,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
-
-import com.carrotsearch.randomizedtesting.RandomizedContext;
-import org.apache.lucene.index.CorruptIndexException;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.snapshots.SnapshotId;
 
 public class MockRepository extends FsRepository {
 
@@ -90,8 +92,6 @@ public class MockRepository extends FsRepository {
 
     private final long waitAfterUnblock;
 
-    private final MockBlobStore mockBlobStore;
-
     private final String randomPrefix;
 
     private volatile boolean blockOnInitialization;
@@ -107,7 +107,7 @@ public class MockRepository extends FsRepository {
     /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died master node */
     private volatile boolean blockAndFailOnWriteSnapFile;
 
-    private volatile boolean atomicMove;
+    private volatile boolean allowAtomicOperations;
 
     private volatile boolean blocked = false;
 
@@ -124,9 +124,8 @@ public class MockRepository extends FsRepository {
         blockAndFailOnWriteSnapFile = metadata.settings().getAsBoolean("block_on_snap", false);
         randomPrefix = metadata.settings().get("random", "default");
         waitAfterUnblock = metadata.settings().getAsLong("wait_after_unblock", 0L);
-        atomicMove = metadata.settings().getAsBoolean("atomic_move", true);
+        allowAtomicOperations = metadata.settings().getAsBoolean("allow_atomic_operations", true);
         logger.info("starting mock repository with random prefix {}", randomPrefix);
-        mockBlobStore = new MockBlobStore(super.blobStore());
     }
 
     @Override
@@ -161,8 +160,8 @@ public class MockRepository extends FsRepository {
     }
 
     @Override
-    protected BlobStore blobStore() {
-        return mockBlobStore;
+    protected BlobStore createBlobStore() throws Exception {
+        return new MockBlobStore(super.createBlobStore());
     }
 
     public synchronized void unblock() {
@@ -193,7 +192,7 @@ public class MockRepository extends FsRepository {
     }
 
     private synchronized boolean blockExecution() {
-        logger.debug("Blocking execution");
+        logger.debug("[{}] Blocking execution", metadata.name());
         boolean wasBlocked = false;
         try {
             while (blockOnDataFiles || blockOnControlFiles || blockOnInitialization || blockOnWriteIndexFile ||
@@ -205,7 +204,7 @@ public class MockRepository extends FsRepository {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
-        logger.debug("Unblocking execution");
+        logger.debug("[{}] Unblocking execution", metadata.name());
         return wasBlocked;
     }
 
@@ -283,7 +282,7 @@ public class MockRepository extends FsRepository {
             }
 
             private void blockExecutionAndMaybeWait(final String blobName) {
-                logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
+                logger.info("[{}] blocking I/O operation for file [{}] at path [{}]", metadata.name(), blobName, path());
                 if (blockExecution() && waitAfterUnblock > 0) {
                     try {
                         // Delay operation after unblocking
@@ -326,6 +325,12 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
+            public void deleteBlobIgnoringIfNotExists(String blobName) throws IOException {
+                maybeIOExceptionOrBlock(blobName);
+                super.deleteBlobIgnoringIfNotExists(blobName);
+            }
+
+            @Override
             public Map<String, BlobMetaData> listBlobs() throws IOException {
                 maybeIOExceptionOrBlock("");
                 return super.listBlobs();
@@ -338,31 +343,39 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void move(String sourceBlob, String targetBlob) throws IOException {
-                if (blockOnWriteIndexFile && targetBlob.startsWith("index-")) {
-                    blockExecutionAndMaybeWait(targetBlob);
-                }
-                if (atomicMove) {
-                    // atomic move since this inherits from FsBlobContainer which provides atomic moves
-                    maybeIOExceptionOrBlock(targetBlob);
-                    super.move(sourceBlob, targetBlob);
-                } else {
-                    // simulate a non-atomic move, since many blob container implementations
-                    // will not have an atomic move, and we should be able to handle that
-                    maybeIOExceptionOrBlock(targetBlob);
-                    super.writeBlob(targetBlob, super.readBlob(sourceBlob), 0L);
-                    super.deleteBlob(sourceBlob);
-                }
-            }
-
-            @Override
-            public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
-                super.writeBlob(blobName, inputStream, blobSize);
+                super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
                     // get an error with the client connection, so an IOException here simulates this
                     maybeIOExceptionOrBlock(blobName);
+                }
+            }
+
+            @Override
+            public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
+                                        final boolean failIfAlreadyExists) throws IOException {
+                final Random random = RandomizedContext.current().getRandom();
+                if (allowAtomicOperations && random.nextBoolean()) {
+                    if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
+                        // Simulate a failure between the write and move operation in FsBlobContainer
+                        final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
+                        super.writeBlob(tempBlobName, inputStream, blobSize, failIfAlreadyExists);
+                        maybeIOExceptionOrBlock(blobName);
+                        final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
+                        fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists);
+                    } else {
+                        // Atomic write since it is potentially supported
+                        // by the delegating blob container
+                        maybeIOExceptionOrBlock(blobName);
+                        super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+                    }
+                } else {
+                    // Simulate a non-atomic write since many blob container
+                    // implementations does not support atomic write
+                    maybeIOExceptionOrBlock(blobName);
+                    super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
                 }
             }
         }

@@ -20,6 +20,10 @@ transliteration.
 
 Advanced analysis of Japanese using the http://www.atilika.org/[Kuromoji analyzer].
 
+<<analysis-nori,Nori>>::
+
+Morphological analysis of Korean using the Lucene Nori analyzer.
+
 <<analysis-phonetic,Phonetic>>::
 
 Analyzes tokens into their phonetic equivalent using Soundex, Metaphone,
@@ -58,6 +62,8 @@ A number of analysis plugins have been contributed by our community:
 include::analysis-icu.asciidoc[]
 
 include::analysis-kuromoji.asciidoc[]
+
+include::analysis-nori.asciidoc[]
 
 include::analysis-phonetic.asciidoc[]
 

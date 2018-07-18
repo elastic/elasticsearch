@@ -82,7 +82,7 @@ public class DataCountsReporter extends AbstractComponent {
 
         totalRecordStats = counts;
         incrementalRecordStats = new DataCounts(job.getId());
-        diagnostics = new DataStreamDiagnostics(job);
+        diagnostics = new DataStreamDiagnostics(job, counts);
 
         acceptablePercentDateParseErrors = ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING.get(settings);
         acceptablePercentOutOfOrderErrors = ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING.get(settings);

@@ -9,7 +9,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -29,12 +28,16 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase {
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("node.data", true)
-                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic")
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true).build();
+                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic").build();
     }
 
     @Override

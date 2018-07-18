@@ -163,12 +163,24 @@ setup:
       version:  " - 6.3.99"
       reason:   "cluster state including cluster_uuid at the top level is new in v6.4.0 and higher"
 
+  # Get the current cluster_uuid
+  - do:
+      cluster.state: {}
+  - set: { metadata.cluster_uuid : cluster_uuid }
+
   - do:
       cluster.state:
-        metric: [ master_node, version, metadata ]
+        metric: [ master_node, version ]
 
-  - is_true: cluster_uuid
+  - match: { cluster_uuid: $cluster_uuid }
   - is_true: master_node
   - is_true: version
   - is_true: state_uuid
-  - is_true: metadata
+
+  - do:
+      cluster.state:
+        metric: [ routing_table ]
+        index: testidx
+
+  - match: { cluster_uuid: $cluster_uuid }
+  - is_true: routing_table

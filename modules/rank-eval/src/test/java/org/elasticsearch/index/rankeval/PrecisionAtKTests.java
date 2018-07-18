@@ -25,6 +25,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -38,11 +39,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Vector;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class PrecisionAtKTests extends ESTestCase {
 
@@ -163,7 +163,7 @@ public class PrecisionAtKTests extends ESTestCase {
 
     public void testCombine() {
         PrecisionAtK metric = new PrecisionAtK();
-        Vector<EvalQueryQuality> partialResults = new Vector<>(3);
+        List<EvalQueryQuality> partialResults = new ArrayList<>(3);
         partialResults.add(new EvalQueryQuality("a", 0.1));
         partialResults.add(new EvalQueryQuality("b", 0.2));
         partialResults.add(new EvalQueryQuality("c", 0.6));
@@ -204,8 +204,8 @@ public class PrecisionAtKTests extends ESTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             parser.nextToken();
             parser.nextToken();
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> PrecisionAtK.fromXContent(parser));
-            assertThat(exception.getMessage(), startsWith("[precision] unknown field"));
+            XContentParseException exception = expectThrows(XContentParseException.class, () -> PrecisionAtK.fromXContent(parser));
+            assertThat(exception.getMessage(), containsString("[precision] unknown field"));
         }
     }
 

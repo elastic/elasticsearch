@@ -30,11 +30,17 @@ esplugin {
 }
 
 integTestCluster {
+  // Modules who's integration is explicitly tested in integration tests
+  module project(':modules:parent-join')
+  module project(':modules:lang-painless')
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
 run {
+  // Modules who's integration is explicitly tested in integration tests
+  module project(':modules:parent-join')
+  module project(':modules:lang-painless')
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
@@ -115,6 +121,11 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
            baseDir,
            unzip.temporaryDir,
            version == '090'
+      waitCondition = { fixture, ant ->
+        // the fixture writes the ports file when Elasticsearch's HTTP service
+        // is ready, so we can just wait for the file to exist
+        return fixture.portsFile.exists()
+      }
     }
     integTest.dependsOn fixture
     integTestRunner {

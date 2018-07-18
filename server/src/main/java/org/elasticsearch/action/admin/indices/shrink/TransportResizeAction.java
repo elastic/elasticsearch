@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.shrink;
 
 import org.apache.lucene.index.IndexWriter;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -190,7 +189,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                 .waitForActiveShards(targetIndex.waitForActiveShards())
                 .recoverFrom(metaData.getIndex())
                 .resizeType(resizeRequest.getResizeType())
-                .copySettings(resizeRequest.getCopySettings());
+                .copySettings(resizeRequest.getCopySettings() == null ? false : resizeRequest.getCopySettings());
     }
 
     @Override

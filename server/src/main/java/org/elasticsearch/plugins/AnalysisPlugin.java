@@ -28,6 +28,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
@@ -56,12 +57,12 @@ import static java.util.Collections.emptyMap;
  * }</pre>
  *
  * Elasticsearch doesn't have any automatic mechanism to share these components between indexes. If any component is heavy enough to warrant
- * such sharing then it is the Pugin's responsibility to do it in their {@link AnalysisProvider} implementation. We recommend against doing
+ * such sharing then it is the Plugin's responsibility to do it in their {@link AnalysisProvider} implementation. We recommend against doing
  * this unless absolutely necessary because it can be difficult to get the caching right given things like behavior changes across versions.
  */
 public interface AnalysisPlugin {
     /**
-     * Override to add additional {@link CharFilter}s. See {@link #requriesAnalysisSettings(AnalysisProvider)}
+     * Override to add additional {@link CharFilter}s. See {@link #requiresAnalysisSettings(AnalysisProvider)}
      * how to on get the configuration from the index.
      */
     default Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
@@ -69,7 +70,7 @@ public interface AnalysisPlugin {
     }
 
     /**
-     * Override to add additional {@link TokenFilter}s. See {@link #requriesAnalysisSettings(AnalysisProvider)}
+     * Override to add additional {@link TokenFilter}s. See {@link #requiresAnalysisSettings(AnalysisProvider)}
      * how to on get the configuration from the index.
      */
     default Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
@@ -77,7 +78,7 @@ public interface AnalysisPlugin {
     }
 
     /**
-     * Override to add additional {@link Tokenizer}s. See {@link #requriesAnalysisSettings(AnalysisProvider)}
+     * Override to add additional {@link Tokenizer}s. See {@link #requiresAnalysisSettings(AnalysisProvider)}
      * how to on get the configuration from the index.
      */
     default Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
@@ -85,11 +86,18 @@ public interface AnalysisPlugin {
     }
 
     /**
-     * Override to add additional {@link Analyzer}s. See {@link #requriesAnalysisSettings(AnalysisProvider)}
+     * Override to add additional {@link Analyzer}s. See {@link #requiresAnalysisSettings(AnalysisProvider)}
      * how to on get the configuration from the index.
      */
     default Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         return emptyMap();
+    }
+
+    /**
+     * Override to add additional pre-configured {@link Analyzer}s.
+     */
+    default List<PreBuiltAnalyzerProviderFactory> getPreBuiltAnalyzerProviderFactories() {
+        return emptyList();
     }
 
     /**
@@ -123,7 +131,7 @@ public interface AnalysisPlugin {
     /**
      * Mark an {@link AnalysisProvider} as requiring the index's settings.
      */
-    static <T> AnalysisProvider<T> requriesAnalysisSettings(AnalysisProvider<T> provider) {
+    static <T> AnalysisProvider<T> requiresAnalysisSettings(AnalysisProvider<T> provider) {
         return new AnalysisProvider<T>() {
             @Override
             public T get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {

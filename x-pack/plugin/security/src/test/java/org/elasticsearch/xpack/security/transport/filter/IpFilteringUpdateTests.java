@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.transport.filter;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -35,11 +34,15 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
     }
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return httpEnabled == false;
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), httpEnabled)
                 .put("xpack.security.transport.filter.deny", "127.0.0.200")
                 .put("transport.profiles.client.port", randomClientPortRange)
                 .build();

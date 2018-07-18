@@ -90,10 +90,10 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
      * Holder for evaluated condition result
      */
     public static class Result {
-        public final Condition condition;
+        public final Condition<?> condition;
         public final boolean matched;
 
-        protected Result(Condition condition, boolean matched) {
+        protected Result(Condition<?> condition, boolean matched) {
             this.condition = condition;
             this.matched = matched;
         }

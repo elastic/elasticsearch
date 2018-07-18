@@ -10,7 +10,6 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -41,12 +40,15 @@ public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
     }
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
     protected Settings nodeSettings() {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
 
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings())
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.OPTIONAL)
                 .put("xpack.security.authc.realms.file.type", "file")

@@ -6,10 +6,7 @@
 package org.elasticsearch.xpack.qa.sql.cli;
 
 import java.io.IOException;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-
-import static java.util.Collections.emptyMap;
+import org.elasticsearch.client.Request;
 
 import static org.hamcrest.Matchers.startsWith;
 
@@ -41,7 +38,9 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
     @Override
     public void testSelectFromIndexWithoutTypes() throws Exception {
         // Create an index without any types
-        client().performRequest("PUT", "/test", emptyMap(), new StringEntity("{}", ContentType.APPLICATION_JSON));
+        Request request = new Request("PUT", "/test");
+        request.setJsonEntity("{}");
+        client().performRequest(request);
 
         assertFoundOneProblem(command("SELECT * FROM test"));
         assertEquals("line 1:15: [test] doesn't have any types so it is incompatible with sql" + END, readLine());

@@ -27,7 +27,6 @@ import org.gradle.api.tasks.OutputDirectory
 
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.regex.Matcher
 
 /**
  * Generates REST tests for each snippet marked // TEST.
@@ -101,6 +100,14 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
     }
 
     /**
+     * Certain requests should not have the shard failure check because the
+     * format of the response is incompatible i.e. it is not a JSON object.
+     */
+    static shouldAddShardFailureCheck(String path) {
+        return path.startsWith('_cat') == false &&  path.startsWith('_xpack/ml/datafeeds/') == false
+    }
+
+    /**
      * Converts Kibana's block quoted strings into standard JSON. These
      * {@code """} delimited strings can be embedded in CONSOLE and can
      * contain newlines and {@code "} without the normal JSON escaping.
@@ -141,9 +148,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         private static final String SYNTAX = {
             String method = /(?<method>GET|PUT|POST|HEAD|OPTIONS|DELETE)/
             String pathAndQuery = /(?<pathAndQuery>[^\n]+)/
-            String badBody = /GET|PUT|POST|HEAD|OPTIONS|DELETE|#/
+            String badBody = /GET|PUT|POST|HEAD|OPTIONS|DELETE|startyaml|#/
             String body = /(?<body>(?:\n(?!$badBody)[^\n]+)+)/
-            String nonComment = /$method\s+$pathAndQuery$body?/
+            String rawRequest = /(?:$method\s+$pathAndQuery$body?)/
+            String yamlRequest = /(?:startyaml(?s)(?<yaml>.+?)(?-s)endyaml)/
+            String nonComment = /(?:$rawRequest|$yamlRequest)/
             String comment = /(?<comment>#.+)/
             /(?:$comment|$nonComment)\n+/
         }()
@@ -223,10 +232,23 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                  * warning every time. */
                 current.println("  - skip:")
                 current.println("      features: ")
+                current.println("        - default_shards")
                 current.println("        - stash_in_key")
                 current.println("        - stash_in_path")
                 current.println("        - stash_path_replace")
                 current.println("        - warnings")
+                if (test.testEnv != null) {
+                    switch (test.testEnv) {
+                    case 'basic':
+                    case 'gold':
+                    case 'platinum':
+                        current.println("        - xpack")
+                        break;
+                    default:
+                        throw new InvalidUserDataException('Unsupported testEnv: '
+                                + test.testEnv)
+                    }
+                }
             }
             if (test.skipTest) {
                 if (test.continued) {
@@ -306,13 +328,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
              * no shard succeeds. But we need to fail the tests on all of these
              * because they mean invalid syntax or broken queries or something
              * else that we don't want to teach people to do. The REST test
-             * framework doesn't allow us to has assertions in the setup
-             * section so we have to skip it there. We also have to skip _cat
-             * actions because they don't return json so we can't is_false
-             * them. That is ok because they don't have this
-             * partial-success-is-success thing.
+             * framework doesn't allow us to have assertions in the setup
+             * section so we have to skip it there. We also omit the assertion
+             * from APIs that don't return a JSON object
              */
-            if (false == inSetup && false == path.startsWith('_cat')) {
+            if (false == inSetup && shouldAddShardFailureCheck(path)) {
                 current.println("  - is_false: _shards.failures")
             }
         }
@@ -331,6 +351,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             parse("$snippet", snippet.contents, SYNTAX) { matcher, last ->
                 if (matcher.group("comment") != null) {
                     // Comment
+                    return
+                }
+                String yamlRequest = matcher.group("yaml");
+                if (yamlRequest != null) {
+                    current.println(yamlRequest)
                     return
                 }
                 String method = matcher.group("method")

@@ -64,9 +64,8 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
                                      final AckListener ackListener) {
         clusterState = event.state();
         ackListener.onCommit(TimeValue.ZERO);
-        CountDownLatch latch = new CountDownLatch(1);
 
-        ClusterApplyListener listener = new ClusterApplyListener() {
+        clusterApplier.onNewClusterState("apply-locally-on-node[" + event.source() + "]", () -> clusterState, new ClusterApplyListener() {
             @Override
             public void onSuccess(String source) {
                 publishListener.onResponse(null);
@@ -79,8 +78,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
                 ackListener.onNodeAck(transportService.getLocalNode(), e);
                 logger.warn(() -> new ParameterizedMessage("failed while applying cluster state locally [{}]", event.source()), e);
             }
-        };
-        clusterApplier.onNewClusterState("apply-locally-on-node[" + event.source() + "]", () -> clusterState, listener);
+        });
     }
 
     @Override
@@ -124,7 +122,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     }
 
     @Override
-    protected void doClose() throws IOException {
+    protected void doClose() {
 
     }
 

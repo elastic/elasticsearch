@@ -229,7 +229,6 @@ public class MasterService extends AbstractLifecycleComponent {
 
                 logger.debug("publishing cluster state version [{}]", newClusterState.version());
                 publish(clusterChangedEvent, taskOutputs, startTimeNS);
-
             } catch (Exception e) {
                 handleException(summary, startTimeNS, newClusterState, e);
             }

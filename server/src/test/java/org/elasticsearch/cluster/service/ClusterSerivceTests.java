@@ -62,7 +62,7 @@ public class ClusterSerivceTests extends ESTestCase {
         ClusterService service = new ClusterService(Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, Collections.singletonMap("foo", () ->
             custom));
-        ClusterState.Builder builder = service.newClusterStateBuilder();
+        ClusterState.Builder builder = service.getClusterApplierService().newClusterStateBuilder();
         assertSame(builder.build().custom("foo"), custom);
     }
 }

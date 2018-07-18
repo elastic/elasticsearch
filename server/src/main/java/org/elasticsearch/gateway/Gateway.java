@@ -147,7 +147,7 @@ public class Gateway extends AbstractComponent {
                 metaDataBuilder.transientSettings(),
                 e -> logUnknownSetting("transient", e),
                 (e, ex) -> logInvalidSetting("transient", e, ex)));
-        ClusterState.Builder builder = clusterService.newClusterStateBuilder();
+        ClusterState.Builder builder = clusterService.getClusterApplierService().newClusterStateBuilder();
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
     }

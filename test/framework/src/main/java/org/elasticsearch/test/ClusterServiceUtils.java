@@ -160,36 +160,20 @@ public class ClusterServiceUtils {
     }
 
     public static Discovery.Publisher createClusterStatePublisher(ClusterApplier clusterApplier) {
-        return (event, publishListener, ackListener) -> {
-            CountDownLatch latch = new CountDownLatch(1);
-            AtomicReference<Exception> ex = new AtomicReference<>();
+        return (event, publishListener, ackListener) ->
             clusterApplier.onNewClusterState("mock_publish_to_self[" + event.source() + "]", () -> event.state(),
                 new ClusterApplyListener() {
                     @Override
                     public void onSuccess(String source) {
-                        latch.countDown();
+                        publishListener.onResponse(null);
                     }
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        ex.set(e);
-                        latch.countDown();
+                        publishListener.onFailure(e);
                     }
                 }
-            );
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                publishListener.onFailure(e);
-                return;
-            }
-            if (ex.get() != null) {
-                publishListener.onFailure(ex.get());
-            } else {
-                publishListener.onResponse(null);
-            }
-        };
+        );
     }
 
     public static ClusterService createClusterService(ClusterState initialState, ThreadPool threadPool) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.cluster;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -41,13 +40,13 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeActionUtils;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -57,6 +56,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
@@ -65,7 +65,9 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -92,23 +94,28 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.hasSize;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ClusterStateChanges extends AbstractComponent {
 
-    private final AllocationService allocationService;
     private final ClusterService clusterService;
+    private final AllocationService allocationService;
+    private final AtomicReference<Runnable> nextMasterTaskToRun;
+    private final AtomicReference<ClusterState> lastClusterStateRef;
     private final ShardStateAction.ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
     private final ShardStateAction.ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
 
@@ -140,9 +147,29 @@ public class ClusterStateChanges extends AbstractComponent {
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Environment environment = TestEnvironment.newEnvironment(settings);
         Transport transport = mock(Transport.class); // it's not used
+        nextMasterTaskToRun = new AtomicReference<>();
+        FakeThreadPoolMasterService masterService = new FakeThreadPoolMasterService("fake-master", nextMasterTaskToRun::set);
+        lastClusterStateRef = new AtomicReference<>();
+        masterService.setClusterStateSupplier(lastClusterStateRef::get);
+        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+            lastClusterStateRef.set(event.state());
+            publishListener.onResponse(null);
+        });
+        clusterService = new ClusterService(settings, clusterSettings, masterService, mock(ClusterApplierService.class));
+        clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
+            @Override
+            public void connectToNodes(DiscoveryNodes discoveryNodes) {
+                // skip
+            }
+
+            @Override
+            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
+                // skip
+            }
+        });
+        clusterService.start();
 
         // mocks
-        clusterService = mock(ClusterService.class);
         IndicesService indicesService = mock(IndicesService.class);
         // MetaDataCreateIndexService creates indices using its IndicesService instance to check mappings -> fake it here
         try {
@@ -262,39 +289,40 @@ public class ClusterStateChanges extends AbstractComponent {
     }
 
     private <T> ClusterState runTasks(ClusterStateTaskExecutor<T> executor, ClusterState clusterState, List<T> entries) {
-        try {
-            ClusterTasksResult<T> result = executor.execute(clusterState, entries);
-            for (ClusterStateTaskExecutor.TaskResult taskResult : result.executionResults.values()) {
-                if (taskResult.isSuccess() == false) {
-                    throw taskResult.getFailure();
-                }
-            }
-            return result.resultingState;
-        } catch (Exception e) {
-            throw ExceptionsHelper.convertToRuntime(e);
+        lastClusterStateRef.set(clusterState);
+        assertNull(nextMasterTaskToRun.get());
+        for (T task : entries) {
+            clusterService.submitStateUpdateTask(task.toString(), task, ClusterStateTaskConfig.build(Priority.NORMAL), executor,
+                (source, e) -> {});
         }
+        if (entries.isEmpty()) {
+            assertNull(nextMasterTaskToRun.get());
+        } else {
+            assertNotNull(nextMasterTaskToRun.get());
+            nextMasterTaskToRun.get().run();
+            ClusterState firstClusterState = lastClusterStateRef.get();
+            for (int i = 1; i < entries.size(); i++) {
+                nextMasterTaskToRun.get().run();
+                assertSame(firstClusterState, lastClusterStateRef.get()); // due to batching, only the first actually does something
+            }
+        }
+        nextMasterTaskToRun.set(null);
+        return lastClusterStateRef.get();
     }
 
     private <Request extends MasterNodeRequest<Request>, Response extends ActionResponse> ClusterState execute(
         TransportMasterNodeAction<Request, Response> masterNodeAction, Request request, ClusterState clusterState) {
-        return executeClusterStateUpdateTask(clusterState, () -> {
-            try {
-                TransportMasterNodeActionUtils.runMasterOperation(masterNodeAction, request, clusterState, new PlainActionFuture<>());
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
+        lastClusterStateRef.set(clusterState);
+        assertNull(nextMasterTaskToRun.get());
+        try {
+            TransportMasterNodeActionUtils.runMasterOperation(masterNodeAction, request, clusterState, new PlainActionFuture<>());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        assertNotNull(nextMasterTaskToRun.get());
+        nextMasterTaskToRun.get().run();
+        nextMasterTaskToRun.set(null);
+        return lastClusterStateRef.get();
     }
 
-    private ClusterState executeClusterStateUpdateTask(ClusterState state, Runnable runnable) {
-        ClusterState[] result = new ClusterState[1];
-        doAnswer(invocationOnMock -> {
-            ClusterStateUpdateTask task = (ClusterStateUpdateTask)invocationOnMock.getArguments()[1];
-            result[0] = task.execute(state);
-            return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
-        runnable.run();
-        assertThat(result[0], notNullValue());
-        return result[0];
-    }
 }

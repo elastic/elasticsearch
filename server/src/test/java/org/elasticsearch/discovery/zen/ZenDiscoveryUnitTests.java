@@ -302,7 +302,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         }
     }
 
-    private class AwaitingPublishListener implements  ActionListener<Void> {
+    private class AwaitingPublishListener implements ActionListener<Void> {
         private final CountDownLatch countDownLatch = new CountDownLatch(1);
         private Discovery.FailedToCommitClusterStateException exception;
 

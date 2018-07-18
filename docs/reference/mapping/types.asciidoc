@@ -40,6 +40,8 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 
 <<parent-join>>::   Defines parent/child relation for documents within the same index
 
+<<alias>>::         Defines an alias to an existing field.
+
 <<feature>>::       Record numeric features to boost hits at query time.
 
 <<feature-vector>>:: Record numeric feature vectors to boost hits at query time.
@@ -57,6 +59,8 @@ the <<analysis-standard-analyzer,`standard` analyzer>>, the
 
 This is the purpose of _multi-fields_.  Most datatypes support multi-fields
 via the <<multi-fields>> parameter.
+
+include::types/alias.asciidoc[]
 
 include::types/array.asciidoc[]
 

@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen2;
+package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class ConsensusMessageRejectedException extends ElasticsearchException {
-    public ConsensusMessageRejectedException(String msg, Object... args) {
+public class CoordinationStateRejectedException extends ElasticsearchException {
+    public CoordinationStateRejectedException(String msg, Object... args) {
         super(msg, args);
     }
 
-    public ConsensusMessageRejectedException(StreamInput in) throws IOException {
+    public CoordinationStateRejectedException(StreamInput in) throws IOException {
         super(in);
     }
 }

@@ -16,18 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.discovery.zen2;
+package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen2.Messages.ApplyCommit;
-import org.elasticsearch.discovery.zen2.Messages.Join;
-import org.elasticsearch.discovery.zen2.Messages.PublishRequest;
-import org.elasticsearch.discovery.zen2.Messages.PublishResponse;
-import org.elasticsearch.discovery.zen2.Messages.StartJoinRequest;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,7 +31,7 @@ import java.util.Optional;
 /**
  * The safety core of the consensus algorithm
  */
-public class ConsensusState extends AbstractComponent {
+public class CoordinationState extends AbstractComponent {
 
     private final DiscoveryNode localNode;
 
@@ -51,7 +46,7 @@ public class ConsensusState extends AbstractComponent {
     private VotingConfiguration lastPublishedConfiguration;
     private NodeCollection publishVotes;
 
-    public ConsensusState(Settings settings, DiscoveryNode localNode, PersistedState persistedState) {
+    public CoordinationState(Settings settings, DiscoveryNode localNode, PersistedState persistedState) {
         super(settings);
 
         this.localNode = localNode;
@@ -120,14 +115,14 @@ public class ConsensusState extends AbstractComponent {
      * Used to bootstrap a cluster by injecting the initial state and configuration.
      *
      * @param initialState The initial state to use.
-     * @throws ConsensusMessageRejectedException if the arguments were incompatible with the current state of this object.
+     * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
     public void setInitialState(ClusterState initialState) {
 
         final long lastAcceptedVersion = persistedState.getLastAcceptedVersion();
         if (lastAcceptedVersion != 0) {
             logger.debug("setInitialState: rejecting since last-accepted version {} > 0", lastAcceptedVersion);
-            throw new ConsensusMessageRejectedException("initial state already set: last-accepted version now " + lastAcceptedVersion);
+            throw new CoordinationStateRejectedException("initial state already set: last-accepted version now " + lastAcceptedVersion);
         }
 
         assert persistedState.getLastAcceptedTerm() == 0;
@@ -152,13 +147,13 @@ public class ConsensusState extends AbstractComponent {
      *
      * @param startJoinRequest The startJoinRequest, specifying the node requesting the join.
      * @return A Join that should be sent to the target node of the join.
-     * @throws ConsensusMessageRejectedException if the arguments were incompatible with the current state of this object.
+     * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
-    public Join handleStartJoin(StartJoinRequest startJoinRequest) {
+    public Messages.Join handleStartJoin(Messages.StartJoinRequest startJoinRequest) {
         if (startJoinRequest.getTerm() <= getCurrentTerm()) {
             logger.debug("handleStartJoin: ignored as term provided [{}] not greater than current term [{}]",
                 startJoinRequest.getTerm(), getCurrentTerm());
-            throw new ConsensusMessageRejectedException("incoming term " + startJoinRequest.getTerm() +
+            throw new CoordinationStateRejectedException("incoming term " + startJoinRequest.getTerm() +
                 " not greater than than current term " + getCurrentTerm());
         }
 
@@ -173,7 +168,7 @@ public class ConsensusState extends AbstractComponent {
         lastPublishedConfiguration = persistedState.getLastAcceptedConfiguration();
         publishVotes = new NodeCollection();
 
-        return new Join(localNode, startJoinRequest.getSourceNode(), getLastAcceptedVersion(), getCurrentTerm(), getLastAcceptedTerm());
+        return new Messages.Join(localNode, startJoinRequest.getSourceNode(), getLastAcceptedVersion(), getCurrentTerm(), getLastAcceptedTerm());
     }
 
     /**
@@ -181,20 +176,20 @@ public class ConsensusState extends AbstractComponent {
      *
      * @param join The Join received.
      * @return true iff this join was not already added
-     * @throws ConsensusMessageRejectedException if the arguments were incompatible with the current state of this object.
+     * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
-    public boolean handleJoin(Join join) {
+    public boolean handleJoin(Messages.Join join) {
         assert join.getTargetNode().equals(localNode) : "handling join " + join + " for the wrong node " + localNode;
 
         if (startedJoinSinceLastReboot == false) {
             logger.debug("handleJoin: ignored join as term was not incremented yet after reboot");
-            throw new ConsensusMessageRejectedException("ignored join as term was not incremented yet after reboot");
+            throw new CoordinationStateRejectedException("ignored join as term was not incremented yet after reboot");
         }
 
         if (join.getTerm() != getCurrentTerm()) {
             logger.debug("handleJoin: ignored join due to term mismatch (expected: [{}], actual: [{}])",
                 getCurrentTerm(), join.getTerm());
-            throw new ConsensusMessageRejectedException(
+            throw new CoordinationStateRejectedException(
                 "incoming term " + join.getTerm() + " does not match current term " + getCurrentTerm());
         }
 
@@ -202,14 +197,14 @@ public class ConsensusState extends AbstractComponent {
         if (join.getLastAcceptedTerm() > lastAcceptedTerm) {
             logger.debug("handleJoin: ignored join as joiner has better last accepted term (expected: <=[{}], actual: [{}])",
                 lastAcceptedTerm, join.getLastAcceptedTerm());
-            throw new ConsensusMessageRejectedException("incoming last accepted term " + join.getLastAcceptedTerm() +
+            throw new CoordinationStateRejectedException("incoming last accepted term " + join.getLastAcceptedTerm() +
                 " of join higher than current last accepted term " + lastAcceptedTerm);
         }
 
         if (join.getLastAcceptedTerm() == lastAcceptedTerm && join.getLastAcceptedVersion() > getLastAcceptedVersion()) {
             logger.debug("handleJoin: ignored join due to version mismatch (expected: <=[{}], actual: [{}])",
                 getLastAcceptedVersion(), join.getLastAcceptedVersion());
-            throw new ConsensusMessageRejectedException(
+            throw new CoordinationStateRejectedException(
                 "incoming version " + join.getLastAcceptedVersion() + " of join higher than current version " + getLastAcceptedVersion());
         }
 
@@ -219,7 +214,7 @@ public class ConsensusState extends AbstractComponent {
             // complicated to restore all the appropriate invariants when setting the initial configuration (it's not just `electionWon`)
             // so instead we just ignore join votes received prior to receiving the initial configuration.
             logger.debug("handleJoin: ignoring join because initial configuration not set");
-            throw new ConsensusMessageRejectedException("initial configuration not set");
+            throw new CoordinationStateRejectedException("initial configuration not set");
         }
 
         boolean added = joinVotes.add(join.getSourceNode());
@@ -238,29 +233,29 @@ public class ConsensusState extends AbstractComponent {
      * May be called in order to check if the given cluster state can be published
      *
      * @param clusterState The cluster state which to publish.
-     * @throws ConsensusMessageRejectedException if the arguments were incompatible with the current state of this object.
+     * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
-    public PublishRequest handleClientValue(ClusterState clusterState) {
+    public Messages.PublishRequest handleClientValue(ClusterState clusterState) {
         if (electionWon == false) {
             logger.debug("handleClientValue: ignored request as election not won");
-            throw new ConsensusMessageRejectedException("election not won");
+            throw new CoordinationStateRejectedException("election not won");
         }
         if (lastPublishedVersion != getLastAcceptedVersion()) {
             logger.debug("handleClientValue: cannot start publishing next value before accepting previous one");
-            throw new ConsensusMessageRejectedException("cannot start publishing next value before accepting previous one");
+            throw new CoordinationStateRejectedException("cannot start publishing next value before accepting previous one");
         }
         if (clusterState.term() != getCurrentTerm()) {
             logger.debug("handleClientValue: ignored request due to term mismatch " +
                     "(expected: [term {} version {}], actual: [term {} version {}])",
                 getCurrentTerm(), lastPublishedVersion, clusterState.term(), clusterState.version());
-            throw new ConsensusMessageRejectedException("incoming term " + clusterState.term() + " does not match current term " +
+            throw new CoordinationStateRejectedException("incoming term " + clusterState.term() + " does not match current term " +
                 getCurrentTerm());
         }
         if (clusterState.version() <= lastPublishedVersion) {
             logger.debug("handleClientValue: ignored request due to version mismatch " +
                     "(expected: [term {} version >{}], actual: [term {} version {}])",
                 getCurrentTerm(), lastPublishedVersion, clusterState.term(), clusterState.version());
-            throw new ConsensusMessageRejectedException("incoming cluster state version " + clusterState.version() +
+            throw new CoordinationStateRejectedException("incoming cluster state version " + clusterState.version() +
                 " lower or equal to last published version " + lastPublishedVersion);
         }
 
@@ -270,11 +265,11 @@ public class ConsensusState extends AbstractComponent {
         if (clusterState.getLastAcceptedConfiguration().equals(getLastAcceptedConfiguration()) == false
             && getLastCommittedConfiguration().equals(getLastAcceptedConfiguration()) == false) {
             logger.debug("handleClientValue: only allow reconfiguration while not already reconfiguring");
-            throw new ConsensusMessageRejectedException("only allow reconfiguration while not already reconfiguring");
+            throw new CoordinationStateRejectedException("only allow reconfiguration while not already reconfiguring");
         }
         if (hasElectionQuorum(clusterState.getLastAcceptedConfiguration()) == false) {
             logger.debug("handleClientValue: only allow reconfiguration if join quorum available for new config");
-            throw new ConsensusMessageRejectedException("only allow reconfiguration if join quorum available for new config");
+            throw new CoordinationStateRejectedException("only allow reconfiguration if join quorum available for new config");
         }
 
         lastPublishedVersion = clusterState.version();
@@ -283,7 +278,7 @@ public class ConsensusState extends AbstractComponent {
 
         logger.trace("handleClientValue: processing request for version [{}] and term [{}]", lastPublishedVersion, getCurrentTerm());
 
-        return new PublishRequest(clusterState);
+        return new Messages.PublishRequest(clusterState);
     }
 
     /**
@@ -291,20 +286,20 @@ public class ConsensusState extends AbstractComponent {
      *
      * @param publishRequest The publish request received.
      * @return A PublishResponse which can be sent back to the sender of the PublishRequest.
-     * @throws ConsensusMessageRejectedException if the arguments were incompatible with the current state of this object.
+     * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
-    public PublishResponse handlePublishRequest(PublishRequest publishRequest) {
+    public Messages.PublishResponse handlePublishRequest(Messages.PublishRequest publishRequest) {
         final ClusterState clusterState = publishRequest.getAcceptedState();
         if (clusterState.term() != getCurrentTerm()) {
             logger.debug("handlePublishRequest: ignored publish request due to term mismatch (expected: [{}], actual: [{}])",
                 getCurrentTerm(), clusterState.term());
-            throw new ConsensusMessageRejectedException("incoming term " + clusterState.term() + " does not match current term " +
+            throw new CoordinationStateRejectedException("incoming term " + clusterState.term() + " does not match current term " +
                 getCurrentTerm());
         }
         if (clusterState.term() == getLastAcceptedTerm() && clusterState.version() <= getLastAcceptedVersion()) {
             logger.debug("handlePublishRequest: ignored publish request due to version mismatch (expected: >[{}], actual: [{}])",
                 getLastAcceptedVersion(), clusterState.version());
-            throw new ConsensusMessageRejectedException("incoming version " + clusterState.version() + " older than current version " +
+            throw new CoordinationStateRejectedException("incoming version " + clusterState.version() + " older than current version " +
                 getLastAcceptedVersion());
         }
 
@@ -313,7 +308,7 @@ public class ConsensusState extends AbstractComponent {
         persistedState.setLastAcceptedState(clusterState);
         assert persistedState.getLastAcceptedState() == clusterState;
 
-        return new PublishResponse(clusterState.version(), clusterState.term());
+        return new Messages.PublishResponse(clusterState.version(), clusterState.term());
     }
 
     /**
@@ -323,23 +318,23 @@ public class ConsensusState extends AbstractComponent {
      * @param publishResponse The PublishResponse received.
      * @return An optional ApplyCommit which, if present, may be broadcast to all peers, indicating that this publication
      * has been accepted at a quorum of peers and is therefore committed.
-     * @throws ConsensusMessageRejectedException if the arguments were incompatible with the current state of this object.
+     * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
-    public Optional<ApplyCommit> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse) {
+    public Optional<Messages.ApplyCommit> handlePublishResponse(DiscoveryNode sourceNode, Messages.PublishResponse publishResponse) {
         if (electionWon == false) {
             logger.debug("handlePublishResponse: ignored response as election not won");
-            throw new ConsensusMessageRejectedException("election not won");
+            throw new CoordinationStateRejectedException("election not won");
         }
         if (publishResponse.getTerm() != getCurrentTerm()) {
             logger.debug("handlePublishResponse: ignored publish response due to term mismatch (expected: [{}], actual: [{}])",
                 getCurrentTerm(), publishResponse.getTerm());
-            throw new ConsensusMessageRejectedException("incoming term " + publishResponse.getTerm()
+            throw new CoordinationStateRejectedException("incoming term " + publishResponse.getTerm()
                 + " does not match current term " + getCurrentTerm());
         }
         if (publishResponse.getVersion() != lastPublishedVersion) {
             logger.debug("handlePublishResponse: ignored publish response due to version mismatch (expected: [{}], actual: [{}])",
                 lastPublishedVersion, publishResponse.getVersion());
-            throw new ConsensusMessageRejectedException("incoming version " + publishResponse.getVersion() +
+            throw new CoordinationStateRejectedException("incoming version " + publishResponse.getVersion() +
                 " does not match current version " + lastPublishedVersion);
         }
 
@@ -349,7 +344,7 @@ public class ConsensusState extends AbstractComponent {
         if (isPublishQuorum(publishVotes)) {
             logger.trace("handlePublishResponse: value committed for version [{}] and term [{}]",
                 publishResponse.getVersion(), publishResponse.getTerm());
-            return Optional.of(new ApplyCommit(localNode, publishResponse.getTerm(), publishResponse.getVersion()));
+            return Optional.of(new Messages.ApplyCommit(localNode, publishResponse.getTerm(), publishResponse.getVersion()));
         }
 
         return Optional.empty();
@@ -359,27 +354,27 @@ public class ConsensusState extends AbstractComponent {
      * May be called on receipt of an ApplyCommit. Updates the committed state accordingly.
      *
      * @param applyCommit The ApplyCommit received.
-     * @throws ConsensusMessageRejectedException if the arguments were incompatible with the current state of this object.
+     * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
-    public void handleCommit(ApplyCommit applyCommit) {
+    public void handleCommit(Messages.ApplyCommit applyCommit) {
         if (applyCommit.getTerm() != getCurrentTerm()) {
             logger.debug("handleCommit: ignored commit request due to term mismatch " +
                     "(expected: [term {} version {}], actual: [term {} version {}])",
                 getLastAcceptedTerm(), getLastAcceptedVersion(), applyCommit.getTerm(), applyCommit.getVersion());
-            throw new ConsensusMessageRejectedException("incoming term " + applyCommit.getTerm() + " does not match current term " +
+            throw new CoordinationStateRejectedException("incoming term " + applyCommit.getTerm() + " does not match current term " +
                 getCurrentTerm());
         }
         if (applyCommit.getTerm() != getLastAcceptedTerm()) {
             logger.debug("handleCommit: ignored commit request due to term mismatch " +
                     "(expected: [term {} version {}], actual: [term {} version {}])",
                 getLastAcceptedTerm(), getLastAcceptedVersion(), applyCommit.getTerm(), applyCommit.getVersion());
-            throw new ConsensusMessageRejectedException("incoming term " + applyCommit.getTerm() + " does not match last accepted term " +
+            throw new CoordinationStateRejectedException("incoming term " + applyCommit.getTerm() + " does not match last accepted term " +
                 getLastAcceptedTerm());
         }
         if (applyCommit.getVersion() != getLastAcceptedVersion()) {
             logger.debug("handleCommit: ignored commit request due to version mismatch (term {}, expected: [{}], actual: [{}])",
                 getLastAcceptedTerm(), getLastAcceptedVersion(), applyCommit.getVersion());
-            throw new ConsensusMessageRejectedException("incoming version " + applyCommit.getVersion() +
+            throw new CoordinationStateRejectedException("incoming version " + applyCommit.getVersion() +
                 " does not match current version " + getLastAcceptedVersion());
         }
 

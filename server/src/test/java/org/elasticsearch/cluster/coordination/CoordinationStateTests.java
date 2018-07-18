@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.discovery.zen2;
+package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
@@ -28,13 +28,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen2.ConsensusState.InMemoryPersistedState;
-import org.elasticsearch.discovery.zen2.ConsensusState.PersistedState;
-import org.elasticsearch.discovery.zen2.Messages.ApplyCommit;
-import org.elasticsearch.discovery.zen2.Messages.Join;
-import org.elasticsearch.discovery.zen2.Messages.PublishRequest;
-import org.elasticsearch.discovery.zen2.Messages.PublishResponse;
-import org.elasticsearch.discovery.zen2.Messages.StartJoinRequest;
+import org.elasticsearch.cluster.coordination.CoordinationState.InMemoryPersistedState;
+import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
+import org.elasticsearch.cluster.coordination.Messages.ApplyCommit;
+import org.elasticsearch.cluster.coordination.Messages.Join;
+import org.elasticsearch.cluster.coordination.Messages.PublishRequest;
+import org.elasticsearch.cluster.coordination.Messages.PublishResponse;
+import org.elasticsearch.cluster.coordination.Messages.StartJoinRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
@@ -47,10 +47,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 
-public class ConsensusStateTests extends ESTestCase {
+public class CoordinationStateTests extends ESTestCase {
 
-    public static ConsensusState createInitialState(PersistedState storage, DiscoveryNode localNode) {
-        return new ConsensusState(Settings.EMPTY, localNode, storage);
+    public static CoordinationState createInitialState(PersistedState storage, DiscoveryNode localNode) {
+        return new CoordinationState(Settings.EMPTY, localNode, storage);
     }
 
     public static ClusterState clusterState(long term, long version, DiscoveryNode localNode, VotingConfiguration lastCommittedConfig,
@@ -110,9 +110,9 @@ public class ConsensusStateTests extends ESTestCase {
     PersistedState s2;
     PersistedState s3;
 
-    ConsensusState n1;
-    ConsensusState n2;
-    ConsensusState n3;
+    CoordinationState n1;
+    CoordinationState n2;
+    CoordinationState n3;
 
     @Before
     public void setupNodes() {
@@ -151,7 +151,7 @@ public class ConsensusStateTests extends ESTestCase {
         assertTrue(state1.getLastAcceptedConfiguration().hasQuorum(Collections.singleton(node1.getId())));
         assertTrue(state1.getLastCommittedConfiguration().hasQuorum(Collections.singleton(node1.getId())));
         n1.setInitialState(state1);
-        assertThat(expectThrows(ConsensusMessageRejectedException.class, () -> n1.setInitialState(state1)).getMessage(),
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> n1.setInitialState(state1)).getMessage(),
             containsString("initial state already set"));
     }
 
@@ -168,7 +168,7 @@ public class ConsensusStateTests extends ESTestCase {
 
         StartJoinRequest startJoinRequest2 = new StartJoinRequest(randomFrom(node1, node2),
             randomLongBetween(0, startJoinRequest1.getTerm()));
-        expectThrows(ConsensusMessageRejectedException.class, () -> n1.handleStartJoin(startJoinRequest2));
+        expectThrows(CoordinationStateRejectedException.class, () -> n1.handleStartJoin(startJoinRequest2));
     }
 
     public void testStartJoinAfterBootstrap() {
@@ -189,13 +189,13 @@ public class ConsensusStateTests extends ESTestCase {
 
         StartJoinRequest startJoinRequest2 = new StartJoinRequest(randomFrom(node1, node2),
             randomLongBetween(0, startJoinRequest1.getTerm()));
-        expectThrows(ConsensusMessageRejectedException.class, () -> n1.handleStartJoin(startJoinRequest2));
+        expectThrows(CoordinationStateRejectedException.class, () -> n1.handleStartJoin(startJoinRequest2));
     }
 
     public void testJoinBeforeBootstrap() {
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
         Join v1 = n1.handleStartJoin(startJoinRequest1);
-        assertThat(expectThrows(ConsensusMessageRejectedException.class, () -> n1.handleJoin(v1)).getMessage(),
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> n1.handleJoin(v1)).getMessage(),
             containsString("initial configuration not set"));
     }
 
@@ -216,7 +216,7 @@ public class ConsensusStateTests extends ESTestCase {
         Join v1 = n1.handleStartJoin(startJoinRequest1);
         Join badJoin = new Join(randomFrom(node1, node2), node1, randomNonNegativeLong(),
             randomLongBetween(0, startJoinRequest1.getTerm() - 1), randomNonNegativeLong());
-        assertThat(expectThrows(ConsensusMessageRejectedException.class, () -> n1.handleJoin(badJoin)).getMessage(),
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> n1.handleJoin(badJoin)).getMessage(),
             containsString("does not match current term"));
     }
 
@@ -234,7 +234,7 @@ public class ConsensusStateTests extends ESTestCase {
 
         Join badJoin = new Join(randomFrom(node1, node2), node1, randomNonNegativeLong(),
             v1.getTerm(), randomLongBetween(state2.term() + 1, 30));
-        assertThat(expectThrows(ConsensusMessageRejectedException.class, () -> n1.handleJoin(badJoin)).getMessage(),
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> n1.handleJoin(badJoin)).getMessage(),
             containsString("higher than current last accepted term"));
     }
 
@@ -252,7 +252,7 @@ public class ConsensusStateTests extends ESTestCase {
 
         Join badJoin = new Join(randomFrom(node1, node2), node1, randomLongBetween(state2.version() + 1, 30),
             v1.getTerm(), state2.term());
-        assertThat(expectThrows(ConsensusMessageRejectedException.class, () -> n1.handleJoin(badJoin)).getMessage(),
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> n1.handleJoin(badJoin)).getMessage(),
             containsString("higher than current version"));
     }
 
@@ -321,7 +321,7 @@ public class ConsensusStateTests extends ESTestCase {
         if (randomBoolean()) {
             n1.setInitialState(state1);
         }
-        assertThat(expectThrows(ConsensusMessageRejectedException.class, () -> n1.handleClientValue(state1)).getMessage(),
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> n1.handleClientValue(state1)).getMessage(),
             containsString("election not won"));
     }
 
@@ -338,7 +338,7 @@ public class ConsensusStateTests extends ESTestCase {
         n1.handleClientValue(state2);
 
         ClusterState state3 = clusterState(startJoinRequest1.getTerm(), 3L, node1, initialConfig, initialConfig, 42L);
-        assertThat(expectThrows(ConsensusMessageRejectedException.class, () -> n1.handleClientValue(state3)).getMessage(),
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> n1.handleClientValue(state3)).getMessage(),
             containsString("cannot start publishing next value before accepting previous one"));
     }
 
@@ -355,7 +355,7 @@ public class ConsensusStateTests extends ESTestCase {
             randomLongBetween(startJoinRequest1.getTerm() + 1, 10) :
             randomLongBetween(0, startJoinRequest1.getTerm() - 1);
         ClusterState state2 = clusterState(term, 2L, node1, initialConfig, initialConfig, 42L);
-        assertThat(expectThrows(ConsensusMessageRejectedException.class, () -> n1.handleClientValue(state2)).getMessage(),
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> n1.handleClientValue(state2)).getMessage(),
             containsString("does not match current term"));
     }
 
@@ -369,7 +369,7 @@ public class ConsensusStateTests extends ESTestCase {
         assertTrue(n1.electionWon());
 
         ClusterState state2 = clusterState(startJoinRequest1.getTerm(), 1L, node1, initialConfig, initialConfig, 42L);
-        assertThat(expectThrows(ConsensusMessageRejectedException.class, () -> n1.handleClientValue(state2)).getMessage(),
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> n1.handleClientValue(state2)).getMessage(),
             containsString("lower or equal to last published version"));
     }
 
@@ -390,7 +390,7 @@ public class ConsensusStateTests extends ESTestCase {
         n1.handlePublishRequest(publishRequest);
         VotingConfiguration newConfig2 = new VotingConfiguration(Collections.singleton(node3.getId()));
         ClusterState state3 = clusterState(startJoinRequest1.getTerm(), 3L, node1, initialConfig, newConfig2, 42L);
-        assertThat(expectThrows(ConsensusMessageRejectedException.class, () -> n1.handleClientValue(state3)).getMessage(),
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> n1.handleClientValue(state3)).getMessage(),
             containsString("only allow reconfiguration while not already reconfiguring"));
     }
 
@@ -421,7 +421,7 @@ public class ConsensusStateTests extends ESTestCase {
 
         VotingConfiguration newConfig = new VotingConfiguration(Collections.singleton(node2.getId()));
         ClusterState state2 = clusterState(startJoinRequest1.getTerm(), 2L, node1, initialConfig, newConfig, 42L);
-        assertThat(expectThrows(ConsensusMessageRejectedException.class, () -> n1.handleClientValue(state2)).getMessage(),
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> n1.handleClientValue(state2)).getMessage(),
             containsString("only allow reconfiguration if join quorum available for new config"));
     }
 
@@ -456,7 +456,7 @@ public class ConsensusStateTests extends ESTestCase {
             randomLongBetween(startJoinRequest1.getTerm() + 1, 10) :
             randomLongBetween(0, startJoinRequest1.getTerm() - 1);
         ClusterState state2 = clusterState(term, 2L, node1, initialConfig, initialConfig, 42L);
-        assertThat(expectThrows(ConsensusMessageRejectedException.class,
+        assertThat(expectThrows(CoordinationStateRejectedException.class,
             () -> n1.handlePublishRequest(new PublishRequest(state2))).getMessage(),
             containsString("does not match current term"));
     }
@@ -475,7 +475,7 @@ public class ConsensusStateTests extends ESTestCase {
         n1.handlePublishRequest(new PublishRequest(state2));
         ClusterState state3 = clusterState(startJoinRequest1.getTerm(), randomLongBetween(0, state2.version()), node1, initialConfig,
             initialConfig, 42L);
-        assertThat(expectThrows(ConsensusMessageRejectedException.class,
+        assertThat(expectThrows(CoordinationStateRejectedException.class,
             () -> n1.handlePublishRequest(new PublishRequest(state3))).getMessage(),
             containsString("older than current version"));
     }
@@ -526,7 +526,7 @@ public class ConsensusStateTests extends ESTestCase {
         long term = randomBoolean() ?
             randomLongBetween(startJoinRequest1.getTerm() + 1, 10) :
             randomLongBetween(0, startJoinRequest1.getTerm() - 1);
-        assertThat(expectThrows(ConsensusMessageRejectedException.class,
+        assertThat(expectThrows(CoordinationStateRejectedException.class,
             () -> n1.handlePublishResponse(randomFrom(node1, node2, node3),
                 new PublishResponse(publishResponse.getVersion(), term))).getMessage(),
             containsString("does not match current term"));
@@ -542,7 +542,7 @@ public class ConsensusStateTests extends ESTestCase {
         assertTrue(n1.electionWon());
         ClusterState state2 = clusterState(startJoinRequest1.getTerm(), randomLongBetween(2, 10), node1, initialConfig, initialConfig, 42L);
         PublishResponse publishResponse = n1.handlePublishRequest(new PublishRequest(state2));
-        assertThat(expectThrows(ConsensusMessageRejectedException.class,
+        assertThat(expectThrows(CoordinationStateRejectedException.class,
             () -> n1.handlePublishResponse(randomFrom(node1, node2, node3), publishResponse)).getMessage(),
             containsString("does not match current version"));
     }
@@ -584,7 +584,7 @@ public class ConsensusStateTests extends ESTestCase {
         long term = randomBoolean() ?
             randomLongBetween(startJoinRequest1.getTerm() + 1, 10) :
             randomLongBetween(0, startJoinRequest1.getTerm() - 1);
-        assertThat(expectThrows(ConsensusMessageRejectedException.class,
+        assertThat(expectThrows(CoordinationStateRejectedException.class,
             () -> n1.handleCommit(new ApplyCommit(node1, term, 2L))).getMessage(),
             containsString("does not match current term"));
     }
@@ -597,7 +597,7 @@ public class ConsensusStateTests extends ESTestCase {
         Join v1 = n1.handleStartJoin(startJoinRequest1);
         assertTrue(n1.handleJoin(v1));
         assertTrue(n1.electionWon());
-        assertThat(expectThrows(ConsensusMessageRejectedException.class,
+        assertThat(expectThrows(CoordinationStateRejectedException.class,
             () -> n1.handleCommit(new ApplyCommit(node1, startJoinRequest1.getTerm(), 2L))).getMessage(),
             containsString("does not match last accepted term"));
     }
@@ -613,7 +613,7 @@ public class ConsensusStateTests extends ESTestCase {
         ClusterState state2 = clusterState(startJoinRequest1.getTerm(), 2L, node1, initialConfig, initialConfig, 7L);
         PublishRequest publishRequest = n1.handleClientValue(state2);
         n1.handlePublishRequest(publishRequest);
-        assertThat(expectThrows(ConsensusMessageRejectedException.class,
+        assertThat(expectThrows(CoordinationStateRejectedException.class,
             () -> n1.handleCommit(new ApplyCommit(node1, startJoinRequest1.getTerm(), randomLongBetween(3, 10)))).getMessage(),
             containsString("does not match current version"));
     }
@@ -645,14 +645,14 @@ public class ConsensusStateTests extends ESTestCase {
         assertTrue(state2.getLastAcceptedConfiguration().hasQuorum(Collections.singleton(node2.getId())));
         assertTrue(state1.getLastCommittedConfiguration().hasQuorum(Collections.singleton(node1.getId())));
 
-        expectThrows(ConsensusMessageRejectedException.class, () -> n1.handleClientValue(state2));
+        expectThrows(CoordinationStateRejectedException.class, () -> n1.handleClientValue(state2));
         n1.handleJoin(v1);
 
         PublishRequest publishRequest2 = n1.handleClientValue(state2);
 
         PublishResponse n1PublishResponse = n1.handlePublishRequest(publishRequest2);
         PublishResponse n2PublishResponse = n2.handlePublishRequest(publishRequest2);
-        expectThrows(ConsensusMessageRejectedException.class, () -> n3.handlePublishRequest(publishRequest2));
+        expectThrows(CoordinationStateRejectedException.class, () -> n3.handlePublishRequest(publishRequest2));
         n3.handleStartJoin(new StartJoinRequest(node2, 1));
 
         assertFalse(n1.handlePublishResponse(node1, n1PublishResponse).isPresent());
@@ -667,7 +667,7 @@ public class ConsensusStateTests extends ESTestCase {
         assertThat(n1.getLastCommittedConfiguration(), equalTo(newConfig));
 
         assertThat(n3.getLastAcceptedVersion(), equalTo(0L));
-        expectThrows(ConsensusMessageRejectedException.class, () -> n3.handleCommit(n1Commit.get()));
+        expectThrows(CoordinationStateRejectedException.class, () -> n3.handleCommit(n1Commit.get()));
         assertThat(n3.getLastAcceptedVersion(), equalTo(0L));
 
         assertThat(n2.getLastAcceptedVersion(), equalTo(2L));

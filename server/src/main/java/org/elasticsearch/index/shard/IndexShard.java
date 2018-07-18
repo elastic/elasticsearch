@@ -48,7 +48,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -412,21 +411,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
                 assert currentRouting.active() == false : "we are in POST_RECOVERY, but our shard routing is active " + currentRouting;
 
-                if (newRouting.primary()) {
-                    final DiscoveryNode recoverySourceNode = recoveryState.getSourceNode();
-                    final Engine engine = getEngine();
-                    if (currentRouting.isRelocationTarget() == false || recoverySourceNode.getVersion().before(Version.V_6_0_0_alpha1)) {
-                        // there was no primary context hand-off in < 6.0.0, need to manually activate the shard
-                        replicationTracker.activatePrimaryMode(getEngine().getLocalCheckpoint());
-                    }
-                    if (currentRouting.isRelocationTarget() == true && recoverySourceNode.getVersion().before(Version.V_6_0_0_alpha1)) {
-                        // Flush the translog as it may contain operations with no sequence numbers. We want to make sure those
-                        // operations will never be replayed as part of peer recovery to avoid an arbitrary mixture of operations with seq#
-                        // (due to active indexing) and operations without a seq# coming from the translog. We therefore flush
-                        // to create a lucene commit point to an empty translog file.
-                        engine.flush(false, true);
-                    }
-                }
+                assert currentRouting.isRelocationTarget() == false || currentRouting.primary() == false ||
+                    recoveryState.getSourceNode().getVersion().before(Version.V_6_0_0_alpha1) ||
+                        replicationTracker.isPrimaryMode() :
+                    "a primary relocation is completed by the master, but primary mode is not active " + currentRouting;
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
             } else if (currentRouting.primary() && currentRouting.relocating() && replicationTracker.isPrimaryMode() == false &&
@@ -442,7 +430,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final CountDownLatch shardStateUpdated = new CountDownLatch(1);
 
             if (newRouting.primary()) {
-                if (newPrimaryTerm != primaryTerm) {
+                if (newPrimaryTerm == primaryTerm) {
+                    if (currentRouting.initializing() && newRouting.active()) {
+                        if (currentRouting.isRelocationTarget() == false) {
+                            // the master started a recovering primary, activate primary mode.
+                            replicationTracker.activatePrimaryMode(getLocalCheckpoint());
+                        } else if (recoveryState.getSourceNode().getVersion().before(Version.V_6_0_0_alpha1)) {
+                            // there was no primary context hand-off in < 6.0.0, need to manually activate the shard
+                            replicationTracker.activatePrimaryMode(getLocalCheckpoint());
+                            // Flush the translog as it may contain operations with no sequence numbers. We want to make sure those
+                            // operations will never be replayed as part of peer recovery to avoid an arbitrary mixture of operations with
+                            // seq# (due to active indexing) and operations without a seq# coming from the translog. We therefore flush
+                            // to create a lucene commit point to an empty translog file.
+                            getEngine().flush(false, true);
+                        }
+                    }
+                } else {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
                     /* Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
                      * in one state causing it's term to be incremented. Note that if both current shard state and new
@@ -539,6 +542,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             // set this last, once we finished updating all internal state.
             this.shardRouting = newRouting;
+
+            assert this.shardRouting.primary() == false ||
+                this.shardRouting.started() == false || // note that we use started and not active to avoid relocating shards
+                this.replicationTracker.isPrimaryMode()
+                : "an started primary must be in primary mode " + this.shardRouting;
             shardStateUpdated.countDown();
         }
         if (currentRouting != null && currentRouting.active() == false && newRouting.active()) {

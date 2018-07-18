@@ -41,6 +41,10 @@ setup:
 
 ---
 "Index - all":
+  - skip:
+      version: " - 6.3.99"
+      reason: "uuid is only available from 6.4.0 on"
+
   - do:
       indices.stats: { index: _all }
 

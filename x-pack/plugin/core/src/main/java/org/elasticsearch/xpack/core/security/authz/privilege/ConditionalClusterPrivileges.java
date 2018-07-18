@@ -15,9 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.ApplicationPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege.Category;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
@@ -77,15 +75,11 @@ public final class ConditionalClusterPrivileges {
     }
 
     /**
-     * Read a list of privileges from the parser. The parse should be positioned at the
+     * Read a list of privileges from the parser. The parser should be positioned at the
      * {@link XContentParser.Token#START_OBJECT} token for the privileges value
      */
     public static List<ConditionalClusterPrivilege> parse(XContentParser parser) throws IOException {
         List<ConditionalClusterPrivilege> privileges = new ArrayList<>();
-
-        if (parser.currentToken() == null) {
-            parser.nextToken();
-        }
 
         expectedToken(parser.currentToken(), parser, XContentParser.Token.START_OBJECT);
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -106,7 +100,7 @@ public final class ConditionalClusterPrivileges {
     private static void expectedToken(XContentParser.Token read, XContentParser parser, XContentParser.Token expected) {
         if (read != expected) {
             throw new XContentParseException(parser.getTokenLocation(),
-                "failed to parse privilege. expected [" + expected + "] but found [" + parser.currentToken() + "] instead");
+                "failed to parse privilege. expected [" + expected + "] but found [" + read + "] instead");
         }
     }
 
@@ -138,29 +132,12 @@ public final class ConditionalClusterPrivileges {
         public ManageApplicationPrivileges(Set<String> applicationNames) {
             this.applicationNames = Collections.unmodifiableSet(applicationNames);
             this.applicationPredicate = Automatons.predicate(applicationNames);
-            this.requestPredicate = new Predicate<TransportRequest>() {
-
-                private boolean testApplication(String application) {
-                    return applicationPredicate.test(application);
+            this.requestPredicate = request -> {
+                if (request instanceof ApplicationPrivilegesRequest) {
+                    final ApplicationPrivilegesRequest privRequest = (ApplicationPrivilegesRequest) request;
+                    return privRequest.getApplicationNames().stream().allMatch(application -> applicationPredicate.test(application));
                 }
-
-                private boolean testPrivileges(List<ApplicationPrivilegeDescriptor> privileges) {
-                    return privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).allMatch(this::testApplication);
-                }
-
-                @Override
-                public boolean test(TransportRequest request) {
-                    if (request instanceof GetPrivilegesRequest) {
-                        return testApplication(((GetPrivilegesRequest) request).application());
-                    }
-                    if (request instanceof PutPrivilegesRequest) {
-                        return testPrivileges(((PutPrivilegesRequest) request).getPrivileges());
-                    }
-                    if (request instanceof DeletePrivilegesRequest) {
-                        return testApplication(((DeletePrivilegesRequest) request).application());
-                    }
-                    return false;
-                }
+                return false;
             };
         }
 
@@ -206,9 +183,6 @@ public final class ConditionalClusterPrivileges {
         }
 
         public static ManageApplicationPrivileges parse(XContentParser parser) throws IOException {
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                parser.nextToken();
-            }
             expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
             expectFieldName(parser, Fields.MANAGE);
             expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);

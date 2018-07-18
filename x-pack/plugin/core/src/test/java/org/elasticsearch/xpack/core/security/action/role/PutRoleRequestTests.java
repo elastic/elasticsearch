@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
@@ -67,11 +68,11 @@ public class PutRoleRequestTests extends ESTestCase {
         assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
     }
 
-    public void testSerializationv63AndBefore() throws IOException {
+    public void testSerializationV63AndBefore() throws IOException {
         final PutRoleRequest original = buildRandomRequest();
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        final Version version = randomFrom(Version.V_5_6_10, Version.V_6_0_0, Version.V_6_1_2, Version.V_6_2_4, Version.V_6_3_0);
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, Version.V_6_3_2);
         out.setVersion(version);
         original.writeTo(out);
 

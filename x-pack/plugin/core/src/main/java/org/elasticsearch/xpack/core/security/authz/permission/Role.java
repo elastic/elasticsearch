@@ -116,7 +116,6 @@ public final class Role {
                 applicationPrivs.add(convertApplicationPrivilege(rd.getName(), i, applicationPrivileges[i]));
             }
 
-
             String[] rdRunAs = rd.getRunAs();
             if (rdRunAs != null && rdRunAs.length > 0) {
                 this.runAs(new Privilege(Sets.newHashSet(rdRunAs), rdRunAs));

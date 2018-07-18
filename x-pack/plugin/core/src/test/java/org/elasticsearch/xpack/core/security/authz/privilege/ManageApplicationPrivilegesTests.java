@@ -80,6 +80,8 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
             final byte[] bytes = out.toByteArray();
             try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, bytes)) {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+                // ManageApplicationPrivileges.parse requires that the parser be positioned on the "manage" field.
+                assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 final ManageApplicationPrivileges clone = ManageApplicationPrivileges.parse(parser);
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
 

@@ -14,13 +14,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to delete an application privilege.
  */
-public final class DeletePrivilegesRequest extends ActionRequest implements WriteRequest<DeletePrivilegesRequest> {
+public final class DeletePrivilegesRequest extends ActionRequest
+    implements ApplicationPrivilegesRequest, WriteRequest<DeletePrivilegesRequest> {
 
     private String application;
     private String[] privileges;
@@ -64,6 +67,11 @@ public final class DeletePrivilegesRequest extends ActionRequest implements Writ
 
     public String application() {
         return application;
+    }
+
+    @Override
+    public Collection<String> getApplicationNames() {
+        return Collections.singleton(application);
     }
 
     public String[] privileges() {

@@ -133,15 +133,18 @@ public class DocumentMapper implements ToXContentFragment {
         // collect all the mappers for this type
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
+        List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
         for (MetadataFieldMapper metadataMapper : this.mapping.metadataMappers) {
             if (metadataMapper instanceof FieldMapper) {
                 newFieldMappers.add(metadataMapper);
             }
         }
-        MapperUtils.collect(this.mapping.root, newObjectMappers, newFieldMappers);
+        MapperUtils.collect(this.mapping.root,
+            newObjectMappers, newFieldMappers, newFieldAliasMappers);
 
         final IndexAnalyzers indexAnalyzers = mapperService.getIndexAnalyzers();
         this.fieldMappers = new DocumentFieldMappers(newFieldMappers,
+                newFieldAliasMappers,
                 indexAnalyzers.getDefaultIndexAnalyzer(),
                 indexAnalyzers.getDefaultSearchAnalyzer(),
                 indexAnalyzers.getDefaultSearchQuoteAnalyzer());

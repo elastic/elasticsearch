@@ -387,7 +387,7 @@ public class XPackLicenseState {
      */
     public boolean isCustomRoleProvidersAllowed() {
         final Status localStatus = status;
-        return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL )
+        return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL)
                 && localStatus.active;
     }
 
@@ -396,7 +396,7 @@ public class XPackLicenseState {
      */
     public boolean isAuthorizingRealmAllowed() {
         final Status localStatus = status;
-        return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL )
+        return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL)
             && localStatus.active;
     }
 

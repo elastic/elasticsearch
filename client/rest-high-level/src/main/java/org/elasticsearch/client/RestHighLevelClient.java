@@ -53,6 +53,8 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.CheckedConsumer;
@@ -916,6 +918,34 @@ public class RestHighLevelClient implements Closeable {
                                      ActionListener<FieldCapabilitiesResponse> listener) {
         performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
             FieldCapabilitiesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Calls the Term Vectors API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-termvectors.html">Term Vectors API on
+     * elastic.co</a>
+     *
+     * @param request   the request
+     * @param options   the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public final TermVectorsResponse termvectors(TermVectorsRequest request, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(request, RequestConverters::termVectors, options, TermVectorsResponse::fromXContent,
+            emptySet());
+    }
+
+    /**
+     * Asynchronously calls the Term Vectors API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-termvectors.html">Term Vectors API on
+     * elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void termvectorsAsync(TermVectorsRequest request, RequestOptions options, ActionListener<TermVectorsResponse> listener) {
+        performRequestAsyncAndParseEntity(request, RequestConverters::termVectors, options, TermVectorsResponse::fromXContent, listener,
+            emptySet());
     }
 
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,

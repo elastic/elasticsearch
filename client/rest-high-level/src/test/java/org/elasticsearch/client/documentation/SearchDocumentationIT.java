@@ -43,6 +43,8 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -54,6 +56,8 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -1250,6 +1254,120 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchResponse searchResponse = firstResponse.getResponse();
             assertEquals(3, searchResponse.getHits().getTotalHits());
         }
+    }
+
+    public void testTermVectors() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping("doc", "user", "type=keyword");
+        CreateIndexResponse authorsResponse = client.indices().create(authorsRequest, RequestOptions.DEFAULT);
+        assertTrue(authorsResponse.isAcknowledged());
+        client.index(new IndexRequest("index", "doc", "1").source("user", "kimchy"), RequestOptions.DEFAULT);
+        Response refreshResponse = client().performRequest(new Request("POST", "/authors/_refresh"));
+        assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
+
+        {
+            // tag::term-vectors-request
+            TermVectorsRequest request = new TermVectorsRequest("authors", "doc", "1");
+            request.selectedFields("user");
+            // end::term-vectors-request
+        }
+
+        {
+            // tag::term-vectors-request-artificial
+            TermVectorsRequest request = new TermVectorsRequest("authors", "doc");
+            XContentBuilder docBuilder = XContentFactory.jsonBuilder();
+            docBuilder.startObject().field("user", "guest-user").endObject();
+            request.doc(docBuilder); // <1>
+            // end::term-vectors-request-artificial
+
+            // tag::term-vectors-request-optional-arguments
+            request.fieldStatistics(false); // <1>
+            request.termStatistics(true); // <2>
+            request.positions(false); // <3>
+            request.offsets(false); // <4>
+            request.payloads(false); // <5>
+
+            int maxNumTerms = 3;
+            int minTermFreq = 1;
+            int maxTermFreq = 10;
+            int minDocFreq = 1;
+            int maxDocFreq = 100;
+            int minWordLength = 1;
+            int maxWordLength = 10;
+            TermVectorsRequest.FilterSettings filterSettings = new TermVectorsRequest.FilterSettings(
+                maxNumTerms, minTermFreq, maxTermFreq, minDocFreq, maxDocFreq, minWordLength, maxWordLength);
+            request.filterSettings(filterSettings); // <6>
+
+            Map<String, String> perFieldAnalyzer = new HashMap<>();
+            perFieldAnalyzer.put("user", "keyword");
+            request.perFieldAnalyzer(perFieldAnalyzer);  // <7>
+
+            request.realtime(false); // <8>
+            request.routing("routing"); // <9>
+            // end::term-vectors-request-optional-arguments
+        }
+
+        TermVectorsRequest request = new TermVectorsRequest("authors", "doc", "1");
+        request.selectedFields("user");
+
+        // tag::term-vectors-execute
+        TermVectorsResponse response = client.termvectors(request, RequestOptions.DEFAULT);
+        // end:::term-vectors-execute
+
+        // tag::term-vectors-response
+        String index = response.getIndex(); // <1>
+        String type = response.getType(); // <2>
+        String id = response.getId(); // <3>
+        boolean exists = response.isExists(); // <4>
+        if (response.hasTermVectors()) { // <5>
+            List<TermVectorsResponse.TermVector> tvList = response.getTermVectorsList(); // <6>
+            for (TermVectorsResponse.TermVector tv : tvList) {
+                String fieldname = tv.getFieldName(); // <7>
+                int docCount = tv.getFieldStatistics().getDocCount(); // <8>
+                long sumTotalTermFreq = tv.getFieldStatistics().getSumTotalTermFreq(); // <9>
+                long sumDocFreq = tv.getFieldStatistics().getSumDocFreq(); // <10>
+                if (tv.getTerms() != null) {
+                    List<TermVectorsResponse.TermVector.Term> terms = tv.getTerms(); // <11>
+                    for (TermVectorsResponse.TermVector.Term term : terms) {
+                        String termStr = term.getTerm(); // <12>
+                        int termFreq = term.getTermFreq(); // <13>
+                        int docFreq = term.getDocFreq(); // <14>
+                        long totalTermFreq = term.getTotalTermFreq(); // <15>
+                        float score = term.getScore(); // <16>
+                        if (term.getTokens() != null) {
+                            List<TermVectorsResponse.TermVector.Token> tokens = term.getTokens(); // <17>
+                            for (TermVectorsResponse.TermVector.Token token : tokens) {
+                                int position = token.getPosition(); // <18>
+                                int startOffset = token.getStartOffset(); // <19>
+                                int endOffset = token.getEndOffset(); // <20>
+                                String payload = token.getPayload(); // <21>
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // end:::term-vectors-response
+
+        // tag::term-vectors-execute-listener
+        ActionListener<TermVectorsResponse> listener = new ActionListener<TermVectorsResponse>() {
+            @Override
+            public void onResponse(TermVectorsResponse termVectorsResponse) {
+                // <1>
+            }
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::term-vectors-execute-listener
+        CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+        // tag::term-vectors-execute-async
+        client.termvectorsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::term-vectors-execute-async
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
     }
 
     private void indexSearchTestData() throws IOException {

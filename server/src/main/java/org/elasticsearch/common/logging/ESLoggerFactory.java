@@ -46,11 +46,15 @@ public final class ESLoggerFactory {
     }
 
     public static Logger getLogger(String prefix, Logger logger) {
+        /*
+         * In a followup we'll throw an exception if prefix is null or empty
+         * redirecting folks to LogManager.getLogger. No need to create a
+         * PrefixLogger or even go through our own logging classes in that
+         * case.
+         *
+         * This and more is tracker in https://github.com/elastic/elasticsearch/issues/32174
+         */
         if (prefix == null || prefix.length() == 0) {
-            /*
-             * In an followup we'll throw an exception in this case directing
-             * folks to LogManger.getLogger.
-             */
             return logger;
         }
         return new PrefixLogger((ExtendedLogger)logger, logger.getName(), prefix);

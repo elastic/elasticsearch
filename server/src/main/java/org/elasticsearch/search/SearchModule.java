@@ -608,11 +608,9 @@ public class SearchModule {
         namedXContents.add(new NamedXContentRegistry.Entry(SuggestionBuilder.class, suggester.getName(),
                 suggester.getParser()));
 
-        for (Map.Entry<String, Writeable.Reader<? extends Suggest.Suggestion>> entry : suggester.getSuggestionReaders().entrySet()) {
-            String writeableName = entry.getKey();
-            Writeable.Reader<? extends Suggest.Suggestion> reader = entry.getValue();
-            namedWriteables.add(new NamedWriteableRegistry.Entry(Suggest.Suggestion.class, writeableName, reader));
-        }
+        namedWriteables.add(new NamedWriteableRegistry.Entry(
+            Suggest.Suggestion.class, suggester.getName().getPreferredName(), suggester.getSuggestionReader()
+        ));
     }
 
     private Map<String, Highlighter> setupHighlighters(Settings settings, List<SearchPlugin> plugins) {

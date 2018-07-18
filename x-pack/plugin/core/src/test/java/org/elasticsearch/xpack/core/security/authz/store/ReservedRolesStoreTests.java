@@ -289,9 +289,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
         });
 
-        assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(randomAlphaOfLengthBetween(8, 24), "app-random", "all"), "*"), is(false));
-        assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege("kibana-.kibana", "app-foo", "foo"), "*"), is(false));
-        assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege("kibana-.kibana", "app-all", "all"), "*"), is(true));
+        final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(randomApplication, "app-random", "all"), "*"), is(false));
+
+        final String application = "kibana-.kibana";
+        assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(application, "app-foo", "foo"), "*"), is(false));
+        assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(application, "app-all", "all"), "*"), is(true));
     }
 
     public void testMonitoringUserRole() {
@@ -450,10 +453,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(false));
         assertThat(dashboardsOnlyUserRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(false));
 
-        assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(randomAlphaOfLengthBetween(8, 24), "app-random", "all"), "*"), is(false));
-        assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege("kibana-.kibana", "app-foo", "foo"), "*"), is(false));
-        assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege("kibana-.kibana", "app-all", "all"), "*"), is(false));
-        assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege("kibana-.kibana", "app-read", "read"), "*"), is(true));
+        final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(randomApplication, "app-random", "all"), "*"),
+            is(false));
+
+        final String application = "kibana-.kibana";
+        assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(application, "app-foo", "foo"), "*"), is(false));
+        assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(application, "app-all", "all"), "*"), is(false));
+        assertThat(dashboardsOnlyUserRole.application().grants(new ApplicationPrivilege(application, "app-read", "read"), "*"), is(true));
     }
 
     public void testSuperuserRole() {

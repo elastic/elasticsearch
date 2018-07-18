@@ -362,9 +362,13 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         return getThreadContext().preserveContext(command);
     }
 
-    public void shutdown() {
+    protected final void stopCachedTimeThread() {
         cachedTimeThread.running = false;
         cachedTimeThread.interrupt();
+    }
+
+    public void shutdown() {
+        stopCachedTimeThread();
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
@@ -374,8 +378,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
     }
 
     public void shutdownNow() {
-        cachedTimeThread.running = false;
-        cachedTimeThread.interrupt();
+        stopCachedTimeThread();
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {

@@ -623,7 +623,7 @@ gradle.projectsEvaluated {
     }
   }
   // Having the same group and name for distinct projects causes Gradle to consider them equal when resolving
-  // dependencies leading to hard to debug failures. Run a check across all project and prevent this from happening.
+  // dependencies leading to hard to debug failures. Run a check across all project to prevent this from happening.
   // see: https://github.com/gradle/gradle/issues/847
   Map coordsToProject = [:]
   project.allprojects.forEach { p ->

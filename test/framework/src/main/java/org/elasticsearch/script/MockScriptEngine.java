@@ -104,6 +104,14 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(BucketAggregateToBooleanScript.class)) {
+            BucketAggregateToBooleanScript.Factory factory = () -> new BucketAggregateToBooleanScript() {
+                @Override
+                public boolean execute(Map<String, Object> vars) {
+                    return (boolean) script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(TemplateScript.class)) {
             TemplateScript.Factory factory = vars -> {
                 // TODO: need a better way to implement all these new contexts

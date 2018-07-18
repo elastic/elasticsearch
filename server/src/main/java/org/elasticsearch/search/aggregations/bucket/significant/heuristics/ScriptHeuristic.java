@@ -73,7 +73,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             supersetSizeHolder.value = supersetSize;
             subsetDfHolder.value = subsetFreq;
             supersetDfHolder.value = supersetFreq;
-            return ((Number) executableScript.execute(params)).doubleValue();
+            return executableScript.execute(params);
        }
     }
 

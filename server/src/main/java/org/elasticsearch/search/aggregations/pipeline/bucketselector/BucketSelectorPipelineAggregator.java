@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline.bucketselector;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.script.BucketAggregateToBooleanScript;
 import org.elasticsearch.script.BucketAggregateToDoubleScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -82,34 +83,41 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
-        BucketAggregateToDoubleScript.Factory factory =
-            reduceContext.scriptService().compile(script, BucketAggregateToDoubleScript.CONTEXT);
-        BucketAggregateToDoubleScript executableScript = factory.newInstance();
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
-        for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
-            Map<String, Object> vars = new HashMap<>();
-            if (script.getParams() != null) {
-                vars.putAll(script.getParams());
+        if ("expression".equals(script.getLang())) {
+            BucketAggregateToDoubleScript.Factory factory =
+                reduceContext.scriptService().compile(script, BucketAggregateToDoubleScript.CONTEXT);
+            BucketAggregateToDoubleScript executableScript = factory.newInstance();
+            for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
+                if (executableScript.execute(scriptArgs(originalAgg, bucket)) == 1.0) {
+                    newBuckets.add(bucket);
+                }
             }
-            for (Map.Entry<String, String> entry : bucketsPathsMap.entrySet()) {
-                String varName = entry.getKey();
-                String bucketsPath = entry.getValue();
-                Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);
-                vars.put(varName, value);
-            }
-            Object scriptReturnValue = executableScript.execute(vars);
-            final boolean keepBucket;
-            // TODO: WTF!!!!!
-            if ("expression".equals(script.getLang())) {
-                double scriptDoubleValue = (double) scriptReturnValue;
-                keepBucket = scriptDoubleValue == 1.0;
-            } else {
-                keepBucket = (boolean) scriptReturnValue;
-            }
-            if (keepBucket) {
-                newBuckets.add(bucket);
+        } else {
+            BucketAggregateToBooleanScript.Factory factory =
+                reduceContext.scriptService().compile(script, BucketAggregateToBooleanScript.CONTEXT);
+            BucketAggregateToBooleanScript executableScript = factory.newInstance();
+            for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
+                if (executableScript.execute(scriptArgs(originalAgg, bucket))) {
+                    newBuckets.add(bucket);
+                }
             }
         }
         return originalAgg.create(newBuckets);
+    }
+
+    private Map<String, Object> scriptArgs(InternalMultiBucketAggregation<InternalMultiBucketAggregation,
+        InternalMultiBucketAggregation.InternalBucket> originalAgg, InternalMultiBucketAggregation.InternalBucket bucket) {
+        Map<String, Object> vars = new HashMap<>();
+        if (script.getParams() != null) {
+            vars.putAll(script.getParams());
+        }
+        for (Map.Entry<String, String> entry : bucketsPathsMap.entrySet()) {
+            String varName = entry.getKey();
+            String bucketsPath = entry.getValue();
+            Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);
+            vars.put(varName, value);
+        }
+        return vars;
     }
 }

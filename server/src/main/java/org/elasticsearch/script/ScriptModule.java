@@ -50,6 +50,7 @@ public class ScriptModule {
             SearchScript.TERMS_SET_QUERY_CONTEXT,
             ExecutableScript.CONTEXT,
             BucketAggregateToDoubleScript.CONTEXT,
+            BucketAggregateToBooleanScript.CONTEXT,
             ExecutableScript.UPDATE_CONTEXT,
             IngestScript.CONTEXT,
             FilterScript.CONTEXT,

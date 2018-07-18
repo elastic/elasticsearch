@@ -34,18 +34,18 @@ public class PathMapperTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
 
         // test full name
-        assertThat(docMapper.mappers().getFieldMapper("first1"), nullValue());
-        assertThat(docMapper.mappers().getFieldMapper("name1.first1"), notNullValue());
-        assertThat(docMapper.mappers().getFieldMapper("last1"), nullValue());
-        assertThat(docMapper.mappers().getFieldMapper("i_last_1"), nullValue());
-        assertThat(docMapper.mappers().getFieldMapper("name1.last1"), notNullValue());
-        assertThat(docMapper.mappers().getFieldMapper("name1.i_last_1"), nullValue());
+        assertThat(docMapper.mappers().getMapper("first1"), nullValue());
+        assertThat(docMapper.mappers().getMapper("name1.first1"), notNullValue());
+        assertThat(docMapper.mappers().getMapper("last1"), nullValue());
+        assertThat(docMapper.mappers().getMapper("i_last_1"), nullValue());
+        assertThat(docMapper.mappers().getMapper("name1.last1"), notNullValue());
+        assertThat(docMapper.mappers().getMapper("name1.i_last_1"), nullValue());
 
-        assertThat(docMapper.mappers().getFieldMapper("first2"), nullValue());
-        assertThat(docMapper.mappers().getFieldMapper("name2.first2"), notNullValue());
-        assertThat(docMapper.mappers().getFieldMapper("last2"), nullValue());
-        assertThat(docMapper.mappers().getFieldMapper("i_last_2"), nullValue());
-        assertThat(docMapper.mappers().getFieldMapper("name2.i_last_2"), nullValue());
-        assertThat(docMapper.mappers().getFieldMapper("name2.last2"), notNullValue());
+        assertThat(docMapper.mappers().getMapper("first2"), nullValue());
+        assertThat(docMapper.mappers().getMapper("name2.first2"), notNullValue());
+        assertThat(docMapper.mappers().getMapper("last2"), nullValue());
+        assertThat(docMapper.mappers().getMapper("i_last_2"), nullValue());
+        assertThat(docMapper.mappers().getMapper("name2.i_last_2"), nullValue());
+        assertThat(docMapper.mappers().getMapper("name2.last2"), notNullValue());
     }
 }

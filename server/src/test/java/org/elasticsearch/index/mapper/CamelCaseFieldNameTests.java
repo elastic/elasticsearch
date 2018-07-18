@@ -46,12 +46,12 @@ public class CamelCaseFieldNameTests extends ESSingleNodeTestCase {
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
         documentMapper = index.mapperService().documentMapper("type");
-        assertNotNull(documentMapper.mappers().getFieldMapper("thisIsCamelCase"));
-        assertNull(documentMapper.mappers().getFieldMapper("this_is_camel_case"));
+        assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
+        assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));
 
         documentMapper = index.mapperService().documentMapperParser().parse("type", documentMapper.mappingSource());
 
-        assertNotNull(documentMapper.mappers().getFieldMapper("thisIsCamelCase"));
-        assertNull(documentMapper.mappers().getFieldMapper("this_is_camel_case"));
+        assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
+        assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));
     }
 }

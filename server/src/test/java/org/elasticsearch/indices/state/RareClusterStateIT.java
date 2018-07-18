@@ -369,7 +369,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             final MapperService mapperService = indexService.mapperService();
             DocumentMapper mapper = mapperService.documentMapper("type");
             assertNotNull(mapper);
-            assertNotNull(mapper.mappers().getFieldMapper("field"));
+            assertNotNull(mapper.mappers().getMapper("field"));
         });
 
         final AtomicReference<Object> docIndexResponse = new AtomicReference<>();

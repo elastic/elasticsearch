@@ -46,8 +46,8 @@ public class DocumentMapperParserTests extends ESSingleNodeTestCase {
             .startObject("foo.baz").field("type", "keyword").endObject()
             .endObject().endObject().endObject());
         DocumentMapper docMapper = mapperParser.parse("type", new CompressedXContent(mapping));
-        assertNotNull(docMapper.mappers().getFieldMapper("foo.bar"));
-        assertNotNull(docMapper.mappers().getFieldMapper("foo.baz"));
+        assertNotNull(docMapper.mappers().getMapper("foo.bar"));
+        assertNotNull(docMapper.mappers().getMapper("foo.baz"));
         assertNotNull(docMapper.objectMappers().get("foo"));
     }
 
@@ -60,8 +60,8 @@ public class DocumentMapperParserTests extends ESSingleNodeTestCase {
             .startObject("deep.field").field("type", "keyword").endObject().endObject()
             .endObject().endObject().endObject().endObject());
         DocumentMapper docMapper = mapperParser.parse("type", new CompressedXContent(mapping));
-        assertNotNull(docMapper.mappers().getFieldMapper("foo.bar"));
-        assertNotNull(docMapper.mappers().getFieldMapper("foo.baz.deep.field"));
+        assertNotNull(docMapper.mappers().getMapper("foo.bar"));
+        assertNotNull(docMapper.mappers().getMapper("foo.baz.deep.field"));
         assertNotNull(docMapper.objectMappers().get("foo"));
     }
 

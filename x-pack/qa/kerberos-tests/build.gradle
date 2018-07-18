@@ -62,6 +62,13 @@ for (String principal : principals) {
     krb5AddPrincipals.dependsOn(create)
 }
 
+def generatedResources = "$buildDir/generated-resources/keytabs"
+task copyKeytabToGeneratedResources(type: Copy) {
+    Path peppaKeytab = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("peppa.keytab").toAbsolutePath()
+    from peppaKeytab;
+    into generatedResources
+}
+
 integTestCluster {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
@@ -96,11 +103,10 @@ integTestCluster {
         return tmpFile.exists()
     }
 
-    dependsOn krb5AddPrincipals, krb5kdcFixture
 }
 
 integTestRunner {
-    Path peppaKeytab = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("peppa.keytab").toAbsolutePath()
+    Path peppaKeytab = Paths.get("${project.buildDir}", "generated-resources", "keytabs", "peppa.keytab")
     systemProperty 'test.userkt', "peppa@${realm}"
     systemProperty 'test.userkt.keytab', "${peppaKeytab}"
     systemProperty 'test.userpwd', "george@${realm}"
@@ -113,4 +119,8 @@ integTestRunner {
 
 if (project.rootProject.vagrantSupported == false) {
     integTest.enabled = false
+} else {
+    project.sourceSets.test.output.dir(generatedResources, builtBy: copyKeytabToGeneratedResources)
+    integTestCluster.dependsOn krb5AddPrincipals, krb5kdcFixture, copyKeytabToGeneratedResources
+    integTest.finalizedBy project(':test:fixtures:krb5kdc-fixture').halt
 }

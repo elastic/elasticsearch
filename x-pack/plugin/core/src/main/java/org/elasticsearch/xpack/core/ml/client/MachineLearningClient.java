@@ -9,6 +9,8 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
@@ -276,13 +278,13 @@ public class MachineLearningClient {
         return listener;
     }
 
-    public void putJob(PutJobAction.Request request,
-            ActionListener<PutJobAction.Response> listener) {
+    public void putJob(PutJobRequest request,
+            ActionListener<PutJobResponse> listener) {
         client.execute(PutJobAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<PutJobAction.Response> putJob(PutJobAction.Request request) {
-        PlainActionFuture<PutJobAction.Response> listener = PlainActionFuture.newFuture();
+    public ActionFuture<PutJobResponse> putJob(PutJobRequest request) {
+        PlainActionFuture<PutJobResponse> listener = PlainActionFuture.newFuture();
         client.execute(PutJobAction.INSTANCE, request, listener);
         return listener;
     }
@@ -336,12 +338,12 @@ public class MachineLearningClient {
     }
 
     public void updateJob(UpdateJobAction.Request request,
-            ActionListener<PutJobAction.Response> listener) {
+            ActionListener<PutJobResponse> listener) {
         client.execute(UpdateJobAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<PutJobAction.Response> updateJob(UpdateJobAction.Request request) {
-        PlainActionFuture<PutJobAction.Response> listener = PlainActionFuture.newFuture();
+    public ActionFuture<PutJobResponse> updateJob(UpdateJobAction.Request request) {
+        PlainActionFuture<PutJobResponse> listener = PlainActionFuture.newFuture();
         client.execute(UpdateJobAction.INSTANCE, request, listener);
         return listener;
     }

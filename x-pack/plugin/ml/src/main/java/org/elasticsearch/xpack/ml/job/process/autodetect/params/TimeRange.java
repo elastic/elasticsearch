@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
+import org.elasticsearch.protocol.xpack.ml.messages.Messages;
+import org.elasticsearch.protocol.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.protocol.xpack.ml.utils.TimeUtils;
 
 import java.util.Objects;
 

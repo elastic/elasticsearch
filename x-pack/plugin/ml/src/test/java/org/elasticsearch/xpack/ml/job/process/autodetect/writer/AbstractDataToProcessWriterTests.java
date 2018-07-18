@@ -9,13 +9,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.CategorizationAnalyzerConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
+import org.elasticsearch.protocol.xpack.ml.utils.MachineLearningConstants;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AbstractDataToProcessWriter.InputOutputMap;
@@ -88,10 +89,10 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         assertEquals(Integer.valueOf(2), outputIndexes.get("metric"));
         assertEquals(Integer.valueOf(3), outputIndexes.get("value"));
         if (includeTokensFields) {
-            assertEquals(Integer.valueOf(4), outputIndexes.get(LengthEncodedWriter.PRETOKENISED_TOKEN_FIELD));
-            assertEquals(Integer.valueOf(5), outputIndexes.get(LengthEncodedWriter.CONTROL_FIELD_NAME));
+            assertEquals(Integer.valueOf(4), outputIndexes.get(MachineLearningConstants.PRETOKENISED_TOKEN_FIELD));
+            assertEquals(Integer.valueOf(5), outputIndexes.get(MachineLearningConstants.CONTROL_FIELD_NAME));
         } else {
-            assertEquals(Integer.valueOf(4), outputIndexes.get(LengthEncodedWriter.CONTROL_FIELD_NAME));
+            assertEquals(Integer.valueOf(4), outputIndexes.get(MachineLearningConstants.CONTROL_FIELD_NAME));
         }
 
         List<InputOutputMap> inOutMaps = writer.getInputOutputMap();

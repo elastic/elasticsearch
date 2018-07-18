@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process;
 
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ public class NativeControllerHolder {
      */
     public static NativeController getNativeController(Environment environment) throws IOException {
 
-        if (MachineLearningField.AUTODETECT_PROCESS.get(environment.settings())) {
+        if (MachineLearning.AUTODETECT_PROCESS.get(environment.settings())) {
             synchronized (lock) {
                 if (nativeController == null) {
                     nativeController = new NativeController(environment, new NamedPipeHelper());

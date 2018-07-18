@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -276,7 +276,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     /**
      * Progress information of the ForecastRequest in the range 0 to 1,
      * while 1 means finished
-     * 
+     *
      * @return progress value
      */
     public double getProgress() {

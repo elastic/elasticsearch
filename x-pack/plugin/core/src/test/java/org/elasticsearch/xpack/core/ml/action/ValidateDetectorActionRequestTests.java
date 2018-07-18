@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction.Request;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
 
 public class ValidateDetectorActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 

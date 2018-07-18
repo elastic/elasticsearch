@@ -7,9 +7,10 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.protocol.xpack.ml.utils.MachineLearningConstants;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.supercsv.encoder.CsvEncoder;
@@ -258,12 +259,12 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
         // field for categorization tokens
         if (includeTokensField) {
-            fieldIndexes.put(LengthEncodedWriter.PRETOKENISED_TOKEN_FIELD, index++);
+            fieldIndexes.put(MachineLearningConstants.PRETOKENISED_TOKEN_FIELD, index++);
         }
 
         // control field
         if (includeControlField) {
-            fieldIndexes.put(LengthEncodedWriter.CONTROL_FIELD_NAME, index++);
+            fieldIndexes.put(MachineLearningConstants.CONTROL_FIELD_NAME, index++);
         }
 
         return fieldIndexes;

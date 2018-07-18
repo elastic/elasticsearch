@@ -10,10 +10,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.protocol.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.LengthEncodedWriter;
 import org.elasticsearch.xpack.ml.job.process.logging.CppLogMessageHandler;
 import org.elasticsearch.xpack.ml.job.process.normalizer.output.NormalizerResultHandler;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;

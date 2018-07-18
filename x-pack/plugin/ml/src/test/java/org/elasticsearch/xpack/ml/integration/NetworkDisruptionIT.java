@@ -14,13 +14,14 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
@@ -57,7 +58,7 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         ensureStableCluster(5);
 
         Job.Builder job = createJob("relocation-job", new ByteSizeValue(2, ByteSizeUnit.MB));
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        PutJobRequest putJobRequest = new PutJobRequest(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         ensureGreen();
 

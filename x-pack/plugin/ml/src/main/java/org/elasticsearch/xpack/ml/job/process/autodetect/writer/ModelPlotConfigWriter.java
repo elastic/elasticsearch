@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.ModelPlotConfig;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -32,7 +32,7 @@ public class ModelPlotConfigWriter {
 
         contents.append("boundspercentile")
                 .append(EQUALS)
-                .append(modelPlotConfig.isEnabled() ? 
+                .append(modelPlotConfig.isEnabled() ?
                         BOUNDS_PERCENTILE_DEFAULT : BOUNDS_PERCENTILE_DISABLE_VALUE)
                 .append(NEW_LINE);
 

@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.core.ml.job.persistence;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
+import org.elasticsearch.protocol.xpack.ml.job.stats.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
@@ -328,7 +328,7 @@ public class ElasticsearchMappings {
     }
 
     private static void addForecastFieldsToMapping(XContentBuilder builder) throws IOException {
-        
+
         // Forecast Output
         builder.startObject(Forecast.FORECAST_LOWER.getPreferredName())
             .field(TYPE, DOUBLE)
@@ -370,7 +370,7 @@ public class ElasticsearchMappings {
             .field(TYPE, LONG)
         .endObject();
     }
-    
+
     /**
      * AnomalyRecord fields to be added under the 'properties' section of the mapping
      * @param builder Add properties to this builder

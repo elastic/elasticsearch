@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.groups;
 
-import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 
 import java.util.Collections;
 import java.util.List;

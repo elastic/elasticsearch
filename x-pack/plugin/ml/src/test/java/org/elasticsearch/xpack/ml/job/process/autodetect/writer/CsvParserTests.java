@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
+import org.elasticsearch.protocol.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 

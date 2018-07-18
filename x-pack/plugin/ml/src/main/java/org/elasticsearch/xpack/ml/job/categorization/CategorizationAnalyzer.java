@@ -24,7 +24,7 @@ import org.elasticsearch.index.analysis.CustomAnalyzerProvider;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
+import org.elasticsearch.protocol.xpack.ml.job.config.CategorizationAnalyzerConfig;
 
 import java.io.Closeable;
 import java.io.IOException;

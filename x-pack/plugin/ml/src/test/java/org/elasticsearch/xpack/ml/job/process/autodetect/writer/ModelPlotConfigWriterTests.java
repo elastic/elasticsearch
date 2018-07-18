@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
+import org.elasticsearch.protocol.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;

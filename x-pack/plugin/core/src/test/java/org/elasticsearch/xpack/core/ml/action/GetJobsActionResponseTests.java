@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
+import org.elasticsearch.protocol.xpack.ml.job.config.JobTests;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction.Response;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,5 +35,4 @@ public class GetJobsActionResponseTests extends AbstractStreamableTestCase<GetJo
     protected Response createBlankInstance() {
         return new Response();
     }
-
 }

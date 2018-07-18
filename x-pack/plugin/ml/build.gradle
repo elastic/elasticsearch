@@ -41,6 +41,7 @@ compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-
 
 dependencies {
     compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
+    testCompile project(path: ':x-pack:protocol', configuration: 'testArtifacts')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     // This should not be here
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')

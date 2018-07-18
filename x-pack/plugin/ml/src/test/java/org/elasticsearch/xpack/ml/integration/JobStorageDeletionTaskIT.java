@@ -8,10 +8,11 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 /**
@@ -30,7 +31,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         enableIndexBlock(UNRELATED_INDEX, IndexMetaData.SETTING_READ_ONLY);
 
         Job.Builder job = createJob("delete-aliases-test-job", new ByteSizeValue(2, ByteSizeUnit.MB));
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        PutJobRequest putJobRequest = new PutJobRequest(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());

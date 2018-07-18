@@ -13,13 +13,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.protocol.xpack.ml.job.config.AnalysisLimits;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -62,7 +62,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
 
     private ByteSizeValue defaultModelMemoryLimit() {
         ByteSizeValue defaultLimit = new ByteSizeValue(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB, ByteSizeUnit.MB);
-        ByteSizeValue maxModelMemoryLimit = clusterService.getClusterSettings().get(MachineLearningField.MAX_MODEL_MEMORY_LIMIT);
+        ByteSizeValue maxModelMemoryLimit = clusterService.getClusterSettings().get(MachineLearning.MAX_MODEL_MEMORY_LIMIT);
         if (maxModelMemoryLimit != null && maxModelMemoryLimit.getBytes() > 0
                 && maxModelMemoryLimit.getBytes() < defaultLimit.getBytes()) {
             return maxModelMemoryLimit;
@@ -78,7 +78,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
 
     private Map<String, Object> limits() {
         Map<String, Object> limits = new HashMap<>();
-        ByteSizeValue maxModelMemoryLimit = clusterService.getClusterSettings().get(MachineLearningField.MAX_MODEL_MEMORY_LIMIT);
+        ByteSizeValue maxModelMemoryLimit = clusterService.getClusterSettings().get(MachineLearning.MAX_MODEL_MEMORY_LIMIT);
         if (maxModelMemoryLimit != null && maxModelMemoryLimit.getBytes() > 0) {
             limits.put("max_model_memory_limit", maxModelMemoryLimit);
         }

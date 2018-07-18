@@ -29,6 +29,12 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.ml.PutJobResponse;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
+import org.elasticsearch.protocol.xpack.ml.job.config.JobUpdate;
+import org.elasticsearch.protocol.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.protocol.xpack.ml.job.stats.DataCounts;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
@@ -69,13 +75,9 @@ import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
-import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -205,8 +207,8 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         return jobs;
     }
 
-    protected PutJobAction.Response putJob(Job.Builder job) {
-        PutJobAction.Request request = new PutJobAction.Request(job);
+    protected PutJobResponse putJob(Job.Builder job) {
+        PutJobRequest request = new PutJobRequest(job);
         return client().execute(PutJobAction.INSTANCE, request).actionGet();
     }
 
@@ -226,7 +228,7 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         return client().execute(FlushJobAction.INSTANCE, request).actionGet();
     }
 
-    protected PutJobAction.Response updateJob(String jobId, JobUpdate update) {
+    protected PutJobResponse updateJob(String jobId, JobUpdate update) {
         UpdateJobAction.Request request = new UpdateJobAction.Request(jobId, update);
         return client().execute(UpdateJobAction.INSTANCE, request).actionGet();
     }

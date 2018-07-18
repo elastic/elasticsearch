@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.protocol.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.protocol.xpack.ml.utils.MachineLearningConstants;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -55,7 +55,7 @@ final class ProcessContext {
 
     void tryLock() {
         try {
-            if (lock.tryLock(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getSeconds(), TimeUnit.SECONDS) == false) {
+            if (lock.tryLock(MachineLearningConstants.STATE_PERSIST_RESTORE_TIMEOUT.getSeconds(), TimeUnit.SECONDS) == false) {
                 LOGGER.error("Failed to acquire process lock for job [{}]", jobTask.getJobId());
                 throw ExceptionsHelper.serverError("Failed to acquire process lock for job [" + jobTask.getJobId() + "]");
             }

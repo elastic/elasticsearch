@@ -12,16 +12,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.protocol.xpack.ml.PutJobRequest;
+import org.elasticsearch.protocol.xpack.ml.job.config.Job;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
@@ -33,7 +34,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
 
         // create and open first job, which succeeds:
         Job.Builder job = createJob("close-failed-job-1", new ByteSizeValue(2, ByteSizeUnit.MB));
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        PutJobRequest putJobRequest = new PutJobRequest(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
         assertBusy(() -> {
@@ -44,7 +45,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
 
         // create and try to open second job, which fails:
         job = createJob("close-failed-job-2", new ByteSizeValue(2, ByteSizeUnit.MB));
-        putJobRequest = new PutJobAction.Request(job);
+        putJobRequest = new PutJobRequest(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         expectThrows(ElasticsearchStatusException.class,
                 () -> client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request("close-failed-job-2")).actionGet());
@@ -79,7 +80,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         boolean expectMemoryLimitBeforeCountLimit = maxJobsPerNodeDueToMemoryLimit < maxNumberOfJobsPerNode;
         for (int i = 1; i <= (clusterWideMaxNumberOfJobs + 1); i++) {
             Job.Builder job = createJob("max-number-of-jobs-limit-job-" + Integer.toString(i), jobModelMemoryLimit);
-            PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+            PutJobRequest putJobRequest = new PutJobRequest(job);
             client().execute(PutJobAction.INSTANCE, putJobRequest).get();
 
             OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());

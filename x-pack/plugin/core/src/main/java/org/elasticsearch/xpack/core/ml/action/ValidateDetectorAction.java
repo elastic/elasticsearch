@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.job.config.Detector;
+import org.elasticsearch.protocol.xpack.ml.job.config.Detector;
 
 import java.io.IOException;
 import java.util.Objects;

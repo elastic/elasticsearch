@@ -27,3 +27,16 @@ dependencies {
 
     testCompile "org.elasticsearch.test:framework:${version}"
 }
+
+configurations {
+    testArtifacts.extendsFrom testRuntime
+}
+task testJar(type: Jar) {
+    appendix 'test'
+    from sourceSets.test.output
+}
+artifacts {
+    // this is so that more complex ML tests can use utilities from the basic ML protocol class tests
+    testArtifacts testJar
+}
+

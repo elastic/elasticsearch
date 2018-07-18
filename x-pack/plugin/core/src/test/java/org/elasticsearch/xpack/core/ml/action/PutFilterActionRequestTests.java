@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.ml.job.config.MlFilterTests;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction.Request;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilterTests;
 
 public class PutFilterActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 

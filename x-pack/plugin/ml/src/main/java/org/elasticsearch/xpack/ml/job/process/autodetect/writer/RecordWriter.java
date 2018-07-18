@@ -1,0 +1,31 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
+
+import java.io.IOException;
+import java.util.List;
+
+/**
+ * Interface for classes that write arrays of strings to the
+ * Ml analytics processes.
+ */
+public interface RecordWriter {
+
+    /**
+     * Write each String in the record array
+     */
+    void writeRecord(String[] record) throws IOException;
+
+    /**
+     * Write each String in the record list
+     */
+    void writeRecord(List<String> record) throws IOException;
+
+    /**
+     * Flush the outputIndex stream.
+     */
+    void flush() throws IOException;
+}

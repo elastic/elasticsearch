@@ -19,10 +19,12 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -44,6 +46,12 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
 
     private static TestCluster cluster2;
     private static TestCluster tribeNode;
+    private static Hasher hasher;
+
+    @BeforeClass
+    public static void init() {
+        hasher = Hasher.resolve("bcrypt");
+    }
 
     @Override
     public void setUp() throws Exception {
@@ -60,6 +68,7 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("xpack.security.authc.password_hashing.algorithm", hasher.name())
                 .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         return builder.build();
     }
@@ -131,7 +140,7 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
 
     public void testThatTribeCanAuthenticateElasticUserWithChangedPassword() throws Exception {
         assertSecurityIndexActive();
-        securityClient(client()).prepareChangePassword("elastic", "password".toCharArray()).get();
+        securityClient(client()).prepareChangePassword("elastic", "password".toCharArray(), hasher).get();
 
         assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeNode.client().filterWithHeader(Collections.singletonMap("Authorization",
@@ -143,8 +152,9 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
     public void testThatTribeClustersHaveDifferentPasswords() throws Exception {
         assertSecurityIndexActive();
         assertSecurityIndexActive(cluster2);
-        securityClient().prepareChangePassword("elastic", "password".toCharArray()).get();
-        securityClient(cluster2.client()).prepareChangePassword("elastic", "password2".toCharArray()).get();
+        securityClient().prepareChangePassword("elastic", "password".toCharArray(), hasher).get();
+        securityClient(cluster2.client()).
+            prepareChangePassword("elastic", "password2".toCharArray(), hasher).get();
 
         assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeNode.client().filterWithHeader(Collections.singletonMap("Authorization",
@@ -156,12 +166,12 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
     public void testUserModificationUsingTribeNodeAreDisabled() throws Exception {
         SecurityClient securityClient = securityClient(tribeNode.client());
         NotSerializableExceptionWrapper e = expectThrows(NotSerializableExceptionWrapper.class,
-                () -> securityClient.preparePutUser("joe", "password".toCharArray()).get());
+                () -> securityClient.preparePutUser("joe", "password".toCharArray(), hasher).get());
         assertThat(e.getMessage(), containsString("users may not be created or modified using a tribe node"));
         e = expectThrows(NotSerializableExceptionWrapper.class, () -> securityClient.prepareSetEnabled("elastic", randomBoolean()).get());
         assertThat(e.getMessage(), containsString("users may not be created or modified using a tribe node"));
         e = expectThrows(NotSerializableExceptionWrapper.class,
-                () -> securityClient.prepareChangePassword("elastic", "password".toCharArray()).get());
+                () -> securityClient.prepareChangePassword("elastic", "password".toCharArray(), hasher).get());
         assertThat(e.getMessage(), containsString("users may not be created or modified using a tribe node"));
         e = expectThrows(NotSerializableExceptionWrapper.class, () -> securityClient.prepareDeleteUser("joe").get());
         assertThat(e.getMessage(), containsString("users may not be deleted using a tribe node"));

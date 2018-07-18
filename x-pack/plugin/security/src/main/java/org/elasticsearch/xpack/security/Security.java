@@ -297,7 +297,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                     new TokenPassphraseBootstrapCheck(settings),
                     new TokenSSLBootstrapCheck(),
                     new PkiRealmBootstrapCheck(settings, getSslService()),
-                    new TLSLicenseBootstrapCheck()));
+                    new TLSLicenseBootstrapCheck(),
+                    new PasswordHashingAlgorithmBootstrapCheck()));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
         } else {

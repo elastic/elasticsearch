@@ -37,6 +37,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.XPackClientActionPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
@@ -81,8 +82,11 @@ public class NativeUsersStore extends AbstractComponent {
 
 
     private final Hasher hasher = Hasher.BCRYPT;
+    public static final String RESERVED_USER_TYPE = "reserved-user";
     private final Client client;
     private final boolean isTribeNode;
+    private final ReservedUserInfo disabledDefaultUserInfo;
+    private final ReservedUserInfo enabledDefaultUserInfo;
 
     private final SecurityIndexManager securityIndex;
 
@@ -91,6 +95,10 @@ public class NativeUsersStore extends AbstractComponent {
         this.client = client;
         this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);
         this.securityIndex = securityIndex;
+        final char[] emptyPasswordHash = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings)).
+            hash(new SecureString("".toCharArray()));
+        this.disabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, false, true);
+        this.enabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, true, true);
     }
 
     /**
@@ -499,7 +507,7 @@ public class NativeUsersStore extends AbstractComponent {
         getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
             if (userAndPassword == null || userAndPassword.passwordHash() == null) {
                 listener.onResponse(AuthenticationResult.notHandled());
-            } else if (hasher.verify(password, userAndPassword.passwordHash())) {
+            } else if (userAndPassword.verifyPassword(password)) {
                 listener.onResponse(AuthenticationResult.success(userAndPassword.user()));
             } else {
                 listener.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null));
@@ -528,8 +536,7 @@ public class NativeUsersStore extends AbstractComponent {
                                         } else if (enabled == null) {
                                             listener.onFailure(new IllegalStateException("enabled must not be null!"));
                                         } else if (password.isEmpty()) {
-                                            listener.onResponse((enabled ? ReservedRealm.ENABLED_DEFAULT_USER_INFO : ReservedRealm
-                                                    .DISABLED_DEFAULT_USER_INFO).deepClone());
+                                            listener.onResponse((enabled ? enabledDefaultUserInfo : disabledDefaultUserInfo).deepClone());
                                         } else {
                                             listener.onResponse(new ReservedUserInfo(password.toCharArray(), enabled, false));
                                         }
@@ -665,16 +672,21 @@ public class NativeUsersStore extends AbstractComponent {
         public final char[] passwordHash;
         public final boolean enabled;
         public final boolean hasEmptyPassword;
+        private final Hasher hasher;
 
         ReservedUserInfo(char[] passwordHash, boolean enabled, boolean hasEmptyPassword) {
             this.passwordHash = passwordHash;
             this.enabled = enabled;
             this.hasEmptyPassword = hasEmptyPassword;
+            this.hasher = Hasher.resolveFromHash(this.passwordHash);
         }
 
         ReservedUserInfo deepClone() {
             return new ReservedUserInfo(Arrays.copyOf(passwordHash, passwordHash.length), enabled, hasEmptyPassword);
         }
 
+        boolean verifyPassword(SecureString data) {
+            return hasher.verify(data, this.passwordHash);
+        }
     }
 }

@@ -70,21 +70,21 @@ public class PainlessMethod {
             params = new Class<?>[1 + arguments.size()];
             params[0] = augmentation;
             for (int i = 0; i < arguments.size(); i++) {
-                params[i + 1] = PainlessLookupUtility.painlessDefTypeToJavaObjectType(arguments.get(i));
+                params[i + 1] = PainlessLookupUtility.defTypeToObjectType(arguments.get(i));
             }
-            returnValue = PainlessLookupUtility.painlessDefTypeToJavaObjectType(rtn);
+            returnValue = PainlessLookupUtility.defTypeToObjectType(rtn);
         } else if (Modifier.isStatic(modifiers)) {
             // static method: straightforward copy
             params = new Class<?>[arguments.size()];
             for (int i = 0; i < arguments.size(); i++) {
-                params[i] = PainlessLookupUtility.painlessDefTypeToJavaObjectType(arguments.get(i));
+                params[i] = PainlessLookupUtility.defTypeToObjectType(arguments.get(i));
             }
-            returnValue = PainlessLookupUtility.painlessDefTypeToJavaObjectType(rtn);
+            returnValue = PainlessLookupUtility.defTypeToObjectType(rtn);
         } else if ("<init>".equals(name)) {
             // constructor: returns the owner class
             params = new Class<?>[arguments.size()];
             for (int i = 0; i < arguments.size(); i++) {
-                params[i] = PainlessLookupUtility.painlessDefTypeToJavaObjectType(arguments.get(i));
+                params[i] = PainlessLookupUtility.defTypeToObjectType(arguments.get(i));
             }
             returnValue = target;
         } else {
@@ -92,9 +92,9 @@ public class PainlessMethod {
             params = new Class<?>[1 + arguments.size()];
             params[0] = target;
             for (int i = 0; i < arguments.size(); i++) {
-                params[i + 1] = PainlessLookupUtility.painlessDefTypeToJavaObjectType(arguments.get(i));
+                params[i + 1] = PainlessLookupUtility.defTypeToObjectType(arguments.get(i));
             }
-            returnValue = PainlessLookupUtility.painlessDefTypeToJavaObjectType(rtn);
+            returnValue = PainlessLookupUtility.defTypeToObjectType(rtn);
         }
         return MethodType.methodType(returnValue, params);
     }

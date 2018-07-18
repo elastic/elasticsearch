@@ -302,7 +302,7 @@ public final class Def {
                                                               nestedType,
                                                               0,
                                                               DefBootstrap.REFERENCE,
-                                                              PainlessLookupUtility.anyTypeToPainlessTypeName(interfaceType));
+                                                              PainlessLookupUtility.painlessTypeToPainlessTypeName(interfaceType));
                      filter = nested.dynamicInvoker();
                  } else {
                      throw new AssertionError();
@@ -334,7 +334,7 @@ public final class Def {
          int arity = interfaceMethod.arguments.size();
          PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
         return lookupReferenceInternal(painlessLookup, methodHandlesLookup, interfaceType,
-                PainlessLookupUtility.anyTypeToPainlessTypeName(implMethod.target), implMethod.name, receiverClass);
+                PainlessLookupUtility.painlessTypeToPainlessTypeName(implMethod.target), implMethod.name, receiverClass);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
@@ -347,7 +347,7 @@ public final class Def {
              PainlessMethod interfaceMethod = painlessLookup.getPainlessStructFromJavaClass(clazz).functionalMethod;
              if (interfaceMethod == null) {
                  throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                         "to [" + PainlessLookupUtility.anyTypeToPainlessTypeName(clazz) + "], not a functional interface");
+                         "to [" + PainlessLookupUtility.painlessTypeToPainlessTypeName(clazz) + "], not a functional interface");
              }
              int arity = interfaceMethod.arguments.size() + captures.length;
              final MethodHandle handle;

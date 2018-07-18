@@ -413,10 +413,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
                 assert currentRouting.active() == false : "we are in POST_RECOVERY, but our shard routing is active " + currentRouting;
-
-                if (newRouting.primary() && currentRouting.isRelocationTarget() == false) {
-                    replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                }
+                assert currentRouting.isRelocationTarget()  == false || currentRouting.primary() == false ||
+                        replicationTracker.isPrimaryMode() :
+                    "a primary relocation is completed by the master, but primary mode is not active " + currentRouting;
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
             } else if (currentRouting.primary() && currentRouting.relocating() && replicationTracker.isPrimaryMode() == false &&
@@ -432,7 +431,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final CountDownLatch shardStateUpdated = new CountDownLatch(1);
 
             if (newRouting.primary()) {
-                if (newPrimaryTerm != primaryTerm) {
+                if (newPrimaryTerm == primaryTerm) {
+                    if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
+                        // the master started a recovering primary, activate primary mode.
+                        replicationTracker.activatePrimaryMode(getLocalCheckpoint());
+                    }
+                } else {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
                     /* Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
                      * in one state causing it's term to be incremented. Note that if both current shard state and new
@@ -521,6 +525,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             // set this last, once we finished updating all internal state.
             this.shardRouting = newRouting;
+
+            assert this.shardRouting.primary() == false ||
+                this.shardRouting.started() == false || // note that we use started and not active to avoid relocating shards
+                this.replicationTracker.isPrimaryMode()
+                : "an started primary must be in primary mode " + this.shardRouting;
             shardStateUpdated.countDown();
         }
         if (currentRouting != null && currentRouting.active() == false && newRouting.active()) {

@@ -193,7 +193,7 @@ public final class ApplicationPrivilege extends Privilege {
                 if (descriptor != null) {
                     patterns.addAll(descriptor.getActions());
                 } else {
-                    throw new IllegalArgumentException("unknown application privilege [" + name + "]");
+                    patterns.add(name);
                 }
             } else {
                 actions.add(name);

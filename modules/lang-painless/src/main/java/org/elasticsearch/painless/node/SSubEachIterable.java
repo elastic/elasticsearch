@@ -21,16 +21,15 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
-import org.elasticsearch.painless.lookup.PainlessLookup.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -77,12 +76,12 @@ final class SSubEachIterable extends AStatement {
         if (expression.actual == def.class) {
             method = null;
         } else {
-            method = locals.getPainlessLookup().
-                    getPainlessStructFromJavaClass(expression.actual).methods.get(new PainlessMethodKey("iterator", 0));
+            method = locals.getPainlessLookup().getPainlessStructFromJavaClass(expression.actual).methods
+                    .get(PainlessLookupUtility.buildPainlessMethodKey("iterator", 0));
 
             if (method == null) {
-                throw createError(new IllegalArgumentException(
-                    "Unable to create iterator for the type [" + PainlessLookup.ClassToName(expression.actual) + "]."));
+                throw createError(new IllegalArgumentException("Unable to create iterator for the type " +
+                        "[" + PainlessLookupUtility.anyTypeToPainlessTypeName(expression.actual) + "]."));
             }
         }
 
@@ -133,6 +132,6 @@ final class SSubEachIterable extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(PainlessLookup.ClassToName(variable.clazz), variable.name, expression, block);
+        return singleLineToString(PainlessLookupUtility.anyTypeToPainlessTypeName(variable.clazz), variable.name, expression, block);
     }
 }

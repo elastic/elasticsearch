@@ -153,6 +153,13 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         assertEquals(0, common.refresh.getListeners());
     }
 
+    @SuppressWarnings("unchecked")
+    public void testUuidOnRootStatsIndices() {
+        String uuid = createIndex("test").indexUUID();
+        IndicesStatsResponse rsp = client().admin().indices().prepareStats().get();
+        assertEquals(uuid, rsp.getIndex("test").getUuid());
+    }
+
     /**
      * Gives access to package private IndicesStatsResponse constructor for test purpose.
      **/
@@ -160,5 +167,4 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
                                                                int failedShards, List<DefaultShardOperationFailedException> shardFailures) {
         return new IndicesStatsResponse(shards, totalShards, successfulShards, failedShards, shardFailures);
     }
-
 }

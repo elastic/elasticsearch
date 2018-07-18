@@ -24,15 +24,15 @@ import java.util.Map;
 /**
  * A script used in bucket aggregations that returns a {@code boolean} value.
  */
-public interface BucketAggregateToBooleanScript {
+public abstract class BucketAggregateToBooleanScript {
 
-    String[] PARAMETERS = { "params" };
+    public static final String[] PARAMETERS = { "params" };
 
-    ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_boolean", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_boolean", Factory.class);
 
-    boolean execute(Map<String, Object> params);
+    public abstract boolean execute(Map<String, Object> params);
 
-    interface Factory {
+    public interface Factory {
         BucketAggregateToBooleanScript newInstance();
     }
 }

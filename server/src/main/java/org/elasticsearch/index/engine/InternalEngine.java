@@ -691,7 +691,7 @@ public class InternalEngine extends Engine {
                     return true;
                 case PEER_RECOVERY:
                 case REPLICA:
-                    assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL
+                    assert index.version() == 1 && index.versionType() == null
                         : "version: " + index.version() + " type: " + index.versionType();
                     return true;
                 case LOCAL_TRANSLOG_RECOVERY:
@@ -702,20 +702,6 @@ public class InternalEngine extends Engine {
             }
         }
         return false;
-    }
-
-    private boolean assertVersionType(final Engine.Operation operation) {
-        if (operation.origin() == Operation.Origin.REPLICA ||
-                operation.origin() == Operation.Origin.PEER_RECOVERY ||
-                operation.origin() == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-            // ensure that replica operation has expected version type for replication
-            // ensure that versionTypeForReplicationAndRecovery is idempotent
-            assert operation.versionType() == operation.versionType().versionTypeForReplicationAndRecovery()
-                    : "unexpected version type in request from [" + operation.origin().name() + "] " +
-                    "found [" + operation.versionType().name() + "] " +
-                    "expected [" + operation.versionType().versionTypeForReplicationAndRecovery().name() + "]";
-        }
-        return true;
     }
 
     private boolean assertIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
@@ -757,7 +743,6 @@ public class InternalEngine extends Engine {
         try (ReleasableLock releasableLock = readLock.acquire()) {
             ensureOpen();
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
-            assert assertVersionType(index);
             try (Releasable ignored = versionMap.acquireLock(index.uid().bytes());
                 Releasable indexThrottle = doThrottle ? () -> {} : throttle.acquireThrottle()) {
                 lastWriteNanos = index.startTime();
@@ -860,9 +845,6 @@ public class InternalEngine extends Engine {
                     "max_seqno non-append-only [" + maxSeqNoOfNonAppendOnlyOperations.get() + "], seqno of index [" + index.seqNo() + "]";
             }
             versionMap.enforceSafeAccess();
-            // drop out of order operations
-            assert index.versionType().versionTypeForReplicationAndRecovery() == index.versionType() :
-                "resolving out of order delivery based on versioning but version type isn't fit for it. got [" + index.versionType() + "]";
             // unlike the primary, replicas don't really care to about creation status of documents
             // this allows to ignore the case where a document was found in the live version maps in
             // a delete state and return false for the created flag in favor of code simplicity
@@ -1096,7 +1078,6 @@ public class InternalEngine extends Engine {
     public DeleteResult delete(Delete delete) throws IOException {
         versionMap.enforceSafeAccess();
         assert Objects.equals(delete.uid().field(), IdFieldMapper.NAME) : delete.uid().field();
-        assert assertVersionType(delete);
         assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
         final DeleteResult deleteResult;
         // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
@@ -1149,10 +1130,6 @@ public class InternalEngine extends Engine {
 
     private DeletionStrategy planDeletionAsNonPrimary(Delete delete) throws IOException {
         assert delete.origin() != Operation.Origin.PRIMARY : "planing as primary but got " + delete.origin();
-        // drop out of order operations
-        assert delete.versionType().versionTypeForReplicationAndRecovery() == delete.versionType() :
-            "resolving out of order delivery based on versioning but version type isn't fit for it. got ["
-                + delete.versionType() + "]";
         maxSeqNoOfNonAppendOnlyOperations.updateAndGet(curr -> Math.max(delete.seqNo(), curr));
         assert maxSeqNoOfNonAppendOnlyOperations.get() >= delete.seqNo() : "max_seqno of non-append-only was not updated;" +
             "max_seqno non-append-only [" + maxSeqNoOfNonAppendOnlyOperations.get() + "], seqno of delete [" + delete.seqNo() + "]";

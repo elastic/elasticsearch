@@ -102,8 +102,8 @@ public class CreateSnapshotRequestTests extends ESTestCase {
                 NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
         Map<String, Object> map = parser.mapOrdered();
         CreateSnapshotRequest processed = new CreateSnapshotRequest((String)map.get("repository"), (String)map.get("snapshot"));
-        processed.waitForCompletion((boolean)map.getOrDefault("wait_for_completion", false));
-        processed.masterNodeTimeout((String)map.getOrDefault("master_node_timeout", "30s"));
+        processed.waitForCompletion(original.waitForCompletion());
+        processed.masterNodeTimeout(original.masterNodeTimeout());
         processed.source(map);
 
         assertEquals(original, processed);

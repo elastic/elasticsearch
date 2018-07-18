@@ -39,7 +39,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
     public void testInfo() throws IOException {
         MainResponse info = highLevelClient().info(RequestOptions.DEFAULT);
         // compare with what the low level client outputs
-        Map<String, Object> infoAsMap = entityAsMap(adminClient().performRequest(HttpGet.METHOD_NAME, "/"));
+        Map<String, Object> infoAsMap = entityAsMap(adminClient().performRequest(new Request(HttpGet.METHOD_NAME, "/")));
         assertEquals(infoAsMap.get("cluster_name"), info.getClusterName().value());
         assertEquals(infoAsMap.get("cluster_uuid"), info.getClusterUuid());
 

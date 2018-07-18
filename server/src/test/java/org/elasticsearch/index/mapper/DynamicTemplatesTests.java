@@ -30,11 +30,11 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.hamcrest.Matchers;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DynamicTemplatesTests extends ESSingleNodeTestCase {
     public void testMatchTypeOnly() throws Exception {
@@ -45,7 +45,9 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endArray().endObject().endObject();
         IndexService index = createIndex("test");
         client().admin().indices().preparePutMapping("test").setType("person").setSource(builder).get();
-        DocumentMapper docMapper = index.mapperService().documentMapper("person");
+
+        MapperService mapperService = index.mapperService();
+        DocumentMapper docMapper = mapperService.documentMapper("person");
         builder = JsonXContent.contentBuilder();
         builder.startObject().field("s", "hello").field("l", 1).endObject();
         ParsedDocument parsedDoc = docMapper.parse(SourceToParse.source("test", "person", "1", BytesReference.bytes(builder),
@@ -53,14 +55,11 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         client().admin().indices().preparePutMapping("test").setType("person")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
-        docMapper = index.mapperService().documentMapper("person");
-        DocumentFieldMappers mappers = docMapper.mappers();
+        assertThat(mapperService.fullName("s"), notNullValue());
+        assertEquals(IndexOptions.NONE, mapperService.fullName("s").indexOptions());
 
-        assertThat(mappers.getMapper("s"), Matchers.notNullValue());
-        assertEquals(IndexOptions.NONE, mappers.getMapper("s").fieldType().indexOptions());
-
-        assertThat(mappers.getMapper("l"), Matchers.notNullValue());
-        assertNotSame(IndexOptions.NONE, mappers.getMapper("l").fieldType().indexOptions());
+        assertThat(mapperService.fullName("l"), notNullValue());
+        assertNotSame(IndexOptions.NONE, mapperService.fullName("l").indexOptions());
 
 
     }
@@ -84,7 +83,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        FieldMapper fieldMapper = docMapper.mappers().getMapper("name");
+        Mapper fieldMapper = docMapper.mappers().getMapper("name");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi1");
@@ -143,7 +142,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        FieldMapper fieldMapper = docMapper.mappers().getMapper("name");
+        Mapper fieldMapper = docMapper.mappers().getMapper("name");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi1");

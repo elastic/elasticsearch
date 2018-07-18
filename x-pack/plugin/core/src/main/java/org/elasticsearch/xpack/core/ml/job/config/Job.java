@@ -21,8 +21,6 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.core.ml.MlParserType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
@@ -193,7 +191,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         this.jobId = jobId;
         this.jobType = jobType;
         this.jobVersion = jobVersion;
-        this.groups = groups;
+        this.groups = Collections.unmodifiableList(groups);
         this.description = description;
         this.createTime = createTime;
         this.finishedTime = finishedTime;
@@ -207,7 +205,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         this.backgroundPersistInterval = backgroundPersistInterval;
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
         this.resultsRetentionDays = resultsRetentionDays;
-        this.customSettings = customSettings;
+        this.customSettings = customSettings == null ? null : Collections.unmodifiableMap(customSettings);
         this.modelSnapshotId = modelSnapshotId;
         this.modelSnapshotMinVersion = modelSnapshotMinVersion;
         this.resultsIndexName = resultsIndexName;
@@ -223,7 +221,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             jobVersion = null;
         }
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            groups = in.readList(StreamInput::readString);
+            groups = Collections.unmodifiableList(in.readList(StreamInput::readString));
         } else {
             groups = Collections.emptyList();
         }
@@ -244,7 +242,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         backgroundPersistInterval = in.readOptionalTimeValue();
         modelSnapshotRetentionDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
-        customSettings = in.readMap();
+        Map<String, Object> readCustomSettings = in.readMap();
+        customSettings = readCustomSettings == null ? null : Collections.unmodifiableMap(readCustomSettings);
         modelSnapshotId = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1) && in.readBoolean()) {
             modelSnapshotMinVersion = Version.readVersion(in);
@@ -627,7 +626,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 && Objects.equals(this.lastDataTime, that.lastDataTime)
                 && Objects.equals(this.establishedModelMemory, that.establishedModelMemory)
                 && Objects.equals(this.analysisConfig, that.analysisConfig)
-                && Objects.equals(this.analysisLimits, that.analysisLimits) && Objects.equals(this.dataDescription, that.dataDescription)
+                && Objects.equals(this.analysisLimits, that.analysisLimits)
+                && Objects.equals(this.dataDescription, that.dataDescription)
                 && Objects.equals(this.modelPlotConfig, that.modelPlotConfig)
                 && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
                 && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
@@ -807,8 +807,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
-        public AnalysisLimits getAnalysisLimits() {
-             return analysisLimits;
+        public AnalysisConfig getAnalysisConfig() {
+             return analysisConfig;
         }
 
         public Builder setAnalysisLimits(AnalysisLimits analysisLimits) {
@@ -1055,6 +1055,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return Objects.equals(this.id, that.id)
                     && Objects.equals(this.jobType, that.jobType)
                     && Objects.equals(this.jobVersion, that.jobVersion)
+                    && Objects.equals(this.groups, that.groups)
                     && Objects.equals(this.description, that.description)
                     && Objects.equals(this.analysisConfig, that.analysisConfig)
                     && Objects.equals(this.analysisLimits, that.analysisLimits)
@@ -1077,7 +1078,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, jobType, jobVersion, description, analysisConfig, analysisLimits, dataDescription, createTime,
+            return Objects.hash(id, jobType, jobVersion, groups, description, analysisConfig, analysisLimits, dataDescription, createTime,
                     finishedTime, lastDataTime, establishedModelMemory, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
                     modelSnapshotMinVersion, resultsIndexName, deleted);
@@ -1130,18 +1131,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         public void validateAnalysisLimitsAndSetDefaults(@Nullable ByteSizeValue maxModelMemoryLimit) {
             analysisLimits = AnalysisLimits.validateAndSetDefaults(analysisLimits, maxModelMemoryLimit,
                     AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB);
-        }
-
-        /**
-         * Validate the char filter/tokenizer/token filter names used in the categorization analyzer config (if any).
-         * The overall structure can be validated at parse time, but the exact names need to be checked separately,
-         * as plugins that provide the functionality can be installed/uninstalled.
-         */
-        public void validateCategorizationAnalyzer(AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
-            CategorizationAnalyzerConfig categorizationAnalyzerConfig = analysisConfig.getCategorizationAnalyzerConfig();
-            if (categorizationAnalyzerConfig != null) {
-                new CategorizationAnalyzerConfig.Builder(categorizationAnalyzerConfig).verify(analysisRegistry, environment);
-            }
         }
 
         private void validateGroups() {

@@ -263,7 +263,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
      */
     private void clearRollupState() throws Exception {
         if (isRollupTest()) {
-            new RollupRestTestStateCleaner(logger, adminClient()).clearRollupMetadata();
+            RollupRestTestStateCleaner.clearRollupMetadata(adminClient());
         }
     }
 

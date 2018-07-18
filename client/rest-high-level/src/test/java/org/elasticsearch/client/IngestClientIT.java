@@ -135,7 +135,7 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
         );
         request.setVerbose(isVerbose);
         SimulatePipelineResponse response =
-            execute(request, highLevelClient().ingest()::simulatePipeline, highLevelClient().ingest()::simulatePipelineAsync);
+            execute(request, highLevelClient().ingest()::simulate, highLevelClient().ingest()::simulateAsync);
         List<SimulateDocumentResult> results = response.getResults();
         assertEquals(1, results.size());
         if (isVerbose) {

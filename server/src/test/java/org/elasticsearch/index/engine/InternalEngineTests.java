@@ -5018,6 +5018,8 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(seqNos, hasEntry(0L, 1L)); // 0 -> 1
             assertThat(seqNos, hasEntry(1L, 4L)); // 1 -> 3 -> 4
             assertThat(seqNos, hasEntry(2L, 3L)); // 2 -> 3 (stale)
+            assertThat(seqNos, not(hasKey(3L)));  // delete does not have updated_by_seqno
+            assertThat(seqNos.keySet(), hasSize(3));
         }
         // On primary
         try (Store store = createStore();
@@ -5031,6 +5033,8 @@ public class InternalEngineTests extends EngineTestCase {
             Map<Long, Long> seqNos = readUpdatedBySeqNos.apply(engine);
             assertThat(seqNos, hasEntry(0L, 2L)); // 0 -> 1 -> 2
             assertThat(seqNos, hasEntry(1L, 2L)); // 1 -> 2
+            assertThat(seqNos, not(hasKey(2L)));  // delete does not have updated_by_seqno
+            assertThat(seqNos.keySet(), hasSize(2));
         }
     }
 

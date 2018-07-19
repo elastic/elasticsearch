@@ -12,12 +12,9 @@ import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
-import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.util.HashMap;
 import java.util.HashSet;
 
 import static org.hamcrest.Matchers.is;
@@ -40,11 +37,7 @@ public class HipChatAccountsTests extends ESTestCase {
                 new HashSet<>(HipChatService.getSettings())));
         HipChatAccount account = service.getAccount("account1");
 
-        HipChatMessage.Template template = new HipChatMessage.Template.Builder(new TextTemplate("foo"))
-                .addRooms(new TextTemplate("room"))
-                .setFrom("from")
-                .build();
-        HipChatMessage hipChatMessage = template.render(new MockTextTemplateEngine(), new HashMap<>());
+        HipChatMessage hipChatMessage = new HipChatMessage("body", new String[]{"rooms"}, null, "from", null, null, null);
 
         ArgumentCaptor<HttpRequest> argumentCaptor = ArgumentCaptor.forClass(HttpRequest.class);
         when(httpClient.execute(argumentCaptor.capture())).thenReturn(new HttpResponse(200));

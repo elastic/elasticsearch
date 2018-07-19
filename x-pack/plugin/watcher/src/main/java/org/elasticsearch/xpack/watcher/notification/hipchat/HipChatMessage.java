@@ -13,14 +13,12 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
-import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 public class HipChatMessage implements ToXContentObject {
@@ -179,26 +177,6 @@ public class HipChatMessage implements ToXContentObject {
         @Override
         public int hashCode() {
             return Objects.hash(body, rooms, users, from, format, color, notify);
-        }
-
-        public HipChatMessage render(TextTemplateEngine engine, Map<String, Object> model) {
-            String body = engine.render(this.body, model);
-            String[] rooms = null;
-            if (this.rooms != null) {
-                rooms = new String[this.rooms.length];
-                for (int i = 0; i < this.rooms.length; i++) {
-                    rooms[i] = engine.render(this.rooms[i], model);
-                }
-            }
-            String[] users = null;
-            if (this.users != null) {
-                users = new String[this.users.length];
-                for (int i = 0; i < this.users.length; i++) {
-                    users[i] = engine.render(this.users[i], model);
-                }
-            }
-            Color color = this.color == null ? null : Color.resolve(engine.render(this.color, model), null);
-            return new HipChatMessage(body, rooms, users, from, format, color, notify);
         }
 
         @Override

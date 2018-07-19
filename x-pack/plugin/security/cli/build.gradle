@@ -1,22 +1,20 @@
 apply plugin: 'elasticsearch.build'
 
 archivesBaseName = 'elasticsearch-security-cli'
+
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
+    compileOnly xpackProject('plugin:core')
     compile 'org.bouncycastle:bcprov-jdk15on:1.59'
     compile 'org.bouncycastle:bcpkix-jdk15on:1.59'
-}
-
-jar {
-    from(project(':x-pack:plugin:core').sourceSets.main.output.classesDirs) {
-        include 'org/elasticsearch/xpack/core/ssl/CertificateTool.class'
-        include 'org/elasticsearch/xpack/core/ssl/CertificateGenerateTool.class'
-        include 'org/elasticsearch/xpack/core/ssl/CertGenUtils.class'
-    }
+    testCompile 'com.google.jimfs:jimfs:1.1'
+    testCompile "junit:junit:${versions.junit}"
+    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+    testCompile 'org.elasticsearch:securemock:1.2'
+    testCompile("org.elasticsearch.test:framework:${version}")
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 dependencyLicenses {
     mapping from: /bc.*/, to: 'bouncycastle'
 }
-
-licenseHeaders.enabled = false

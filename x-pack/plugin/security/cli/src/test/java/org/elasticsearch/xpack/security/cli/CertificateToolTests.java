@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ssl;
+package org.elasticsearch.xpack.security.cli;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
@@ -39,12 +39,14 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestMatchers;
-import org.elasticsearch.xpack.core.ssl.CertificateTool.CAInfo;
-import org.elasticsearch.xpack.core.ssl.CertificateTool.CertificateAuthorityCommand;
-import org.elasticsearch.xpack.core.ssl.CertificateTool.CertificateCommand;
-import org.elasticsearch.xpack.core.ssl.CertificateTool.CertificateInformation;
-import org.elasticsearch.xpack.core.ssl.CertificateTool.GenerateCertificateCommand;
-import org.elasticsearch.xpack.core.ssl.CertificateTool.Name;
+import org.elasticsearch.xpack.security.cli.CertificateTool.CAInfo;
+import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateAuthorityCommand;
+import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateCommand;
+import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateInformation;
+import org.elasticsearch.xpack.security.cli.CertificateTool.GenerateCertificateCommand;
+import org.elasticsearch.xpack.security.cli.CertificateTool.Name;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.BeforeClass;

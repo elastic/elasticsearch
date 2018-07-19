@@ -195,11 +195,11 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    protected void restoreCachedUser(User user, ActionListener<AuthenticationResult> listener) {
+    protected void handleCachedAuthentication(User user, ActionListener<AuthenticationResult> listener) {
         if (delegatedRealms.hasDelegation()) {
             delegatedRealms.resolve(user.principal(), listener);
         } else {
-            super.restoreCachedUser(user, listener);
+            super.handleCachedAuthentication(user, listener);
         }
     }
 

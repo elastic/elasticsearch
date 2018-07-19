@@ -142,7 +142,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                 UserWithHash userWithHash = result.v2();
                 if (userWithHash.verify(token.credentials())) {
                     if (userWithHash.user.enabled()) {
-                        restoreCachedUser(userWithHash.user, ActionListener.wrap(cacheResult -> {
+                        handleCachedAuthentication(userWithHash.user, ActionListener.wrap(cacheResult -> {
                             if (cacheResult.isAuthenticated()) {
                                 logger.debug("realm [{}] authenticated user [{}], with roles [{}]",
                                     name(), token.principal(), cacheResult.getUser().roles());
@@ -174,12 +174,12 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     }
 
     /**
-     * {@code restoreCachedUser} is called when a {@link User} is retrieved from the cache.
+     * {@code handleCachedAuthentication} is called when a {@link User} is retrieved from the cache.
      * The first {@code user} parameter is the user object that was found in the cache.
      * The default implementation returns a {@link AuthenticationResult#success(User) success result} with the
      * provided user, but sub-classes can return a different {@code User} object, or an unsuccessful result.
      */
-    protected void restoreCachedUser(User user, ActionListener<AuthenticationResult> listener) {
+    protected void handleCachedAuthentication(User user, ActionListener<AuthenticationResult> listener) {
         listener.onResponse(AuthenticationResult.success(user));
     }
 

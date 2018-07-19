@@ -348,7 +348,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final AtomicReference<AuthenticationResult> result = new AtomicReference<>();
         Realm realm = new AlwaysAuthenticateCachingRealm(globalSettings, threadPool) {
             @Override
-            protected void restoreCachedUser(User user, ActionListener<AuthenticationResult> listener) {
+            protected void handleCachedAuthentication(User user, ActionListener<AuthenticationResult> listener) {
                 userArg.set(user);
                 listener.onResponse(result.get());
             }

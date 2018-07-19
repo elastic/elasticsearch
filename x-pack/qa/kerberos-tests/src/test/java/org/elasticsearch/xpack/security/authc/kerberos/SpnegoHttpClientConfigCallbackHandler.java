@@ -304,10 +304,8 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
         public AppConfigurationEntry[] getAppConfigurationEntry(final String name) {
             final Map<String, String> options = new HashMap<>();
             options.put("principal", userPrincipalName);
-            options.put("refreshKrb5Config", Boolean.TRUE.toString());
             options.put("isInitiator", Boolean.TRUE.toString());
             options.put("storeKey", Boolean.TRUE.toString());
-            options.put("renewTGT", Boolean.FALSE.toString());
             options.put("debug", Boolean.toString(enableDebugLogs));
             addOptions(options);
             return new AppConfigurationEntry[] { new AppConfigurationEntry(SUN_KRB5_LOGIN_MODULE,

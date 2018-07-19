@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.security.authc.kerberos.support;
+package org.elasticsearch.xpack.security.authc.kerberos;
 
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.SearchResult;
@@ -17,6 +17,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
+import org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidator;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.ietf.jgss.GSSException;
 

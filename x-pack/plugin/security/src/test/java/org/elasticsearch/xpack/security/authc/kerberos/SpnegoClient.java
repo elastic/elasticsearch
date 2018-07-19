@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.security.authc.kerberos.support;
+package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
@@ -12,6 +12,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidator;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
@@ -148,7 +149,7 @@ class SpnegoClient implements AutoCloseable {
     }
 
     /**
-     * @return {@code true} If the context was established
+     * @return {@code true} If the gss security context was established
      */
     boolean isEstablished() {
         return gssContext.isEstablished();
@@ -196,12 +197,10 @@ class SpnegoClient implements AutoCloseable {
             final Map<String, String> options = new HashMap<>();
             options.put("principal", principal);
             options.put("storeKey", Boolean.TRUE.toString());
-            options.put("useTicketCache", Boolean.FALSE.toString());
-            options.put("useKeyTab", Boolean.FALSE.toString());
-            options.put("renewTGT", Boolean.FALSE.toString());
-            options.put("refreshKrb5Config", Boolean.TRUE.toString());
             options.put("isInitiator", Boolean.TRUE.toString());
             options.put("debug", Boolean.TRUE.toString());
+            // Refresh Krb5 config during tests as the port keeps changing for kdc server
+            options.put("refreshKrb5Config", Boolean.TRUE.toString());
 
             return new AppConfigurationEntry[] { new AppConfigurationEntry(SUN_KRB5_LOGIN_MODULE,
                     AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, Collections.unmodifiableMap(options)) };

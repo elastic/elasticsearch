@@ -51,6 +51,8 @@ public class CoordinationStateTests extends ESTestCase {
     ClusterState initialStateNode2;
     ClusterState initialStateNode3;
 
+    PersistedState ps1;
+
     CoordinationState cs1;
     CoordinationState cs2;
     CoordinationState cs3;
@@ -65,7 +67,9 @@ public class CoordinationStateTests extends ESTestCase {
         initialStateNode2 = clusterState(0L, 0L, node2, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 42L);
         initialStateNode3 = clusterState(0L, 0L, node3, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 42L);
 
-        cs1 = createCoordinationState(new InMemoryPersistedState(0L, initialStateNode1), node1);
+        ps1 = new InMemoryPersistedState(0L, initialStateNode1);
+
+        cs1 = createCoordinationState(ps1, node1);
         cs2 = createCoordinationState(new InMemoryPersistedState(0L, initialStateNode2), node2);
         cs3 = createCoordinationState(new InMemoryPersistedState(0L, initialStateNode3), node3);
     }
@@ -135,6 +139,14 @@ public class CoordinationStateTests extends ESTestCase {
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
         assertThat(expectThrows(CoordinationStateRejectedException.class, () -> cs1.handleJoin(v1)).getMessage(),
             containsString("initial configuration not set"));
+    }
+
+    public void testJoinWithNoStartJoinAfterReboot() {
+        StartJoinRequest startJoinRequest1 = new StartJoinRequest(node1, randomLongBetween(1, 5));
+        Join v1 = cs1.handleStartJoin(startJoinRequest1);
+        cs1 = createCoordinationState(ps1, node1);
+        assertThat(expectThrows(CoordinationStateRejectedException.class, () -> cs1.handleJoin(v1)).getMessage(),
+            containsString("ignored join as term has not been incremented yet after reboot"));
     }
 
     public void testJoinWithWrongTarget() {

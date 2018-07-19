@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.integration;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -153,27 +154,32 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String index = randomBoolean()? ".kibana" : ".kibana-" + randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ENGLISH);
 
         if (randomBoolean()) {
-            CreateIndexResponse createIndexResponse = client().filterWithHeader(singletonMap("Authorization",
+            expectThrows(ElasticsearchSecurityException.class, () ->
+                client().filterWithHeader(singletonMap("Authorization",
                     UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-                    .admin().indices().prepareCreate(index).get();
-            assertThat(createIndexResponse.isAcknowledged(), is(true));
+                    .admin().indices().prepareCreate(index).get()
+            );
         }
 
-        IndexResponse response = client()
-                .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-                .prepareIndex()
-                .setIndex(index)
-                .setType("dashboard")
-                .setSource("foo", "bar")
-                .setRefreshPolicy(IMMEDIATE)
-                .get();
-        assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
+        final String id = randomBoolean()? "dashboard" : "dashboard-" + randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ENGLISH);
+        expectThrows(ElasticsearchSecurityException.class, () ->
+            client()
+                 .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
+                 .prepareIndex()
+                 .setIndex(index)
+                 .setId(id)
+                 .setType("dashboard")
+                 .setSource("foo", "bar")
+                 .setRefreshPolicy(IMMEDIATE)
+                 .get()
+        );
 
-        DeleteResponse deleteResponse = client()
+        expectThrows(ElasticsearchSecurityException.class, () ->
+            client()
                 .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-                .prepareDelete(index, "dashboard", response.getId())
-                .get();
-        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+                .prepareDelete(index, "dashboard", id)
+                .get()
+        );
     }
 
     public void testGetMappings() throws Exception {

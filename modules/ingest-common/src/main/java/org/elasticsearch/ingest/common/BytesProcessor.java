@@ -19,8 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ingest.Processors;
-
 import java.util.Map;
 
 /**

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest;
+package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;

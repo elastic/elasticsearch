@@ -175,13 +175,3 @@ class org.elasticsearch.index.similarity.ScriptedSimilarity$Doc {
   int getLength()
   float getFreq()
 }
-
-class org.elasticsearch.ingest.Processors {
-  long bytes(String)
-  String lowercase(String)
-  String uppercase(String)
-  Object json(Object)
-  void json(Map, String)
-  String trim(String)
-  String urlDecode(String)
-}

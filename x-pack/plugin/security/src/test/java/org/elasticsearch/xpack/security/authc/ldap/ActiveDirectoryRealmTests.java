@@ -22,6 +22,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,6 +50,7 @@ import org.junit.BeforeClass;
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -91,6 +94,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     private ThreadPool threadPool;
     private Settings globalSettings;
     private SSLService sslService;
+    private XPackLicenseState licenseState;
 
     @BeforeClass
     public static void setNumberOfLdapServers() {
@@ -125,6 +129,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         sslService = new SSLService(globalSettings, TestEnvironment.newEnvironment(globalSettings));
+        licenseState = new TestUtils.UpdatableLicenseState();
     }
 
     @After
@@ -163,6 +168,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
+        realm.initialize(Collections.singleton(realm), licenseState);
 
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
@@ -179,6 +185,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
+        realm.initialize(Collections.singleton(realm), licenseState);
 
         // Thor does not have a UPN of form CN=Thor@ad.test.elasticsearch.com
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
@@ -203,6 +210,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         ActiveDirectorySessionFactory sessionFactory = spy(new ActiveDirectorySessionFactory(config, sslService, threadPool));
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
+        realm.initialize(Collections.singleton(realm), licenseState);
 
         int count = randomIntBetween(2, 10);
         for (int i = 0; i < count; i++) {
@@ -221,6 +229,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         ActiveDirectorySessionFactory sessionFactory = spy(new ActiveDirectorySessionFactory(config, sslService, threadPool));
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
+        realm.initialize(Collections.singleton(realm), licenseState);
 
         int count = randomIntBetween(2, 10);
         for (int i = 0; i < count; i++) {
@@ -239,6 +248,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         ActiveDirectorySessionFactory sessionFactory = spy(new ActiveDirectorySessionFactory(config, sslService, threadPool));
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
+        realm.initialize(Collections.singleton(realm), licenseState);
 
         int count = randomIntBetween(2, 10);
         for (int i = 0; i < count; i++) {
@@ -287,6 +297,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         try (ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool)) {
             DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
             LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
+            realm.initialize(Collections.singleton(realm), licenseState);
 
             PlainActionFuture<User> future = new PlainActionFuture<>();
             realm.lookupUser("CN=Thor", future);
@@ -304,6 +315,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
+        realm.initialize(Collections.singleton(realm), licenseState);
 
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
@@ -320,6 +332,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
+        realm.initialize(Collections.singleton(realm), licenseState);
 
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD)), future);
@@ -338,6 +351,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
         DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
         LdapRealm realm = new LdapRealm(LdapRealmSettings.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
+        realm.initialize(Collections.singleton(realm), licenseState);
 
         PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
         realm.usageStats(future);

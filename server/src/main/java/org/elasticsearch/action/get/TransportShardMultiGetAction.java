@@ -90,13 +90,9 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 GetResult getResult = indexShard.getService().get(item.type(), item.id(), item.storedFields(), request.realtime(), item.version(),
                     item.versionType(), item.fetchSourceContext());
                 response.add(request.locations.get(i), new GetResponse(getResult));
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 if (TransportActions.isShardNotAvailableException(e)) {
-                    if (e instanceof ElasticsearchException) {
-                        throw (ElasticsearchException) e;
-                    } else {
-                        throw new ElasticsearchException(e);
-                    }
+                    throw e;
                 } else {
                     logger.debug(() -> new ParameterizedMessage("{} failed to execute multi_get for [{}]/[{}]", shardId,
                         item.type(), item.id()), e);

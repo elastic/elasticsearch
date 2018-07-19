@@ -84,13 +84,13 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
             try {
                 TermVectorsResponse termVectorsResponse = TermVectorsService.getTermVectors(indexShard, termVectorsRequest);
                 response.add(request.locations.get(i), termVectorsResponse);
-            } catch (Exception t) {
-                if (TransportActions.isShardNotAvailableException(t)) {
-                    throw (ElasticsearchException) t;
+            } catch (RuntimeException e) {
+                if (TransportActions.isShardNotAvailableException(e)) {
+                    throw e;
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]/[{}]", shardId, termVectorsRequest.type(), termVectorsRequest.id()), t);
+                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]/[{}]", shardId, termVectorsRequest.type(), termVectorsRequest.id()), e);
                     response.add(request.locations.get(i),
-                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), t));
+                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), e));
                 }
             }
         }

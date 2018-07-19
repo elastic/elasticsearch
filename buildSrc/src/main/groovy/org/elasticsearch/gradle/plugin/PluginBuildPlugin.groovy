@@ -92,9 +92,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         }
         createIntegTestTask(project)
         createBundleTask(project)
-
-        project.configurations.default.extendsFrom(project.configurations.runtime)
-
+        project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
         project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
     }
 

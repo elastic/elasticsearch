@@ -292,7 +292,6 @@ public class XPackLicenseState {
      */
     void update(OperationMode mode, boolean active, @Nullable Version mostRecentTrialVersion) {
         status = new Status(mode, active);
-        listeners.forEach(Runnable::run);
         if (isSecurityEnabled == true && isSecurityExplicitlyEnabled == false && mode == OperationMode.TRIAL
             && isSecurityEnabledByTrialVersion == false) {
             // Before 6.3, Trial licenses would default having security enabled.
@@ -302,6 +301,7 @@ public class XPackLicenseState {
                 isSecurityEnabledByTrialVersion = true;
             }
         }
+        listeners.forEach(Runnable::run);
     }
 
     /** Add a listener to be notified on license change */

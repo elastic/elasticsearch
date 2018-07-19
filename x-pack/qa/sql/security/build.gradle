@@ -4,6 +4,8 @@ dependencies {
 
 Project mainProject = project
 
+group = "${group}.x-pack.qa.sql.security"
+
 subprojects {
   // Use resources from the parent project in subprojects
   sourceSets {

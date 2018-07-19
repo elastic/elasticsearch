@@ -70,3 +70,7 @@ forbiddenApisMain {
   signaturesURLs += [PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
   signaturesURLs += [file('src/main/resources/forbidden/rest-high-level-signatures.txt').toURI().toURL()]
 }
+
+integTestCluster {
+  setting 'xpack.license.self_generated.type', 'trial'
+}

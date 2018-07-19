@@ -142,6 +142,8 @@ class ClusterConfiguration {
     // there are cases when value depends on task that is not executed yet on configuration stage
     Map<String, Object> systemProperties = new HashMap<>()
 
+    Map<String, Object> environmentVariables = new HashMap<>()
+
     Map<String, Object> settings = new HashMap<>()
 
     Map<String, String> keystoreSettings = new HashMap<>()
@@ -162,6 +164,11 @@ class ClusterConfiguration {
     @Input
     void systemProperty(String property, Object value) {
         systemProperties.put(property, value)
+    }
+
+    @Input
+    void environment(String variable, Object value) {
+        environmentVariables.put(variable, value)
     }
 
     @Input

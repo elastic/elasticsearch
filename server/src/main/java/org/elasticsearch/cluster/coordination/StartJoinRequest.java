@@ -25,6 +25,10 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
+/**
+ * Represents the action of requesting a join vote (see {@link Join}) from a node.
+ * The source node represents the node that is asking for join votes.
+ */
 public class StartJoinRequest extends TransportRequest {
 
     private final DiscoveryNode sourceNode;

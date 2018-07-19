@@ -27,6 +27,9 @@ import org.elasticsearch.transport.TransportRequest;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Request which is used by the master node to publish cluster state changes.
+ */
 public class PublishRequest extends TransportRequest {
 
     private final ClusterState acceptedState;

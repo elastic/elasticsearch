@@ -23,6 +23,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Response to a {@link PublishRequest}, carrying the term and version of the request.
+ */
 public class PublishResponse extends TermVersionResponse {
 
     public PublishResponse(long term, long version) {

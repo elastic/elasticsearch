@@ -22,7 +22,6 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.Security;
 import org.junit.After;
 
@@ -42,18 +41,19 @@ import static org.hamcrest.Matchers.equalTo;
 public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
-    protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(USERS_PASSWD));
 
     private boolean indicesAdminFilteredFieldsWasSet = false;
 
     @Override
     protected String configUsers() {
+        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
+
         return super.configUsers() +
-                "user1:" + USERS_PASSWD_HASHED + "\n" +
-                "user2:" + USERS_PASSWD_HASHED + "\n" +
-                "user3:" + USERS_PASSWD_HASHED + "\n" +
-                "user4:" + USERS_PASSWD_HASHED + "\n" +
-                "user5:" + USERS_PASSWD_HASHED + "\n";
+            "user1:" + usersPasswdHashed + "\n" +
+            "user2:" + usersPasswdHashed + "\n" +
+            "user3:" + usersPasswdHashed + "\n" +
+            "user4:" + usersPasswdHashed + "\n" +
+            "user5:" + usersPasswdHashed + "\n";
     }
 
     @Override

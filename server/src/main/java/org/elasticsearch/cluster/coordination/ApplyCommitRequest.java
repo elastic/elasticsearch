@@ -24,13 +24,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class ApplyCommit extends TermVersionRequest {
+public class ApplyCommitRequest extends TermVersionRequest {
 
-    public ApplyCommit(DiscoveryNode sourceNode, long term, long version) {
+    public ApplyCommitRequest(DiscoveryNode sourceNode, long term, long version) {
         super(sourceNode, term, version);
     }
 
-    public ApplyCommit(StreamInput in) throws IOException {
+    public ApplyCommitRequest(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -41,7 +41,7 @@ public class ApplyCommit extends TermVersionRequest {
 
     @Override
     public String toString() {
-        return "ApplyCommit{" +
+        return "ApplyCommitRequest{" +
             "term=" + term +
             ", version=" + version +
             '}';

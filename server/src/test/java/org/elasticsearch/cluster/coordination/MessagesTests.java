@@ -116,22 +116,22 @@ public class MessagesTests extends ESTestCase {
     }
 
     public void testApplyCommitEqualsHashCodeSerialization() {
-        ApplyCommit initialApplyCommit = new ApplyCommit(createNode(randomAlphaOfLength(10)), randomNonNegativeLong(),
+        ApplyCommitRequest initialApplyCommit = new ApplyCommitRequest(createNode(randomAlphaOfLength(10)), randomNonNegativeLong(),
             randomNonNegativeLong());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(initialApplyCommit,
-            applyCommit -> copyWriteable(applyCommit, writableRegistry(), ApplyCommit::new),
+            applyCommit -> copyWriteable(applyCommit, writableRegistry(), ApplyCommitRequest::new),
             applyCommit -> {
                 switch (randomInt(2)) {
                     case 0:
                         // change sourceNode
-                        return new ApplyCommit(createNode(randomAlphaOfLength(20)), applyCommit.getTerm(), applyCommit.getVersion());
+                        return new ApplyCommitRequest(createNode(randomAlphaOfLength(20)), applyCommit.getTerm(), applyCommit.getVersion());
                     case 1:
                         // change term
-                        return new ApplyCommit(applyCommit.getSourceNode(),
+                        return new ApplyCommitRequest(applyCommit.getSourceNode(),
                             randomValueOtherThan(applyCommit.getTerm(), ESTestCase::randomNonNegativeLong), applyCommit.getVersion());
                     case 2:
                         // change version
-                        return new ApplyCommit(applyCommit.getSourceNode(), applyCommit.getTerm(),
+                        return new ApplyCommitRequest(applyCommit.getSourceNode(), applyCommit.getTerm(),
                             randomValueOtherThan(applyCommit.getVersion(), ESTestCase::randomNonNegativeLong));
                     default:
                         throw new AssertionError();

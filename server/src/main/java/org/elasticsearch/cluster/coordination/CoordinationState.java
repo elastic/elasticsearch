@@ -319,11 +319,11 @@ public class CoordinationState extends AbstractComponent {
      *
      * @param sourceNode      The sender of the PublishResponse received.
      * @param publishResponse The PublishResponse received.
-     * @return An optional ApplyCommit which, if present, may be broadcast to all peers, indicating that this publication
+     * @return An optional ApplyCommitRequest which, if present, may be broadcast to all peers, indicating that this publication
      * has been accepted at a quorum of peers and is therefore committed.
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
-    public Optional<ApplyCommit> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse) {
+    public Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse) {
         if (electionWon == false) {
             logger.debug("handlePublishResponse: ignored response as election not won");
             throw new CoordinationStateRejectedException("election not won");
@@ -347,19 +347,19 @@ public class CoordinationState extends AbstractComponent {
         if (isPublishQuorum(publishVotes)) {
             logger.trace("handlePublishResponse: value committed for version [{}] and term [{}]",
                 publishResponse.getVersion(), publishResponse.getTerm());
-            return Optional.of(new ApplyCommit(localNode, publishResponse.getTerm(), publishResponse.getVersion()));
+            return Optional.of(new ApplyCommitRequest(localNode, publishResponse.getTerm(), publishResponse.getVersion()));
         }
 
         return Optional.empty();
     }
 
     /**
-     * May be called on receipt of an ApplyCommit. Updates the committed configuration accordingly.
+     * May be called on receipt of an ApplyCommitRequest. Updates the committed configuration accordingly.
      *
-     * @param applyCommit The ApplyCommit received.
+     * @param applyCommit The ApplyCommitRequest received.
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
-    public void handleCommit(ApplyCommit applyCommit) {
+    public void handleCommit(ApplyCommitRequest applyCommit) {
         if (applyCommit.getTerm() != getCurrentTerm()) {
             logger.debug("handleCommit: ignored commit request due to term mismatch " +
                     "(expected: [term {} version {}], actual: [term {} version {}])",

@@ -433,7 +433,7 @@ public class CoordinationStateTests extends ESTestCase {
         ClusterState state2 = clusterState(startJoinRequest1.getTerm(), 2L, node1, initialConfig, initialConfig, 42L);
         PublishRequest publishRequest = cs1.handleClientValue(state2);
         PublishResponse publishResponse = cs1.handlePublishRequest(publishRequest);
-        Optional<ApplyCommit> applyCommit = cs1.handlePublishResponse(node1, publishResponse);
+        Optional<ApplyCommitRequest> applyCommit = cs1.handlePublishResponse(node1, publishResponse);
         assertTrue(applyCommit.isPresent());
         assertThat(applyCommit.get().getSourceNode(), equalTo(node1));
         assertThat(applyCommit.get().getTerm(), equalTo(state2.term()));
@@ -451,7 +451,7 @@ public class CoordinationStateTests extends ESTestCase {
         ClusterState state2 = clusterState(startJoinRequest1.getTerm(), 2L, node1, initialConfig, initialConfig, 42L);
         PublishRequest publishRequest = cs1.handleClientValue(state2);
         PublishResponse publishResponse = cs1.handlePublishRequest(publishRequest);
-        Optional<ApplyCommit> applyCommit = cs1.handlePublishResponse(node2, publishResponse);
+        Optional<ApplyCommitRequest> applyCommit = cs1.handlePublishResponse(node2, publishResponse);
         assertFalse(applyCommit.isPresent());
     }
 
@@ -504,7 +504,7 @@ public class CoordinationStateTests extends ESTestCase {
         PublishRequest publishRequest = cs1.handleClientValue(state2);
         PublishResponse publishResponse = cs1.handlePublishRequest(publishRequest);
         cs1.handlePublishResponse(node1, publishResponse);
-        Optional<ApplyCommit> applyCommit = cs1.handlePublishResponse(node2, publishResponse);
+        Optional<ApplyCommitRequest> applyCommit = cs1.handlePublishResponse(node2, publishResponse);
         assertTrue(applyCommit.isPresent());
         assertThat(cs1.getLastCommittedConfiguration(), equalTo(initialConfig));
         cs1.handleCommit(applyCommit.get());
@@ -527,7 +527,7 @@ public class CoordinationStateTests extends ESTestCase {
             randomLongBetween(startJoinRequest1.getTerm() + 1, 10) :
             randomLongBetween(0, startJoinRequest1.getTerm() - 1);
         assertThat(expectThrows(CoordinationStateRejectedException.class,
-            () -> cs1.handleCommit(new ApplyCommit(node1, term, 2L))).getMessage(),
+            () -> cs1.handleCommit(new ApplyCommitRequest(node1, term, 2L))).getMessage(),
             containsString("does not match current term"));
     }
 
@@ -540,7 +540,7 @@ public class CoordinationStateTests extends ESTestCase {
         assertTrue(cs1.handleJoin(v1));
         assertTrue(cs1.electionWon());
         assertThat(expectThrows(CoordinationStateRejectedException.class,
-            () -> cs1.handleCommit(new ApplyCommit(node1, startJoinRequest1.getTerm(), 2L))).getMessage(),
+            () -> cs1.handleCommit(new ApplyCommitRequest(node1, startJoinRequest1.getTerm(), 2L))).getMessage(),
             containsString("does not match last accepted term"));
     }
 
@@ -556,7 +556,7 @@ public class CoordinationStateTests extends ESTestCase {
         PublishRequest publishRequest = cs1.handleClientValue(state2);
         cs1.handlePublishRequest(publishRequest);
         assertThat(expectThrows(CoordinationStateRejectedException.class,
-            () -> cs1.handleCommit(new ApplyCommit(node1, startJoinRequest1.getTerm(), randomLongBetween(3, 10)))).getMessage(),
+            () -> cs1.handleCommit(new ApplyCommitRequest(node1, startJoinRequest1.getTerm(), randomLongBetween(3, 10)))).getMessage(),
             containsString("does not match current version"));
     }
 

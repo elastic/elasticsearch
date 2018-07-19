@@ -71,7 +71,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
+
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
 
 public class NestedAggregatorTests extends AggregatorTestCase {
 
@@ -84,6 +90,15 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
     private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
 
+    /**
+     * For each provided field type, we also register an alias with name <field>-alias.
+     */
+    @Override
+    protected Map<String, MappedFieldType> getFieldAliases(MappedFieldType... fieldTypes) {
+        return Arrays.stream(fieldTypes).collect(Collectors.toMap(
+            ft -> ft.name() + "-alias",
+            Function.identity()));
+    }
 
     public void testNoDocs() throws IOException {
         try (Directory directory = newDirectory()) {
@@ -634,6 +649,49 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 assertEquals("b1", valueAgg.getBuckets().get(0).getKey());
                 assertEquals("b2", valueAgg.getBuckets().get(1).getKey());
                 assertEquals("b3", valueAgg.getBuckets().get(2).getKey());
+            }
+        }
+    }
+
+    public void testFieldAlias() throws IOException {
+        int numRootDocs = randomIntBetween(1, 20);
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
+            NumberFieldMapper.NumberType.LONG);
+        fieldType.setName(VALUE_FIELD_NAME);
+
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < numRootDocs; i++) {
+                    List<Document> documents = new ArrayList<>();
+                    int numNestedDocs = randomIntBetween(0, 20);
+                    generateDocuments(documents, numNestedDocs, i, NESTED_OBJECT, VALUE_FIELD_NAME);
+
+                    Document document = new Document();
+                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(new Field(TypeFieldMapper.NAME, "test",
+                        TypeFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(sequenceIDFields.primaryTerm);
+                    documents.add(document);
+                    iw.addDocuments(documents);
+                }
+                iw.commit();
+            }
+
+            try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+                NestedAggregationBuilder agg = nested(NESTED_AGG, NESTED_OBJECT).subAggregation(
+                    max(MAX_AGG_NAME).field(VALUE_FIELD_NAME));
+
+                NestedAggregationBuilder aliasAgg = nested(NESTED_AGG, NESTED_OBJECT).subAggregation(
+                    max(MAX_AGG_NAME).field(VALUE_FIELD_NAME + "-alias"));
+
+                Nested nested = search(newSearcher(indexReader, false, true),
+                    new MatchAllDocsQuery(), agg, fieldType);
+                Nested aliasNested = search(newSearcher(indexReader, false, true),
+                    new MatchAllDocsQuery(), aliasAgg, fieldType);
+
+                assertTrue(nested.getDocCount() > 0);
+                assertEquals(nested, aliasNested);
             }
         }
     }

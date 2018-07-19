@@ -23,7 +23,6 @@ import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.lookup.PainlessMethodKey;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
@@ -185,7 +184,7 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
     static PainlessMethod lookupMethodInternal(PainlessLookup painlessLookup, Class<?> receiverClass, String name, int arity) {
-        PainlessMethodKey key = new PainlessMethodKey(name, arity);
+        String key = PainlessLookupUtility.buildPainlessMethodKey(name, arity);
         // check whitelist for matching method
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
             PainlessClass struct = painlessLookup.getPainlessStructFromJavaClass(clazz);
@@ -334,8 +333,8 @@ public final class Def {
          }
          int arity = interfaceMethod.arguments.size();
          PainlessMethod implMethod = lookupMethodInternal(painlessLookup, receiverClass, name, arity);
-        return lookupReferenceInternal(painlessLookup, methodHandlesLookup, interfaceType, implMethod.owner.name,
-                implMethod.name, receiverClass);
+        return lookupReferenceInternal(painlessLookup, methodHandlesLookup, interfaceType,
+                PainlessLookupUtility.anyTypeToPainlessTypeName(implMethod.target), implMethod.name, receiverClass);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */

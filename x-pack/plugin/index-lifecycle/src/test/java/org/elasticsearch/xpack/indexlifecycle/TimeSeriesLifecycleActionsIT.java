@@ -23,12 +23,14 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ReplicasAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -54,7 +56,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         String allocateNodeName = "node-" + randomFrom(0, 1);
         AllocateAction allocateAction = new AllocateAction(null, null, singletonMap("_name", allocateNodeName));
-        createNewSingletonPolicy("warm", allocateAction);
+        createNewSingletonPolicy(randomFrom("warm", "cold"), allocateAction);
         updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(index);
@@ -123,13 +125,31 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         int finalNumReplicas = (numReplicas + 1) % 2;
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas));
-        createNewSingletonPolicy("warm", new ReplicasAction(finalNumReplicas));
+        createNewSingletonPolicy(randomFrom("warm", "cold"), new ReplicasAction(finalNumReplicas));
         updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
 
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(index);
             assertThat(getStepKey(settings), equalTo(TerminalPolicyStep.KEY));
             assertThat(settings.get(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()), equalTo(String.valueOf(finalNumReplicas)));
+        });
+    }
+
+    public void testShrinkAction() throws Exception {
+        int numShards = 6;
+        int divisor = randomFrom(2, 3, 6);
+        int expectedFinalShards = numShards / divisor;
+        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        createNewSingletonPolicy("warm", new ShrinkAction(expectedFinalShards));
+        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        assertBusy(() -> {
+            assertTrue(indexExists(shrunkenIndex));
+            assertTrue(aliasExists(shrunkenIndex, index));
+            Map<String, Object> settings = getOnlyIndexSettings(shrunkenIndex);
+            assertThat(getStepKey(settings), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
         });
     }
 
@@ -156,7 +176,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> getOnlyIndexSettings(String index) throws IOException {
-        return (Map<String, Object>) ((Map<String, Object>) getIndexSettings(index).get(index)).get("settings");
+        Map<String, Object> response = (Map<String, Object>) getIndexSettings(index).get(index);
+        if (response == null) {
+            return Collections.emptyMap();
+        }
+        return (Map<String, Object>) response.get("settings");
     }
 
     private StepKey getStepKey(Map<String, Object> settings) {

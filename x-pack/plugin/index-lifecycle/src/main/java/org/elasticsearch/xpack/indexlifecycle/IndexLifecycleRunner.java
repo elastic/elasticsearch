@@ -64,8 +64,11 @@ public class IndexLifecycleRunner {
         }
         Step currentStep = getCurrentStep(stepRegistry, policy, indexSettings);
         if (currentStep == null) {
-            throw new IllegalStateException(
-                "current step for index [" + indexMetaData.getIndex().getName() + "] with policy [" + policy + "] is not recognized");
+            // This may happen in the case that there is invalid ilm-step index settings or the stepRegistry is out of
+            // sync with the current cluster state
+            logger.warn("current step [" + getCurrentStepKey(indexSettings) + "] for index [" + indexMetaData.getIndex().getName()
+                + "] with policy [" + policy + "] is not recognized");
+            return;
         }
         logger.debug("running policy with current-step[" + currentStep.getKey() + "]");
         if (currentStep instanceof TerminalPolicyStep) {
@@ -350,7 +353,7 @@ public class IndexLifecycleRunner {
             return true;
         }
     }
-    
+
     private static boolean isActionChanged(StepKey stepKey, LifecyclePolicy currentPolicy, LifecyclePolicy newPolicy) {
         LifecycleAction currentAction = getActionFromPolicy(currentPolicy, stepKey.getPhase(), stepKey.getAction());
         LifecycleAction newAction = getActionFromPolicy(newPolicy, stepKey.getPhase(), stepKey.getAction());
@@ -377,7 +380,7 @@ public class IndexLifecycleRunner {
      * state where it is able to deal with the policy being updated to
      * <code>newPolicy</code>. If any of these indexes is not in a state wheree
      * it can deal with the update the method will return <code>false</code>.
-     * 
+     *
      * @param policyName
      *            the name of the policy being updated
      * @param newPolicy

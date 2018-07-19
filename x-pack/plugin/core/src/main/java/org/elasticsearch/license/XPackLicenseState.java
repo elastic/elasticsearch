@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.core.XPackField;
@@ -265,7 +268,7 @@ public class XPackLicenseState {
     private volatile Status status = new Status(OperationMode.TRIAL, true);
     private final List<Runnable> listeners = new CopyOnWriteArrayList<>();
     private final boolean isSecurityEnabled;
-    private final boolean isSecurityExplicitlyEnabled;
+    private volatile boolean isSecurityExplicitlyEnabled;
 
     public XPackLicenseState(Settings settings) {
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
@@ -276,10 +279,25 @@ public class XPackLicenseState {
             (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) || XPackSettings.TRANSPORT_SSL_ENABLED.get(settings));
     }
 
-    /** Updates the current state of the license, which will change what features are available. */
-    void update(OperationMode mode, boolean active) {
+    /**
+     * Updates the current state of the license, which will change what features are available.
+     *
+     * @param mode   The mode (type) of the current license.
+     * @param active True if the current license exists and is within its allowed usage period; false if it is expired or missing.
+     * @param trialVersion If the mode is {@link OperationMode#TRIAL}, then the version for which that trial license was generated, or
+     *                     null if no version was recorded.
+     */
+    void update(OperationMode mode, boolean active, @Nullable Version trialVersion) {
         status = new Status(mode, active);
         listeners.forEach(Runnable::run);
+        if (isSecurityEnabled == true && isSecurityExplicitlyEnabled == false && mode == OperationMode.TRIAL) {
+            // Before 6.3, Trial licenses would default having security enabled.
+            // If this license was generated before that version, then treat it as if security is explicitly enabled
+            if (trialVersion == null || trialVersion.before(Version.V_6_3_0)) {
+                Loggers.getLogger(getClass()).info("Automatically enabling security for older trial license ({})", trialVersion);
+                isSecurityExplicitlyEnabled = true;
+            }
+        }
     }
 
     /** Add a listener to be notified on license change */

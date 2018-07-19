@@ -307,7 +307,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     public static void disableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, false);
+            licenseState.update(operationMode, false, null);
         }
     }
 
@@ -317,7 +317,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     public static void enableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, true);
+            licenseState.update(operationMode, true, null);
         }
     }
 }
